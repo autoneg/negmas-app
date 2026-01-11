@@ -1,0 +1,21 @@
+issues:
+- name: Plane
+  type: CategoricalIssue
+  values:
+  - Piper
+  - Aircraft4
+  - Boing747
+- name: Engine
+  type: CategoricalIssue
+  values:
+  - Rocket
+  - Jet
+  - Turbo
+- name: Technology
+  type: CategoricalIssue
+  values:
+  - Old radio
+  - Regular computer
+  - Super computer
+name: planes_domain
+type: DiscreteCartesianOutcomeSpace

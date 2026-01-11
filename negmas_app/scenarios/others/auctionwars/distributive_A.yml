@@ -1,0 +1,23 @@
+name: distributive_A
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    '0': 0.0
+    '1': 30.0
+    '2': 60.0
+    '3': 90.0
+  type: TableFun
+- mapping:
+    '0': 0.0
+    '1': 15.0
+    '2': 30.0
+  type: TableFun
+- mapping:
+    '0': 0.0
+    '1': 5.0
+  type: TableFun
+weights:
+- 0.72
+- 0.24
+- 0.04

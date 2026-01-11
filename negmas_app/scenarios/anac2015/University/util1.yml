@@ -1,0 +1,44 @@
+name: util1
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    EE: 3.0
+    TBM: 4.0
+    TI: 1.0
+    TW: 2.0
+    WB: 5.0
+  type: TableFun
+- mapping:
+    3ME: 2.0
+    EWI: 1.0
+    TPM: 3.0
+  type: TableFun
+- mapping:
+    CEO: 5.0
+    Developer: 2.0
+    Engineer: 4.0
+    Jobless: 3.0
+    Manager: 1.0
+  type: TableFun
+- mapping:
+    Cave: 6.0
+    House: 1.0
+    Parents: 5.0
+    Single Room: 3.0
+    Studio: 4.0
+    Under the bridge: 2.0
+  type: TableFun
+- mapping:
+    Catering: 3.0
+    Fastfood Restaurant: 4.0
+    None: 1.0
+    Restaurant: 5.0
+    Supermarket: 2.0
+  type: TableFun
+weights:
+- 0.22971255212531766
+- 0.19445815764138663
+- 0.3195090904578825
+- 0.14519732217626768
+- 0.11112287759914556

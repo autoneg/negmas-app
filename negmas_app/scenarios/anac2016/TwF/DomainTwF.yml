@@ -1,0 +1,19 @@
+issues:
+- name: a
+  type: CategoricalIssue
+  values:
+  - a1
+  - a2
+  - a3
+  - a4
+  - a5
+- name: b
+  type: CategoricalIssue
+  values:
+  - b1
+  - b2
+  - b3
+  - b4
+  - b5
+name: DomainTwF
+type: DiscreteCartesianOutcomeSpace

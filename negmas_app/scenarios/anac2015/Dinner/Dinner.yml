@@ -1,0 +1,40 @@
+issues:
+- name: Vegetarian (yes/no)
+  type: CategoricalIssue
+  values:
+  - Vegetarian
+  - Meat
+- name: Where to eat
+  type: CategoricalIssue
+  values:
+  - Home(make it yourself)
+  - Home(take away)
+  - Cheap Restaurant
+  - Fancy Restaurant
+- name: Origin
+  type: CategoricalIssue
+  values:
+  - Dutch food
+  - Asian food
+  - Italian food
+  - French food
+  - Greek food
+  - Turkish food
+- name: time
+  type: CategoricalIssue
+  values:
+  - '18:00'
+  - '19:00'
+  - '20:00'
+  - '21:00'
+  - '22:00'
+- name: Spicyness
+  type: CategoricalIssue
+  values:
+  - not spicy at all
+  - somewhat spicy
+  - pretty spicy
+  - very spicy
+  - HOT
+name: Dinner
+type: DiscreteCartesianOutcomeSpace

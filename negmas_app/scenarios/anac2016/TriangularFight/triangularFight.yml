@@ -1,0 +1,15 @@
+issues:
+- name: a
+  type: CategoricalIssue
+  values:
+  - a1
+  - a2
+  - a3
+- name: b
+  type: CategoricalIssue
+  values:
+  - b1
+  - b2
+  - b3
+name: triangularFight
+type: DiscreteCartesianOutcomeSpace

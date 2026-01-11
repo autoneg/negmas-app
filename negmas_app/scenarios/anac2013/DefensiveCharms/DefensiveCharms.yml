@@ -1,0 +1,22 @@
+issues:
+- name: Barriers
+  type: CategoricalIssue
+  values:
+  - Age Line
+  - Salvio Hexia
+  - Impervius
+- name: Shields
+  type: CategoricalIssue
+  values:
+  - Protego
+  - Protego Maxima
+  - Protego Duo
+  - Protego Horibilis
+- name: Warnings
+  type: CategoricalIssue
+  values:
+  - Cave Inimicum
+  - Colloportus
+  - Muffliato
+name: DefensiveCharms
+type: DiscreteCartesianOutcomeSpace

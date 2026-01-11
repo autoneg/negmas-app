@@ -1,0 +1,42 @@
+name: Phone-A-prof2
+reserved_value: 0.5
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Apple: 1.0
+    HP: 10.0
+    Motorola: 5.0
+    Nokia: 2.0
+  type: TableFun
+- mapping:
+    Black: 1.0
+    Grey: 3.0
+    Red: 5.0
+    Silver: 2.0
+    White: 10.0
+  type: TableFun
+- mapping:
+    Android: 10.0
+    Apple: 1.0
+    BlackBerry: 5.0
+    Windows Mobile: 2.0
+  type: TableFun
+- mapping:
+    1G: 10.0
+    2G: 2.0
+    4G: 5.0
+    510M: 1.0
+  type: TableFun
+- mapping:
+    1280*1280: 2.0
+    240*400: 1.0
+    480*800: 3.0
+    600*1024: 5.0
+    800*1280: 10.0
+  type: TableFun
+weights:
+- 0.19809841554214838
+- 0.04601302397681726
+- 0.49714223885671444
+- 0.15232377562964988
+- 0.1

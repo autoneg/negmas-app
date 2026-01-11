@@ -1,0 +1,79 @@
+discount: 0.5
+dynamic_reservation: true
+name: util1
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/other/y2018_not_used/JackPot/util1.xml
+  reserved_value: 0.2
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      Ace: 1.0
+      Eight: 8.0
+      Five: 5.0
+      Four: 4.0
+      Jack: 11.0
+      Joker: 0.0
+      King: 13.0
+      Nine: 9.0
+      Queen: 12.0
+      Seven: 7.0
+      Six: 6.0
+      Ten: 10.0
+      Three: 3.0
+      Two: 2.0
+    type: TableFun
+  - mapping:
+      Ace: 0.0
+      Eight: 8.0
+      Five: 4.0
+      Four: 3.0
+      Jack: 11.0
+      Joker: 13.0
+      King: 13.0
+      Nine: 9.0
+      Queen: 20.0
+      Seven: 7.0
+      Six: 6.0
+      Ten: 10.0
+      Three: 2.0
+      Two: 1.0
+    type: TableFun
+  - mapping:
+      Ace: 1.0
+      Eight: 8.0
+      Five: 5.0
+      Four: 4.0
+      Jack: 11.0
+      Joker: 14.0
+      King: 13.0
+      Nine: 9.0
+      Queen: 12.0
+      Seven: 7.0
+      Six: 6.0
+      Ten: 10.0
+      Three: 3.0
+      Two: 2.0
+    type: TableFun
+  - mapping:
+      Ace: 20.0
+      Eight: 8.0
+      Five: 5.0
+      Four: 4.0
+      Jack: 11.0
+      Joker: 14.0
+      King: 13.0
+      Nine: 9.0
+      Queen: 12.0
+      Seven: 7.0
+      Six: 6.0
+      Ten: 10.0
+      Three: 3.0
+      Two: 2.0
+    type: TableFun
+  weights:
+  - 0.3524642333753437
+  - 0.21928156575434146
+  - 0.21117738508227496
+  - 0.2170768157880399

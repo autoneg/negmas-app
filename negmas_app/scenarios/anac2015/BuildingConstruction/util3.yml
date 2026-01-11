@@ -1,0 +1,42 @@
+name: util3
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    large: 0.0
+    medium: 33.0
+    none: 100.0
+    small: 67.0
+  type: TableFun
+- mapping:
+    double glazing: 100.0
+    single glazing: 60.0
+  type: TableFun
+- mapping:
+    common: 100.0
+    modern: 80.0
+    old_fashioned: 60.0
+  type: TableFun
+- mapping:
+    large: 50.0
+    medium: 100.0
+    small: 50.0
+  type: TableFun
+- mapping:
+    long: 0.0
+    medium: 50.0
+    short: 100.0
+  type: TableFun
+- mapping:
+    cable: 60.0
+    fiberglass: 100.0
+    phone_line: 20.0
+    satellite: 0.0
+  type: TableFun
+weights:
+- 0.15108814979595594
+- 0.04920326933489913
+- 0.40338184974494734
+- 0.07216149835554157
+- 0.07912793818282718
+- 0.2450372945858288

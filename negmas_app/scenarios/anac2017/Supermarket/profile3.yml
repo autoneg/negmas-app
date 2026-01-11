@@ -1,0 +1,49 @@
+name: profile3
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Apricots: 3.0
+    Cherries: 5.0
+    Coconuts: 7.0
+    Mangoes: 8.0
+    Oranges: 3.0
+    Peaches: 6.0
+    Pears: 5.0
+    Strawberries: 10.0
+  type: TableFun
+- mapping:
+    Candy bars: 3.0
+    Cookies: 7.0
+    Doughnuts: 9.0
+    Mixed-nuts: 7.0
+    Popcorn: 4.0
+    Potato Chips: 8.0
+  type: TableFun
+- mapping:
+    Butter: 7.0
+    Cheese: 5.0
+    Chocolate: 4.0
+    Honey: 6.0
+    Jam: 9.0
+  type: TableFun
+- mapping:
+    Cabbage: 7.0
+    Carrots: 3.0
+    Eggplants: 9.0
+    Lettuce: 7.0
+    Potatoes: 6.0
+    Tomatos: 3.0
+  type: TableFun
+- mapping:
+    Coca Cola: 2.0
+    Energy-Drinks: 4.0
+    Juice: 9.0
+    Nescafe: 6.0
+  type: TableFun
+weights:
+- 0.4762959442532059
+- 0.22329555540252788
+- 0.07013496098215939
+- 0.11138905092742825
+- 0.132

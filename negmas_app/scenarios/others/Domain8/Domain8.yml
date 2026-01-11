@@ -1,0 +1,51 @@
+issues:
+- name: a
+  type: CategoricalIssue
+  values:
+  - a1
+  - a2
+  - a3
+- name: b
+  type: CategoricalIssue
+  values:
+  - b1
+  - b2
+  - b3
+- name: c
+  type: CategoricalIssue
+  values:
+  - c1
+  - c2
+  - c3
+- name: d
+  type: CategoricalIssue
+  values:
+  - d1
+  - d2
+  - d3
+- name: e
+  type: CategoricalIssue
+  values:
+  - e1
+  - e2
+  - e3
+- name: f
+  type: CategoricalIssue
+  values:
+  - f1
+  - f2
+  - f3
+- name: g
+  type: CategoricalIssue
+  values:
+  - g1
+  - g2
+  - g3
+- name: h
+  type: CategoricalIssue
+  values:
+  - h1
+  - h2
+  - h3
+name: Domain8
+type: DiscreteCartesianOutcomeSpace

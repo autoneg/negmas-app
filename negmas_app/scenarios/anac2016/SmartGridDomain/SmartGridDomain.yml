@@ -1,0 +1,26 @@
+issues:
+- name: Price Level
+  type: CategoricalIssue
+  values:
+  - Price 1
+  - Price 2
+  - Price 3
+  - Price 4
+- name: ContractDuration
+  type: CategoricalIssue
+  values:
+  - 5 Years
+  - 2 Years
+  - 1 Year
+  - 6 Months
+  - 1 Month
+- name: EnergyDelivered
+  type: CategoricalIssue
+  values:
+  - Energy Amount 1
+  - Energy Amount 2
+  - Energy Amount 3
+  - Energy Amount 4
+  - Energy Amount 5
+name: SmartGridDomain
+type: DiscreteCartesianOutcomeSpace

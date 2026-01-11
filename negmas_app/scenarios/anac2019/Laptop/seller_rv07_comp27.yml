@@ -1,0 +1,23 @@
+name: seller_rv07_comp27
+reserved_value: 0.7
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Dell: 12.0
+    HP: 20.0
+    Macintosh: 30.0
+  type: TableFun
+- mapping:
+    120 Gb: 9.0
+    60 Gb: 20.0
+    80 Gb: 30.0
+  type: TableFun
+- mapping:
+    19'' LCD: 3.0
+    20'' LCD: 2.0
+    23'' LCD: 1.0
+  type: TableFun
+weights:
+- 0.37854829614250546
+- 0.1761818170065695
+- 0.4452698868509251

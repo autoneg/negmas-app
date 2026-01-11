@@ -1,0 +1,91 @@
+discount: 0.4
+dynamic_reservation: true
+name: util5
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/other/Domain16/util5.xml
+  reserved_value: 0.7
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      a1: 1.0
+      a2: 5.0
+    type: TableFun
+  - mapping:
+      b1: 1.0
+      b2: 4.0
+    type: TableFun
+  - mapping:
+      c1: 4.0
+      c2: 4.0
+    type: TableFun
+  - mapping:
+      d1: 4.0
+      d2: 4.0
+    type: TableFun
+  - mapping:
+      e1: 5.0
+      e2: 2.0
+    type: TableFun
+  - mapping:
+      g1: 3.0
+      g2: 9.0
+    type: TableFun
+  - mapping:
+      f1: 4.0
+      f2: 1.0
+    type: TableFun
+  - mapping:
+      h1: 1.0
+      h2: 9.0
+    type: TableFun
+  - mapping:
+      i1: 1.0
+      i2: 8.0
+    type: TableFun
+  - mapping:
+      j1: 1.0
+      j2: 4.0
+    type: TableFun
+  - mapping:
+      k1: 1.0
+      k2: 5.0
+    type: TableFun
+  - mapping:
+      l1: 8.0
+      l2: 9.0
+    type: TableFun
+  - mapping:
+      m1: 5.0
+      m2: 8.0
+    type: TableFun
+  - mapping:
+      n1: 5.0
+      n2: 6.0
+    type: TableFun
+  - mapping:
+      o1: 6.0
+      o2: 9.0
+    type: TableFun
+  - mapping:
+      p1: 3.0
+      p2: 5.0
+    type: TableFun
+  weights:
+  - 0.0825567748641329
+  - 0.13471623790378146
+  - 0.11557058775988231
+  - 0.10847915245102767
+  - 0.07331830746475711
+  - 0.08029202041068695
+  - 0.10428657560125822
+  - 8.276718126633898e-05
+  - 0.1522951025327068
+  - 0.0010724181181229078
+  - 0.0441194443031498
+  - 0.02407436912539595
+  - 0.027060866209675048
+  - 0.004030352107656202
+  - 0.007023073774508008
+  - 0.04102195019199228

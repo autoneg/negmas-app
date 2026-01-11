@@ -1,0 +1,55 @@
+issues:
+- name: issueA
+  type: CategoricalIssue
+  values:
+  - valueA
+  - valueB
+  - valueC
+  - valueD
+- name: issueB
+  type: CategoricalIssue
+  values:
+  - valueA
+  - valueB
+  - valueC
+  - valueD
+  - valueE
+  - valueF
+  - valueG
+  - valueH
+  - valueI
+  - valueJ
+  - valueK
+  - valueL
+- name: issueC
+  type: CategoricalIssue
+  values:
+  - valueA
+  - valueB
+  - valueC
+  - valueD
+  - valueE
+  - valueF
+  - valueG
+  - valueH
+  - valueI
+- name: issueD
+  type: CategoricalIssue
+  values:
+  - valueA
+  - valueB
+  - valueC
+  - valueD
+  - valueE
+  - valueF
+  - valueG
+  - valueH
+  - valueI
+  - valueJ
+  - valueK
+  - valueL
+  - valueM
+  - valueN
+  - valueO
+name: domain36
+type: DiscreteCartesianOutcomeSpace

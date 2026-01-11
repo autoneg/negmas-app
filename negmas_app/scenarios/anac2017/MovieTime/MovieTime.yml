@@ -1,0 +1,30 @@
+issues:
+- name: FilmGenre
+  type: CategoricalIssue
+  values:
+  - Thriller
+  - Comedy
+  - Adventure
+  - Documentary
+  - FilmNoir
+  - Animation
+- name: Place
+  type: CategoricalIssue
+  values:
+  - Home
+  - Cinema
+- name: Transportation
+  type: CategoricalIssue
+  values:
+  - Car
+  - Bus
+  - Taxi
+- name: Snack
+  type: CategoricalIssue
+  values:
+  - PopCorn
+  - Nachos
+  - IceCream
+  - MilkShake
+name: MovieTime
+type: DiscreteCartesianOutcomeSpace

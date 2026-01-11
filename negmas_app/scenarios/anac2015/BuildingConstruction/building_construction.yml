@@ -1,0 +1,40 @@
+issues:
+- name: yard_size
+  type: CategoricalIssue
+  values:
+  - large
+  - medium
+  - small
+  - none
+- name: windows
+  type: CategoricalIssue
+  values:
+  - single glazing
+  - double glazing
+- name: architecture_style
+  type: CategoricalIssue
+  values:
+  - modern
+  - common
+  - old_fashioned
+- name: mortgage_needed
+  type: CategoricalIssue
+  values:
+  - small
+  - medium
+  - large
+- name: construction_time
+  type: CategoricalIssue
+  values:
+  - short
+  - medium
+  - long
+- name: internet_connection
+  type: CategoricalIssue
+  values:
+  - satellite
+  - phone_line
+  - cable
+  - fiberglass
+name: building_construction
+type: DiscreteCartesianOutcomeSpace

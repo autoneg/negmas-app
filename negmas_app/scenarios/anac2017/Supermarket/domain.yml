@@ -1,0 +1,47 @@
+issues:
+- name: Fruit
+  type: CategoricalIssue
+  values:
+  - Apricots
+  - Cherries
+  - Coconuts
+  - Mangoes
+  - Oranges
+  - Peaches
+  - Pears
+  - Strawberries
+- name: Snacks
+  type: CategoricalIssue
+  values:
+  - Candy bars
+  - Cookies
+  - Doughnuts
+  - Mixed-nuts
+  - Popcorn
+  - Potato Chips
+- name: Spreads
+  type: CategoricalIssue
+  values:
+  - Butter
+  - Cheese
+  - Chocolate
+  - Honey
+  - Jam
+- name: Vegetables
+  type: CategoricalIssue
+  values:
+  - Cabbage
+  - Carrots
+  - Eggplants
+  - Lettuce
+  - Potatoes
+  - Tomatos
+- name: Drinks
+  type: CategoricalIssue
+  values:
+  - Coca Cola
+  - Energy-Drinks
+  - Juice
+  - Nescafe
+name: domain
+type: DiscreteCartesianOutcomeSpace

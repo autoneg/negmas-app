@@ -1,0 +1,22 @@
+issues:
+- name: price
+  type: CategoricalIssue
+  values:
+  - 150000yen
+  - 200000yen
+  - 250000yen
+  - 300000yen
+- name: DepartureAirPort
+  type: CategoricalIssue
+  values:
+  - CentrAir
+  - Narita
+  - Kansai
+- name: DepartureDate
+  type: CategoricalIssue
+  values:
+  - Sep2_2011
+  - Sep3_2011
+  - Sep4_2011
+name: FlightBooking-A-domain
+type: DiscreteCartesianOutcomeSpace

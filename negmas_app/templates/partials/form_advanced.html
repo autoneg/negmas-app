@@ -1,0 +1,34 @@
+<!-- Advanced Section -->
+<div class="collapsible">
+    <div class="collapsible-header" onclick="toggleCollapsible(this)">
+        <span class="collapsible-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            Advanced Options
+        </span>
+        <svg class="collapsible-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 9l6 6 6-6"/>
+        </svg>
+    </div>
+    <div class="collapsible-content">
+        <div class="form-group">
+            <label for="extra_paths">
+                Extra Paths
+                <span class="label-hint">(comma-separated paths for custom classes)</span>
+            </label>
+            <input type="text" id="extra_paths" name="extra_paths" placeholder="e.g., ./my_agents,./custom_mechanisms">
+        </div>
+        <div class="form-row">
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="fast" name="fast">
+                <label for="fast">Fast mode (avoid slow operations)</label>
+            </div>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="raise_exceptions" name="raise_exceptions">
+                <label for="raise_exceptions">Raise exceptions on failure</label>
+            </div>
+        </div>
+    </div>
+</div>

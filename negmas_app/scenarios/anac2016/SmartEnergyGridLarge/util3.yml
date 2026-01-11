@@ -1,0 +1,38 @@
+name: util3
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    BMW i3: 36.0
+    Chevrolet Spark EV: 56.0
+    Fiat 500e: 89.0
+    Ford Focus Electric: 31.0
+    Honda Fit EV: 42.0
+    Kia Soul EV: 34.0
+    Mitsubishi i-MiEV: 78.0
+    Nissan Leaf: 38.0
+    'Tesla Model S P90D ': 76.0
+    Toyota RAV4 EV: 31.0
+  type: TableFun
+- mapping:
+    100KW/KG: 25.0
+    20KW/KG: 10.0
+    30KW/KG: 13.0
+    60KW/KG: 17.0
+    70KW/KG: 20.0
+  type: TableFun
+- bias: 0.6
+  slope: 0.025
+  type: AffineFun
+- mapping:
+    Isolated T-Storms: 3.0
+    Partly Sunny: 35.0
+    Rainy: 9.0
+    Sunny: 20.0
+    Windy: 10.0
+  type: TableFun
+weights:
+- 0.17829860676182976
+- 0.296367034259102
+- 0.3782920283134138
+- 0.14704233066565445

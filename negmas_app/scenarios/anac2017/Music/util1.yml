@@ -1,0 +1,43 @@
+name: util1
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Bach: 3.0
+    Beethoven: 8.0
+    Chopin: 7.0
+    List: 5.0
+    Mozart: 9.0
+    Paganini: 4.0
+    Schubert: 2.0
+    Tchaikovsky: 1.0
+    Vivaldi: 6.0
+  type: TableFun
+- mapping:
+    Opera: 1.0
+    Orchestra: 2.0
+    Piano: 4.0
+    Violin: 3.0
+  type: TableFun
+- mapping:
+    Friday: 2.0
+    Monday: 6.0
+    Saturday: 1.0
+    Sunday: 7.0
+    Thursday: 3.0
+    Tuesday: 5.0
+    Wednesday: 4.0
+  type: TableFun
+- mapping:
+    America: 5.0
+    Austria: 2.0
+    France: 4.0
+    Germany: 1.0
+    Italy: 3.0
+    Japan: 6.0
+  type: TableFun
+weights:
+- 0.40660012809384355
+- 0.18416993718084007
+- 0.13110586333731855
+- 0.2781240713879977

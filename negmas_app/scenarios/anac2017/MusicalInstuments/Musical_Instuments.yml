@@ -1,0 +1,32 @@
+issues:
+- name: Guitar
+  type: CategoricalIssue
+  values:
+  - Ibanez
+  - Epiphone
+  - Gibson
+  - Gretsch
+  - Yamaha
+  - Fender
+  - Hohner
+- name: Piano
+  type: CategoricalIssue
+  values:
+  - Casio
+  - Yamaha
+  - Nord
+  - Bluthner
+  - Baldwin
+  - Ritmuller
+  - Seiler
+- name: Amplifier
+  type: CategoricalIssue
+  values:
+  - Laney
+  - Blackstar
+  - Ashton
+  - Line 6
+  - Fender
+  - Yamaha
+name: Musical_Instuments
+type: DiscreteCartesianOutcomeSpace

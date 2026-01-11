@@ -1,0 +1,9 @@
+issues:
+- name: NiceOrDie
+  type: CategoricalIssue
+  values:
+  - '100_16'
+  - '16_100'
+  - '29_29'
+name: NiceOrDie
+type: DiscreteCartesianOutcomeSpace

@@ -1,0 +1,46 @@
+name: '5'
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Catering: 4.0
+    Chips and Nuts: 1.0
+    Finger-Food: 2.0
+    Handmade Food: 3.0
+  type: TableFun
+- mapping:
+    Beer Only: 4.0
+    Catering: 3.0
+    Handmade Cocktails: 2.0
+    Non-Alcoholic: 1.0
+  type: TableFun
+- mapping:
+    Ballroom: 3.0
+    Party Room: 5.0
+    Party Tent: 1.0
+    Your Dorm: 1.0
+  type: TableFun
+- mapping:
+    Custom, Handmade: 1.0
+    Custom, Printed: 3.0
+    Photo: 4.0
+    Plain: 5.0
+  type: TableFun
+- mapping:
+    Band: 7.0
+    DJ: 4.0
+    MP3: 1.0
+  type: TableFun
+- mapping:
+    Hired Help: 8.0
+    Special Equiment: 3.0
+    Specialized Materials: 2.0
+    Water and Soap: 1.0
+  type: TableFun
+weights:
+- 0.062282126543498025
+- 0.11717166964863943
+- 0.4842964064414259
+- 0.0011671496509894437
+- 0.13913092785961667
+- 0.19610998512762423

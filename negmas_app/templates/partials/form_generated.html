@@ -1,0 +1,97 @@
+<!-- Generated Scenario Section -->
+<div class="collapsible">
+    <div class="collapsible-header" onclick="toggleCollapsible(this)">
+        <span class="collapsible-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                <polyline points="2 17 12 22 22 17"/>
+                <polyline points="2 12 12 17 22 12"/>
+            </svg>
+            Generated Scenario
+        </span>
+        <svg class="collapsible-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 9l6 6 6-6"/>
+        </svg>
+    </div>
+    <div class="collapsible-content">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="issues">Number of Issues</label>
+                <input type="number" id="issues" name="issues" min="1" placeholder="e.g., 5">
+            </div>
+            <div class="form-group">
+                <label for="sizes">Issue Sizes <span class="label-hint">(comma-separated)</span></label>
+                <input type="text" id="sizes" name="sizes" placeholder="e.g., 10,20,15">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="values_min">Min Values per Issue</label>
+                <input type="number" id="values_min" name="values_min" value="2" min="2">
+            </div>
+            <div class="form-group">
+                <label for="values_max">Max Values per Issue</label>
+                <input type="number" id="values_max" name="values_max" value="50" min="2">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="reserved_values_min">Min Reserved Value</label>
+                <input type="number" id="reserved_values_min" name="reserved_values_min" value="0.0" min="0" max="1" step="0.01">
+            </div>
+            <div class="form-group">
+                <label for="reserved_values_max">Max Reserved Value</label>
+                <input type="number" id="reserved_values_max" name="reserved_values_max" value="1.0" min="0" max="1" step="0.01">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="reservation_selector">Reservation Selector</label>
+                <select id="reservation_selector" name="reservation_selector">
+                    <option value="min" selected>min</option>
+                    <option value="max">max</option>
+                    <option value="first">first</option>
+                    <option value="last">last</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="rational_fraction">Rational Fraction <span class="label-hint">(comma-separated)</span></label>
+                <input type="text" id="rational_fraction" name="rational_fraction" placeholder="e.g., 0.5,0.5">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="issue_names">Issue Names <span class="label-hint">(comma-separated)</span></label>
+                <input type="text" id="issue_names" name="issue_names" placeholder="e.g., price,quantity,delivery">
+            </div>
+            <div class="form-group">
+                <label for="os_name">Outcome Space Name</label>
+                <input type="text" id="os_name" name="os_name" placeholder="e.g., MyOutcomeSpace">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="ufun_names">Utility Function Names <span class="label-hint">(comma-separated)</span></label>
+                <input type="text" id="ufun_names" name="ufun_names" placeholder="e.g., buyer_ufun,seller_ufun">
+            </div>
+            <div class="form-group">
+                <label for="pareto_generator">Pareto Generator</label>
+                <input type="text" id="pareto_generator" name="pareto_generator" placeholder="e.g., random">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="rational" name="rational" checked>
+                <label for="rational">Guarantee rational outcomes exist</label>
+            </div>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="numeric" name="numeric">
+                <label for="numeric">Use numeric issues</label>
+            </div>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="linear" name="linear" checked>
+                <label for="linear">Linear utility functions</label>
+            </div>
+        </div>
+    </div>
+</div>

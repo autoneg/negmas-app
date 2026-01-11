@@ -1,0 +1,24 @@
+name: prof2
+reserved_value: 0.60005
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    150000yen: 1.0
+    200000yen: 0.75
+    250000yen: 0.5
+    300000yen: 0.25
+  type: TableFun
+- mapping:
+    CentAir: 0.333
+    Kansai: 1.0
+    Narita: 0.665
+  type: TableFun
+- mapping:
+    2 sept.: 1.0
+    3 sept.: 0.667
+    4 sept.: 0.333
+  type: TableFun
+weights:
+- 0.7
+- 0.15
+- 0.15

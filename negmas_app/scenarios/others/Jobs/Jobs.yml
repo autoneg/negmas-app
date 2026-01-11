@@ -1,0 +1,39 @@
+issues:
+- name: salary
+  type: CategoricalIssue
+  values:
+  - '2000'
+  - '2500'
+  - '3000'
+  - '3500'
+  - '4000'
+- name: fte
+  type: CategoricalIssue
+  values:
+  - '0.6'
+  - '0.8'
+  - '1.0'
+- name: work from home
+  type: CategoricalIssue
+  values:
+  - '0'
+  - '1'
+  - '2'
+- name: lease car
+  type: CategoricalIssue
+  values:
+  - 'yes'
+  - 'no'
+- name: permanent contract
+  type: CategoricalIssue
+  values:
+  - 'yes'
+  - 'no'
+- name: career development opportunities
+  type: CategoricalIssue
+  values:
+  - low
+  - medium
+  - high
+name: Jobs
+type: DiscreteCartesianOutcomeSpace

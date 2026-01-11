@@ -1,0 +1,34 @@
+name: util2
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Epiphone: 15.0
+    Fender: 5.0
+    Gibson: 20.0
+    Gretsch: 3.0
+    Hohner: 8.0
+    Ibanez: 10.0
+    Yamaha: 12.0
+  type: TableFun
+- mapping:
+    Baldwin: 5.0
+    Bluthner: 13.0
+    Casio: 4.0
+    Nord: 11.0
+    Ritmuller: 10.0
+    Seiler: 16.0
+    Yamaha: 7.0
+  type: TableFun
+- mapping:
+    Ashton: 5.0
+    Blackstar: 12.0
+    Fender: 20.0
+    Laney: 9.0
+    Line 6: 15.0
+    Yamaha: 17.0
+  type: TableFun
+weights:
+- 0.28050399365550394
+- 0.418428127377161
+- 0.30106787896733506

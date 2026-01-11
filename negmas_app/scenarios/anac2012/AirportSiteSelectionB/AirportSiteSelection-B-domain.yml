@@ -1,0 +1,35 @@
+issues:
+- name: Cost
+  type: CategoricalIssue
+  values:
+  - GreaterThanOrEqual5.2bn
+  - 5.0bn
+  - 4.8bn
+  - 4.6bn
+  - 4.4bn
+  - 4.2bn
+  - 4.0bn
+  - 3.8bn
+  - 3.6bn
+  - LessThanOrEqual3.4bn
+- name: Noise
+  type: CategoricalIssue
+  values:
+  - LessThan10000
+  - '10000'
+  - '20000'
+  - '30000'
+  - '40000'
+  - '50000'
+  - GreaterThan50000
+- name: AccidentLevelPerMillionPassengerMiles
+  type: CategoricalIssue
+  values:
+  - GreaterThanOrEqual0.1
+  - '0.08'
+  - '0.06'
+  - '0.04'
+  - '0.02'
+  - LessThan0.02
+name: AirportSiteSelection-B-domain
+type: DiscreteCartesianOutcomeSpace

@@ -1,0 +1,43 @@
+discount: 0.5
+dynamic_reservation: true
+name: HouseKeeping-B-prof1
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/anac/y2012/HouseKeepingB/HouseKeeping-B-prof1.xml
+  reserved_value: 0.25
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      Both: 30.0
+      Husbend: 10.0
+      Maid: 70.0
+      Wife: 100.0
+    type: TableFun
+  - mapping:
+      Both: 85.0
+      Husbend: 40.0
+      Wife: 100.0
+    type: TableFun
+  - mapping:
+      Husbend: 50.0
+      Wife: 100.0
+    type: TableFun
+  - mapping:
+      Both: 40.0
+      Husbend: 10.0
+      Take-away food: 100.0
+      Wife: 70.0
+    type: TableFun
+  - mapping:
+      Both: 100.0
+      Gardener: 10.0
+      Husbend: 50.0
+      Wife: 70.0
+    type: TableFun
+  weights:
+  - 0.3
+  - 0.1
+  - 0.2
+  - 0.2
+  - 0.2

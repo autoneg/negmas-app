@@ -1,0 +1,22 @@
+name: util5
+reserved_value: 0.4
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Driver: 3.0
+    Hostage Taker: 6.0
+    Money Grabber: 1.0
+  type: TableFun
+- mapping:
+    Car: 3.0
+    Hellicopter: 3.0
+    Horse: 4.0
+  type: TableFun
+- mapping:
+    Equally: 8.0
+    Proportional to Performance: 2.0
+  type: TableFun
+weights:
+- 0.6013609187189283
+- 0.0990704341666268
+- 0.299568647114445

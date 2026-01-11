@@ -1,0 +1,54 @@
+discount: 0.75
+dynamic_reservation: true
+name: prof1
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/anac/y2012/FitnessA/prof1.xml
+  reserved_value: 0.5
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      aerobics: 2.0
+      running: 1.0
+      swimming: 3.0
+      tennis: 5.0
+      yoga: 4.0
+    type: TableFun
+  - mapping:
+      1hour: 4.0
+      30minutes: 3.0
+      3hour: 2.0
+      5hour: 1.0
+    type: TableFun
+  - mapping:
+      0km: 3.0
+      ~1km: 4.0
+      ~40km: 2.0
+      ~80km: 1.0
+    type: TableFun
+  - mapping:
+      as boot-camp: 1.0
+      as training: 4.0
+      light: 2.0
+      moderate: 3.0
+    type: TableFun
+  - mapping:
+      '0': 10.0
+      '1': 9.0
+      '10': 0.0
+      '2': 8.0
+      '3': 7.0
+      '4': 6.0
+      '5': 5.0
+      '6': 4.0
+      '7': 3.0
+      '8': 2.0
+      '9': 1.0
+    type: TableFun
+  weights:
+  - 0.15354168265071755
+  - 0.04506011216336407
+  - 0.2981224975326285
+  - 0.29905439297725833
+  - 0.20422131467603144

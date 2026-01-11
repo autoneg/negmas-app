@@ -1,0 +1,52 @@
+issues:
+- name: A
+  type: CategoricalIssue
+  values:
+  - a1
+  - a2
+  - a3
+  - a4
+  - a5
+  - a6
+  - a7
+  - a8
+- name: B
+  type: CategoricalIssue
+  values:
+  - b1
+  - b2
+  - b3
+  - b4
+  - b5
+- name: C
+  type: CategoricalIssue
+  values:
+  - c1
+  - c2
+  - c3
+- name: D
+  type: CategoricalIssue
+  values:
+  - d1
+  - d2
+  - d3
+- name: E
+  type: CategoricalIssue
+  values:
+  - e1
+  - e2
+  - e3
+  - e4
+  - e5
+- name: F
+  type: CategoricalIssue
+  values:
+  - f1
+  - f2
+- name: G
+  type: CategoricalIssue
+  values:
+  - g1
+  - g2
+name: AlphabetMaze
+type: DiscreteCartesianOutcomeSpace

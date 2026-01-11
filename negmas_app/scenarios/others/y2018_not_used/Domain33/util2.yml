@@ -1,0 +1,43 @@
+discount: 0.3
+dynamic_reservation: true
+name: util2
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/other/y2018_not_used/Domain33/util2.xml
+  reserved_value: 0.2
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      a1: 5.0
+      a2: 4.0
+      a3: 3.0
+      a4: 2.0
+      a5: 1.0
+    type: TableFun
+  - mapping:
+      b1: 3.0
+      b2: 4.0
+      b3: 5.0
+      b4: 2.0
+      b5: 1.0
+    type: TableFun
+  - mapping:
+      c1: 2.0
+      c2: 1.0
+      c3: 5.0
+      c4: 3.0
+      c5: 4.0
+    type: TableFun
+  - mapping:
+      d1: 5.0
+      d2: 4.0
+      d3: 3.0
+      d4: 2.0
+      d5: 1.0
+    type: TableFun
+  weights:
+  - 0.55
+  - 0.1
+  - 0.2
+  - 0.15

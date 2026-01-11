@@ -1,0 +1,33 @@
+issues:
+- name: Horse Power
+  type: CategoricalIssue
+  values:
+  - Below 200
+  - 200 Or more
+- name: Seats
+  type: CategoricalIssue
+  values:
+  - '2'
+  - '5'
+  - '7'
+- name: Mileage
+  type: CategoricalIssue
+  values:
+  - Below 10.000km
+  - Between 10.000 and 20.000km
+  - Above 20.000km
+- name: Km per Liter Consumption
+  type: CategoricalIssue
+  values:
+  - '5'
+  - '10'
+  - '15'
+  - '20'
+- name: Wheels
+  type: CategoricalIssue
+  values:
+  - '3'
+  - '4'
+  - '6'
+name: car_purchase_domain
+type: DiscreteCartesianOutcomeSpace

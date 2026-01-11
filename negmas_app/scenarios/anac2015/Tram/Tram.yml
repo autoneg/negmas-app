@@ -1,0 +1,43 @@
+issues:
+- name: Overhead line
+  type: CategoricalIssue
+  values:
+  - 'yes'
+  - 'no'
+- name: Bridge height
+  type: CategoricalIssue
+  values:
+  - high
+  - middle
+  - low
+- name: Traffic frequency
+  type: CategoricalIssue
+  values:
+  - 1 ph
+  - 2 ph
+  - 4 ph
+- name: Budget
+  type: CategoricalIssue
+  values:
+  - 1 mln
+  - 2 mln
+  - 3 mln
+- name: Tram carriages
+  type: CategoricalIssue
+  values:
+  - new
+  - used
+- name: Destination
+  type: CategoricalIssue
+  values:
+  - TU Delft campus
+  - Delft Zuid
+  - Rotterdam
+- name: Year of delivery
+  type: CategoricalIssue
+  values:
+  - '2016'
+  - '2017'
+  - '2018'
+name: Tram
+type: DiscreteCartesianOutcomeSpace

@@ -1,0 +1,69 @@
+name: profile3
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    0kW: 0.0
+    100kW: 5.0
+    25kW: 2.0
+    50kW: 3.0
+    75kW: 4.0
+  type: TableFun
+- mapping:
+    0kW: 0.0
+    100kW: 5.0
+    25kW: 2.0
+    50kW: 3.0
+    75kW: 4.0
+  type: TableFun
+- mapping:
+    0kW: 0.0
+    100kW: 5.0
+    25kW: 2.0
+    50kW: 3.0
+    75kW: 4.0
+  type: TableFun
+- mapping:
+    0kW: 0.0
+    100kW: 5.0
+    25kW: 2.0
+    50kW: 3.0
+    75kW: 4.0
+  type: TableFun
+- mapping:
+    0kW: 0.0
+    100kW: 5.0
+    25kW: 2.0
+    50kW: 3.0
+    75kW: 4.0
+  type: TableFun
+- mapping:
+    0kW: 0.0
+    100kW: 5.0
+    25kW: 2.0
+    50kW: 3.0
+    75kW: 4.0
+  type: TableFun
+- mapping:
+    0kW: 0.0
+    100kW: 5.0
+    25kW: 2.0
+    50kW: 3.0
+    75kW: 4.0
+  type: TableFun
+- mapping:
+    0kW: 0.0
+    100kW: 5.0
+    25kW: 2.0
+    50kW: 3.0
+    75kW: 4.0
+  type: TableFun
+weights:
+- 0.0233451404160976
+- 0.05343240053917455
+- 0.10855186022768051
+- 0.12949980203141964
+- 0.16444770586168042
+- 0.221384364666749
+- 0.18432648666623544
+- 0.11501223959096284

@@ -1,0 +1,24 @@
+issues:
+- name: Energy Price
+  type: ContiguousIssue
+  values:
+  - 10
+  - 50
+- name: Energy cost distribution over day
+  type: CategoricalIssue
+  values:
+  - Morning
+  - Midday
+  - Afternoon
+  - Night
+- name: Energy source
+  type: CategoricalIssue
+  values:
+  - Wind
+  - Solar
+  - Hydro
+  - Coal
+  - Nuclear
+  - Natural gas
+name: Smart_Energy_Grid
+type: DiscreteCartesianOutcomeSpace

@@ -1,0 +1,30 @@
+name: Shiboyprofile3
+reserved_value: 0.4
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    '10': 60.0
+    '20': 20.0
+    '30': 10.0
+  type: TableFun
+- mapping:
+    '1': 60.0
+    '2': 70.0
+    '3': 60.0
+    '4': 70.0
+  type: TableFun
+- mapping:
+    Kyoto: 50.0
+    Nagoya: 6.0
+    Osaka: 90.0
+    Tokyo: 30.0
+  type: TableFun
+- mapping:
+    Bus: 50.0
+    Train: 40.0
+  type: TableFun
+weights:
+- 0.0920275194195557
+- 0.15035545618947382
+- 0.2643149593129266
+- 0.49330206507804386

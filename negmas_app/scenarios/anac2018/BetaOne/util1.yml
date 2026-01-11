@@ -1,0 +1,26 @@
+name: util1
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Platformer: 2.0
+    RPG: 10.0
+    Shooter: 5.0
+    Strategy: 8.0
+  type: TableFun
+- mapping:
+    '10': 3.0
+    '30': 2.0
+    '5': 4.0
+    '60': 1.0
+  type: TableFun
+- mapping:
+    '1': 1.0
+    '10': 10.0
+    '3': 3.0
+    '30': 6.0
+  type: TableFun
+weights:
+- 0.4792097508413044
+- 0.33074283931183573
+- 0.19004740984685983

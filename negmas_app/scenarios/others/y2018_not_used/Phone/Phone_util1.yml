@@ -1,0 +1,27 @@
+name: Phone_util1
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Apple: 0.0
+    Google: 1.0
+    Samsung: 2.0
+  type: TableFun
+- mapping:
+    Black: 1.0
+    White: 2.0
+    Yellow: 0.0
+  type: TableFun
+- mapping:
+    Android: 0.0
+    IOS: 1.0
+    Windows phone: 2.0
+  type: TableFun
+- type: IdentityFun
+- type: IdentityFun
+weights:
+- 0.8015139403501871
+- 0.0983002442627976
+- 0.10018581538701538
+- 1.0
+- 1.0

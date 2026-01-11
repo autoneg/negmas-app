@@ -1,0 +1,39 @@
+discount: 0.9
+dynamic_reservation: true
+name: util3
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/anac/y2016/JapanTrip2016/util3.xml
+  reserved_value: 0.9
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      Hokkaido: 2.0
+      Nagoya: 2.0
+      Okinawa: 2.0
+      Osaka: 2.0
+      Tokyo: 2.0
+    type: TableFun
+  - mapping:
+      '1200': 4.0
+      '1500': 2.0
+      '1800': 1.0
+      '900': 5.0
+    type: TableFun
+  - mapping:
+      '3': 1.0
+      '4': 2.0
+      '5': 3.0
+      '6': 4.0
+    type: TableFun
+  - mapping:
+      Activity: 3.0
+      Shopping: 1.0
+      Sightseeing: 5.0
+    type: TableFun
+  weights:
+  - 0.1
+  - 0.3
+  - 0.2
+  - 0.4

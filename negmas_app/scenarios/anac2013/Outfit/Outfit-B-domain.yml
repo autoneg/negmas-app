@@ -1,0 +1,29 @@
+issues:
+- name: shirts
+  type: CategoricalIssue
+  values:
+  - T-shirt
+  - Blouse
+  - Polo shirt
+  - sweaters
+- name: pants
+  type: CategoricalIssue
+  values:
+  - Demin
+  - leather pants
+  - classic pants
+  - bermuda shorts
+- name: shoes
+  type: CategoricalIssue
+  values:
+  - sneakers
+  - boots
+  - slipers
+  - sandals
+- name: accessories
+  type: CategoricalIssue
+  values:
+  - hat
+  - sunglasses
+name: Outfit-B-domain
+type: DiscreteCartesianOutcomeSpace

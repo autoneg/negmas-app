@@ -1,0 +1,45 @@
+name: Profile8
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Erasumus: 3.0
+    TU Eindhoven: 2.0
+    TU Twente: 1.0
+    Tu Delft: 4.0
+  type: TableFun
+- mapping:
+    Mr. Bidarra: 4.0
+    Mr. Bossos: 2.0
+    Mr. Eisemann: 3.0
+    Mr. Goedeovergeburen: 1.0
+  type: TableFun
+- mapping:
+    Miss. Getbizzy: 1.0
+    Mr. Ahuff: 2.0
+    Mr. Talkolot: 3.0
+  type: TableFun
+- mapping:
+    Mr. Gates: 4.0
+    Mr. Han: 2.0
+    Mr. LeeLoo: 1.0
+    Mr. Umbertotan: 3.0
+  type: TableFun
+- mapping:
+    Alcoholic beverages: 2.0
+    Coffee and Thee: 3.0
+    non-Alcoholic beverages: 1.0
+  type: TableFun
+- mapping:
+    December: 1.0
+    November: 2.0
+    October: 3.0
+    September: 4.0
+  type: TableFun
+weights:
+- 0.38233532374814067
+- 0.3229129003355635
+- 0.2395279996346263
+- 6.45666515362372e-05
+- 5.681266952345156e-05
+- 0.055102396960609826

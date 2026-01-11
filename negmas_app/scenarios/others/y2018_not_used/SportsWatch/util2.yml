@@ -1,0 +1,54 @@
+name: util2
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Baseball: 40.0
+    Basketball: 15.0
+    Car race: 10.0
+    Football(Soccer): 25.0
+    Sumo: 5.0
+  type: TableFun
+- mapping:
+    1000yen: 5.0
+    2000yen: 15.0
+    3000yen: 30.0
+    4000yen: 20.0
+    5000yen: 10.0
+    600yen: 1.0
+  type: TableFun
+- mapping:
+    Chiba: 5.0
+    Fukuoka: 18.0
+    Hokkaido: 10.0
+    Kanagawa: 6.0
+    Nagoya: 15.0
+    Okinawa: 12.0
+    Osaka: 20.0
+    Saitama: 4.0
+    Sendai: 8.0
+    Tokyo: 7.0
+  type: TableFun
+- mapping:
+    Digital: 10.0
+    Paper: 5.0
+  type: TableFun
+- mapping:
+    Cap: 10.0
+    Mascot Dolls: 40.0
+    Megaphone: 20.0
+    Replica Uniform: 30.0
+  type: TableFun
+- mapping:
+    Hollyday: 35.0
+    Saturday: 20.0
+    Sunday: 30.0
+    Weekday: 40.0
+  type: TableFun
+weights:
+- 0.2193379482148706
+- 0.15820915384719653
+- 0.31428735972590943
+- 0.007027026374539575
+- 0.028032109257517777
+- 0.273106402579966

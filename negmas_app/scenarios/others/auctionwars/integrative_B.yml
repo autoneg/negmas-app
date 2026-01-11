@@ -1,0 +1,23 @@
+name: integrative_B
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    '0': 30.0
+    '1': 20.0
+    '2': 10.0
+    '3': 0.0
+  type: TableFun
+- mapping:
+    '0': 60.0
+    '1': 30.0
+    '2': 0.0
+  type: TableFun
+- mapping:
+    '0': 0.0
+    '1': 0.0
+  type: TableFun
+weights:
+- 0.333333333
+- 0.666666667
+- 0.0

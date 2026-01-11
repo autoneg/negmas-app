@@ -1,0 +1,53 @@
+discount: 0.75
+dynamic_reservation: true
+name: Amsterdam-C-prof2
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/anac/y2012/AmsterdamC/Amsterdam-C-prof2.xml
+  reserved_value: 0.0
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      Dancing: 2.0
+      Diner: 3.0
+      Museum: 1.0
+      Shopping: 4.0
+    type: TableFun
+  - mapping:
+      Afternoon: 2.0
+      Evening: 3.0
+      Morning: 1.0
+    type: TableFun
+  - mapping:
+      Friday: 4.0
+      Monday: 1.0
+      Saturday: 6.0
+      Sunday: 6.0
+      Thursday: 4.0
+      Tuesday: 2.0
+      Wednesday: 3.0
+    type: TableFun
+  - mapping:
+      One day: 1.0
+      One night: 2.0
+      One week: 3.0
+    type: TableFun
+  - mapping:
+      Car: 3.0
+      Combination: 2.0
+      Public transport: 1.0
+    type: TableFun
+  - mapping:
+      Cheese: 0.0
+      None: 1.0
+      Tulips: 3.0
+      Waterpipe: 4.0
+    type: TableFun
+  weights:
+  - 0.15
+  - 0.12
+  - 0.21
+  - 0.32
+  - 0.13
+  - 0.07

@@ -1,0 +1,42 @@
+issues:
+- name: Study
+  type: CategoricalIssue
+  values:
+  - TI
+  - TW
+  - EE
+  - TBM
+  - WB
+- name: Faculty
+  type: CategoricalIssue
+  values:
+  - EWI
+  - 3ME
+  - TPM
+- name: Job Prospect
+  type: CategoricalIssue
+  values:
+  - Manager
+  - Developer
+  - Jobless
+  - Engineer
+  - CEO
+- name: Housing
+  type: CategoricalIssue
+  values:
+  - House
+  - Under the bridge
+  - Single Room
+  - Studio
+  - Parents
+  - Cave
+- name: Partime Job
+  type: CategoricalIssue
+  values:
+  - None
+  - Supermarket
+  - Catering
+  - Fastfood Restaurant
+  - Restaurant
+name: University
+type: DiscreteCartesianOutcomeSpace

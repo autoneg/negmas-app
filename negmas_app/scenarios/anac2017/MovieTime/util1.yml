@@ -1,0 +1,32 @@
+name: util1
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Adventure: 3.0
+    Animation: 6.0
+    Comedy: 2.0
+    Documentary: 4.0
+    FilmNoir: 5.0
+    Thriller: 1.0
+  type: TableFun
+- mapping:
+    Cinema: 6.0
+    Home: 5.0
+  type: TableFun
+- mapping:
+    Bus: 7.0
+    Car: 9.0
+    Taxi: 8.0
+  type: TableFun
+- mapping:
+    IceCream: 5.0
+    MilkShake: 2.0
+    Nachos: 7.0
+    PopCorn: 9.0
+  type: TableFun
+weights:
+- 0.09102134022942791
+- 0.32646863972116474
+- 0.3333461011162907
+- 0.2491639189331165

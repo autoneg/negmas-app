@@ -1,0 +1,63 @@
+name: profileA
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    valueA: 0.09985
+    valueB: 0.0726
+    valueC: 0.04707
+    valueD: 0.07839
+    valueE: 0.17593
+    valueF: 0.19875
+    valueG: 1.0
+    valueH: 0.15959
+    valueI: 0.02333
+    valueJ: 0.00243
+    valueK: 0.20023
+    valueL: 0.50279
+    valueM: 0.23875
+    valueN: 0.2244
+    valueO: 0.78706
+    valueP: 0.18428
+  type: TableFun
+- mapping:
+    valueA: 0.91386
+    valueB: 0.0389
+    valueC: 0.46983
+    valueD: 0.06327
+    valueE: 0.24277
+    valueF: 0.90496
+    valueG: 0.42775
+    valueH: 0.18688
+    valueI: 0.35154
+    valueJ: 0.14369
+    valueK: 0.4788
+    valueL: 0.02842
+    valueM: 1.0
+    valueN: 0.50651
+    valueO: 0.77349
+    valueP: 0.40433
+    valueQ: 0.37694
+    valueR: 0.46062
+    valueS: 0.16552
+  type: TableFun
+- mapping:
+    valueA: 0.24805
+    valueB: 1.0
+    valueC: 0.39142
+    valueD: 0.79769
+    valueE: 0.07358
+    valueF: 0.28422
+    valueG: 0.34785
+    valueH: 0.19709
+    valueI: 0.15915
+    valueJ: 0.01907
+    valueK: 0.36275
+    valueL: 0.15759
+    valueM: 0.44535
+    valueN: 0.72708
+  type: TableFun
+weights:
+- 0.24328
+- 0.69774
+- 0.05898

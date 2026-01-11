@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Home - NegMAS App{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h1 class="card-title">Welcome to NegMAS App</h1>
+    </div>
+    <div class="card-body">
+        <p style="margin-bottom: 1.5rem; color: var(--text-muted);">
+            A modern browser-based GUI for running negotiations and tournaments using the NegMAS ecosystem.
+        </p>
+        
+        <div class="form-row" style="gap: 1.5rem;">
+            <a href="/negotiation" class="card" style="text-decoration: none; transition: transform 0.2s, box-shadow 0.2s;">
+                <div class="card-body" style="text-align: center; padding: 2rem;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2" style="margin-bottom: 1rem;">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    <h3 style="margin-bottom: 0.5rem;">Run Negotiation</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">
+                        Configure and run bilateral or multi-party negotiations with various protocols and agents.
+                    </p>
+                </div>
+            </a>
+            
+            <a href="#" class="card" style="text-decoration: none; opacity: 0.6;">
+                <div class="card-body" style="text-align: center; padding: 2rem;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2" style="margin-bottom: 1rem;">
+                        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+                        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+                        <path d="M4 22h16"/>
+                        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+                        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+                        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+                    </svg>
+                    <h3 style="margin-bottom: 0.5rem;">Run Tournament</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">
+                        Coming soon: Run tournaments with multiple agents and scenarios.
+                    </p>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

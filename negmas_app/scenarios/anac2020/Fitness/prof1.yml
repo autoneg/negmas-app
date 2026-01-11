@@ -1,0 +1,41 @@
+name: prof1
+reserved_value: 0.198
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    aerobics: 0.4
+    running: 0.2
+    swimming: 0.6
+    tennis: 0.9
+    yoga: 0.8
+  type: TableFun
+- mapping:
+    1 hour: 0.8
+    3 hours: 0.22
+    30 min: 0.44
+    5 hours: 0.11
+  type: TableFun
+- mapping:
+    0 km: 0.75
+    1 km: 1.0
+    40 km: 0.25
+    5 km: 0.5
+  type: TableFun
+- mapping:
+    bootcamp: 0.14
+    light: 0.3
+    moderate: 0.55
+    training: 1.0
+  type: TableFun
+- mapping:
+    $15: 0.5
+    $200: 0.1
+    $5: 1.0
+    $50: 0.2
+  type: TableFun
+weights:
+- 0.15
+- 0.05
+- 0.3
+- 0.3
+- 0.2
