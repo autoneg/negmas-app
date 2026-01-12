@@ -6,10 +6,6 @@
 - [ ] Test the Genius bridge feature
 - [ ] Commit Genius bridge changes
 
-### LAN100 Negotiation Issue
-- [ ] Investigate why LAN100 negotiation cannot run
-- [ ] Fix or delete problematic saved settings if needed
-
 ## Medium Priority
 
 ### Panel Layout Issues
@@ -36,3 +32,4 @@
 - [x] Add JS functions for bridge control in Alpine app
 - [x] Add CSS for bridge status indicator
 - [x] Auto-start bridge when selecting Genius agent
+- [x] Fix NaiveTitForTatNegotiator bug (was negmas bug in ExpDiscountedUFun.minmax() not using self.outcome_space)
