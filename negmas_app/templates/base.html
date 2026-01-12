@@ -239,7 +239,7 @@
                                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
                                 <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                             </svg>
-                            <span class="wizard-tab-label">Agents</span>
+                            <span class="wizard-tab-label">Negotiators</span>
                         </button>
                         <button class="wizard-tab" :class="{ active: negotiationTab === 'parameters' }" @click="negotiationTab = 'parameters'" title="Parameters">
                             <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -439,20 +439,6 @@
                     
                     <!-- Sub-tab: Deadline Parameters -->
                     <div x-show="paramSubTab === 'deadline'">
-                        <div class="form-group">
-                            <label class="form-label">Mechanism Type</label>
-                            <div class="mechanism-selector">
-                                <template x-for="mech in ['sao', 'tau', 'gb']" :key="mech">
-                                    <button class="mechanism-option" 
-                                            :class="{ selected: newNeg.mechanism_type === mech }"
-                                            @click="newNeg.mechanism_type = mech">
-                                        <span class="mechanism-name" x-text="mech.toUpperCase()"></span>
-                                        <span class="mechanism-desc" x-text="getMechanismDescription(mech)"></span>
-                                    </button>
-                                </template>
-                            </div>
-                        </div>
-                        
                         <div class="param-group">
                             <div class="param-group-header">
                                 <span class="param-group-title">Primary Deadline</span>
@@ -514,6 +500,56 @@
                     
                     <!-- Sub-tab: Mechanism Parameters -->
                     <div x-show="paramSubTab === 'mechanism'">
+                        <!-- Mechanism Type Selector -->
+                        <div class="form-group" style="margin-bottom: 24px;">
+                            <label class="form-label">Protocol</label>
+                            <div class="card-selector">
+                                <button type="button" class="card-selector-option" 
+                                        :class="{ selected: newNeg.mechanism_type === 'sao' }"
+                                        @click="newNeg.mechanism_type = 'sao'">
+                                    <div class="card-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="9" cy="7" r="4"></circle>
+                                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                        </svg>
+                                    </div>
+                                    <span class="card-title">SAO</span>
+                                    <span class="card-desc">Alternating offers protocol</span>
+                                </button>
+                                <button type="button" class="card-selector-option" 
+                                        :class="{ selected: newNeg.mechanism_type === 'tau' }"
+                                        @click="newNeg.mechanism_type = 'tau'">
+                                    <div class="card-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <line x1="8" y1="6" x2="21" y2="6"></line>
+                                            <line x1="8" y1="12" x2="21" y2="12"></line>
+                                            <line x1="8" y1="18" x2="21" y2="18"></line>
+                                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                                        </svg>
+                                    </div>
+                                    <span class="card-title">TAU</span>
+                                    <span class="card-desc">Multi-thread parallel offers</span>
+                                </button>
+                                <button type="button" class="card-selector-option" 
+                                        :class="{ selected: newNeg.mechanism_type === 'gb' }"
+                                        @click="newNeg.mechanism_type = 'gb'">
+                                    <div class="card-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                            <line x1="3" y1="9" x2="21" y2="9"></line>
+                                            <line x1="9" y1="21" x2="9" y2="9"></line>
+                                        </svg>
+                                    </div>
+                                    <span class="card-title">GB</span>
+                                    <span class="card-desc">General bargaining protocol</span>
+                                </button>
+                            </div>
+                        </div>
+                        
                         <!-- SAO Parameters -->
                         <div x-show="newNeg.mechanism_type === 'sao'">
                             <div class="param-group">
@@ -691,22 +727,31 @@
                     
                     <div class="form-group">
                         <label class="form-label">Run Mode</label>
-                        <div class="mode-selector">
-                            <button class="mode-option" :class="{ selected: newNeg.mode === 'realtime' }" @click="newNeg.mode = 'realtime'">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                                </svg>
-                                <span>Real-time</span>
+                        <div class="card-selector compact">
+                            <button type="button" class="card-selector-option" :class="{ selected: newNeg.mode === 'realtime' }" @click="newNeg.mode = 'realtime'">
+                                <div class="card-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                    </svg>
+                                </div>
+                                <div class="card-content">
+                                    <span class="card-title">Real-time</span>
+                                    <span class="card-desc">Watch step-by-step with live updates</span>
+                                </div>
                             </button>
-                            <button class="mode-option" :class="{ selected: newNeg.mode === 'batch' }" @click="newNeg.mode = 'batch'">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-                                    <polyline points="13 17 18 12 13 7"></polyline>
-                                    <polyline points="6 17 11 12 6 7"></polyline>
-                                </svg>
-                                <span>Batch</span>
+                            <button type="button" class="card-selector-option" :class="{ selected: newNeg.mode === 'batch' }" @click="newNeg.mode = 'batch'">
+                                <div class="card-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="13 17 18 12 13 7"></polyline>
+                                        <polyline points="6 17 11 12 6 7"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="card-content">
+                                    <span class="card-title">Batch</span>
+                                    <span class="card-desc">Run instantly and show results</span>
+                                </div>
                             </button>
                         </div>
-                        <div class="form-hint" x-text="newNeg.mode === 'realtime' ? 'Watch negotiation step-by-step with live updates' : 'Run negotiation instantly and show results'"></div>
                     </div>
                     
                     <div class="form-group" x-show="newNeg.mode === 'realtime'">
