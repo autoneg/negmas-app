@@ -2,14 +2,19 @@
 
 ## High Priority
 
-### Genius Bridge Feature (IN PROGRESS)
-- [ ] Test the Genius bridge feature
-- [ ] Commit Genius bridge changes
+### Negotiations Management
+- [ ] Add running/completed negotiations table view
+- [ ] Click table row to open negotiation with all panels
+
+### Tournament Feature
+- [ ] Design tournament models and config (based on cartesian_tournament)
+- [ ] Implement tournament service
+- [ ] Create tournament UI (scenarios, competitors, params)
+- [ ] Add tournament results display (scores, details)
 
 ## Medium Priority
 
 ### Panel Layout Issues
-- [ ] Zooming out panels shows nothing
 - [ ] Panels should be collapsible
 - [ ] Each panel should take all available space (when collapsing one, others expand)
 - [ ] Log panel should auto-scroll
@@ -33,3 +38,9 @@
 - [x] Add CSS for bridge status indicator
 - [x] Auto-start bridge when selecting Genius agent
 - [x] Fix NaiveTitForTatNegotiator bug (was negmas bug in ExpDiscountedUFun.minmax() not using self.outcome_space)
+- [x] Test the Genius bridge feature
+- [x] Commit Genius bridge changes
+- [x] Add Typer CLI with --port, --host, --reload, --log-level options
+- [x] Add dynamic mechanism registry (SAO, TAU, GB, VetoST, HillClimbingST)
+- [x] Agent names default to type name + index (Aspiration1, Boulware2)
+- [x] Fix zoom panels showing nothing
