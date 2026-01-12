@@ -49,6 +49,7 @@
             
             <nav class="header-nav">
                 <button class="header-nav-btn" :class="{ active: currentPage === 'negotiations' }" @click="currentPage = 'negotiations'">Negotiations</button>
+                <button class="header-nav-btn" :class="{ active: currentPage === 'tournaments' }" @click="currentPage = 'tournaments'; loadTournamentSessions()">Tournaments</button>
                 <button class="header-nav-btn" :class="{ active: currentPage === 'scenarios' }" @click="currentPage = 'scenarios'; loadScenariosForExplorer()">Scenarios</button>
                 <button class="header-nav-btn" @click="showSettings = true">Settings</button>
             </nav>
@@ -280,6 +281,196 @@
                                         <h3>Path</h3>
                                         <div class="scenario-path">
                                             <code x-text="selectedScenario.path"></code>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Content Area - Tournaments -->
+            <div class="content-area tournament-page" x-show="currentPage === 'tournaments'" x-cloak>
+                <div class="tournament-layout">
+                    <!-- Left Panel: Tournament List & New Tournament -->
+                    <div class="tournament-sidebar">
+                        <div class="tournament-header">
+                            <h2>Tournaments</h2>
+                            <button class="btn btn-primary btn-sm" @click="showNewTournament = true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                New
+                            </button>
+                        </div>
+                        
+                        <div class="tournament-sessions">
+                            <div class="text-muted" style="padding: 12px; font-size: 13px;" x-show="tournamentSessions.length === 0">
+                                No tournaments yet. Click "New" to start one.
+                            </div>
+                            <template x-for="session in tournamentSessions" :key="session.id">
+                                <div class="tournament-session-item" 
+                                     :class="{ selected: selectedTournament?.id === session.id, running: session.status === 'running' }"
+                                     @click="selectTournament(session)">
+                                    <div class="tournament-session-header">
+                                        <span class="tournament-session-id" x-text="'#' + session.id"></span>
+                                        <span class="badge" 
+                                              :class="{
+                                                  'badge-primary': session.status === 'running',
+                                                  'badge-success': session.status === 'completed',
+                                                  'badge-danger': session.status === 'failed',
+                                                  'badge-warning': session.status === 'cancelled',
+                                                  'badge-secondary': session.status === 'pending'
+                                              }"
+                                              x-text="session.status"></span>
+                                    </div>
+                                    <div class="tournament-session-meta">
+                                        <span x-text="(session.config?.competitor_types?.length || 0) + ' competitors'"></span>
+                                        <span x-text="(session.config?.scenario_paths?.length || 0) + ' scenarios'"></span>
+                                    </div>
+                                    <div class="tournament-session-progress" x-show="session.status === 'running' && session.progress">
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" :style="'width: ' + (session.progress?.percent || 0) + '%'"></div>
+                                        </div>
+                                        <span class="progress-text" x-text="Math.round(session.progress?.percent || 0) + '%'"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- Right Panel: Tournament Details/Results -->
+                    <div class="tournament-details">
+                        <template x-if="!selectedTournament">
+                            <div class="tournament-empty">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="64" height="64" style="opacity: 0.3;">
+                                    <circle cx="12" cy="8" r="6"></circle>
+                                    <path d="M12 14v8"></path>
+                                    <path d="M8 22h8"></path>
+                                    <path d="M6 8l-4 4"></path>
+                                    <path d="M18 8l4 4"></path>
+                                </svg>
+                                <p>Select a tournament to view details</p>
+                                <p class="text-muted">or start a new tournament</p>
+                            </div>
+                        </template>
+                        <template x-if="selectedTournament">
+                            <div class="tournament-detail-content">
+                                <div class="tournament-detail-header">
+                                    <h3>Tournament #<span x-text="selectedTournament.id"></span></h3>
+                                    <div class="tournament-actions">
+                                        <button class="btn btn-sm btn-danger" 
+                                                x-show="selectedTournament.status === 'running'"
+                                                @click="cancelTournament(selectedTournament.id)">
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Progress Section (for running tournaments) -->
+                                <div class="tournament-progress-section" x-show="selectedTournament.status === 'running'">
+                                    <div class="progress-info">
+                                        <span x-text="'Progress: ' + (selectedTournament.progress?.completed || 0) + ' / ' + (selectedTournament.progress?.total || 0)"></span>
+                                        <span x-text="Math.round(selectedTournament.progress?.percent || 0) + '%'"></span>
+                                    </div>
+                                    <div class="progress-bar large">
+                                        <div class="progress-fill" :style="'width: ' + (selectedTournament.progress?.percent || 0) + '%'"></div>
+                                    </div>
+                                    <div class="progress-current" x-show="selectedTournament.progress?.current_scenario">
+                                        <span class="text-muted">Current: </span>
+                                        <span x-text="selectedTournament.progress?.current_scenario"></span>
+                                        <span x-text="selectedTournament.progress?.current_partners?.join(' vs ') || ''"></span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Results Section (for completed tournaments) -->
+                                <div class="tournament-results-section" x-show="selectedTournament.status === 'completed' && selectedTournament.results">
+                                    <h4>Results</h4>
+                                    
+                                    <!-- Summary Stats -->
+                                    <div class="tournament-summary">
+                                        <div class="stat-card">
+                                            <div class="stat-value" x-text="selectedTournament.results?.total_negotiations || 0"></div>
+                                            <div class="stat-label">Negotiations</div>
+                                        </div>
+                                        <div class="stat-card">
+                                            <div class="stat-value" x-text="selectedTournament.results?.total_agreements || 0"></div>
+                                            <div class="stat-label">Agreements</div>
+                                        </div>
+                                        <div class="stat-card">
+                                            <div class="stat-value" x-text="Math.round((selectedTournament.results?.overall_agreement_rate || 0) * 100) + '%'"></div>
+                                            <div class="stat-label">Agreement Rate</div>
+                                        </div>
+                                        <div class="stat-card">
+                                            <div class="stat-value" x-text="(selectedTournament.results?.execution_time || 0).toFixed(1) + 's'"></div>
+                                            <div class="stat-label">Duration</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Rankings Table -->
+                                    <h4>Final Rankings</h4>
+                                    <table class="tournament-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Rank</th>
+                                                <th>Competitor</th>
+                                                <th>Score</th>
+                                                <th>Utility</th>
+                                                <th>Agreements</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template x-for="score in (selectedTournament.results?.final_scores || [])" :key="score.name">
+                                                <tr :class="{ 'winner': score.rank === 1 }">
+                                                    <td>
+                                                        <span class="rank-badge" :class="'rank-' + score.rank" x-text="'#' + score.rank"></span>
+                                                    </td>
+                                                    <td>
+                                                        <div class="competitor-name" x-text="score.name"></div>
+                                                        <div class="competitor-type text-muted" x-text="score.type_name" style="font-size: 11px;"></div>
+                                                    </td>
+                                                    <td x-text="score.score?.toFixed(4) || '-'"></td>
+                                                    <td x-text="score.mean_utility?.toFixed(4) || '-'"></td>
+                                                    <td x-text="score.n_agreements + '/' + score.n_negotiations"></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- Error Section (for failed tournaments) -->
+                                <div class="tournament-error-section" x-show="selectedTournament.status === 'failed'">
+                                    <div class="error-message">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                        </svg>
+                                        <span x-text="selectedTournament.error || 'Unknown error'"></span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Config Section -->
+                                <div class="tournament-config-section" x-show="selectedTournament.config">
+                                    <h4>Configuration</h4>
+                                    <div class="config-grid">
+                                        <div class="config-item">
+                                            <span class="config-label">Competitors:</span>
+                                            <span x-text="selectedTournament.config?.competitor_types?.join(', ') || '-'"></span>
+                                        </div>
+                                        <div class="config-item">
+                                            <span class="config-label">Scenarios:</span>
+                                            <span x-text="(selectedTournament.config?.scenario_paths?.length || 0) + ' selected'"></span>
+                                        </div>
+                                        <div class="config-item">
+                                            <span class="config-label">Repetitions:</span>
+                                            <span x-text="selectedTournament.config?.n_repetitions || 1"></span>
+                                        </div>
+                                        <div class="config-item">
+                                            <span class="config-label">Mechanism:</span>
+                                            <span x-text="selectedTournament.config?.mechanism_type || 'SAOMechanism'"></span>
                                         </div>
                                     </div>
                                 </div>
@@ -1134,6 +1325,183 @@
         </div>
     </div>
     
+    <!-- New Tournament Modal -->
+    <div class="modal-overlay" :class="{ active: showNewTournament }" @click.self="showNewTournament = false">
+        <div class="modal large">
+            <div class="modal-header">
+                <h2 class="modal-title">New Tournament</h2>
+                <button class="modal-close" @click="showNewTournament = false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body" style="padding: 0;">
+                <div class="wizard-layout">
+                    <div class="wizard-sidebar">
+                        <button class="wizard-tab" :class="{ active: tournamentTab === 'scenarios', completed: newTournament.scenario_paths.length > 0 }" @click="tournamentTab = 'scenarios'">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                            <span class="wizard-tab-label">Scenarios</span>
+                            <span class="wizard-badge" x-show="newTournament.scenario_paths.length > 0" x-text="newTournament.scenario_paths.length"></span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: tournamentTab === 'competitors', completed: newTournament.competitor_types.length >= 2 }" @click="tournamentTab = 'competitors'">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                            <span class="wizard-tab-label">Competitors</span>
+                            <span class="wizard-badge" x-show="newTournament.competitor_types.length > 0" x-text="newTournament.competitor_types.length"></span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: tournamentTab === 'settings' }" @click="tournamentTab = 'settings'">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                            </svg>
+                            <span class="wizard-tab-label">Settings</span>
+                        </button>
+                    </div>
+                    
+                    <div class="wizard-content">
+                        <!-- Scenarios Tab -->
+                        <div x-show="tournamentTab === 'scenarios'" class="wizard-panel">
+                            <div class="panel-header">
+                                <h3>Select Scenarios</h3>
+                                <span class="text-muted" x-text="newTournament.scenario_paths.length + ' selected'"></span>
+                            </div>
+                            <div class="form-group">
+                                <input type="text" class="form-input" placeholder="Search scenarios..." 
+                                       x-model="tournamentScenarioSearch">
+                            </div>
+                            <div class="selectable-list" style="max-height: 400px; overflow-y: auto;">
+                                <template x-for="scenario in filteredTournamentScenarios" :key="scenario.path">
+                                    <div class="selectable-item" 
+                                         :class="{ selected: isTournamentScenarioSelected(scenario.path) }"
+                                         @click="toggleTournamentScenario(scenario.path)">
+                                        <div class="selectable-item-checkbox">
+                                            <svg x-show="isTournamentScenarioSelected(scenario.path)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="14" height="14">
+                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                            </svg>
+                                        </div>
+                                        <div class="selectable-item-content">
+                                            <div class="selectable-item-name" x-text="scenario.name"></div>
+                                            <div class="selectable-item-meta">
+                                                <span class="badge badge-secondary" x-text="scenario.source"></span>
+                                                <span x-text="scenario.n_negotiators + ' parties'"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            <div class="selection-actions" style="margin-top: 12px; display: flex; gap: 8px;">
+                                <button class="btn btn-sm btn-secondary" @click="newTournament.scenario_paths = scenarios.map(s => s.path)">Select All</button>
+                                <button class="btn btn-sm btn-secondary" @click="newTournament.scenario_paths = []">Clear All</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Competitors Tab -->
+                        <div x-show="tournamentTab === 'competitors'" class="wizard-panel">
+                            <div class="panel-header">
+                                <h3>Select Competitors</h3>
+                                <span class="text-muted" x-text="newTournament.competitor_types.length + ' selected (min 2)'"></span>
+                            </div>
+                            <div class="form-group">
+                                <input type="text" class="form-input" placeholder="Search negotiators..." 
+                                       x-model="tournamentCompetitorSearch">
+                            </div>
+                            <div class="selectable-list" style="max-height: 400px; overflow-y: auto;">
+                                <template x-for="neg in filteredTournamentCompetitors" :key="neg.type_name">
+                                    <div class="selectable-item" 
+                                         :class="{ selected: isTournamentCompetitorSelected(neg.type_name) }"
+                                         @click="toggleTournamentCompetitor(neg.type_name)">
+                                        <div class="selectable-item-checkbox">
+                                            <svg x-show="isTournamentCompetitorSelected(neg.type_name)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="14" height="14">
+                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                            </svg>
+                                        </div>
+                                        <div class="selectable-item-content">
+                                            <div class="selectable-item-name" x-text="neg.name"></div>
+                                            <div class="selectable-item-meta">
+                                                <span class="badge badge-secondary" x-text="neg.source"></span>
+                                                <span class="text-muted" x-text="neg.description" style="font-size: 11px;"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        
+                        <!-- Settings Tab -->
+                        <div x-show="tournamentTab === 'settings'" class="wizard-panel">
+                            <div class="panel-header">
+                                <h3>Tournament Settings</h3>
+                            </div>
+                            
+                            <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                <div class="form-group">
+                                    <label class="form-label">Repetitions</label>
+                                    <input type="number" class="form-input" x-model.number="newTournament.n_repetitions" min="1" max="100">
+                                    <div class="form-hint">Run each pairing multiple times</div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Max Steps</label>
+                                    <input type="number" class="form-input" x-model.number="newTournament.n_steps" min="1">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Mechanism</label>
+                                    <select class="form-select" x-model="newTournament.mechanism_type">
+                                        <option value="SAOMechanism">SAO Mechanism</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Score Metric</label>
+                                    <select class="form-select" x-model="newTournament.final_score_metric">
+                                        <option value="advantage">Advantage</option>
+                                        <option value="utility">Utility</option>
+                                        <option value="welfare">Welfare</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group" style="margin-top: 16px;">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" x-model="newTournament.rotate_ufuns">
+                                    <span>Rotate Utility Functions</span>
+                                </label>
+                                <div class="form-hint">Each pair plays both positions</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" x-model="newTournament.self_play">
+                                    <span>Allow Self-Play</span>
+                                </label>
+                                <div class="form-hint">Allow competitors to play against themselves</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="showNewTournament = false">Cancel</button>
+                <button class="btn btn-primary" 
+                        @click="startTournament()"
+                        :disabled="newTournament.competitor_types.length < 2 || newTournament.scenario_paths.length < 1">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    Start Tournament
+                </button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Settings Modal -->
     <div class="modal-overlay" :class="{ active: showSettings }" @click.self="showSettings = false">
         <div class="modal large">
@@ -1395,8 +1763,29 @@
             configNegotiatorValues: {},   // Current values being edited
             configNegotiatorLoading: false,
             
-            // Page state (negotiations, scenarios)
+            // Page state (negotiations, scenarios, tournaments)
             currentPage: 'negotiations',
+            
+            // Tournament state
+            showNewTournament: false,
+            tournamentSessions: [],
+            selectedTournament: null,
+            tournamentEventSource: null,
+            newTournament: {
+                competitor_types: [],
+                scenario_paths: [],
+                n_repetitions: 1,
+                rotate_ufuns: true,
+                self_play: true,
+                mechanism_type: 'SAOMechanism',
+                n_steps: 100,
+                time_limit: null,
+                final_score_metric: 'advantage',
+                final_score_stat: 'mean',
+            },
+            tournamentTab: 'scenarios',
+            tournamentScenarioSearch: '',
+            tournamentCompetitorSearch: '',
             
             // Tabs
             negotiationTab: 'scenario',
@@ -2345,6 +2734,184 @@
             
             selectNegotiation(neg) {
                 this.currentNegotiation = neg;
+            },
+            
+            // Tournament methods
+            async loadTournamentSessions() {
+                try {
+                    const res = await fetch('/api/tournament/sessions/list');
+                    const data = await res.json();
+                    this.tournamentSessions = data.sessions || [];
+                } catch (e) {
+                    console.error('Failed to load tournament sessions:', e);
+                }
+            },
+            
+            selectTournament(session) {
+                this.selectedTournament = session;
+                // If running, connect to stream
+                if (session.status === 'running') {
+                    this.connectToTournamentStream(session.id);
+                }
+            },
+            
+            async startTournament() {
+                if (this.newTournament.competitor_types.length < 2) {
+                    alert('Please select at least 2 competitors');
+                    return;
+                }
+                if (this.newTournament.scenario_paths.length < 1) {
+                    alert('Please select at least 1 scenario');
+                    return;
+                }
+                
+                try {
+                    const res = await fetch('/api/tournament/start', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.newTournament)
+                    });
+                    
+                    const data = await res.json();
+                    this.showNewTournament = false;
+                    
+                    // Add to sessions list
+                    const newSession = {
+                        id: data.session_id,
+                        status: 'running',
+                        config: { ...this.newTournament },
+                        progress: { completed: 0, total: 0, percent: 0 }
+                    };
+                    this.tournamentSessions.unshift(newSession);
+                    this.selectedTournament = newSession;
+                    
+                    // Connect to stream
+                    this.connectToTournamentStream(data.session_id);
+                    
+                    // Reset form
+                    this.resetTournamentForm();
+                } catch (e) {
+                    console.error('Failed to start tournament:', e);
+                    alert('Failed to start tournament: ' + e.message);
+                }
+            },
+            
+            connectToTournamentStream(sessionId) {
+                // Close existing connection
+                if (this.tournamentEventSource) {
+                    this.tournamentEventSource.close();
+                }
+                
+                this.tournamentEventSource = new EventSource(`/api/tournament/${sessionId}/stream`);
+                
+                this.tournamentEventSource.addEventListener('progress', (event) => {
+                    const progress = JSON.parse(event.data);
+                    const session = this.tournamentSessions.find(s => s.id === sessionId);
+                    if (session) {
+                        session.progress = progress;
+                        session.status = 'running';
+                    }
+                    if (this.selectedTournament?.id === sessionId) {
+                        this.selectedTournament.progress = progress;
+                        this.selectedTournament.status = 'running';
+                    }
+                });
+                
+                this.tournamentEventSource.addEventListener('complete', (event) => {
+                    const result = JSON.parse(event.data);
+                    const session = this.tournamentSessions.find(s => s.id === sessionId);
+                    if (session) {
+                        session.status = result.status;
+                        session.results = result.results;
+                        session.error = result.error;
+                    }
+                    if (this.selectedTournament?.id === sessionId) {
+                        this.selectedTournament.status = result.status;
+                        this.selectedTournament.results = result.results;
+                        this.selectedTournament.error = result.error;
+                    }
+                    this.tournamentEventSource.close();
+                    this.tournamentEventSource = null;
+                });
+                
+                this.tournamentEventSource.addEventListener('error', () => {
+                    this.tournamentEventSource.close();
+                    this.tournamentEventSource = null;
+                });
+            },
+            
+            async cancelTournament(sessionId) {
+                try {
+                    await fetch(`/api/tournament/${sessionId}/cancel`, { method: 'POST' });
+                    const session = this.tournamentSessions.find(s => s.id === sessionId);
+                    if (session) {
+                        session.status = 'cancelled';
+                    }
+                    if (this.selectedTournament?.id === sessionId) {
+                        this.selectedTournament.status = 'cancelled';
+                    }
+                } catch (e) {
+                    console.error('Failed to cancel tournament:', e);
+                }
+            },
+            
+            toggleTournamentScenario(scenarioPath) {
+                const idx = this.newTournament.scenario_paths.indexOf(scenarioPath);
+                if (idx >= 0) {
+                    this.newTournament.scenario_paths.splice(idx, 1);
+                } else {
+                    this.newTournament.scenario_paths.push(scenarioPath);
+                }
+            },
+            
+            toggleTournamentCompetitor(typeName) {
+                const idx = this.newTournament.competitor_types.indexOf(typeName);
+                if (idx >= 0) {
+                    this.newTournament.competitor_types.splice(idx, 1);
+                } else {
+                    this.newTournament.competitor_types.push(typeName);
+                }
+            },
+            
+            isTournamentScenarioSelected(scenarioPath) {
+                return this.newTournament.scenario_paths.includes(scenarioPath);
+            },
+            
+            isTournamentCompetitorSelected(typeName) {
+                return this.newTournament.competitor_types.includes(typeName);
+            },
+            
+            resetTournamentForm() {
+                this.newTournament = {
+                    competitor_types: [],
+                    scenario_paths: [],
+                    n_repetitions: 1,
+                    rotate_ufuns: true,
+                    self_play: true,
+                    mechanism_type: 'SAOMechanism',
+                    n_steps: 100,
+                    time_limit: null,
+                    final_score_metric: 'advantage',
+                    final_score_stat: 'mean',
+                };
+            },
+            
+            get filteredTournamentScenarios() {
+                if (!this.tournamentScenarioSearch) return this.scenarios;
+                const search = this.tournamentScenarioSearch.toLowerCase();
+                return this.scenarios.filter(s => 
+                    s.name.toLowerCase().includes(search) ||
+                    s.source.toLowerCase().includes(search)
+                );
+            },
+            
+            get filteredTournamentCompetitors() {
+                if (!this.tournamentCompetitorSearch) return this.negotiatorTypes;
+                const search = this.tournamentCompetitorSearch.toLowerCase();
+                return this.negotiatorTypes.filter(n => 
+                    n.name.toLowerCase().includes(search) ||
+                    n.type_name.toLowerCase().includes(search)
+                );
             },
             
             // Settings

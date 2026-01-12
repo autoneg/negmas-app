@@ -2105,6 +2105,454 @@ body {
     display: none !important;
 }
 
+/* ===== Tournament Page ===== */
+.tournament-page {
+    height: 100%;
+    overflow: hidden;
+}
+
+.tournament-layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    height: 100%;
+    gap: 0;
+}
+
+/* Tournament Sidebar */
+.tournament-sidebar {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    overflow: hidden;
+}
+
+.tournament-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.tournament-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.tournament-sessions {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+/* Tournament Session Items */
+.tournament-session-item {
+    padding: 12px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    border: 1px solid transparent;
+    margin-bottom: 6px;
+    background: var(--bg-tertiary);
+}
+
+.tournament-session-item:hover {
+    background: var(--border-color);
+}
+
+.tournament-session-item.selected {
+    background: var(--primary-light);
+    border-color: var(--primary);
+}
+
+.tournament-session-item.running {
+    border-left: 3px solid var(--primary);
+}
+
+.tournament-session-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.tournament-session-id {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.tournament-session-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.tournament-session-progress {
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tournament-session-progress .progress-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--bg-secondary);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.tournament-session-progress .progress-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+.tournament-session-progress .progress-text {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    min-width: 36px;
+    text-align: right;
+}
+
+/* Tournament Details Panel */
+.tournament-details {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-primary);
+}
+
+.tournament-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-muted);
+    gap: 12px;
+}
+
+.tournament-empty p {
+    font-size: 14px;
+    margin: 0;
+}
+
+.tournament-detail-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.tournament-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+    background: var(--bg-secondary);
+}
+
+.tournament-detail-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.tournament-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Tournament Progress Section */
+.tournament-progress-section {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.tournament-progress-section .progress-bar {
+    height: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.tournament-progress-section .progress-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.current-match {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.current-match strong {
+    color: var(--text-primary);
+}
+
+/* Tournament Results Section */
+.tournament-results-section {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+.tournament-results-section h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 16px 0;
+}
+
+/* Tournament Results Table */
+.tournament-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.tournament-table th,
+.tournament-table td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tournament-table th {
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tournament-table tbody tr:hover {
+    background: var(--bg-tertiary);
+}
+
+.tournament-table .rank {
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.tournament-table .rank-1 { color: #f5a623; }
+.tournament-table .rank-2 { color: #8e8e93; }
+.tournament-table .rank-3 { color: #cd7f32; }
+
+.tournament-table .score {
+    font-weight: 600;
+    font-family: monospace;
+}
+
+/* Tournament Config Display */
+.tournament-config {
+    margin-top: 24px;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.tournament-config h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 12px 0;
+}
+
+.config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.config-item {
+    font-size: 12px;
+}
+
+.config-item .label {
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+.config-item .value {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+/* Selectable List (for modal selections) */
+.selectable-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 350px;
+    overflow-y: auto;
+    padding: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-primary);
+}
+
+.selectable-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    font-size: 13px;
+}
+
+.selectable-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.selectable-item.selected {
+    background: var(--primary-light);
+}
+
+.selectable-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+    flex-shrink: 0;
+}
+
+.selectable-item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.selectable-item-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.selectable-item-meta {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+/* Wizard Badge (count indicator on tabs) */
+.wizard-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 9px;
+    font-weight: 600;
+    background: var(--primary);
+    color: white;
+    border-radius: 8px;
+    margin-left: 4px;
+}
+
+.wizard-tab .wizard-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+}
+
+/* Selection Actions Bar */
+.selection-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.selection-count {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.selection-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.selection-buttons button {
+    padding: 4px 10px;
+    font-size: 11px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.selection-buttons button:hover {
+    background: var(--border-color);
+    color: var(--text-primary);
+}
+
+/* Tournament Settings Form */
+.tournament-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.tournament-settings-grid .form-group {
+    margin-bottom: 0;
+}
+
+/* Checkbox inline */
+.checkbox-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.checkbox-inline input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+}
+
 /* ============================================
    COMPACT PANEL LAYOUT SYSTEM
    ============================================ */
