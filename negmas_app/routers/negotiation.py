@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from ..models import NegotiatorConfig, MechanismType, OfferEvent, SessionInitEvent
+from ..models import NegotiatorConfig, OfferEvent, SessionInitEvent
 from ..services import SessionManager
 
 router = APIRouter(prefix="/api/negotiation", tags=["negotiation"])
@@ -29,8 +29,10 @@ class StartNegotiationRequest(BaseModel):
 
     scenario_path: str
     negotiators: list[NegotiatorConfigRequest]
-    n_steps: int = 100
-    time_limit: float | None = None
+    mechanism_type: str = "SAOMechanism"  # Class name of mechanism
+    mechanism_params: dict = {}  # All mechanism parameters
+    n_steps: int = 100  # Kept for backwards compatibility
+    time_limit: float | None = None  # Kept for backwards compatibility
     step_delay: float = 0.1
     share_ufuns: bool = False
 
@@ -51,13 +53,20 @@ async def start_negotiation(request: StartNegotiationRequest):
         for n in request.negotiators
     ]
 
+    # Merge mechanism_params with backwards-compatible n_steps/time_limit
+    mechanism_params = request.mechanism_params.copy()
+    # Only use top-level n_steps/time_limit if not in mechanism_params
+    if "n_steps" not in mechanism_params:
+        mechanism_params["n_steps"] = request.n_steps
+    if "time_limit" not in mechanism_params:
+        mechanism_params["time_limit"] = request.time_limit
+
     # Create session
     session = _manager.create_session(
         scenario_path=request.scenario_path,
         negotiator_configs=configs,
-        mechanism_type=MechanismType.SAO,
-        n_steps=request.n_steps,
-        time_limit=request.time_limit,
+        mechanism_type=request.mechanism_type,
+        mechanism_params=mechanism_params,
     )
 
     return {

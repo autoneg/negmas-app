@@ -3,6 +3,7 @@
 from negmas import Scenario
 from negmas.sao import SAOMechanism
 from negmas.gb import TAUMechanism, GBMechanism
+from negmas.st import VetoSTMechanism, HillClimbingSTMechanism
 from negmas.outcomes import OutcomeSpace
 from negmas.mechanisms import Mechanism
 
@@ -15,6 +16,15 @@ from ..models import (
     GBParams,
     default_config,
 )
+
+# Map class names to mechanism classes
+MECHANISM_CLASSES: dict[str, type] = {
+    "SAOMechanism": SAOMechanism,
+    "TAUMechanism": TAUMechanism,
+    "GBMechanism": GBMechanism,
+    "VetoSTMechanism": VetoSTMechanism,
+    "HillClimbingSTMechanism": HillClimbingSTMechanism,
+}
 
 
 class MechanismFactory:
@@ -217,3 +227,67 @@ class MechanismFactory:
             deadline=DeadlineParams(n_steps=n_steps, time_limit=time_limit),
         )
         return MechanismFactory.create_sao(outcome_space, config)
+
+    @staticmethod
+    def create_from_params(
+        outcome_space: OutcomeSpace,
+        mechanism_type: str = "SAOMechanism",
+        params: dict | None = None,
+    ) -> Mechanism:
+        """Create a mechanism from class name and params dict.
+
+        This is the main entry point for dynamic mechanism creation from the UI.
+
+        Args:
+            outcome_space: The outcome space for the negotiation.
+            mechanism_type: Class name of the mechanism (e.g. "SAOMechanism").
+            params: Dictionary of parameters to pass to the mechanism constructor.
+
+        Returns:
+            Configured mechanism instance.
+
+        Raises:
+            ValueError: If mechanism type is not supported.
+        """
+        if mechanism_type not in MECHANISM_CLASSES:
+            raise ValueError(f"Unknown mechanism type: {mechanism_type}")
+
+        mech_class = MECHANISM_CLASSES[mechanism_type]
+        params = params or {}
+
+        # Filter params - remove None values and handle special values
+        filtered_params = {}
+        for key, value in params.items():
+            if value is None:
+                continue
+            # Handle "inf" strings
+            if value == "inf":
+                value = float("inf")
+            elif value == "-inf":
+                value = float("-inf")
+            filtered_params[key] = value
+
+        # Always include outcome_space
+        filtered_params["outcome_space"] = outcome_space
+
+        return mech_class(**filtered_params)
+
+    @staticmethod
+    def create_from_scenario_params(
+        scenario: Scenario,  # type: ignore[name-defined]
+        mechanism_type: str = "SAOMechanism",
+        params: dict | None = None,
+    ) -> Mechanism:
+        """Create a mechanism from scenario with class name and params.
+
+        Args:
+            scenario: Scenario with outcome space.
+            mechanism_type: Class name of the mechanism.
+            params: Dictionary of parameters.
+
+        Returns:
+            Configured mechanism instance.
+        """
+        return MechanismFactory.create_from_params(
+            scenario.outcome_space, mechanism_type, params
+        )

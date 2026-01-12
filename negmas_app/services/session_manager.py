@@ -17,10 +17,6 @@ from ..models import (
     SessionNegotiatorInfo,
     NEGOTIATOR_COLORS,
     NegotiatorConfig,
-    MechanismType,
-    MechanismConfig,
-    DeadlineParams,
-    SAOParams,
 )
 from .scenario_loader import ScenarioLoader
 from .negotiator_factory import NegotiatorFactory
@@ -34,6 +30,8 @@ class SessionManager:
     def __init__(self):
         self.sessions: dict[str, NegotiationSession] = {}
         self._configs: dict[str, list[NegotiatorConfig]] = {}
+        self._mechanism_params: dict[str, dict] = {}
+        self._mechanism_types: dict[str, str] = {}
         self._cancel_flags: dict[str, bool] = {}
         self._pause_flags: dict[str, bool] = {}
         self.scenario_loader = ScenarioLoader()
@@ -42,33 +40,34 @@ class SessionManager:
         self,
         scenario_path: str,
         negotiator_configs: list[NegotiatorConfig],
-        mechanism_type: MechanismType = MechanismType.SAO,
-        n_steps: int = 100,
-        time_limit: float | None = None,
+        mechanism_type: str = "SAOMechanism",
+        mechanism_params: dict | None = None,
     ) -> NegotiationSession:
         """Create a new negotiation session.
 
         Args:
             scenario_path: Path to scenario directory.
             negotiator_configs: Configurations for each negotiator.
-            mechanism_type: Type of mechanism to use.
-            n_steps: Maximum number of steps.
-            time_limit: Optional time limit in seconds.
+            mechanism_type: Class name of mechanism (e.g. "SAOMechanism").
+            mechanism_params: Dictionary of mechanism parameters.
 
         Returns:
             Created session (not yet started).
         """
         session_id = str(uuid.uuid4())[:8]
+        params = mechanism_params or {}
         session = NegotiationSession(
             id=session_id,
             scenario_path=scenario_path,
-            mechanism_type=mechanism_type.value,
+            mechanism_type=mechanism_type,
             negotiator_names=[c.name or c.type_name for c in negotiator_configs],
-            n_steps=n_steps,
-            time_limit=time_limit,
+            n_steps=params.get("n_steps"),
+            time_limit=params.get("time_limit"),
         )
         self.sessions[session_id] = session
         self._configs[session_id] = negotiator_configs
+        self._mechanism_params[session_id] = params
+        self._mechanism_types[session_id] = mechanism_type
         self._cancel_flags[session_id] = False
         self._pause_flags[session_id] = False
         return session
@@ -139,18 +138,21 @@ class SessionManager:
                 yield session
                 return
 
-            # Create mechanism config
-            config = MechanismConfig(
-                mechanism_type=MechanismType.SAO,
-                deadline=DeadlineParams(
-                    n_steps=session.n_steps,
-                    time_limit=session.time_limit,
-                ),
-                sao_params=SAOParams(
-                    one_offer_per_step=True,  # Better for visualization
-                ),
+            # Get mechanism type and params stored during create_session
+            mechanism_type = self._mechanism_types.get(session_id, "SAOMechanism")
+            mechanism_params = self._mechanism_params.get(session_id, {}).copy()
+
+            # Ensure one_offer_per_step for better visualization (for SAO)
+            if (
+                mechanism_type == "SAOMechanism"
+                and "one_offer_per_step" not in mechanism_params
+            ):
+                mechanism_params["one_offer_per_step"] = True
+
+            # Create mechanism using the new factory method
+            mechanism = MechanismFactory.create_from_scenario_params(
+                scenario, mechanism_type, mechanism_params
             )
-            mechanism = MechanismFactory.create_from_scenario(scenario, config)
 
             # Create negotiators and add to mechanism with ufuns
             negotiators = NegotiatorFactory.create_for_scenario(

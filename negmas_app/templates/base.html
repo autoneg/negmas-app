@@ -22,6 +22,9 @@
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/sse.js"></script>
     
+    <!-- Alpine.js Collapse Plugin -->
+    <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    
     <!-- Alpine.js -->
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
@@ -471,6 +474,23 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Scenario Loading Options -->
+                    <div class="form-group" x-show="newNeg.scenario">
+                        <label class="form-label">Utility Function Options</label>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <label class="checkbox-label">
+                                <input type="checkbox" x-model="newNeg.ignore_discount">
+                                <span>Ignore discount factors</span>
+                                <span class="text-muted" style="font-size: 12px; margin-left: 4px;">(use stationary utilities)</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" x-model="newNeg.ignore_reserved">
+                                <span>Ignore reserved values</span>
+                                <span class="text-muted" style="font-size: 12px; margin-left: 4px;">(set to -infinity)</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Tab: Negotiators -->
@@ -631,331 +651,178 @@
                 
                 <!-- Tab: Parameters -->
                 <div x-show="negotiationTab === 'parameters'">
-                    <!-- Sub-tabs for parameters -->
-                    <div class="tabs" style="margin-bottom: 16px;">
-                        <button class="tab" :class="{ active: paramSubTab === 'deadline' }" @click="paramSubTab = 'deadline'">Deadline</button>
-                        <button class="tab" :class="{ active: paramSubTab === 'mechanism' }" @click="paramSubTab = 'mechanism'">Mechanism</button>
+                    <!-- Mechanism Type Selector -->
+                    <div class="form-group" style="margin-bottom: 24px;">
+                        <label class="form-label">Mechanism Protocol</label>
+                        <div class="card-selector">
+                            <template x-for="mech in mechanisms" :key="mech.class_name">
+                                <button type="button" class="card-selector-option" 
+                                        :class="{ selected: newNeg.mechanism_type === mech.class_name }"
+                                        @click="selectMechanism(mech.class_name)">
+                                    <div class="card-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <template x-if="mech.class_name === 'SAOMechanism'">
+                                                <g>
+                                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                                    <circle cx="9" cy="7" r="4"></circle>
+                                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                                </g>
+                                            </template>
+                                            <template x-if="mech.class_name === 'TAUMechanism'">
+                                                <g>
+                                                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                                                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                                                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                                                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                                                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                                                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                                                </g>
+                                            </template>
+                                            <template x-if="mech.class_name === 'GBMechanism'">
+                                                <g>
+                                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                                    <line x1="3" y1="9" x2="21" y2="9"></line>
+                                                    <line x1="9" y1="21" x2="9" y2="9"></line>
+                                                </g>
+                                            </template>
+                                            <template x-if="mech.class_name.includes('ST')">
+                                                <g>
+                                                    <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                                                    <path d="M2 17l10 5 10-5"></path>
+                                                    <path d="M2 12l10 5 10-5"></path>
+                                                </g>
+                                            </template>
+                                        </svg>
+                                    </div>
+                                    <span class="card-title" x-text="mech.class_name.replace('Mechanism', '')"></span>
+                                    <span class="card-desc" x-text="mech.name.split('(')[0].trim()"></span>
+                                </button>
+                            </template>
+                        </div>
+                        <div class="form-hint mt-2" x-text="selectedMechanism?.description || ''"></div>
                     </div>
                     
-                    <!-- Sub-tab: Deadline Parameters -->
-                    <div x-show="paramSubTab === 'deadline'">
-                        <div class="param-group">
-                            <div class="param-group-header">
-                                <span class="param-group-title">Primary Deadline</span>
-                            </div>
-                            <div class="param-group-content">
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label class="form-label">Max Steps</label>
-                                        <input type="number" class="form-input" x-model.number="newNeg.n_steps" min="0" placeholder="e.g. 100">
-                                        <div class="form-hint">Maximum negotiation rounds (0 = unlimited)</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Time Limit (seconds)</label>
-                                        <input type="number" class="form-input" x-model.number="newNeg.time_limit" min="0" step="0.1" placeholder="No limit">
-                                        <div class="form-hint">Wall-clock time limit</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="param-group" :class="{ collapsed: !showAdvancedDeadline }">
-                            <div class="param-group-header" @click="showAdvancedDeadline = !showAdvancedDeadline">
-                                <span class="param-group-title">Advanced Deadline Options</span>
-                                <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                            </div>
-                            <div class="param-group-content">
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label class="form-label">P(end) per step</label>
-                                        <input type="number" class="form-input" x-model.number="newNeg.pend" min="0" max="1" step="0.01" placeholder="0">
-                                        <div class="form-hint">Probability of ending each step</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">P(end) per second</label>
-                                        <input type="number" class="form-input" x-model.number="newNeg.pend_per_second" min="0" max="1" step="0.01" placeholder="0">
-                                        <div class="form-hint">Probability of ending per second</div>
-                                    </div>
-                                </div>
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label class="form-label">Step Time Limit</label>
-                                        <input type="number" class="form-input" x-model.number="newNeg.step_time_limit" min="0" step="0.1" placeholder="No limit">
-                                        <div class="form-hint">Max time per step (seconds)</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Negotiator Time Limit</label>
-                                        <input type="number" class="form-input" x-model.number="newNeg.negotiator_time_limit" min="0" step="0.1" placeholder="No limit">
-                                        <div class="form-hint">Max time per negotiator action</div>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Hidden Time Limit</label>
-                                    <input type="number" class="form-input" x-model.number="newNeg.hidden_time_limit" min="0" step="0.1" placeholder="No limit" style="max-width: 200px;">
-                                    <div class="form-hint">Secret deadline negotiators don't see</div>
-                                </div>
-                            </div>
-                        </div>
+                    <!-- Information Sharing -->
+                    <div class="form-group">
+                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.share_ufuns"><span>Share utility functions</span></label>
+                        <div class="form-inline-hint">Give each negotiator access to opponent's utility function</div>
                     </div>
                     
-                    <!-- Sub-tab: Mechanism Parameters -->
-                    <div x-show="paramSubTab === 'mechanism'">
-                        <!-- Mechanism Type Selector -->
-                        <div class="form-group" style="margin-bottom: 24px;">
-                            <label class="form-label">Protocol</label>
-                            <div class="card-selector">
-                                <button type="button" class="card-selector-option" 
-                                        :class="{ selected: newNeg.mechanism_type === 'sao' }"
-                                        @click="newNeg.mechanism_type = 'sao'">
-                                    <div class="card-icon">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                                            <circle cx="9" cy="7" r="4"></circle>
-                                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                                        </svg>
+                    <!-- Dynamic Parameter Groups -->
+                    <template x-if="selectedMechanism">
+                        <div>
+                            <template x-for="group in selectedMechanism.param_groups" :key="group.id">
+                                <div class="param-group" x-data="{ collapsed: group.order > 2 }">
+                                    <div class="param-group-header" @click="collapsed = !collapsed">
+                                        <span class="param-group-title" x-text="group.label"></span>
+                                        <svg class="param-group-chevron" :class="{ collapsed }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                     </div>
-                                    <span class="card-title">SAO</span>
-                                    <span class="card-desc">Alternating offers protocol</span>
-                                </button>
-                                <button type="button" class="card-selector-option" 
-                                        :class="{ selected: newNeg.mechanism_type === 'tau' }"
-                                        @click="newNeg.mechanism_type = 'tau'">
-                                    <div class="card-icon">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <line x1="8" y1="6" x2="21" y2="6"></line>
-                                            <line x1="8" y1="12" x2="21" y2="12"></line>
-                                            <line x1="8" y1="18" x2="21" y2="18"></line>
-                                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                                        </svg>
+                                    <div class="param-group-content" x-show="!collapsed" x-collapse>
+                                        <template x-for="param in group.params" :key="param.name">
+                                            <div class="form-group">
+                                                <!-- Boolean parameters -->
+                                                <template x-if="param.type === 'bool'">
+                                                    <div>
+                                                        <label class="form-checkbox">
+                                                            <input type="checkbox" 
+                                                                   :checked="newNeg.mechanism_params[param.name]"
+                                                                   @change="newNeg.mechanism_params[param.name] = $event.target.checked">
+                                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                                        </label>
+                                                        <div class="form-inline-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                                
+                                                <!-- Integer parameters -->
+                                                <template x-if="param.type === 'int'">
+                                                    <div>
+                                                        <label class="form-label" x-text="param.name.replace(/_/g, ' ')"></label>
+                                                        <input type="number" class="form-input" style="max-width: 150px;"
+                                                               :value="newNeg.mechanism_params[param.name]"
+                                                               @input="newNeg.mechanism_params[param.name] = $event.target.value ? parseInt($event.target.value) : null"
+                                                               :min="param.min_value"
+                                                               :max="param.max_value"
+                                                               :placeholder="param.default ?? 'None'">
+                                                        <div class="form-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                                
+                                                <!-- Optional integer parameters -->
+                                                <template x-if="param.type === 'optional_int'">
+                                                    <div>
+                                                        <label class="form-label" x-text="param.name.replace(/_/g, ' ')"></label>
+                                                        <input type="number" class="form-input" style="max-width: 150px;"
+                                                               :value="newNeg.mechanism_params[param.name]"
+                                                               @input="newNeg.mechanism_params[param.name] = $event.target.value ? parseInt($event.target.value) : null"
+                                                               :min="param.min_value"
+                                                               :max="param.max_value"
+                                                               placeholder="None">
+                                                        <div class="form-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                                
+                                                <!-- Float parameters -->
+                                                <template x-if="param.type === 'float'">
+                                                    <div>
+                                                        <label class="form-label" x-text="param.name.replace(/_/g, ' ')"></label>
+                                                        <input type="number" class="form-input" style="max-width: 150px;" step="0.01"
+                                                               :value="newNeg.mechanism_params[param.name]"
+                                                               @input="newNeg.mechanism_params[param.name] = $event.target.value ? parseFloat($event.target.value) : null"
+                                                               :min="param.min_value"
+                                                               :max="param.max_value"
+                                                               :placeholder="param.default ?? 'None'">
+                                                        <div class="form-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                                
+                                                <!-- Optional float parameters -->
+                                                <template x-if="param.type === 'optional_float'">
+                                                    <div>
+                                                        <label class="form-label" x-text="param.name.replace(/_/g, ' ')"></label>
+                                                        <input type="number" class="form-input" style="max-width: 150px;" step="0.1"
+                                                               :value="newNeg.mechanism_params[param.name]"
+                                                               @input="newNeg.mechanism_params[param.name] = $event.target.value ? parseFloat($event.target.value) : null"
+                                                               :min="param.min_value"
+                                                               :max="param.max_value"
+                                                               placeholder="None">
+                                                        <div class="form-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                                
+                                                <!-- String parameters -->
+                                                <template x-if="param.type === 'string' || param.type === 'optional_string'">
+                                                    <div>
+                                                        <label class="form-label" x-text="param.name.replace(/_/g, ' ')"></label>
+                                                        <input type="text" class="form-input" style="max-width: 300px;"
+                                                               :value="newNeg.mechanism_params[param.name]"
+                                                               @input="newNeg.mechanism_params[param.name] = $event.target.value || null"
+                                                               placeholder="None">
+                                                        <div class="form-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                                
+                                                <!-- Choice parameters -->
+                                                <template x-if="param.type === 'choice'">
+                                                    <div>
+                                                        <label class="form-label" x-text="param.name.replace(/_/g, ' ')"></label>
+                                                        <select class="form-select" style="max-width: 200px;"
+                                                                :value="newNeg.mechanism_params[param.name]"
+                                                                @change="newNeg.mechanism_params[param.name] = $event.target.value">
+                                                            <template x-for="choice in param.choices" :key="choice">
+                                                                <option :value="choice" x-text="choice"></option>
+                                                            </template>
+                                                        </select>
+                                                        <div class="form-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
                                     </div>
-                                    <span class="card-title">TAU</span>
-                                    <span class="card-desc">Multi-thread parallel offers</span>
-                                </button>
-                                <button type="button" class="card-selector-option" 
-                                        :class="{ selected: newNeg.mechanism_type === 'gb' }"
-                                        @click="newNeg.mechanism_type = 'gb'">
-                                    <div class="card-icon">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                            <line x1="3" y1="9" x2="21" y2="9"></line>
-                                            <line x1="9" y1="21" x2="9" y2="9"></line>
-                                        </svg>
-                                    </div>
-                                    <span class="card-title">GB</span>
-                                    <span class="card-desc">General bargaining protocol</span>
-                                </button>
-                            </div>
+                                </div>
+                            </template>
                         </div>
-                        
-                        <!-- Common Mechanism Parameters -->
-                        <div class="param-group" :class="{ collapsed: !showCommonParams }">
-                            <div class="param-group-header" @click="showCommonParams = !showCommonParams">
-                                <span class="param-group-title">Common Settings</span>
-                                <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                            </div>
-                            <div class="param-group-content">
-                                <div class="form-group">
-                                    <label class="form-checkbox"><input type="checkbox" x-model="newNeg.share_ufuns"><span>Share utility functions</span></label>
-                                    <div class="form-inline-hint">Give each negotiator access to opponent's utility function</div>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-checkbox"><input type="checkbox" x-model="newNeg.common.dynamic_entry"><span>Dynamic entry</span></label>
-                                    <div class="form-inline-hint">Allow negotiators to join after start</div>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-checkbox"><input type="checkbox" x-model="newNeg.common.ignore_negotiator_exceptions"><span>Ignore negotiator exceptions</span></label>
-                                    <div class="form-inline-hint">Continue negotiation even if a negotiator raises an exception</div>
-                                </div>
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label class="form-label">Max Negotiators</label>
-                                        <input type="number" class="form-input" x-model.number="newNeg.common.max_n_negotiators" min="2" placeholder="No limit">
-                                        <div class="form-hint">Maximum allowed negotiators</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Verbosity</label>
-                                        <input type="number" class="form-input" x-model.number="newNeg.common.verbosity" min="0" max="3" placeholder="0">
-                                        <div class="form-hint">Debug output level (0-3)</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- SAO Parameters -->
-                        <div x-show="newNeg.mechanism_type === 'sao'">
-                            <div class="param-group">
-                                <div class="param-group-header" @click="showSAOResponse = !showSAOResponse">
-                                    <span class="param-group-title">Response Handling</span>
-                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                </div>
-                                <div class="param-group-content" x-show="showSAOResponse">
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.end_on_no_response"><span>End on no response</span></label>
-                                        <div class="form-inline-hint">End negotiation if a negotiator doesn't respond</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.avoid_ultimatum"><span>Avoid ultimatum</span></label>
-                                        <div class="form-inline-hint">Prevent last-step ultimatum tactics</div>
-                                    </div>
-                                    <div class="form-row">
-                                        <div class="form-group">
-                                            <label class="form-label">Max Wait</label>
-                                            <input type="number" class="form-input" x-model.number="newNeg.sao.max_wait" min="1" placeholder="Unlimited">
-                                            <div class="form-hint">Max steps to wait for response</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="param-group" :class="{ collapsed: !showSAOOffers }">
-                                <div class="param-group-header" @click="showSAOOffers = !showSAOOffers">
-                                    <span class="param-group-title">Offer Validation</span>
-                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                </div>
-                                <div class="param-group-content">
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.check_offers"><span>Check offers</span></label>
-                                        <div class="form-inline-hint">Validate offers against outcome space</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.enforce_issue_types"><span>Enforce issue types</span></label>
-                                        <div class="form-inline-hint">Strictly enforce issue value types</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.cast_offers"><span>Cast offers</span></label>
-                                        <div class="form-inline-hint">Auto-cast offer values to correct types</div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="param-group" :class="{ collapsed: !showSAOSemantics }">
-                                <div class="param-group-header" @click="showSAOSemantics = !showSAOSemantics">
-                                    <span class="param-group-title">Offer Semantics</span>
-                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                </div>
-                                <div class="param-group-content">
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.offering_is_accepting"><span>Offering is accepting</span></label>
-                                        <div class="form-inline-hint">Making an offer implies accepting it</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.allow_offering_just_rejected_outcome"><span>Allow re-offering rejected</span></label>
-                                        <div class="form-inline-hint">Can offer an outcome that was just rejected</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.one_offer_per_step"><span>One offer per step</span></label>
-                                        <div class="form-inline-hint">Limit to one offer per negotiation step</div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="param-group" :class="{ collapsed: !showSAOAdvanced }">
-                                <div class="param-group-header" @click="showSAOAdvanced = !showSAOAdvanced">
-                                    <span class="param-group-title">Advanced</span>
-                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                </div>
-                                <div class="param-group-content">
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.sync_calls"><span>Synchronous calls</span></label>
-                                        <div class="form-inline-hint">Make negotiator calls synchronously</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.extra_callbacks"><span>Extra callbacks</span></label>
-                                        <div class="form-inline-hint">Enable additional callback hooks</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- TAU Parameters -->
-                        <div x-show="newNeg.mechanism_type === 'tau'">
-                            <div class="param-group">
-                                <div class="param-group-header" @click="showTAUBasic = !showTAUBasic">
-                                    <span class="param-group-title">Thread Settings</span>
-                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                </div>
-                                <div class="param-group-content" x-show="showTAUBasic !== false">
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.tau.accept_in_any_thread"><span>Accept in any thread</span></label>
-                                        <div class="form-inline-hint">Acceptance in any thread ends negotiation</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.tau.parallel"><span>Parallel threads</span></label>
-                                        <div class="form-inline-hint">Run threads in parallel</div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="param-group" :class="{ collapsed: !showTAUAdvanced }">
-                                <div class="param-group-header" @click="showTAUAdvanced = !showTAUAdvanced">
-                                    <span class="param-group-title">Advanced</span>
-                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                </div>
-                                <div class="param-group-content">
-                                    <div class="form-row">
-                                        <div class="form-group">
-                                            <label class="form-label">Cardinality</label>
-                                            <input type="number" class="form-input" x-model.number="newNeg.tau.cardinality" min="1" placeholder="Unlimited">
-                                            <div class="form-hint">Max offers per thread</div>
-                                        </div>
-                                        <div class="form-group">
-                                            <label class="form-label">Min Unique</label>
-                                            <input type="number" class="form-input" x-model.number="newNeg.tau.min_unique" min="0" placeholder="0">
-                                            <div class="form-hint">Min unique offers required</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- GB Parameters -->
-                        <div x-show="newNeg.mechanism_type === 'gb'">
-                            <div class="param-group">
-                                <div class="param-group-header" @click="showGBBasic = !showGBBasic">
-                                    <span class="param-group-title">Execution</span>
-                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                </div>
-                                <div class="param-group-content" x-show="showGBBasic !== false">
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.parallel"><span>Parallel evaluation</span></label>
-                                        <div class="form-inline-hint">Evaluate offers in parallel</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.end_on_no_response"><span>End on no response</span></label>
-                                        <div class="form-inline-hint">End if no response received</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.sync_calls"><span>Synchronous calls</span></label>
-                                        <div class="form-inline-hint">Make negotiator calls synchronously</div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="param-group" :class="{ collapsed: !showGBOffers }">
-                                <div class="param-group-header" @click="showGBOffers = !showGBOffers">
-                                    <span class="param-group-title">Offer Validation</span>
-                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                </div>
-                                <div class="param-group-content">
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.check_offers"><span>Check offers</span></label>
-                                        <div class="form-inline-hint">Validate all offers</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.enforce_issue_types"><span>Enforce issue types</span></label>
-                                        <div class="form-inline-hint">Strictly enforce issue value types</div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.cast_offers"><span>Cast offers</span></label>
-                                        <div class="form-inline-hint">Auto-cast offer values to correct types</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    </template>
                 </div>
                 
                 <!-- Tab: Panels -->
@@ -1022,8 +889,8 @@
                         <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px;">
                             <div><strong>Scenario:</strong> <span x-text="newNeg.scenario?.name || 'Not selected'"></span></div>
                             <div><strong>Negotiators:</strong> <span x-text="newNeg.negotiators.map(n => getNegotiatorDisplayName(n.type_name)).join(' vs ')"></span></div>
-                            <div><strong>Mechanism:</strong> <span x-text="newNeg.mechanism_type.toUpperCase()"></span></div>
-                            <div><strong>Deadline:</strong> <span x-text="newNeg.n_steps > 0 ? newNeg.n_steps + ' steps' : (newNeg.time_limit ? newNeg.time_limit + 's' : 'None')"></span></div>
+                            <div><strong>Mechanism:</strong> <span x-text="newNeg.mechanism_type.replace('Mechanism', '')"></span></div>
+                            <div><strong>Deadline:</strong> <span x-text="getDeadlineSummary()"></span></div>
                         </div>
                     </div>
                     
@@ -1355,6 +1222,10 @@
             negotiatorGroupFilter: '',
             selectedNegotiatorSlot: 0,
             
+            // Mechanism data (loaded from API)
+            mechanisms: [],
+            selectedMechanism: null,
+            
             // BOA (Build Custom) negotiator config
             boaComponents: {
                 acceptance: [],
@@ -1387,53 +1258,13 @@
                     { type_name: 'AspirationNegotiator', name: 'Agent1' },
                     { type_name: 'BoulwareTBNegotiator', name: 'Agent2' }
                 ],
-                // Mechanism type
-                mechanism_type: 'sao',
-                // Deadline params
-                n_steps: 100,
-                time_limit: null,
-                pend: 0,
-                pend_per_second: 0,
-                step_time_limit: null,
-                negotiator_time_limit: null,
-                hidden_time_limit: null,
-                // Common mechanism params
-                common: {
-                    dynamic_entry: false,
-                    ignore_negotiator_exceptions: false,
-                    max_n_negotiators: null,
-                    verbosity: 0
-                },
-                // SAO params
-                sao: {
-                    end_on_no_response: true,
-                    avoid_ultimatum: false,
-                    check_offers: false,
-                    enforce_issue_types: false,
-                    cast_offers: false,
-                    offering_is_accepting: true,
-                    allow_offering_just_rejected_outcome: true,
-                    one_offer_per_step: false,
-                    max_wait: null,
-                    sync_calls: false,
-                    extra_callbacks: true
-                },
-                // TAU params
-                tau: {
-                    accept_in_any_thread: true,
-                    parallel: true,
-                    cardinality: null,
-                    min_unique: 0
-                },
-                // GB params
-                gb: {
-                    parallel: true,
-                    end_on_no_response: true,
-                    check_offers: false,
-                    enforce_issue_types: false,
-                    cast_offers: false,
-                    sync_calls: false
-                },
+                // Scenario loading options
+                ignore_discount: false,
+                ignore_reserved: false,
+                // Mechanism type (class name)
+                mechanism_type: 'SAOMechanism',
+                // Dynamic mechanism params (populated from API)
+                mechanism_params: {},
                 // Information sharing
                 share_ufuns: false,
                 // Display params
@@ -1556,18 +1387,40 @@
             get canStart() {
                 if (this.newNeg.scenario === null) return false;
                 if (this.newNeg.negotiators.length < (this.newNeg.scenario?.n_negotiators || 2)) return false;
-                // Check deadline requirement for non-TAU mechanisms
-                if (this.newNeg.mechanism_type !== 'tau' && !this.hasDeadline()) return false;
+                // Check deadline requirement - most mechanisms need some form of limit
+                if (!this.hasDeadline()) return false;
                 return true;
             },
             
             // Helper methods
             hasDeadline() {
-                return this.newNeg.n_steps > 0 ||
-                       (this.newNeg.time_limit && this.newNeg.time_limit > 0) ||
-                       this.newNeg.pend > 0 ||
-                       this.newNeg.pend_per_second > 0 ||
-                       (this.newNeg.hidden_time_limit && this.newNeg.hidden_time_limit > 0);
+                const params = this.newNeg.mechanism_params || {};
+                return (params.n_steps && params.n_steps > 0) ||
+                       (params.time_limit && params.time_limit > 0) ||
+                       (params.pend && params.pend > 0) ||
+                       (params.pend_per_second && params.pend_per_second > 0) ||
+                       (params.hidden_time_limit && params.hidden_time_limit > 0 && params.hidden_time_limit !== 'inf');
+            },
+            
+            getDeadlineSummary() {
+                const params = this.newNeg.mechanism_params || {};
+                const parts = [];
+                if (params.n_steps && params.n_steps > 0) {
+                    parts.push(params.n_steps + ' steps');
+                }
+                if (params.time_limit && params.time_limit > 0) {
+                    parts.push(params.time_limit + 's time');
+                }
+                if (params.pend && params.pend > 0) {
+                    parts.push('pend=' + params.pend);
+                }
+                if (params.pend_per_second && params.pend_per_second > 0) {
+                    parts.push('pend/s=' + params.pend_per_second);
+                }
+                if (params.hidden_time_limit && params.hidden_time_limit > 0 && params.hidden_time_limit !== 'inf') {
+                    parts.push('hidden=' + params.hidden_time_limit + 's');
+                }
+                return parts.length > 0 ? parts.join(', ') : 'None';
             },
             
             getMechanismDescription(type) {
@@ -1596,6 +1449,7 @@
                 await this.loadSources();
                 await this.loadNegotiatorSources();
                 await this.loadNegotiatorTypes();
+                await this.loadMechanisms();
                 // Pre-load all scenarios so search is instant
                 await this.loadAllScenarios();
                 this.initSortable();
@@ -1707,6 +1561,55 @@
                 } catch (e) {
                     console.error('Failed to load negotiator sources:', e);
                 }
+            },
+            
+            async loadMechanisms() {
+                try {
+                    const res = await fetch('/api/mechanisms');
+                    const data = await res.json();
+                    this.mechanisms = data.mechanisms;
+                    // Select SAOMechanism by default
+                    this.selectMechanism('SAOMechanism');
+                } catch (e) {
+                    console.error('Failed to load mechanisms:', e);
+                }
+            },
+            
+            selectMechanism(className) {
+                this.selectedMechanism = this.mechanisms.find(m => m.class_name === className);
+                if (this.selectedMechanism) {
+                    this.newNeg.mechanism_type = className;
+                    // Initialize mechanism params with defaults
+                    this.initMechanismParams();
+                }
+            },
+            
+            initMechanismParams() {
+                if (!this.selectedMechanism) return;
+                
+                // Reset mechanism_params to defaults
+                this.newNeg.mechanism_params = {};
+                
+                for (const group of this.selectedMechanism.param_groups) {
+                    for (const param of group.params) {
+                        // Set default value
+                        let defaultVal = param.default;
+                        if (defaultVal === 'inf') defaultVal = null;
+                        if (defaultVal === '-inf') defaultVal = null;
+                        this.newNeg.mechanism_params[param.name] = defaultVal;
+                    }
+                }
+            },
+            
+            getMechanismParamValue(paramName) {
+                return this.newNeg.mechanism_params?.[paramName];
+            },
+            
+            setMechanismParamValue(paramName, value) {
+                if (!this.newNeg.mechanism_params) {
+                    this.newNeg.mechanism_params = {};
+                }
+                this.newNeg.mechanism_params[paramName] = value;
             },
             
             async loadSourceSettings() {
@@ -1861,36 +1764,11 @@
                     source: '',
                     scenario: null,
                     negotiators: [
-                        { type_name: 'negmas.sao.AspirationNegotiator', name: 'Agent1', source: 'native' },
-                        { type_name: 'negmas.sao.BoulwareTBNegotiator', name: 'Agent2', source: 'native' }
+                        { type_name: 'negmas.sao.AspirationNegotiator', name: 'Aspiration1', source: 'native' },
+                        { type_name: 'negmas.sao.BoulwareTBNegotiator', name: 'Boulware2', source: 'native' }
                     ],
-                    mechanism_type: 'sao',
-                    n_steps: this.settings.defaultSteps,
-                    time_limit: null,
-                    pend: 0,
-                    pend_per_second: 0,
-                    step_time_limit: null,
-                    negotiator_time_limit: null,
-                    hidden_time_limit: null,
-                    sao: {
-                        end_on_no_response: true,
-                        avoid_ultimatum: false,
-                        check_offers: false,
-                        enforce_issue_types: false,
-                        cast_offers: false,
-                        offering_is_accepting: true,
-                        allow_offering_just_rejected_outcome: true,
-                        one_offer_per_step: false
-                    },
-                    tau: {
-                        accept_in_any_thread: true,
-                        parallel: true
-                    },
-                    gb: {
-                        parallel: true,
-                        end_on_no_response: true,
-                        check_offers: false
-                    },
+                    mechanism_type: 'SAOMechanism',
+                    mechanism_params: {},
                     share_ufuns: false,
                     mode: 'realtime',
                     step_delay: this.settings.defaultDelay,
@@ -1908,6 +1786,8 @@
                         }
                     }
                 };
+                // Initialize mechanism params with defaults
+                this.selectMechanism('SAOMechanism');
             },
             
             selectScenario(scenario) {
@@ -1940,7 +1820,7 @@
                 const idx = this.newNeg.negotiators.length;
                 this.newNeg.negotiators.push({
                     type_name: 'negmas.sao.AspirationNegotiator',
-                    name: `Agent${idx + 1}`,
+                    name: `Aspiration${idx + 1}`,
                     source: 'native'
                 });
             },
@@ -1956,9 +1836,15 @@
                 const slotIndex = this.selectedNegotiatorSlot;
                 const existingName = this.newNeg.negotiators[slotIndex]?.name;
                 
+                // Generate default name from type name + index if user hasn't set a custom name
+                // Check if existing name is a generic "AgentN" or empty
+                const isGenericName = !existingName || /^Agent\d+$/.test(existingName);
+                const shortTypeName = negInfo.name || negInfo.type_name.split('.').pop();
+                const defaultName = isGenericName ? `${shortTypeName}${slotIndex + 1}` : existingName;
+                
                 const newNeg = {
                     type_name: negInfo.type_name,
-                    name: existingName || `Agent${slotIndex + 1}`,
+                    name: defaultName,
                     source: negInfo.source,
                     requires_bridge: negInfo.requires_bridge
                 };
@@ -2088,6 +1974,9 @@
                 // Save to recent sessions
                 await this.addToRecentSessions();
                 
+                // Build request with new mechanism params structure
+                const params = this.newNeg.mechanism_params || {};
+                
                 try {
                     const res = await fetch('/api/negotiation/start', {
                         method: 'POST',
@@ -2095,8 +1984,10 @@
                         body: JSON.stringify({
                             scenario_path: this.newNeg.scenario.path,
                             negotiators: this.newNeg.negotiators,
-                            n_steps: this.newNeg.n_steps,
-                            time_limit: this.newNeg.time_limit || null,
+                            mechanism_type: this.newNeg.mechanism_type,
+                            mechanism_params: params,
+                            n_steps: params.n_steps || 100,
+                            time_limit: params.time_limit || null,
                             step_delay: this.newNeg.step_delay / 1000,
                             share_ufuns: this.newNeg.share_ufuns
                         })
@@ -2306,6 +2197,38 @@
                 // Find the scenario in the loaded scenarios
                 const scenario = this.scenarios.find(s => s.path === session.scenario_path);
                 
+                // Convert old format to new mechanism_params if needed
+                let mechanismParams = session.mechanism_params || {};
+                
+                // Handle old format where params were at top level
+                if (!session.mechanism_params) {
+                    mechanismParams = {
+                        n_steps: session.n_steps ?? null,
+                        time_limit: session.time_limit ?? null,
+                        pend: session.pend ?? 0,
+                        pend_per_second: session.pend_per_second ?? 0,
+                        step_time_limit: session.step_time_limit ?? null,
+                        negotiator_time_limit: session.negotiator_time_limit ?? null,
+                        hidden_time_limit: session.hidden_time_limit ?? null,
+                    };
+                    
+                    // Merge mechanism-specific params from old format
+                    const mechType = session.mechanism_type || 'SAOMechanism';
+                    if (mechType === 'SAOMechanism' || mechType === 'sao') {
+                        Object.assign(mechanismParams, session.sao || {});
+                    } else if (mechType === 'TAUMechanism' || mechType === 'tau') {
+                        Object.assign(mechanismParams, session.tau || {});
+                    } else if (mechType === 'GBMechanism' || mechType === 'gb') {
+                        Object.assign(mechanismParams, session.gb || {});
+                    }
+                }
+                
+                // Normalize mechanism_type to class name format
+                let mechType = session.mechanism_type || 'SAOMechanism';
+                if (mechType === 'sao') mechType = 'SAOMechanism';
+                else if (mechType === 'tau') mechType = 'TAUMechanism';
+                else if (mechType === 'gb') mechType = 'GBMechanism';
+                
                 this.newNeg = {
                     source: '',
                     scenario: scenario || { path: session.scenario_path, name: session.scenario_name },
@@ -2315,39 +2238,23 @@
                         source: n.source || 'native',
                         requires_bridge: n.requires_bridge || false
                     })),
-                    mechanism_type: session.mechanism_type || 'sao',
-                    n_steps: session.n_steps ?? 100,
-                    time_limit: session.time_limit,
-                    pend: session.pend ?? 0,
-                    pend_per_second: session.pend_per_second ?? 0,
-                    step_time_limit: session.step_time_limit,
-                    negotiator_time_limit: session.negotiator_time_limit,
-                    hidden_time_limit: session.hidden_time_limit,
-                    sao: session.sao || {
-                        end_on_no_response: true,
-                        avoid_ultimatum: false,
-                        check_offers: false,
-                        enforce_issue_types: false,
-                        cast_offers: false,
-                        offering_is_accepting: true,
-                        allow_offering_just_rejected_outcome: true,
-                        one_offer_per_step: false
-                    },
-                    tau: session.tau || {
-                        accept_in_any_thread: true,
-                        parallel: true
-                    },
-                    gb: session.gb || {
-                        parallel: true,
-                        end_on_no_response: true,
-                        check_offers: false
-                    },
+                    mechanism_type: mechType,
+                    mechanism_params: mechanismParams,
                     share_ufuns: session.share_ufuns ?? false,
                     mode: session.mode || 'realtime',
                     step_delay: session.step_delay ?? 100,
                     show_plot: session.show_plot ?? true,
-                    show_offers: session.show_offers ?? true
+                    show_offers: session.show_offers ?? true,
+                    auto_start: true,
+                    panels: session.panels || {
+                        adjustable: true,
+                        utilityView: { xAxis: 0, yAxis: 1 },
+                        timeline: { xAxis: 'step' }
+                    }
                 };
+                
+                // Update selectedMechanism to match
+                this.selectMechanism(mechType);
                 
                 // Jump directly to display tab when loading a full session
                 this.negotiationTab = 'display';
@@ -2365,21 +2272,13 @@
                         requires_bridge: n.requires_bridge
                     })),
                     mechanism_type: this.newNeg.mechanism_type,
-                    n_steps: this.newNeg.n_steps,
-                    time_limit: this.newNeg.time_limit,
-                    pend: this.newNeg.pend,
-                    pend_per_second: this.newNeg.pend_per_second,
-                    step_time_limit: this.newNeg.step_time_limit,
-                    negotiator_time_limit: this.newNeg.negotiator_time_limit,
-                    hidden_time_limit: this.newNeg.hidden_time_limit,
-                    sao: this.newNeg.sao,
-                    tau: this.newNeg.tau,
-                    gb: this.newNeg.gb,
+                    mechanism_params: this.newNeg.mechanism_params,
                     share_ufuns: this.newNeg.share_ufuns,
                     mode: this.newNeg.mode,
                     step_delay: this.newNeg.step_delay,
                     show_plot: this.newNeg.show_plot,
-                    show_offers: this.newNeg.show_offers
+                    show_offers: this.newNeg.show_offers,
+                    panels: this.newNeg.panels
                 };
             },
             
