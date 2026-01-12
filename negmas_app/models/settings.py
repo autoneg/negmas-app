@@ -150,12 +150,16 @@ class ParametersPreset:
     step_time_limit: float | None = None
     negotiator_time_limit: float | None = None
     hidden_time_limit: float | None = None
+    # Common mechanism params
+    common: dict[str, Any] = field(default_factory=dict)
     # SAO params
     sao: dict[str, Any] = field(default_factory=dict)
     # TAU params
     tau: dict[str, Any] = field(default_factory=dict)
     # GB params
     gb: dict[str, Any] = field(default_factory=dict)
+    # Information sharing
+    share_ufuns: bool = False
     created_at: str = ""  # ISO timestamp
 
 
@@ -190,9 +194,14 @@ class FullSessionPreset:
     step_time_limit: float | None = None
     negotiator_time_limit: float | None = None
     hidden_time_limit: float | None = None
+    # Common mechanism params
+    common: dict[str, Any] = field(default_factory=dict)
+    # Protocol-specific params
     sao: dict[str, Any] = field(default_factory=dict)
     tau: dict[str, Any] = field(default_factory=dict)
     gb: dict[str, Any] = field(default_factory=dict)
+    # Information sharing
+    share_ufuns: bool = False
     # Display
     mode: str = "realtime"
     step_delay: int = 100

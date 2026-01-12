@@ -2,13 +2,17 @@
 
 from negmas import Scenario
 from negmas.sao import SAOMechanism
+from negmas.gb import TAUMechanism, GBMechanism
 from negmas.outcomes import OutcomeSpace
+from negmas.mechanisms import Mechanism
 
 from ..models import (
     MechanismType,
     MechanismConfig,
     DeadlineParams,
     SAOParams,
+    TAUParams,
+    GBParams,
     default_config,
 )
 
@@ -51,6 +55,7 @@ class MechanismFactory:
             name=params.name,
             # SAO-specific params
             end_on_no_response=params.end_on_no_response,
+            avoid_ultimatum=params.avoid_ultimatum,
             check_offers=params.check_offers,
             enforce_issue_types=params.enforce_issue_types,
             cast_offers=params.cast_offers,
@@ -62,10 +67,90 @@ class MechanismFactory:
         )
 
     @staticmethod
+    def create_tau(
+        outcome_space: OutcomeSpace,
+        config: MechanismConfig,
+    ) -> TAUMechanism:
+        """Create a TAU mechanism.
+
+        Args:
+            outcome_space: The outcome space for the negotiation.
+            config: Full mechanism configuration.
+
+        Returns:
+            Configured TAUMechanism instance.
+        """
+        deadline = config.deadline
+        params = config.tau_params
+
+        return TAUMechanism(
+            outcome_space=outcome_space,
+            # Deadline params
+            n_steps=deadline.n_steps,
+            time_limit=deadline.time_limit,
+            pend=deadline.pend,
+            pend_per_second=deadline.pend_per_second,
+            step_time_limit=deadline.step_time_limit,
+            negotiator_time_limit=deadline.negotiator_time_limit,
+            hidden_time_limit=deadline.hidden_time_limit,
+            # Base params
+            max_n_negotiators=params.max_n_negotiators,
+            dynamic_entry=params.dynamic_entry,
+            verbosity=params.verbosity,
+            ignore_negotiator_exceptions=params.ignore_negotiator_exceptions,
+            name=params.name,
+            # TAU-specific params
+            accept_in_any_thread=params.accept_in_any_thread,
+            parallel=params.parallel,
+        )
+
+    @staticmethod
+    def create_gb(
+        outcome_space: OutcomeSpace,
+        config: MechanismConfig,
+    ) -> GBMechanism:
+        """Create a GB mechanism.
+
+        Args:
+            outcome_space: The outcome space for the negotiation.
+            config: Full mechanism configuration.
+
+        Returns:
+            Configured GBMechanism instance.
+        """
+        deadline = config.deadline
+        params = config.gb_params
+
+        return GBMechanism(
+            outcome_space=outcome_space,
+            # Deadline params
+            n_steps=deadline.n_steps,
+            time_limit=deadline.time_limit,
+            pend=deadline.pend,
+            pend_per_second=deadline.pend_per_second,
+            step_time_limit=deadline.step_time_limit,
+            negotiator_time_limit=deadline.negotiator_time_limit,
+            hidden_time_limit=deadline.hidden_time_limit,
+            # Base params
+            max_n_negotiators=params.max_n_negotiators,
+            dynamic_entry=params.dynamic_entry,
+            verbosity=params.verbosity,
+            ignore_negotiator_exceptions=params.ignore_negotiator_exceptions,
+            name=params.name,
+            # GB-specific params
+            parallel=params.parallel,
+            end_on_no_response=params.end_on_no_response,
+            check_offers=params.check_offers,
+            enforce_issue_types=params.enforce_issue_types,
+            cast_offers=params.cast_offers,
+            sync_calls=params.sync_calls,
+        )
+
+    @staticmethod
     def create(
         outcome_space: OutcomeSpace,
         config: MechanismConfig | None = None,
-    ) -> SAOMechanism:
+    ) -> Mechanism:
         """Create a mechanism from configuration.
 
         Args:
@@ -84,6 +169,10 @@ class MechanismFactory:
         match config.mechanism_type:
             case MechanismType.SAO:
                 return MechanismFactory.create_sao(outcome_space, config)
+            case MechanismType.TAU:
+                return MechanismFactory.create_tau(outcome_space, config)
+            case MechanismType.GB:
+                return MechanismFactory.create_gb(outcome_space, config)
             case _:
                 raise ValueError(
                     f"Mechanism type {config.mechanism_type} not yet supported"
@@ -93,7 +182,7 @@ class MechanismFactory:
     def create_from_scenario(
         scenario: Scenario,  # type: ignore[name-defined]
         config: MechanismConfig | None = None,
-    ) -> SAOMechanism:
+    ) -> Mechanism:
         """Create a mechanism from a scenario.
 
         Args:

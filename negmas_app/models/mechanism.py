@@ -143,6 +143,10 @@ class TAUParams(BaseMechanismParams):
     # Run threads in parallel
     parallel: bool = True
 
+    # Serial TAU specific (used when parallel=False)
+    cardinality: int | None = None  # Max offers per thread (None = unlimited)
+    min_unique: int = 0  # Min unique offers required
+
 
 @dataclass
 class GBParams(BaseMechanismParams):

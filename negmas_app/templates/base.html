@@ -550,6 +550,40 @@
                             </div>
                         </div>
                         
+                        <!-- Common Mechanism Parameters -->
+                        <div class="param-group" :class="{ collapsed: !showCommonParams }">
+                            <div class="param-group-header" @click="showCommonParams = !showCommonParams">
+                                <span class="param-group-title">Common Settings</span>
+                                <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                            <div class="param-group-content">
+                                <div class="form-group">
+                                    <label class="form-checkbox"><input type="checkbox" x-model="newNeg.share_ufuns"><span>Share utility functions</span></label>
+                                    <div class="form-inline-hint">Give each negotiator access to opponent's utility function</div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-checkbox"><input type="checkbox" x-model="newNeg.common.dynamic_entry"><span>Dynamic entry</span></label>
+                                    <div class="form-inline-hint">Allow negotiators to join after start</div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-checkbox"><input type="checkbox" x-model="newNeg.common.ignore_negotiator_exceptions"><span>Ignore negotiator exceptions</span></label>
+                                    <div class="form-inline-hint">Continue negotiation even if a negotiator raises an exception</div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Max Negotiators</label>
+                                        <input type="number" class="form-input" x-model.number="newNeg.common.max_n_negotiators" min="2" placeholder="No limit">
+                                        <div class="form-hint">Maximum allowed negotiators</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Verbosity</label>
+                                        <input type="number" class="form-input" x-model.number="newNeg.common.verbosity" min="0" max="3" placeholder="0">
+                                        <div class="form-hint">Debug output level (0-3)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <!-- SAO Parameters -->
                         <div x-show="newNeg.mechanism_type === 'sao'">
                             <div class="param-group">
@@ -565,6 +599,13 @@
                                     <div class="form-group">
                                         <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.avoid_ultimatum"><span>Avoid ultimatum</span></label>
                                         <div class="form-inline-hint">Prevent last-step ultimatum tactics</div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label class="form-label">Max Wait</label>
+                                            <input type="number" class="form-input" x-model.number="newNeg.sao.max_wait" min="1" placeholder="Unlimited">
+                                            <div class="form-hint">Max steps to wait for response</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -610,47 +651,108 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <!-- Information Sharing (applies to all mechanism types) -->
-                        <div class="param-group">
-                            <div class="param-group-header" @click="showInfoSharing = !showInfoSharing">
-                                <span class="param-group-title">Information Sharing</span>
-                                <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                            </div>
-                            <div class="param-group-content" x-show="showInfoSharing">
-                                <div class="form-group">
-                                    <label class="form-checkbox"><input type="checkbox" x-model="newNeg.share_ufuns"><span>Share utility functions</span></label>
-                                    <div class="form-inline-hint">Give each negotiator access to opponent's utility function (required for NaiveTitForTat and similar)</div>
+                            
+                            <div class="param-group" :class="{ collapsed: !showSAOAdvanced }">
+                                <div class="param-group-header" @click="showSAOAdvanced = !showSAOAdvanced">
+                                    <span class="param-group-title">Advanced</span>
+                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                                <div class="param-group-content">
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.sync_calls"><span>Synchronous calls</span></label>
+                                        <div class="form-inline-hint">Make negotiator calls synchronously</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.extra_callbacks"><span>Extra callbacks</span></label>
+                                        <div class="form-inline-hint">Enable additional callback hooks</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         
                         <!-- TAU Parameters -->
                         <div x-show="newNeg.mechanism_type === 'tau'">
-                            <div class="form-group">
-                                <label class="form-checkbox"><input type="checkbox" x-model="newNeg.tau.accept_in_any_thread"><span>Accept in any thread</span></label>
-                                <div class="form-inline-hint">Acceptance in any thread ends negotiation</div>
+                            <div class="param-group">
+                                <div class="param-group-header" @click="showTAUBasic = !showTAUBasic">
+                                    <span class="param-group-title">Thread Settings</span>
+                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                                <div class="param-group-content" x-show="showTAUBasic !== false">
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.tau.accept_in_any_thread"><span>Accept in any thread</span></label>
+                                        <div class="form-inline-hint">Acceptance in any thread ends negotiation</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.tau.parallel"><span>Parallel threads</span></label>
+                                        <div class="form-inline-hint">Run threads in parallel</div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label class="form-checkbox"><input type="checkbox" x-model="newNeg.tau.parallel"><span>Parallel threads</span></label>
-                                <div class="form-inline-hint">Run threads in parallel</div>
+                            
+                            <div class="param-group" :class="{ collapsed: !showTAUAdvanced }">
+                                <div class="param-group-header" @click="showTAUAdvanced = !showTAUAdvanced">
+                                    <span class="param-group-title">Advanced</span>
+                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                                <div class="param-group-content">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label class="form-label">Cardinality</label>
+                                            <input type="number" class="form-input" x-model.number="newNeg.tau.cardinality" min="1" placeholder="Unlimited">
+                                            <div class="form-hint">Max offers per thread</div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Min Unique</label>
+                                            <input type="number" class="form-input" x-model.number="newNeg.tau.min_unique" min="0" placeholder="0">
+                                            <div class="form-hint">Min unique offers required</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
                         <!-- GB Parameters -->
                         <div x-show="newNeg.mechanism_type === 'gb'">
-                            <div class="form-group">
-                                <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.parallel"><span>Parallel evaluation</span></label>
-                                <div class="form-inline-hint">Evaluate offers in parallel</div>
+                            <div class="param-group">
+                                <div class="param-group-header" @click="showGBBasic = !showGBBasic">
+                                    <span class="param-group-title">Execution</span>
+                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                                <div class="param-group-content" x-show="showGBBasic !== false">
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.parallel"><span>Parallel evaluation</span></label>
+                                        <div class="form-inline-hint">Evaluate offers in parallel</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.end_on_no_response"><span>End on no response</span></label>
+                                        <div class="form-inline-hint">End if no response received</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.sync_calls"><span>Synchronous calls</span></label>
+                                        <div class="form-inline-hint">Make negotiator calls synchronously</div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.end_on_no_response"><span>End on no response</span></label>
-                                <div class="form-inline-hint">End if no response received</div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.check_offers"><span>Check offers</span></label>
-                                <div class="form-inline-hint">Validate all offers</div>
+                            
+                            <div class="param-group" :class="{ collapsed: !showGBOffers }">
+                                <div class="param-group-header" @click="showGBOffers = !showGBOffers">
+                                    <span class="param-group-title">Offer Validation</span>
+                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                                <div class="param-group-content">
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.check_offers"><span>Check offers</span></label>
+                                        <div class="form-inline-hint">Validate all offers</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.enforce_issue_types"><span>Enforce issue types</span></label>
+                                        <div class="form-inline-hint">Strictly enforce issue value types</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.cast_offers"><span>Cast offers</span></label>
+                                        <div class="form-inline-hint">Auto-cast offer values to correct types</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1028,10 +1130,15 @@
             
             // Parameter group collapse states
             showAdvancedDeadline: false,
+            showCommonParams: false,
             showSAOResponse: true,
             showSAOOffers: false,
             showSAOSemantics: false,
-            showInfoSharing: true,
+            showSAOAdvanced: false,
+            showTAUBasic: true,
+            showTAUAdvanced: false,
+            showGBBasic: true,
+            showGBOffers: false,
             
             // Data
             sources: [],
@@ -1067,6 +1174,13 @@
                 step_time_limit: null,
                 negotiator_time_limit: null,
                 hidden_time_limit: null,
+                // Common mechanism params
+                common: {
+                    dynamic_entry: false,
+                    ignore_negotiator_exceptions: false,
+                    max_n_negotiators: null,
+                    verbosity: 0
+                },
                 // SAO params
                 sao: {
                     end_on_no_response: true,
@@ -1076,18 +1190,26 @@
                     cast_offers: false,
                     offering_is_accepting: true,
                     allow_offering_just_rejected_outcome: true,
-                    one_offer_per_step: false
+                    one_offer_per_step: false,
+                    max_wait: null,
+                    sync_calls: false,
+                    extra_callbacks: true
                 },
                 // TAU params
                 tau: {
                     accept_in_any_thread: true,
-                    parallel: true
+                    parallel: true,
+                    cardinality: null,
+                    min_unique: 0
                 },
                 // GB params
                 gb: {
                     parallel: true,
                     end_on_no_response: true,
-                    check_offers: false
+                    check_offers: false,
+                    enforce_issue_types: false,
+                    cast_offers: false,
+                    sync_calls: false
                 },
                 // Information sharing
                 share_ufuns: false,
