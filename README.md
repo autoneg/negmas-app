@@ -2,6 +2,8 @@
 
 A modern web GUI for [NegMAS](https://github.com/yasserfarouk/negmas) - the Negotiation Agents and Mechanisms Simulation library.
 
+> **Note**: This project was designed by humans but primarily implemented by AI (Claude Opus 4 and [OpenCode](https://opencode.ai)). The architecture, features, and design decisions were made by the maintainers, while the bulk of the code was generated through AI-assisted development.
+
 **Run automated negotiations visually, analyze results in real-time, and explore negotiation scenarios.**
 
 ## Features

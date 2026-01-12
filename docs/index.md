@@ -2,6 +2,9 @@
 
 **A Visual Interface for Automated Negotiation**
 
+!!! info "AI-Assisted Development"
+    This project was designed by humans but primarily implemented by AI (Claude Opus 4 and [OpenCode](https://opencode.ai)). The architecture, features, and design decisions were made by the maintainers, while the bulk of the code was generated through AI-assisted development.
+
 NegMAS App is a web-based GUI for the [NegMAS](https://github.com/yasserfarouk/negmas) automated negotiation library. It provides an intuitive interface for:
 
 - Running and visualizing negotiations in real-time
