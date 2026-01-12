@@ -23,9 +23,14 @@ dependencies = [
     "typer>=0.12.0",
 ]
 
-# Optional dependencies - uncomment when negmas-rl is published
-# [project.optional-dependencies]
-# rl = ["negmas-rl"]
+[project.optional-dependencies]
+# rl = ["negmas-rl"]  # uncomment when negmas-rl is published
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.28.0",
+]
 
 [project.scripts]
 negmas-app = "negmas_app.main:cli"
@@ -36,4 +41,15 @@ packages = ["negmas_app", "scenarios"]
 
 [tool.hatch.build.targets.sdist]
 include = ["negmas_app", "scenarios"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["negmas_app"]
+omit = ["negmas_app/static/*", "negmas_app/templates/*"]
 
