@@ -3,22 +3,141 @@
 {% block title %}NegMAS App - Negotiations{% endblock %}
 
 {% block content %}
-<!-- Empty state when no negotiation selected -->
-<div x-show="!currentNegotiation" class="empty-state" style="height: 100%;">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-    </svg>
-    <div class="empty-state-title">No Negotiation Selected</div>
-    <div class="empty-state-text">
-        Start a new negotiation or select one from the sidebar to view its progress.
+<!-- Negotiations Table View when no negotiation selected -->
+<div x-show="!currentNegotiation" class="negotiations-table-view" style="height: 100%; display: flex; flex-direction: column; padding: 16px;">
+    <!-- Header with actions -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 style="margin: 0; font-size: 18px; font-weight: 600;">Negotiations</h2>
+        <button class="btn btn-primary" @click="openNewNegotiation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Start Negotiation
+        </button>
     </div>
-    <button class="btn btn-primary mt-4" @click="openNewNegotiation()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        Start Negotiation
-    </button>
+    
+    <!-- Running Negotiations Section -->
+    <div class="table-section" x-show="runningNegotiations.length > 0" style="margin-bottom: 24px;">
+        <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 12px; color: var(--text-secondary);">
+            <span class="status-dot running" style="margin-right: 8px;"></span>
+            Running (<span x-text="runningNegotiations.length"></span>)
+        </h3>
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Scenario</th>
+                        <th>Negotiators</th>
+                        <th>Progress</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="neg in runningNegotiations" :key="neg.id">
+                        <tr class="clickable-row" @click="selectNegotiation(neg)">
+                            <td><code x-text="neg.id"></code></td>
+                            <td x-text="neg.scenario || 'Loading...'"></td>
+                            <td>
+                                <div class="negotiator-badges-compact">
+                                    <template x-for="(name, idx) in (neg.negotiator_names || [])" :key="idx">
+                                        <span class="badge badge-sm" 
+                                              :style="'background: ' + (neg.negotiator_colors?.[idx] || 'var(--primary)') + '; color: white;'" 
+                                              x-text="name"></span>
+                                    </template>
+                                </div>
+                            </td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div class="progress" style="width: 80px; height: 6px;">
+                                        <div class="progress-bar" 
+                                             :style="'width: ' + Math.min(100, (neg.relative_time || 0) * 100) + '%'">
+                                        </div>
+                                    </div>
+                                    <span style="font-size: 12px;" x-text="neg.step ? ('Step ' + neg.step) : 'Starting...'"></span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge badge-primary" x-text="neg.paused ? 'Paused' : 'Running'"></span>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Completed Negotiations Section -->
+    <div class="table-section" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+        <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 12px; color: var(--text-secondary);">
+            <span class="status-dot" style="background: var(--success); margin-right: 8px;"></span>
+            Completed (<span x-text="completedNegotiations.length"></span>)
+        </h3>
+        
+        <template x-if="completedNegotiations.length === 0 && runningNegotiations.length === 0">
+            <div class="empty-state" style="flex: 1;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                <div class="empty-state-title">No Negotiations Yet</div>
+                <div class="empty-state-text">
+                    Start a new negotiation to see it appear here.
+                </div>
+            </div>
+        </template>
+        
+        <div class="data-table" x-show="completedNegotiations.length > 0" style="flex: 1; overflow: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Scenario</th>
+                        <th>Negotiators</th>
+                        <th>Steps</th>
+                        <th>Result</th>
+                        <th>Utilities</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="neg in completedNegotiations" :key="neg.id">
+                        <tr class="clickable-row" @click="selectNegotiation(neg)">
+                            <td><code x-text="neg.id"></code></td>
+                            <td x-text="neg.scenario"></td>
+                            <td>
+                                <div class="negotiator-badges-compact">
+                                    <template x-for="(name, idx) in (neg.negotiator_names || [])" :key="idx">
+                                        <span class="badge badge-sm" 
+                                              :style="'background: ' + (neg.negotiator_colors?.[idx] || 'var(--primary)') + '; color: white;'" 
+                                              x-text="name"></span>
+                                    </template>
+                                </div>
+                            </td>
+                            <td x-text="neg.step || neg.offers?.length || '-'"></td>
+                            <td>
+                                <span class="badge" 
+                                      :class="neg.agreement ? 'badge-success' : (neg.error ? 'badge-danger' : 'badge-warning')"
+                                      x-text="neg.agreement ? 'Agreement' : (neg.error ? 'Error' : (neg.end_reason || 'No Agreement'))"></span>
+                            </td>
+                            <td>
+                                <template x-if="neg.final_utilities">
+                                    <div class="utilities-compact">
+                                        <template x-for="(util, idx) in neg.final_utilities" :key="idx">
+                                            <span :style="'color: ' + (neg.negotiator_colors?.[idx] || 'inherit')" 
+                                                  x-text="util.toFixed(2)"></span>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template x-if="!neg.final_utilities">
+                                    <span class="text-muted">-</span>
+                                </template>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <!-- Zoomed panel overlay -->
@@ -43,370 +162,259 @@
 </div>
 
 <!-- Negotiation view when one is selected -->
-<div x-show="currentNegotiation" class="panels-container" style="grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto; gap: 12px;">
-    <!-- Row 1: Negotiation Info + 2D Utility View -->
-    <!-- Negotiation Info Panel -->
-    <div class="panel">
-        <div class="panel-header">
-            <span class="panel-title">Negotiation Info</span>
-            <!-- Start button for non-auto-start -->
-            <div class="panel-actions">
+<div x-show="currentNegotiation" class="panels-container panels-layout-compact">
+    <!-- LEFT COLUMN: Info, Offer History, Result -->
+    <div class="panels-column panels-column-left" x-ref="leftColumn">
+        <!-- Negotiation Info Panel - Ultra Compact -->
+        <div class="panel panel-compact panel-info" x-ref="panelInfo" :class="{'collapsed': panelCollapsed.info}">
+            <span class="panel-collapsed-label" x-show="panelCollapsed.info">INFO</span>
+            <div class="panel-floating-actions">
                 <template x-if="currentNegotiation?.pendingStart">
-                    <button class="btn btn-primary btn-sm" @click="actuallyStartNegotiation()">
-                        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                        </svg>
-                        Start
+                    <button class="panel-btn panel-btn-primary" title="Start" @click="actuallyStartNegotiation()">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                     </button>
                 </template>
                 <template x-if="currentNegotiation && !currentNegotiation?.pendingStart && !currentNegotiation?.agreement && !currentNegotiation?.end_reason">
-                    <div style="display: flex; gap: 4px;">
-                        <button class="panel-btn" 
-                                :title="currentNegotiation?.paused ? 'Resume' : 'Pause'"
-                                @click="togglePause()">
-                            <svg x-show="!currentNegotiation?.paused" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="6" y="4" width="4" height="16"></rect>
-                                <rect x="14" y="4" width="4" height="16"></rect>
-                            </svg>
-                            <svg x-show="currentNegotiation?.paused" viewBox="0 0 24 24" fill="currentColor">
-                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                            </svg>
+                    <div style="display: flex; gap: 2px;">
+                        <button class="panel-btn" :title="currentNegotiation?.paused ? 'Resume' : 'Pause'" @click="togglePause()">
+                            <svg x-show="!currentNegotiation?.paused" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                            <svg x-show="currentNegotiation?.paused" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                         </button>
                         <button class="panel-btn" title="Cancel" @click="stopNegotiation()">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
-                                <rect x="4" y="4" width="16" height="16" rx="2"></rect>
-                            </svg>
+                            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
                         </button>
                     </div>
                 </template>
-            </div>
-        </div>
-        <div class="panel-content">
-            <div x-show="currentNegotiation">
-                <!-- Progress bar -->
-                <div class="mb-4" x-show="!currentNegotiation?.pendingStart && !currentNegotiation?.agreement && !currentNegotiation?.end_reason">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                        <span class="text-secondary" style="font-size: 12px;">Progress</span>
-                        <span class="text-secondary" style="font-size: 12px;" 
-                              x-text="currentNegotiation?.n_steps ? ((currentNegotiation?.step || 0) + ' / ' + currentNegotiation.n_steps) : (Math.round((currentNegotiation?.relative_time || 0) * 100) + '%')"></span>
-                    </div>
-                    <div class="progress">
-                        <div class="progress-bar" 
-                             :style="'width: ' + Math.min(100, (currentNegotiation?.relative_time || 0) * 100) + '%'">
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Pending start message -->
-                <div class="mb-4" x-show="currentNegotiation?.pendingStart" style="background: var(--warning-light); border: 1px solid var(--warning); padding: 12px; border-radius: 8px;">
-                    <span style="color: var(--warning); font-size: 13px;">Ready to start. Adjust panel settings if needed, then click Start.</span>
-                </div>
-                
-                <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr);">
-                    <div class="stat-card">
-                        <div class="stat-value" x-text="currentNegotiation?.step || 0"></div>
-                        <div class="stat-label">Current Step</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" x-text="currentNegotiation?.offers?.length || 0"></div>
-                        <div class="stat-label">Total Offers</div>
-                    </div>
-                </div>
-                
-                <div class="mt-4">
-                    <div class="form-label">Scenario</div>
-                    <div class="text-secondary" x-text="currentNegotiation?.scenario"></div>
-                </div>
-                
-                <div class="mt-4">
-                    <div class="form-label">Negotiators</div>
-                    <div class="negotiator-badges">
-                        <template x-for="(name, idx) in (currentNegotiation?.negotiator_names || [])" :key="idx">
-                            <span class="badge" 
-                                  :style="'background: ' + (currentNegotiation?.negotiator_colors?.[idx] || 'var(--primary)') + '; color: white;'" 
-                                  x-text="name"></span>
-                        </template>
-                    </div>
-                </div>
-                
-                <div class="mt-4">
-                    <div class="form-label">Status</div>
-                    <span class="badge" 
-                          :class="{
-                              'badge-warning': currentNegotiation?.pendingStart,
-                              'badge-primary': !currentNegotiation?.pendingStart && !currentNegotiation?.agreement && !currentNegotiation?.end_reason && !currentNegotiation?.paused,
-                              'badge-info': currentNegotiation?.paused,
-                              'badge-success': currentNegotiation?.agreement,
-                              'badge-neutral': currentNegotiation?.end_reason && !currentNegotiation?.agreement
-                          }"
-                          x-text="currentNegotiation?.pendingStart ? 'Pending Start' : (currentNegotiation?.agreement ? 'Agreement Reached' : (currentNegotiation?.end_reason ? 'Ended: ' + currentNegotiation.end_reason : (currentNegotiation?.paused ? 'Paused' : 'Running')))">
-                    </span>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- 2D Utility View Panel -->
-    <div class="panel" style="grid-row: span 2;">
-        <div class="panel-header">
-            <span class="panel-title">2D Utility View</span>
-            <div class="panel-actions">
-                <button class="panel-btn" title="Save as Image" @click="savePlot('outcome-space-plot', '2d-utility-view')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                </button>
-                <button class="panel-btn" title="Zoom" @click="zoomPanel('2D Utility View', 'outcome-space-plot')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="15 3 21 3 21 9"/>
-                        <polyline points="9 21 3 21 3 15"/>
-                        <line x1="21" y1="3" x2="14" y2="10"/>
-                        <line x1="3" y1="21" x2="10" y2="14"/>
-                    </svg>
-                </button>
-                <button class="panel-btn" title="Reset View" @click="resetPlotView()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                        <path d="M3 3v5h5"/>
-                    </svg>
+                <button class="panel-btn panel-collapse-btn" title="Toggle panel" @click="panelCollapsed.info = !panelCollapsed.info">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </button>
             </div>
-        </div>
-        <div class="panel-content" style="padding: 0; position: relative; display: flex; flex-direction: column;">
-            <!-- Axis controls - shown if adjustable -->
-            <div class="panel-controls" x-show="currentNegotiation?.panelSettings?.adjustable" style="padding: 8px; border-bottom: 1px solid var(--border-color); display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                <label style="font-size: 11px; display: flex; align-items: center; gap: 4px;">
-                    X:
-                    <select class="form-select" style="padding: 2px 6px; font-size: 11px; min-width: 80px;" x-model.number="panelState.utilityView.xAxis">
-                        <template x-for="(name, idx) in (currentNegotiation?.negotiator_names || [])" :key="idx">
-                            <option :value="idx" x-text="name"></option>
-                        </template>
-                    </select>
-                </label>
-                <label style="font-size: 11px; display: flex; align-items: center; gap: 4px;">
-                    Y:
-                    <select class="form-select" style="padding: 2px 6px; font-size: 11px; min-width: 80px;" x-model.number="panelState.utilityView.yAxis">
-                        <template x-for="(name, idx) in (currentNegotiation?.negotiator_names || [])" :key="idx">
-                            <option :value="idx" x-text="name"></option>
-                        </template>
-                    </select>
-                </label>
-                <button class="btn btn-sm btn-primary" style="padding: 2px 8px; font-size: 11px;" @click="applyUtilityViewAxes()">Set</button>
-            </div>
-            <div id="outcome-space-plot" style="flex: 1; min-height: 0;"></div>
-            <div x-show="!currentNegotiation?.outcome_space_data" 
-                 class="empty-state" style="position: absolute; inset: 0; background: var(--bg-secondary);">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M8 12h8M12 8v8"/>
-                </svg>
-                <div class="empty-state-title">2D Utility View</div>
-                <div class="empty-state-text">Loading outcome space data...</div>
+            <div class="panel-content-ultra-compact" x-show="!panelCollapsed.info">
+                <!-- Row 1: Scenario + Status + Progress -->
+                <div class="info-row">
+                    <span class="info-scenario" x-text="currentNegotiation?.scenario"></span>
+                    <span class="badge badge-xs" 
+                          :class="{'badge-warning': currentNegotiation?.pendingStart, 'badge-primary': !currentNegotiation?.pendingStart && !currentNegotiation?.agreement && !currentNegotiation?.end_reason && !currentNegotiation?.paused, 'badge-info': currentNegotiation?.paused, 'badge-success': currentNegotiation?.agreement, 'badge-neutral': currentNegotiation?.end_reason && !currentNegotiation?.agreement}"
+                          x-text="currentNegotiation?.pendingStart ? 'Pending' : (currentNegotiation?.agreement ? 'Done' : (currentNegotiation?.end_reason ? 'End' : (currentNegotiation?.paused ? 'Paused' : 'Running')))"></span>
+                    <span class="info-stats" x-text="(currentNegotiation?.step || 0) + '/' + (currentNegotiation?.n_steps || '∞') + ' steps'"></span>
+                    <span class="info-stats" x-text="(currentNegotiation?.offers?.length || 0) + ' offers'"></span>
+                    <div class="info-progress" x-show="!currentNegotiation?.pendingStart && !currentNegotiation?.agreement && !currentNegotiation?.end_reason">
+                        <div class="progress-mini"><div class="progress-bar" :style="'width: ' + Math.min(100, (currentNegotiation?.relative_time || 0) * 100) + '%'"></div></div>
+                    </div>
+                </div>
+                <!-- Row 2: Negotiators (only if needed) -->
+                <div class="info-row info-row-negotiators">
+                    <template x-for="(name, idx) in (currentNegotiation?.negotiator_names || [])" :key="idx">
+                        <span class="badge badge-xs" :style="'background: ' + (currentNegotiation?.negotiator_colors?.[idx] || 'var(--primary)') + '; color: white;'" x-text="name"></span>
+                    </template>
+                </div>
             </div>
         </div>
-    </div>
-    
-    <!-- Row 2: Offer History + (2D Utility View continues) -->
-    <!-- Offer History Panel -->
-    <div class="panel">
-        <div class="panel-header">
-            <span class="panel-title">Offer History</span>
-            <div class="panel-actions">
-                <span class="text-muted" style="font-size: 12px;" x-text="(currentNegotiation?.offers?.length || 0) + ' offers'"></span>
+        
+        <!-- Resize handle between Info and History -->
+        <div class="resize-handle-horizontal" @mousedown="startPanelResize($event, 'info-history')"></div>
+        
+        <!-- Offer History Panel - Takes most space -->
+        <div class="panel panel-compact panel-history" x-ref="panelHistory" :class="{'collapsed': panelCollapsed.history}">
+            <span class="panel-collapsed-label" x-show="panelCollapsed.history">OFFERS</span>
+            <div class="panel-floating-actions">
+                <span class="text-muted" style="font-size: 9px;" x-text="(currentNegotiation?.offers?.length || 0)"></span>
                 <button class="panel-btn" title="Save as JSON" @click="saveOffersAsJson()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </button>
                 <button class="panel-btn" title="Zoom" @click="zoomPanel('Offer History', null)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="15 3 21 3 21 9"/>
-                        <polyline points="9 21 3 21 3 15"/>
-                        <line x1="21" y1="3" x2="14" y2="10"/>
-                        <line x1="3" y1="21" x2="10" y2="14"/>
-                    </svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                </button>
+                <button class="panel-btn panel-collapse-btn" title="Toggle panel" @click="panelCollapsed.history = !panelCollapsed.history">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </button>
             </div>
-        </div>
-        <div class="panel-content" style="padding: 8px;">
-            <div class="offer-log" x-ref="offerLog">
-                <template x-if="!currentNegotiation?.offers || currentNegotiation.offers.length === 0">
-                    <div class="empty-state" style="padding: 20px;">
-                        <div class="text-muted">Waiting for offers...</div>
-                    </div>
-                </template>
-                <template x-for="(offer, idx) in (currentNegotiation?.offers || []).slice(-50)" :key="idx">
-                    <div class="offer-item animate-slide-up" 
-                         :style="'border-left: 3px solid ' + (currentNegotiation?.negotiator_colors?.[offer.proposer_index] || 'var(--border-color)') + '; background: ' + (currentNegotiation?.negotiator_colors?.[offer.proposer_index] ? currentNegotiation.negotiator_colors[offer.proposer_index] + '15' : 'transparent')">
-                        <div class="offer-header">
-                            <span class="offer-agent" 
-                                  :style="'color: ' + (currentNegotiation?.negotiator_colors?.[offer.proposer_index] || 'inherit')"
-                                  x-text="offer.proposer"></span>
-                            <span class="offer-step" x-text="'Step ' + offer.step"></span>
+            <div class="panel-content panel-content-compact" style="padding: 4px;" x-show="!panelCollapsed.history">
+                <div class="offer-log" x-ref="offerLog">
+                    <template x-if="!currentNegotiation?.offers || currentNegotiation.offers.length === 0">
+                        <div class="empty-state-mini"><span class="text-muted">Waiting for offers...</span></div>
+                    </template>
+                    <template x-for="(offer, idx) in (currentNegotiation?.offers || []).slice(-50)" :key="idx">
+                        <div class="offer-item-compact animate-slide-up" :style="'border-left: 2px solid ' + (currentNegotiation?.negotiator_colors?.[offer.proposer_index] || 'var(--border-color)')">
+                            <div class="offer-header-compact">
+                                <span class="offer-agent" :style="'color: ' + (currentNegotiation?.negotiator_colors?.[offer.proposer_index] || 'inherit')" x-text="offer.proposer"></span>
+                                <span class="offer-step" x-text="'#' + offer.step"></span>
+                            </div>
+                            <div class="offer-values-compact">
+                                <template x-for="(value, key) in offer.offer" :key="key">
+                                    <span><span class="text-muted" x-text="key + ':'"></span> <span x-text="value"></span></span>
+                                </template>
+                            </div>
+                            <div class="offer-utilities-compact">
+                                <template x-for="(util, uidx) in offer.utilities" :key="uidx">
+                                    <span :style="'color: ' + (currentNegotiation?.negotiator_colors?.[uidx] || 'inherit')" x-text="util.toFixed(2)"></span>
+                                </template>
+                            </div>
                         </div>
-                        <div class="offer-values">
-                            <template x-for="(value, key) in offer.offer" :key="key">
-                                <span class="offer-value">
-                                    <span class="offer-value-key" x-text="key + ':'"></span>
-                                    <span x-text="value"></span>
-                                </span>
-                            </template>
-                        </div>
-                        <div class="offer-utilities">
-                            <template x-for="(util, uidx) in offer.utilities" :key="uidx">
-                                <div class="offer-utility">
-                                    <span x-text="(currentNegotiation?.negotiator_names?.[uidx] || 'U' + (uidx + 1)) + ': ' + util.toFixed(3)"></span>
-                                    <div class="utility-bar">
-                                        <div class="utility-fill" 
-                                             :style="'width: ' + (util * 100) + '%; background: ' + (currentNegotiation?.negotiator_colors?.[uidx] || 'var(--primary)')"></div>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                </template>
+                    </template>
+                </div>
             </div>
         </div>
-    </div>
-    
-    <!-- Row 3: Utility Timeline + Result -->
-    <!-- Utility Timeline Panel -->
-    <div class="panel">
-        <div class="panel-header">
-            <span class="panel-title">Utility Timeline</span>
-            <div class="panel-actions">
-                <button class="panel-btn" title="Save as Image" @click="savePlot('utility-timeline-container', 'utility-timeline')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                </button>
-                <button class="panel-btn" title="Zoom" @click="zoomPanel('Utility Timeline', 'utility-timeline-container')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="15 3 21 3 21 9"/>
-                        <polyline points="9 21 3 21 3 15"/>
-                        <line x1="21" y1="3" x2="14" y2="10"/>
-                        <line x1="3" y1="21" x2="10" y2="14"/>
-                    </svg>
-                </button>
-                <button class="panel-btn" title="Reset View" @click="resetTimelinePlotView()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                        <path d="M3 3v5h5"/>
-                    </svg>
-                </button>
-            </div>
-        </div>
-        <div class="panel-content" style="padding: 0; position: relative; display: flex; flex-direction: column;">
-            <!-- X-axis control - shown if adjustable -->
-            <div class="panel-controls" x-show="currentNegotiation?.panelSettings?.adjustable" style="padding: 8px; border-bottom: 1px solid var(--border-color); display: flex; gap: 8px; align-items: center;">
-                <label style="font-size: 11px; display: flex; align-items: center; gap: 4px;">
-                    X-Axis:
-                    <select class="form-select" style="padding: 2px 6px; font-size: 11px;" x-model="panelState.timeline.xAxis" @change="initUtilityTimelinePlots()">
-                        <option value="step">Step</option>
-                        <option value="time">Time (s)</option>
-                        <option value="relative_time">Relative Time</option>
-                    </select>
-                </label>
-            </div>
-            <div id="utility-timeline-container" style="flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px;"></div>
-            <div x-show="!currentNegotiation?.offers || currentNegotiation.offers.length === 0" 
-                 class="empty-state" style="position: absolute; inset: 0; background: var(--bg-secondary);">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-                </svg>
-                <div class="empty-state-title">Utility Timeline</div>
-                <div class="empty-state-text">Utilities will be plotted as offers are made...</div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Result Panel -->
-    <div class="panel">
-        <div class="panel-header">
-            <span class="panel-title">Result</span>
-            <div class="panel-actions">
+        
+        <!-- Resize handle between History and Result -->
+        <div class="resize-handle-horizontal" @mousedown="startPanelResize($event, 'history-result')"></div>
+        
+        <!-- Result Panel - Ultra Compact -->
+        <div class="panel panel-compact panel-result" x-ref="panelResult" :class="{'collapsed': panelCollapsed.result}">
+            <span class="panel-collapsed-label" x-show="panelCollapsed.result">RESULT</span>
+            <div class="panel-floating-actions">
                 <button class="panel-btn" title="Save Results" @click="saveResults()" x-show="currentNegotiation?.agreement || currentNegotiation?.end_reason">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </button>
+                <button class="panel-btn panel-collapse-btn" title="Toggle panel" @click="panelCollapsed.result = !panelCollapsed.result">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+            </div>
+            <div class="panel-content-ultra-compact" x-show="!panelCollapsed.result">
+                <template x-if="currentNegotiation?.agreement">
+                    <div class="result-row">
+                        <template x-for="(value, key) in currentNegotiation.agreement" :key="key">
+                            <span class="result-item"><span class="text-muted" x-text="key"></span>=<strong x-text="value"></strong></span>
+                        </template>
+                        <span class="result-separator">→</span>
+                        <template x-for="(util, idx) in (currentNegotiation.final_utilities || [])" :key="idx">
+                            <span class="result-utility" :style="'color: ' + (currentNegotiation?.negotiator_colors?.[idx] || 'var(--primary)')" x-text="util.toFixed(3)"></span>
+                        </template>
+                    </div>
+                </template>
+                <template x-if="currentNegotiation?.end_reason && !currentNegotiation?.agreement">
+                    <div class="result-row">
+                        <span class="badge badge-xs" :class="currentNegotiation.error ? 'badge-danger' : 'badge-warning'" x-text="currentNegotiation.error ? 'Error' : 'No Agreement'"></span>
+                        <span class="text-muted result-reason" x-text="currentNegotiation.error || currentNegotiation.end_reason"></span>
+                    </div>
+                </template>
+                <template x-if="!currentNegotiation?.end_reason && !currentNegotiation?.agreement && !currentNegotiation?.pendingStart">
+                    <div class="result-row result-row-center"><div class="spinner spinner-xs"></div><span class="text-muted">Running...</span></div>
+                </template>
+                <template x-if="currentNegotiation?.pendingStart">
+                    <div class="result-row result-row-center"><span class="text-muted">Ready</span></div>
+                </template>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Resize handle between columns -->
+    <div class="resize-handle-vertical" @mousedown="startColumnResize($event)" x-ref="columnResizer"></div>
+    
+    <!-- RIGHT COLUMN: 2D Utility View, Utility Timeline -->
+    <div class="panels-column panels-column-right" x-ref="rightColumn">
+        <!-- 2D Utility View Panel -->
+        <div class="panel panel-compact panel-2d-utility" x-ref="panel2dUtility" :class="{'collapsed': panelCollapsed.utility2d}">
+            <span class="panel-collapsed-label" x-show="panelCollapsed.utility2d">2D VIEW</span>
+            <div class="panel-floating-actions">
+                <div class="panel-inline-controls" x-show="currentNegotiation?.panelSettings?.adjustable && !panelCollapsed.utility2d">
+                    <select class="form-select form-select-xs" x-model.number="panelState.utilityView.xAxis" @change="applyUtilityViewAxes()" title="X-Axis">
+                        <template x-for="(name, idx) in (currentNegotiation?.negotiator_names || [])" :key="idx">
+                            <option :value="idx" x-text="name.substring(0, 6)"></option>
+                        </template>
+                    </select>
+                    <span style="font-size: 9px; opacity: 0.5;">×</span>
+                    <select class="form-select form-select-xs" x-model.number="panelState.utilityView.yAxis" @change="applyUtilityViewAxes()" title="Y-Axis">
+                        <template x-for="(name, idx) in (currentNegotiation?.negotiator_names || [])" :key="idx">
+                            <option :value="idx" x-text="name.substring(0, 6)"></option>
+                        </template>
+                    </select>
+                </div>
+                <button class="panel-btn" title="Save as Image" @click="savePlot('outcome-space-plot', '2d-utility-view')" x-show="!panelCollapsed.utility2d">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                </button>
+                <button class="panel-btn" title="Zoom" @click="zoomPanel('2D Utility View', 'outcome-space-plot')" x-show="!panelCollapsed.utility2d">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+                    </svg>
+                </button>
+                <button class="panel-btn" title="Reset View" @click="resetPlotView()" x-show="!panelCollapsed.utility2d">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+                    </svg>
+                </button>
+                <button class="panel-btn panel-collapse-btn" title="Toggle panel" @click="panelCollapsed.utility2d = !panelCollapsed.utility2d">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+            </div>
+            <div class="panel-content panel-content-compact" style="padding: 0; position: relative;" x-show="!panelCollapsed.utility2d">
+                <div id="outcome-space-plot" style="width: 100%; height: 100%;"></div>
+                <div x-show="!currentNegotiation?.outcome_space_data" class="empty-state-mini" style="position: absolute; inset: 0; background: var(--bg-secondary);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px; opacity: 0.4;">
+                        <circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/>
+                    </svg>
+                    <span class="text-muted">Loading...</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Resize handle between 2D Utility and Timeline -->
+        <div class="resize-handle-horizontal" @mousedown="startPanelResize($event, 'utility2d-timeline')"></div>
+        
+        <!-- Utility Timeline Panel -->
+        <div class="panel panel-compact panel-timeline" x-ref="panelTimeline" :class="{'collapsed': panelCollapsed.timeline}">
+            <span class="panel-collapsed-label" x-show="panelCollapsed.timeline">TIMELINE</span>
+            <div class="panel-floating-actions">
+                <select class="form-select form-select-xs" x-show="currentNegotiation?.panelSettings?.adjustable && !panelCollapsed.timeline" x-model="panelState.timeline.xAxis" @change="initUtilityTimelinePlots()" title="X-Axis">
+                    <option value="step">Step</option>
+                    <option value="time">Time</option>
+                    <option value="relative_time">Rel</option>
+                </select>
+                <button class="panel-btn" title="Save as Image" @click="savePlot('utility-timeline-container', 'utility-timeline')" x-show="!panelCollapsed.timeline">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                </button>
+                <button class="panel-btn" title="Zoom" @click="zoomPanel('Utility Timeline', 'utility-timeline-container')" x-show="!panelCollapsed.timeline">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+                    </svg>
+                </button>
+                <button class="panel-btn" title="Reset View" @click="resetTimelinePlotView()" x-show="!panelCollapsed.timeline">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+                    </svg>
+                </button>
+                <button class="panel-btn panel-collapse-btn" title="Toggle panel" @click="panelCollapsed.timeline = !panelCollapsed.timeline">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+            </div>
+            <div class="panel-content panel-content-compact" style="padding: 0; position: relative;" x-show="!panelCollapsed.timeline">
+                <div id="utility-timeline-container" style="width: 100%; height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 2px;"></div>
+                <div x-show="!currentNegotiation?.offers || currentNegotiation.offers.length === 0" class="empty-state-mini" style="position: absolute; inset: 0; background: var(--bg-secondary);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px; opacity: 0.4;">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                    <span class="text-muted">Waiting...</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Issue Frequency Panel (hidden by default, ready for use) -->
+        <div class="panel panel-compact panel-issue-freq" x-show="showIssueFrequency" style="display: none;">
+            <div class="panel-floating-actions">
+                <button class="panel-btn" title="Save as Image" @click="savePlot('issue-frequency-container', 'issue-frequency')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                </button>
+                <button class="panel-btn" title="Zoom" @click="zoomPanel('Issue Frequency', 'issue-frequency-container')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
                     </svg>
                 </button>
             </div>
-        </div>
-        <div class="panel-content">
-            <template x-if="currentNegotiation?.agreement">
-                <div>
-                    <div class="result-summary">
-                        <div class="result-title">Agreement Reached</div>
-                        <div class="result-subtitle" x-text="'After ' + currentNegotiation.step + ' steps'"></div>
-                    </div>
-                    
-                    <div class="mt-4">
-                        <div class="form-label">Agreement Values</div>
-                        <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;">
-                            <template x-for="(value, key) in currentNegotiation.agreement" :key="key">
-                                <div style="display: flex; justify-content: space-between; padding: 4px 0;">
-                                    <span class="text-secondary" x-text="key"></span>
-                                    <span class="font-medium" x-text="value"></span>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-4" x-show="currentNegotiation.final_utilities">
-                        <div class="form-label">Final Utilities</div>
-                        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));">
-                            <template x-for="(util, idx) in (currentNegotiation.final_utilities || [])" :key="idx">
-                                <div class="stat-card">
-                                    <div class="stat-value" 
-                                         :style="'color: ' + (currentNegotiation?.negotiator_colors?.[idx] || 'var(--primary)')" 
-                                         x-text="util.toFixed(3)"></div>
-                                    <div class="stat-label" x-text="currentNegotiation.negotiator_names?.[idx] || ('Agent ' + (idx + 1))"></div>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                </div>
-            </template>
-            
-            <template x-if="currentNegotiation?.end_reason && !currentNegotiation?.agreement">
-                <div>
-                    <div class="result-summary no-agreement" :class="{'error': currentNegotiation.error}">
-                        <div class="result-title" x-text="currentNegotiation.error ? 'Error' : 'No Agreement'"></div>
-                        <div class="result-subtitle" x-text="currentNegotiation.error || ('Reason: ' + currentNegotiation.end_reason)"></div>
-                    </div>
-                    <div class="mt-4" x-show="currentNegotiation.error" style="background: var(--danger-light, #fef2f2); border: 1px solid var(--danger, #ef4444); padding: 12px; border-radius: 8px;">
-                        <div class="form-label" style="color: var(--danger, #ef4444);">Error Details</div>
-                        <div class="text-secondary" style="font-size: 12px; font-family: monospace; word-break: break-word;" x-text="currentNegotiation.error"></div>
-                    </div>
-                </div>
-            </template>
-            
-            <template x-if="!currentNegotiation?.end_reason && !currentNegotiation?.agreement && !currentNegotiation?.pendingStart">
-                <div class="empty-state">
-                    <div class="spinner"></div>
-                    <div class="empty-state-title mt-4">Negotiation in Progress</div>
-                    <div class="empty-state-text">Results will appear when the negotiation completes.</div>
-                </div>
-            </template>
-            
-            <template x-if="currentNegotiation?.pendingStart">
-                <div class="empty-state">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 48px; height: 48px; opacity: 0.5;">
-                        <circle cx="12" cy="12" r="10"/>
-                        <polyline points="12 6 12 12 16 14"/>
+            <div class="panel-content panel-content-compact" style="padding: 0; position: relative;">
+                <div id="issue-frequency-container" style="width: 100%; height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 2px;"></div>
+                <div x-show="!currentNegotiation?.offers || currentNegotiation.offers.length === 0" class="empty-state-mini" style="position: absolute; inset: 0; background: var(--bg-secondary);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px; opacity: 0.4;">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
                     </svg>
-                    <div class="empty-state-title mt-4">Waiting to Start</div>
-                    <div class="empty-state-text">Click Start when ready.</div>
+                    <span class="text-muted">Waiting...</span>
                 </div>
-            </template>
+            </div>
         </div>
     </div>
 </div>
@@ -462,14 +470,62 @@ app = function() {
     Object.assign(extended, {
         // Panel state for controls
         zoomedPanel: null,
+        showIssueFrequency: false,  // Hidden feature for now
         panelState: {
             utilityView: { xAxis: 0, yAxis: 1 },
             timeline: { xAxis: 'step' }
         },
         
+        // Panel collapse state
+        panelCollapsed: {
+            info: false,
+            history: false,
+            result: false,
+            utility2d: false,
+            timeline: false
+        },
+        
+        // Resize state
+        resizeState: {
+            active: false,
+            type: null,  // 'column' or panel resize type
+            startX: 0,
+            startY: 0,
+            startWidth: 0,
+            startHeight: 0
+        },
+        
         // Override init
         async init() {
             await base.init.call(this);
+            
+            // Load saved panel collapse state
+            const savedCollapsed = localStorage.getItem('panelCollapsed');
+            if (savedCollapsed) {
+                try {
+                    Object.assign(this.panelCollapsed, JSON.parse(savedCollapsed));
+                } catch (e) {}
+            }
+            
+            // Load saved column width
+            const savedColumnWidth = localStorage.getItem('leftColumnWidth');
+            if (savedColumnWidth) {
+                this.$nextTick(() => {
+                    const leftCol = this.$refs.leftColumn;
+                    if (leftCol) {
+                        leftCol.style.flex = `0 0 ${savedColumnWidth}`;
+                    }
+                });
+            }
+            
+            // Add mouse move/up listeners for resize
+            document.addEventListener('mousemove', this.handleResizeMove.bind(this));
+            document.addEventListener('mouseup', this.handleResizeEnd.bind(this));
+            
+            // Watch for panel collapse changes and save to localStorage
+            this.$watch('panelCollapsed', () => {
+                localStorage.setItem('panelCollapsed', JSON.stringify(this.panelCollapsed));
+            }, { deep: true });
             
             // Listen for theme changes to redraw charts
             window.addEventListener('colorblind-mode-changed', () => {
@@ -517,6 +573,117 @@ app = function() {
             return isColorBlind ? (isDark ? COLORBLIND_COLORS_DARK : COLORBLIND_COLORS) : defaultColors;
         },
         
+        // Save panel collapse state
+        savePanelCollapsed() {
+            localStorage.setItem('panelCollapsed', JSON.stringify(this.panelCollapsed));
+        },
+        
+        // Column resize start
+        startColumnResize(event) {
+            event.preventDefault();
+            const leftCol = this.$refs.leftColumn;
+            if (!leftCol) return;
+            
+            this.resizeState = {
+                active: true,
+                type: 'column',
+                startX: event.clientX,
+                startY: 0,
+                startWidth: leftCol.offsetWidth,
+                startHeight: 0
+            };
+            
+            this.$refs.columnResizer?.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        },
+        
+        // Panel resize start
+        startPanelResize(event, resizeType) {
+            event.preventDefault();
+            this.resizeState = {
+                active: true,
+                type: resizeType,
+                startX: event.clientX,
+                startY: event.clientY,
+                startWidth: 0,
+                startHeight: 0
+            };
+            
+            // Store starting heights
+            const panels = {
+                'info-history': [this.$refs.panelInfo, this.$refs.panelHistory],
+                'history-result': [this.$refs.panelHistory, this.$refs.panelResult],
+                'utility2d-timeline': [this.$refs.panel2dUtility, this.$refs.panelTimeline]
+            };
+            
+            const [panel1, panel2] = panels[resizeType] || [];
+            if (panel1 && panel2) {
+                this.resizeState.panel1Height = panel1.offsetHeight;
+                this.resizeState.panel2Height = panel2.offsetHeight;
+                this.resizeState.panel1 = panel1;
+                this.resizeState.panel2 = panel2;
+            }
+            
+            event.target.classList.add('dragging');
+            document.body.style.cursor = 'row-resize';
+            document.body.style.userSelect = 'none';
+        },
+        
+        // Handle resize move
+        handleResizeMove(event) {
+            if (!this.resizeState.active) return;
+            
+            if (this.resizeState.type === 'column') {
+                const delta = event.clientX - this.resizeState.startX;
+                const newWidth = Math.max(200, Math.min(window.innerWidth * 0.7, this.resizeState.startWidth + delta));
+                const leftCol = this.$refs.leftColumn;
+                if (leftCol) {
+                    leftCol.style.flex = `0 0 ${newWidth}px`;
+                }
+            } else if (this.resizeState.panel1 && this.resizeState.panel2) {
+                const delta = event.clientY - this.resizeState.startY;
+                const panel1 = this.resizeState.panel1;
+                const panel2 = this.resizeState.panel2;
+                
+                const newHeight1 = Math.max(40, this.resizeState.panel1Height + delta);
+                const newHeight2 = Math.max(40, this.resizeState.panel2Height - delta);
+                
+                // Use flex basis instead of fixed height for flexible panels
+                const totalFlex = (newHeight1 + newHeight2) / 100;
+                panel1.style.flex = `1 1 ${(newHeight1 / totalFlex)}%`;
+                panel2.style.flex = `1 1 ${(newHeight2 / totalFlex)}%`;
+            }
+        },
+        
+        // Handle resize end
+        handleResizeEnd() {
+            if (!this.resizeState.active) return;
+            
+            // Save column width
+            if (this.resizeState.type === 'column') {
+                const leftCol = this.$refs.leftColumn;
+                if (leftCol) {
+                    localStorage.setItem('leftColumnWidth', leftCol.style.flex.replace('0 0 ', ''));
+                }
+            }
+            
+            // Remove dragging classes
+            document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            
+            this.resizeState = { active: false, type: null, startX: 0, startY: 0, startWidth: 0, startHeight: 0 };
+            
+            // Redraw plots after resize
+            this.$nextTick(() => {
+                if (this.currentNegotiation) {
+                    this.initOutcomeSpacePlot();
+                    this.initUtilityTimelinePlots();
+                }
+            });
+        },
+        
         // Apply utility view axis changes
         applyUtilityViewAxes() {
             window.outcomeSpacePlotInitialized = false;
@@ -528,16 +695,23 @@ app = function() {
             const plotDiv = document.getElementById('outcome-space-plot');
             if (!plotDiv) return;
             
+            // Don't try to render if panel is collapsed or hidden
+            if (plotDiv.offsetParent === null || plotDiv.clientWidth === 0) {
+                window.outcomeSpacePlotInitialized = false;
+                return;
+            }
+            
             const neg = this.currentNegotiation;
             if (!neg || !neg.outcome_space_data) {
                 window.outcomeSpacePlotInitialized = false;
                 return;
             }
             
-            const colors = this.getPlotColors();
-            const osd = neg.outcome_space_data;
-            const negColors = this.getNegotiatorColors();
-            const isColorBlind = document.documentElement.classList.contains('color-blind-mode');
+            try {
+                const colors = this.getPlotColors();
+                const osd = neg.outcome_space_data;
+                const negColors = this.getNegotiatorColors();
+                const isColorBlind = document.documentElement.classList.contains('color-blind-mode');
             
             // Get axis indices from panel state
             const xIdx = this.panelState.utilityView.xAxis;
@@ -612,7 +786,8 @@ app = function() {
             if (offers.length > 0) {
                 const numAgents = neg.negotiator_names?.length || 2;
                 for (let i = 0; i < numAgents; i++) {
-                    const agentOffers = offers.filter(o => o.proposer_index === i);
+                    // Use Number() for type coercion (proposer_index may be string or number from JSON)
+                    const agentOffers = offers.filter(o => Number(o.proposer_index) === i);
                     if (agentOffers.length > 0) {
                         traces.push({
                             x: agentOffers.map(o => o.utilities[xIdx] || 0),
@@ -676,8 +851,12 @@ app = function() {
                 toImageButtonOptions: { format: 'png', filename: '2d-utility-view', scale: 2 }
             };
             
-            await Plotly.react(plotDiv, traces, layout, config);
-            window.outcomeSpacePlotInitialized = true;
+                await Plotly.react(plotDiv, traces, layout, config);
+                window.outcomeSpacePlotInitialized = true;
+            } catch (e) {
+                console.warn('Failed to initialize outcome space plot:', e);
+                window.outcomeSpacePlotInitialized = false;
+            }
         },
         
         // Update 2D plot with new offer
@@ -701,6 +880,12 @@ app = function() {
             const container = document.getElementById('utility-timeline-container');
             if (!container) return;
             
+            // Don't try to render if panel is collapsed or hidden
+            if (container.offsetParent === null || container.clientWidth === 0) {
+                window.timelinePlotsInitialized = false;
+                return;
+            }
+            
             const neg = this.currentNegotiation;
             if (!neg || !neg.offers || neg.offers.length === 0) {
                 container.innerHTML = '';
@@ -708,11 +893,12 @@ app = function() {
                 return;
             }
             
-            const colors = this.getPlotColors();
-            const negColors = this.getNegotiatorColors();
-            const numAgents = neg.negotiator_names?.length || 2;
-            const isColorBlind = document.documentElement.classList.contains('color-blind-mode');
-            const xAxisType = this.panelState.timeline.xAxis;
+            try {
+                const colors = this.getPlotColors();
+                const negColors = this.getNegotiatorColors();
+                const numAgents = neg.negotiator_names?.length || 2;
+                const isColorBlind = document.documentElement.classList.contains('color-blind-mode');
+                const xAxisType = this.panelState.timeline.xAxis;
             
             // Get X values based on selected axis type
             const getXValue = (offer) => {
@@ -740,7 +926,8 @@ app = function() {
                 
                 // Create N series per plot - each series j shows utility of offers from agent j for agent agentIdx
                 for (let proposerIdx = 0; proposerIdx < numAgents; proposerIdx++) {
-                    const proposerOffers = neg.offers.filter(o => o.proposer_index === proposerIdx);
+                    // Use Number() for type coercion (proposer_index may be string or number from JSON)
+                    const proposerOffers = neg.offers.filter(o => Number(o.proposer_index) === proposerIdx);
                     if (proposerOffers.length === 0) continue;
                     
                     const xValues = proposerOffers.map(getXValue);
@@ -816,7 +1003,11 @@ app = function() {
                 await Plotly.newPlot(plotId, traces, layout, config);
             }
             
-            window.timelinePlotsInitialized = true;
+                window.timelinePlotsInitialized = true;
+            } catch (e) {
+                console.warn('Failed to initialize timeline plots:', e);
+                window.timelinePlotsInitialized = false;
+            }
         },
         
         async updateUtilityTimelinePlots(offer) {
@@ -944,7 +1135,8 @@ app = function() {
             if (offers.length > 0) {
                 const numAgents = neg.negotiator_names?.length || 2;
                 for (let i = 0; i < numAgents; i++) {
-                    const agentOffers = offers.filter(o => o.proposer_index === i);
+                    // Use Number() for type coercion (proposer_index may be string or number from JSON)
+                    const agentOffers = offers.filter(o => Number(o.proposer_index) === i);
                     if (agentOffers.length > 0) {
                         traces.push({
                             x: agentOffers.map(o => o.utilities[xIdx] || 0),
@@ -1054,7 +1246,8 @@ app = function() {
                 
                 // Create N series per plot - each series j shows utility of offers from agent j for agent agentIdx
                 for (let proposerIdx = 0; proposerIdx < numAgents; proposerIdx++) {
-                    const proposerOffers = neg.offers.filter(o => o.proposer_index === proposerIdx);
+                    // Use Number() for type coercion (proposer_index may be string or number from JSON)
+                    const proposerOffers = neg.offers.filter(o => Number(o.proposer_index) === proposerIdx);
                     if (proposerOffers.length === 0) continue;
                     
                     const xValues = proposerOffers.map(getXValue);
@@ -1242,7 +1435,8 @@ app = function() {
                     const neg = this.runningNegotiations.splice(idx, 1)[0];
                     neg.agreement = result.agreement;
                     neg.final_utilities = result.final_utilities;
-                    neg.end_reason = result.end_reason || (result.error ? 'error' : null);
+                    // Always set end_reason for completed negotiations
+                    neg.end_reason = result.end_reason || (result.error ? 'error' : (result.agreement ? 'agreement' : 'completed'));
                     neg.error = result.error;
                     neg.step = result.n_steps;
                     neg.pendingStart = false;

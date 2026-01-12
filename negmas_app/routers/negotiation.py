@@ -62,6 +62,7 @@ async def start_negotiation(request: StartNegotiationRequest):
         mechanism_params=request.mechanism_params,
         ignore_discount=request.ignore_discount,
         ignore_reserved=request.ignore_reserved,
+        auto_save=request.auto_save,
     )
 
     return {

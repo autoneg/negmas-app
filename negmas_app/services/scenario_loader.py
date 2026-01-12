@@ -1,6 +1,7 @@
 """Load and manage negotiation scenarios."""
 
 from pathlib import Path
+from typing import Any
 
 from negmas import Scenario
 
@@ -60,7 +61,7 @@ class ScenarioLoader:
     def _load_scenario_info(self, path: Path, source: str) -> ScenarioInfo | None:
         """Load scenario info without full parsing."""
         try:
-            scenario = Scenario.load(path)
+            scenario = Scenario.load(path)  # type: ignore[attr-defined]
             if scenario is None:
                 return None
 
@@ -89,16 +90,21 @@ class ScenarioLoader:
         except Exception:
             return None
 
-    def load_scenario(self, path: str | Path) -> Scenario | None:
+    def load_scenario(
+        self,
+        path: str | Path,
+        ignore_discount: bool = False,
+    ) -> Any:
         """Load a full scenario from path.
 
         Args:
             path: Path to scenario directory.
+            ignore_discount: If True, ignore discount factors in utility functions.
 
         Returns:
             Loaded Scenario or None if loading fails.
         """
-        return Scenario.load(Path(path))
+        return Scenario.load(Path(path), ignore_discount=ignore_discount)  # type: ignore[attr-defined]
 
     def get_scenario_info(self, path: str | Path) -> ScenarioInfo | None:
         """Get info for a specific scenario."""

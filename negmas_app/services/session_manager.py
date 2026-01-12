@@ -32,6 +32,8 @@ class SessionManager:
         self._configs: dict[str, list[NegotiatorConfig]] = {}
         self._mechanism_params: dict[str, dict] = {}
         self._mechanism_types: dict[str, str] = {}
+        self._scenario_options: dict[str, dict] = {}  # ignore_discount, ignore_reserved
+        self._auto_save: dict[str, bool] = {}  # Whether to auto-save on completion
         self._cancel_flags: dict[str, bool] = {}
         self._pause_flags: dict[str, bool] = {}
         self.scenario_loader = ScenarioLoader()
@@ -42,6 +44,9 @@ class SessionManager:
         negotiator_configs: list[NegotiatorConfig],
         mechanism_type: str = "SAOMechanism",
         mechanism_params: dict | None = None,
+        ignore_discount: bool = False,
+        ignore_reserved: bool = False,
+        auto_save: bool = True,
     ) -> NegotiationSession:
         """Create a new negotiation session.
 
@@ -50,6 +55,9 @@ class SessionManager:
             negotiator_configs: Configurations for each negotiator.
             mechanism_type: Class name of mechanism (e.g. "SAOMechanism").
             mechanism_params: Dictionary of mechanism parameters.
+            ignore_discount: If True, ignore discount factors in utility functions.
+            ignore_reserved: If True, ignore reserved values in utility functions.
+            auto_save: If True, save negotiation to disk on completion.
 
         Returns:
             Created session (not yet started).
@@ -68,6 +76,11 @@ class SessionManager:
         self._configs[session_id] = negotiator_configs
         self._mechanism_params[session_id] = params
         self._mechanism_types[session_id] = mechanism_type
+        self._scenario_options[session_id] = {
+            "ignore_discount": ignore_discount,
+            "ignore_reserved": ignore_reserved,
+        }
+        self._auto_save[session_id] = auto_save
         self._cancel_flags[session_id] = False
         self._pause_flags[session_id] = False
         return session
@@ -130,13 +143,27 @@ class SessionManager:
             return
 
         try:
-            # Load scenario
-            scenario = self.scenario_loader.load_scenario(session.scenario_path)
+            # Get scenario loading options
+            scenario_options = self._scenario_options.get(session_id, {})
+            ignore_discount = scenario_options.get("ignore_discount", False)
+            ignore_reserved = scenario_options.get("ignore_reserved", False)
+
+            # Load scenario with options
+            scenario = self.scenario_loader.load_scenario(
+                session.scenario_path,
+                ignore_discount=ignore_discount,
+            )
             if scenario is None:
                 session.status = SessionStatus.FAILED
                 session.error = "Failed to load scenario"
                 yield session
                 return
+
+            # Apply ignore_reserved if requested
+            if ignore_reserved:
+                for ufun in scenario.ufuns:
+                    if hasattr(ufun, "reserved_value"):
+                        ufun.reserved_value = float("-inf")
 
             # Get mechanism type and params stored during create_session
             mechanism_type = self._mechanism_types.get(session_id, "SAOMechanism")
@@ -264,31 +291,34 @@ class SessionManager:
                 if session.status == SessionStatus.PAUSED:
                     session.status = SessionStatus.RUNNING
 
-                # Execute one step
-                mechanism.step()
+                # Execute one step in thread pool to avoid blocking the event loop
+                # This is critical for slow negotiators that sort the outcome space
+                await asyncio.to_thread(mechanism.step)
                 state: SAOState = mechanism.state
                 session.current_step = state.step
                 running = state.running  # Update for next iteration
 
-                # Create offer event if there was an offer
-                if state.current_offer is not None:
+                # Process ALL new offers from this step
+                for proposer_id, offer in state.new_offers:
+                    if offer is None:
+                        continue
+
                     # Look up proposer index from ID
-                    proposer_id = state.current_proposer
                     proposer_idx = negotiator_id_to_idx.get(proposer_id, 0)
                     proposer_name = session.negotiator_names[proposer_idx]
 
                     # Calculate utilities for all negotiators
                     utilities = []
                     for ufun in scenario.ufuns:
-                        u = ufun(state.current_offer)
+                        u = ufun(offer)
                         utilities.append(float(u) if u is not None else 0.0)
 
-                    offer_dict = dict(zip(issue_names, state.current_offer))
+                    offer_dict = dict(zip(issue_names, offer))
                     event = OfferEvent(
                         step=state.step,
                         proposer=proposer_name,
                         proposer_index=proposer_idx,
-                        offer=state.current_offer,
+                        offer=offer,
                         offer_dict=offer_dict,
                         utilities=utilities,
                         relative_time=state.relative_time,

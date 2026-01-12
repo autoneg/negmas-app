@@ -149,7 +149,7 @@ class NegotiationSession:
     # Configuration
     scenario_path: str = ""
     scenario_name: str = ""
-    mechanism_type: str = "sao"
+    mechanism_type: str = "SAOMechanism"
     negotiator_names: list[str] = field(default_factory=list)
     negotiator_types: list[str] = field(default_factory=list)
     negotiator_infos: list[SessionNegotiatorInfo] = field(default_factory=list)

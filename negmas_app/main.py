@@ -1,5 +1,7 @@
 """NegMAS App - FastAPI entry point."""
 
+import subprocess
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -15,6 +17,7 @@ from .routers import (
     settings_router,
     genius_router,
     mechanisms_router,
+    tournament_router,
 )
 
 # Path configuration
@@ -42,6 +45,7 @@ app.include_router(negotiation_router)
 app.include_router(settings_router)
 app.include_router(genius_router)
 app.include_router(mechanisms_router)
+app.include_router(tournament_router)
 
 
 @app.get("/")
@@ -94,6 +98,35 @@ def run(
         workers=workers,
         access_log=access_log,
     )
+
+
+@cli.command()
+def kill(
+    port: Annotated[int, typer.Option(help="Port to kill the process on")] = 8019,
+) -> None:
+    """Kill any process running on the specified port."""
+    # Find PIDs using the port
+    result = subprocess.run(
+        ["lsof", "-ti", f":{port}"],
+        capture_output=True,
+        text=True,
+    )
+
+    pids = result.stdout.strip()
+    if not pids:
+        typer.echo(f"No process found on port {port}")
+        sys.exit(0)
+
+    # Kill all PIDs found
+    killed = []
+    for pid in pids.split("\n"):
+        if pid:
+            subprocess.run(["kill", "-9", pid], check=False)
+            killed.append(pid)
+
+    if killed:
+        typer.echo(f"Killed process(es) {', '.join(killed)} on port {port}")
+    sys.exit(0)
 
 
 if __name__ == "__main__":

@@ -126,7 +126,7 @@ class SAOParams(BaseMechanismParams):
     # Offer semantics
     offering_is_accepting: bool = True
     allow_offering_just_rejected_outcome: bool = True
-    one_offer_per_step: bool = False
+    one_offer_per_step: bool = True
 
     # Synchronization
     sync_calls: bool = False

@@ -20,6 +20,7 @@ class GeneralSettings:
 
     dark_mode: bool = False
     color_blind_mode: bool = False
+    save_negotiations: bool = True  # Whether to persist negotiations to disk
 
 
 @dataclass
@@ -141,23 +142,9 @@ class ParametersPreset:
     """Saved mechanism parameters preset."""
 
     name: str  # Preset name
-    mechanism_type: str = "sao"
-    # Deadline params
-    n_steps: int | None = 100
-    time_limit: float | None = None
-    pend: float = 0
-    pend_per_second: float = 0
-    step_time_limit: float | None = None
-    negotiator_time_limit: float | None = None
-    hidden_time_limit: float | None = None
-    # Common mechanism params
-    common: dict[str, Any] = field(default_factory=dict)
-    # SAO params
-    sao: dict[str, Any] = field(default_factory=dict)
-    # TAU params
-    tau: dict[str, Any] = field(default_factory=dict)
-    # GB params
-    gb: dict[str, Any] = field(default_factory=dict)
+    mechanism_type: str = "SAOMechanism"
+    # All mechanism params in a single dict
+    mechanism_params: dict[str, Any] = field(default_factory=dict)
     # Information sharing
     share_ufuns: bool = False
     created_at: str = ""  # ISO timestamp
@@ -185,21 +172,9 @@ class FullSessionPreset:
     scenario_name: str
     # Negotiators
     negotiators: list[NegotiatorPreset] = field(default_factory=list)
-    # Parameters
-    mechanism_type: str = "sao"
-    n_steps: int | None = 100
-    time_limit: float | None = None
-    pend: float = 0
-    pend_per_second: float = 0
-    step_time_limit: float | None = None
-    negotiator_time_limit: float | None = None
-    hidden_time_limit: float | None = None
-    # Common mechanism params
-    common: dict[str, Any] = field(default_factory=dict)
-    # Protocol-specific params
-    sao: dict[str, Any] = field(default_factory=dict)
-    tau: dict[str, Any] = field(default_factory=dict)
-    gb: dict[str, Any] = field(default_factory=dict)
+    # Mechanism
+    mechanism_type: str = "SAOMechanism"
+    mechanism_params: dict[str, Any] = field(default_factory=dict)
     # Information sharing
     share_ufuns: bool = False
     # Display

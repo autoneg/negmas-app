@@ -57,6 +57,17 @@ from .settings import (
     DisplayPreset,
     FullSessionPreset,
 )
+from .tournament import (
+    TournamentStatus,
+    TournamentConfig,
+    CompetitorScore,
+    NegotiationResult,
+    TournamentProgress,
+    TournamentResults,
+    TournamentSession,
+    FinalScoreMetric,
+    FinalScoreStatistic,
+)
 
 __all__ = [
     # Mechanism
@@ -114,4 +125,14 @@ __all__ = [
     "ParametersPreset",
     "DisplayPreset",
     "FullSessionPreset",
+    # Tournament
+    "TournamentStatus",
+    "TournamentConfig",
+    "CompetitorScore",
+    "NegotiationResult",
+    "TournamentProgress",
+    "TournamentResults",
+    "TournamentSession",
+    "FinalScoreMetric",
+    "FinalScoreStatistic",
 ]
