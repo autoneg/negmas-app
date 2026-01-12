@@ -22,6 +22,7 @@ from .scenario_loader import ScenarioLoader
 from .negotiator_factory import NegotiatorFactory
 from .mechanism_factory import MechanismFactory
 from .outcome_analysis import compute_outcome_space_data
+from .negotiation_storage import NegotiationStorageService
 
 
 class SessionManager:
@@ -351,6 +352,14 @@ class SessionManager:
                     session.end_reason = "broken"
                 else:
                     session.end_reason = "no_agreement"
+
+            # Auto-save if enabled
+            if self._auto_save.get(session_id, False):
+                try:
+                    configs = self._configs.get(session_id)
+                    NegotiationStorageService.save_negotiation(session, configs)
+                except Exception as e:
+                    print(f"Failed to auto-save negotiation {session_id}: {e}")
 
         except Exception as e:
             session.status = SessionStatus.FAILED
