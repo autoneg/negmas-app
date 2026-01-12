@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Query
 
-from ..services import NegotiatorFactory
+from ..services import NegotiatorFactory, BOAFactory
 
 router = APIRouter(prefix="/api/negotiators", tags=["negotiators"])
 
@@ -82,6 +82,48 @@ def list_sources():
     }
 
 
+@router.get("/boa/components")
+def list_boa_components(
+    component_type: str | None = Query(
+        None, description="Filter by type: acceptance, offering, model"
+    ),
+):
+    """List available BOA (Bidding-Opponent-Acceptance) components.
+
+    Args:
+        component_type: Filter by component type (acceptance, offering, model).
+
+    Returns:
+        Dict mapping component type to list of components.
+    """
+    components = BOAFactory.list_components(component_type)
+    return {
+        "components": {
+            ctype: [
+                {
+                    "name": c.name,
+                    "type_name": c.type_name,
+                    "component_type": c.component_type,
+                    "description": c.description,
+                }
+                for c in clist
+            ]
+            for ctype, clist in components.items()
+        },
+        "counts": {ctype: len(clist) for ctype, clist in components.items()},
+    }
+
+
+@router.post("/refresh")
+def refresh_registry():
+    """Refresh the negotiator registry.
+
+    Call this after changing negotiator source settings.
+    """
+    NegotiatorFactory.refresh_registry()
+    return {"status": "ok", "message": "Registry refreshed"}
+
+
 @router.get("/{type_name:path}")
 def get_negotiator(type_name: str):
     """Get details for a specific negotiator type.
@@ -107,13 +149,3 @@ def get_negotiator(type_name: str):
         "available": info.available,
         "module_path": info.module_path,
     }
-
-
-@router.post("/refresh")
-def refresh_registry():
-    """Refresh the negotiator registry.
-
-    Call this after changing negotiator source settings.
-    """
-    NegotiatorFactory.refresh_registry()
-    return {"status": "ok", "message": "Registry refreshed"}

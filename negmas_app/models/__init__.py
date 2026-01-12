@@ -19,6 +19,8 @@ from .negotiator import (
     BUILTIN_SOURCES,
     NegotiatorConfig,
     NegotiatorInfo,
+    BOAComponentInfo,
+    BOANegotiatorConfig,
 )
 from .scenario import ScenarioInfo, IssueInfo
 from .session import (
@@ -75,6 +77,8 @@ __all__ = [
     "BUILTIN_SOURCES",
     "NegotiatorConfig",
     "NegotiatorInfo",
+    "BOAComponentInfo",
+    "BOANegotiatorConfig",
     # Scenario
     "ScenarioInfo",
     "IssueInfo",

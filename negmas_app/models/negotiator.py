@@ -142,3 +142,49 @@ class NegotiatorInfo:
 
     # Full module path for import
     module_path: str = ""
+
+
+@dataclass
+class BOAComponentInfo:
+    """Information about a BOA (Bidding-Opponent-Acceptance) component."""
+
+    # Class name (e.g., "ACConst", "GBoulwareOffering")
+    name: str
+
+    # Full class path for import
+    type_name: str
+
+    # Component type: "acceptance", "offering", or "model"
+    component_type: str
+
+    # Brief description
+    description: str = ""
+
+    # Module path
+    module_path: str = "negmas.gb.components"
+
+
+@dataclass
+class BOANegotiatorConfig:
+    """Configuration for a BOA-style modular negotiator."""
+
+    # Display name for this instance
+    name: str
+
+    # Acceptance policy class name
+    acceptance_policy: str
+
+    # Offering policy class name
+    offering_policy: str
+
+    # Opponent model class name (optional)
+    opponent_model: str | None = None
+
+    # Parameters for acceptance policy
+    acceptance_params: dict = field(default_factory=dict)
+
+    # Parameters for offering policy
+    offering_params: dict = field(default_factory=dict)
+
+    # Parameters for opponent model
+    model_params: dict = field(default_factory=dict)

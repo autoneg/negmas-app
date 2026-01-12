@@ -20,7 +20,14 @@ from negmas import Scenario
 from negmas.sao import SAONegotiator
 from negmas.preferences import UtilityFunction
 
-from ..models import NegotiatorConfig, NegotiatorInfo, NegotiatorSource, BUILTIN_SOURCES
+from ..models import (
+    NegotiatorConfig,
+    NegotiatorInfo,
+    NegotiatorSource,
+    BUILTIN_SOURCES,
+    BOAComponentInfo,
+    BOANegotiatorConfig,
+)
 from .settings_service import SettingsService
 
 
@@ -641,3 +648,216 @@ class NegotiatorFactory:
             NegotiatorFactory.create(config, ufun)
             for config, ufun in zip(configs, scenario.ufuns)
         ]
+
+
+# BOA Component Registry (lazily populated)
+_BOA_COMPONENTS_CACHE: dict[str, list[BOAComponentInfo]] | None = None
+
+
+def _discover_boa_components() -> dict[str, list[BOAComponentInfo]]:
+    """Discover BOA components from negmas.gb.components."""
+    global _BOA_COMPONENTS_CACHE
+    if _BOA_COMPONENTS_CACHE is not None:
+        return _BOA_COMPONENTS_CACHE
+
+    acceptance = []
+    offering = []
+    models = []
+
+    try:
+        from negmas.gb import components
+        import inspect
+
+        for name in dir(components):
+            obj = getattr(components, name)
+            if not inspect.isclass(obj) or name.startswith("_"):
+                continue
+
+            # Get base class names
+            bases = [b.__name__ for b in obj.__mro__]
+
+            if "AcceptancePolicy" in bases and name != "AcceptancePolicy":
+                acceptance.append(
+                    BOAComponentInfo(
+                        name=name,
+                        type_name=f"negmas.gb.components.{name}",
+                        component_type="acceptance",
+                        description=_get_component_description(name, "acceptance"),
+                    )
+                )
+            elif "OfferingPolicy" in bases and name != "OfferingPolicy":
+                offering.append(
+                    BOAComponentInfo(
+                        name=name,
+                        type_name=f"negmas.gb.components.{name}",
+                        component_type="offering",
+                        description=_get_component_description(name, "offering"),
+                    )
+                )
+            elif (
+                "UFunModel" in bases
+                or "OpponentModel" in bases
+                or (
+                    name.endswith("Model")
+                    and name not in ("Model", "UFunModel", "OpponentModel")
+                )
+            ):
+                models.append(
+                    BOAComponentInfo(
+                        name=name,
+                        type_name=f"negmas.gb.components.{name}",
+                        component_type="model",
+                        description=_get_component_description(name, "model"),
+                    )
+                )
+
+    except ImportError:
+        pass
+
+    _BOA_COMPONENTS_CACHE = {
+        "acceptance": sorted(acceptance, key=lambda x: x.name),
+        "offering": sorted(offering, key=lambda x: x.name),
+        "model": sorted(models, key=lambda x: x.name),
+    }
+    return _BOA_COMPONENTS_CACHE
+
+
+def _get_component_description(name: str, component_type: str) -> str:
+    """Get a brief description for a BOA component."""
+    # Common component descriptions
+    descriptions = {
+        # Acceptance policies
+        "ACConst": "Accepts with constant probability",
+        "ACLast": "Accepts if better than last received offer",
+        "ACTime": "Time-based acceptance threshold",
+        "AcceptAbove": "Accepts offers above a utility threshold",
+        "AcceptAnyRational": "Accepts any offer above reservation",
+        "AcceptBest": "Accepts only the best possible offer",
+        "AcceptBetterRational": "Accepts better than reservation value",
+        "AcceptImmediately": "Accepts any offer immediately",
+        "RejectAlways": "Never accepts any offer",
+        "TFTAcceptancePolicy": "Tit-for-tat acceptance",
+        "GACCombi": "Combined acceptance conditions",
+        "RandomAcceptancePolicy": "Random acceptance",
+        # Offering policies
+        "GBoulwareOffering": "Boulware time-dependent offering",
+        "GConcederOffering": "Conceder time-dependent offering",
+        "GLinearOffering": "Linear time-dependent offering",
+        "GRandomOffering": "Random offering from outcome space",
+        "GTimeDependentOffering": "Generic time-dependent offering",
+        "MiCROOfferingPolicy": "MiCRO offering policy",
+        "RandomOfferingPolicy": "Random offering policy",
+        "TFTOfferingPolicy": "Tit-for-tat offering",
+        "TimeBasedOfferingPolicy": "Time-based offering policy",
+        "OfferBest": "Always offers best outcome",
+        "CABOfferingPolicy": "Curve-Aspiration-Based offering",
+        # Opponent models
+        "FrequencyUFunModel": "Frequency-based utility model",
+        "GBayesianModel": "Bayesian opponent model",
+        "GDefaultModel": "Default opponent model",
+        "GHardHeadedFrequencyModel": "HardHeaded frequency model",
+        "ZeroSumModel": "Zero-sum opponent model",
+        "UFunModel": "Base utility function model",
+    }
+    return descriptions.get(name, f"{component_type.title()} component")
+
+
+class BOAFactory:
+    """Factory for creating BOA-style modular negotiators."""
+
+    @staticmethod
+    def list_components(
+        component_type: str | None = None,
+    ) -> dict[str, list[BOAComponentInfo]]:
+        """List available BOA components.
+
+        Args:
+            component_type: Filter by type ("acceptance", "offering", "model") or None for all.
+
+        Returns:
+            Dict mapping component type to list of component infos.
+        """
+        all_components = _discover_boa_components()
+        if component_type is None:
+            return all_components
+        if component_type in all_components:
+            return {component_type: all_components[component_type]}
+        return {}
+
+    @staticmethod
+    def get_component_class(type_name: str) -> type | None:
+        """Get a BOA component class by its full type name."""
+        parts = type_name.rsplit(".", 1)
+        if len(parts) != 2:
+            return None
+
+        module_path, class_name = parts
+        try:
+            mod = importlib.import_module(module_path)
+            return getattr(mod, class_name, None)
+        except ImportError:
+            return None
+
+    @staticmethod
+    def create(
+        config: BOANegotiatorConfig,
+        ufun: UtilityFunction | None = None,
+    ) -> SAONegotiator:
+        """Create a BOA-style modular negotiator.
+
+        Args:
+            config: BOA negotiator configuration.
+            ufun: Utility function to assign.
+
+        Returns:
+            Configured GBNegotiator instance.
+
+        Raises:
+            ValueError: If components cannot be created.
+        """
+        from negmas.gb import GBNegotiator
+
+        # Get component classes
+        acc_cls = BOAFactory.get_component_class(
+            f"negmas.gb.components.{config.acceptance_policy}"
+        )
+        off_cls = BOAFactory.get_component_class(
+            f"negmas.gb.components.{config.offering_policy}"
+        )
+
+        if acc_cls is None:
+            raise ValueError(f"Unknown acceptance policy: {config.acceptance_policy}")
+        if off_cls is None:
+            raise ValueError(f"Unknown offering policy: {config.offering_policy}")
+
+        # Create components
+        acceptance = acc_cls(**config.acceptance_params)
+        offering = off_cls(**config.offering_params)
+
+        # Create opponent model if specified
+        model = None
+        if config.opponent_model:
+            model_cls = BOAFactory.get_component_class(
+                f"negmas.gb.components.{config.opponent_model}"
+            )
+            if model_cls is not None:
+                model = model_cls(**config.model_params)
+
+        # Create the negotiator
+        negotiator = GBNegotiator(
+            name=config.name,
+            acceptance_policy=acceptance,
+            offering_policy=offering,
+            ufun_model=model,
+        )
+
+        if ufun is not None:
+            negotiator.ufun = ufun
+
+        return negotiator
+
+    @staticmethod
+    def refresh_cache() -> None:
+        """Clear the BOA components cache to force rediscovery."""
+        global _BOA_COMPONENTS_CACHE
+        _BOA_COMPONENTS_CACHE = None

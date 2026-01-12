@@ -336,41 +336,13 @@
                 
                 <!-- Tab: Negotiators -->
                 <div x-show="negotiationTab === 'negotiators'">
-                    <div class="form-group">
-                        <label class="form-label">Search Negotiators</label>
-                        <input type="text" class="form-input" placeholder="Type to search all negotiators..." x-model="negotiatorSearch" @input="searchNegotiators()">
+                    <!-- Sub-tabs for negotiator selection mode -->
+                    <div class="tabs" style="margin-bottom: 16px;">
+                        <button class="tab" :class="{ active: negotiatorSubTab === 'preset' }" @click="negotiatorSubTab = 'preset'">Preset Agents</button>
+                        <button class="tab" :class="{ active: negotiatorSubTab === 'boa' }" @click="negotiatorSubTab = 'boa'; loadBOAComponents()">Build Custom (BOA)</button>
                     </div>
                     
-                    <div class="form-row" style="gap: 12px;">
-                        <div class="form-group" style="flex: 1;">
-                            <label class="form-label">Filter by Source <span class="text-muted">(optional)</span></label>
-                            <select class="form-select" x-model="negotiatorSourceFilter" @change="filterNegotiators()">
-                                <option value="">All sources</option>
-                                <template x-for="source in negotiatorSources" :key="source.id">
-                                    <option :value="source.id" x-text="source.name"></option>
-                                </template>
-                            </select>
-                        </div>
-                        <div class="form-group" style="flex: 1;" x-show="negotiatorSourceFilter === 'genius'">
-                            <label class="form-label">Filter by Year <span class="text-muted">(optional)</span></label>
-                            <select class="form-select" x-model="negotiatorGroupFilter" @change="filterNegotiators()">
-                                <option value="">All years</option>
-                                <option value="y2019">ANAC 2019</option>
-                                <option value="y2018">ANAC 2018</option>
-                                <option value="y2017">ANAC 2017</option>
-                                <option value="y2016">ANAC 2016</option>
-                                <option value="y2015">ANAC 2015</option>
-                                <option value="y2014">ANAC 2014</option>
-                                <option value="y2013">ANAC 2013</option>
-                                <option value="y2012">ANAC 2012</option>
-                                <option value="y2011">ANAC 2011</option>
-                                <option value="y2010">ANAC 2010</option>
-                                <option value="basic">Basic</option>
-                                <option value="others">Others</option>
-                            </select>
-                        </div>
-                    </div>
-                    
+                    <!-- Assigned Negotiators (shown in both modes) -->
                     <div class="form-group">
                         <label class="form-label">
                             Assigned Negotiators 
@@ -409,22 +381,111 @@
                             </template>
                         </div>
                         <div class="text-muted" style="font-size: 12px; margin-top: 8px;">
-                            Click a slot to select it, then choose a negotiator from the list below
+                            Click a slot to select it, then choose a negotiator below
                         </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label class="form-label">Available Negotiators <span class="text-muted" x-text="'(' + filteredNegotiators.length + ' found)'"></span></label>
-                        <div class="negotiator-grid" style="max-height: 250px; overflow-y: auto;">
-                            <template x-for="neg in filteredNegotiators" :key="neg.type_name">
-                                <div class="negotiator-card" @click="selectNegotiatorForSlot(neg)">
-                                    <div class="negotiator-card-name" x-text="neg.name"></div>
-                                    <div class="negotiator-card-meta">
-                                        <span class="badge" :class="getSourceBadgeClass(neg.source)" x-text="neg.source"></span>
+                    <!-- Sub-tab: Preset Negotiators -->
+                    <div x-show="negotiatorSubTab === 'preset'">
+                        <div class="form-group">
+                            <label class="form-label">Search Negotiators</label>
+                            <input type="text" class="form-input" placeholder="Type to search all negotiators..." x-model="negotiatorSearch" @input="searchNegotiators()">
+                        </div>
+                        
+                        <div class="form-row" style="gap: 12px;">
+                            <div class="form-group" style="flex: 1;">
+                                <label class="form-label">Filter by Source <span class="text-muted">(optional)</span></label>
+                                <select class="form-select" x-model="negotiatorSourceFilter" @change="filterNegotiators()">
+                                    <option value="">All sources</option>
+                                    <template x-for="source in negotiatorSources" :key="source.id">
+                                        <option :value="source.id" x-text="source.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1;" x-show="negotiatorSourceFilter === 'genius'">
+                                <label class="form-label">Filter by Year <span class="text-muted">(optional)</span></label>
+                                <select class="form-select" x-model="negotiatorGroupFilter" @change="filterNegotiators()">
+                                    <option value="">All years</option>
+                                    <option value="y2019">ANAC 2019</option>
+                                    <option value="y2018">ANAC 2018</option>
+                                    <option value="y2017">ANAC 2017</option>
+                                    <option value="y2016">ANAC 2016</option>
+                                    <option value="y2015">ANAC 2015</option>
+                                    <option value="y2014">ANAC 2014</option>
+                                    <option value="y2013">ANAC 2013</option>
+                                    <option value="y2012">ANAC 2012</option>
+                                    <option value="y2011">ANAC 2011</option>
+                                    <option value="y2010">ANAC 2010</option>
+                                    <option value="basic">Basic</option>
+                                    <option value="others">Others</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Available Negotiators <span class="text-muted" x-text="'(' + filteredNegotiators.length + ' found)'"></span></label>
+                            <div class="negotiator-grid" style="max-height: 250px; overflow-y: auto;">
+                                <template x-for="neg in filteredNegotiators" :key="neg.type_name">
+                                    <div class="negotiator-card" @click="selectNegotiatorForSlot(neg)">
+                                        <div class="negotiator-card-name" x-text="neg.name"></div>
+                                        <div class="negotiator-card-meta">
+                                            <span class="badge" :class="getSourceBadgeClass(neg.source)" x-text="neg.source"></span>
+                                        </div>
+                                        <div class="negotiator-card-desc" x-text="neg.description" x-show="neg.description"></div>
                                     </div>
-                                    <div class="negotiator-card-desc" x-text="neg.description" x-show="neg.description"></div>
-                                </div>
-                            </template>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sub-tab: BOA (Build Custom) Negotiators -->
+                    <div x-show="negotiatorSubTab === 'boa'">
+                        <div class="boa-builder" style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px;">
+                            <div class="form-group">
+                                <label class="form-label">Acceptance Policy <span class="text-danger">*</span></label>
+                                <select class="form-select" x-model="boaConfig.acceptance_policy">
+                                    <option value="">Select acceptance policy...</option>
+                                    <template x-for="c in boaComponents.acceptance" :key="c.name">
+                                        <option :value="c.name" x-text="c.name"></option>
+                                    </template>
+                                </select>
+                                <div class="form-hint" x-text="getBoaComponentDescription('acceptance', boaConfig.acceptance_policy)"></div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Offering Policy <span class="text-danger">*</span></label>
+                                <select class="form-select" x-model="boaConfig.offering_policy">
+                                    <option value="">Select offering policy...</option>
+                                    <template x-for="c in boaComponents.offering" :key="c.name">
+                                        <option :value="c.name" x-text="c.name"></option>
+                                    </template>
+                                </select>
+                                <div class="form-hint" x-text="getBoaComponentDescription('offering', boaConfig.offering_policy)"></div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Opponent Model <span class="text-muted">(optional)</span></label>
+                                <select class="form-select" x-model="boaConfig.opponent_model">
+                                    <option value="">None (no opponent modeling)</option>
+                                    <template x-for="c in boaComponents.model" :key="c.name">
+                                        <option :value="c.name" x-text="c.name"></option>
+                                    </template>
+                                </select>
+                                <div class="form-hint" x-text="getBoaComponentDescription('model', boaConfig.opponent_model)"></div>
+                            </div>
+                            
+                            <button class="btn btn-primary" 
+                                    @click="applyBOAToSlot()" 
+                                    :disabled="!boaConfig.acceptance_policy || !boaConfig.offering_policy">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                                Apply to Selected Slot
+                            </button>
+                        </div>
+                        
+                        <div class="text-muted" style="font-size: 12px; margin-top: 12px;">
+                            <strong>BOA Architecture:</strong> Build modular negotiators by combining acceptance, offering, and opponent modeling components.
                         </div>
                     </div>
                 </div>
@@ -1127,6 +1188,7 @@
             negotiationTab: 'scenario',
             settingsTab: 'general',
             paramSubTab: 'deadline',
+            negotiatorSubTab: 'preset',
             
             // Parameter group collapse states
             showAdvancedDeadline: false,
@@ -1150,6 +1212,18 @@
             negotiatorSourceFilter: '',
             negotiatorGroupFilter: '',
             selectedNegotiatorSlot: 0,
+            
+            // BOA (Build Custom) negotiator config
+            boaComponents: {
+                acceptance: [],
+                offering: [],
+                model: []
+            },
+            boaConfig: {
+                acceptance_policy: '',
+                offering_policy: '',
+                opponent_model: ''
+            },
             
             // Running/completed negotiations
             runningNegotiations: [],
@@ -1708,6 +1782,16 @@
             },
             
             getNegotiatorDisplayName(typeName) {
+                // Handle BOA negotiators (type_name format: "BOA:AcceptPolicy/OfferPolicy")
+                if (typeName && typeName.startsWith('BOA:')) {
+                    const parts = typeName.substring(4).split('/');
+                    if (parts.length >= 2) {
+                        const acc = parts[0].replace(/Policy$|^G|^AC/, '');
+                        const off = parts[1].replace(/Policy$|Offering$|^G/, '');
+                        return `${acc}+${off}`;
+                    }
+                    return 'Custom BOA';
+                }
                 const neg = this.negotiatorTypes.find(n => n.type_name === typeName);
                 return neg?.name || typeName.split('.').pop();
             },
@@ -1724,9 +1808,66 @@
                     'genius-reimplemented': 'badge-success',
                     'llm': 'badge-info',
                     'rl': 'badge-info',
-                    'negolog': 'badge-secondary'
+                    'negolog': 'badge-secondary',
+                    'boa': 'badge-info'
                 };
                 return classes[source] || 'badge-neutral';
+            },
+            
+            // BOA Component methods
+            async loadBOAComponents() {
+                if (this.boaComponents.acceptance.length > 0) return; // Already loaded
+                try {
+                    const res = await fetch('/api/negotiators/boa/components');
+                    const data = await res.json();
+                    this.boaComponents = data.components;
+                } catch (e) {
+                    console.error('Failed to load BOA components:', e);
+                }
+            },
+            
+            getBoaComponentDescription(type, name) {
+                if (!name) return '';
+                const components = this.boaComponents[type] || [];
+                const c = components.find(c => c.name === name);
+                return c?.description || '';
+            },
+            
+            applyBOAToSlot() {
+                if (!this.boaConfig.acceptance_policy || !this.boaConfig.offering_policy) return;
+                
+                const slotIndex = this.selectedNegotiatorSlot;
+                const existingName = this.newNeg.negotiators[slotIndex]?.name;
+                
+                // Create a display name based on selected components
+                const displayParts = [];
+                displayParts.push(this.boaConfig.acceptance_policy.replace(/Policy$|^G/, ''));
+                displayParts.push(this.boaConfig.offering_policy.replace(/Policy$|Offering$|^G/, ''));
+                const displayName = displayParts.join('+');
+                
+                const boaNeg = {
+                    type_name: `BOA:${this.boaConfig.acceptance_policy}/${this.boaConfig.offering_policy}`,
+                    name: existingName || `Agent${slotIndex + 1}`,
+                    source: 'boa',
+                    is_boa: true,
+                    boa_config: {
+                        acceptance_policy: this.boaConfig.acceptance_policy,
+                        offering_policy: this.boaConfig.offering_policy,
+                        opponent_model: this.boaConfig.opponent_model || null
+                    }
+                };
+                
+                if (slotIndex < this.newNeg.negotiators.length) {
+                    this.newNeg.negotiators[slotIndex] = boaNeg;
+                } else {
+                    this.newNeg.negotiators.push(boaNeg);
+                }
+                
+                // Auto-advance to next slot if there's room
+                const requiredCount = this.newNeg.scenario?.n_negotiators || 2;
+                if (slotIndex + 1 < requiredCount && slotIndex + 1 < this.newNeg.negotiators.length) {
+                    this.selectedNegotiatorSlot = slotIndex + 1;
+                }
             },
             
             // Start negotiation
