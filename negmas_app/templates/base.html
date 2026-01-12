@@ -105,7 +105,10 @@
                 </div>
                 
                 <div class="sidebar-section">
-                    <div class="sidebar-section-title" x-show="!sidebarCollapsed">Running</div>
+                    <div class="sidebar-section-title" x-show="!sidebarCollapsed">
+                        Running
+                        <span class="sidebar-badge" x-show="runningNegotiations.length > 0" x-text="runningNegotiations.length"></span>
+                    </div>
                     <div class="negotiation-list" x-show="!sidebarCollapsed">
                         <template x-if="runningNegotiations.length === 0">
                             <p class="text-muted" style="font-size: 12px; padding: 8px;">No active negotiations</p>
@@ -123,7 +126,10 @@
                 </div>
                 
                 <div class="sidebar-section">
-                    <div class="sidebar-section-title" x-show="!sidebarCollapsed">Completed</div>
+                    <div class="sidebar-section-title" x-show="!sidebarCollapsed">
+                        Completed
+                        <span class="sidebar-badge" x-show="completedNegotiations.length > 0" x-text="completedNegotiations.length"></span>
+                    </div>
                     <div class="negotiation-list" x-show="!sidebarCollapsed">
                         <template x-if="completedNegotiations.length === 0">
                             <p class="text-muted" style="font-size: 12px; padding: 8px;">No completed negotiations</p>
@@ -162,7 +168,7 @@
                             <div class="form-group">
                                 <select class="form-select" x-model="explorerSourceFilter" @change="filterExplorerScenarios()">
                                     <option value="">All Sources</option>
-                                    <template x-for="source in sources" :key="source.id">
+                                    <template x-for="(source, idx) in (sources || [])" :key="source?.id || idx">
                                         <option :value="source.id" x-text="source.name + ' (' + source.count + ')'"></option>
                                     </template>
                                 </select>
@@ -421,8 +427,8 @@
                         <label class="form-label">Filter by Source <span class="text-muted">(optional)</span></label>
                         <select class="form-select" x-model="newNeg.source" @change="filterBySource()">
                             <option value="">All sources</option>
-                            <template x-for="source in sources" :key="source">
-                                <option :value="source" x-text="source"></option>
+                            <template x-for="(source, idx) in (sources || [])" :key="source?.id || idx">
+                                <option :value="source.id" x-text="source.name"></option>
                             </template>
                         </select>
                     </div>
@@ -530,6 +536,12 @@
                                         <div class="negotiator-type" x-text="getNegotiatorDisplayName(neg.type_name)"></div>
                                         <span class="badge" :class="getSourceBadgeClass(neg.source)" x-text="neg.source" style="font-size: 10px;"></span>
                                     </div>
+                                    <button class="btn btn-icon btn-sm" @click.stop="openNegotiatorConfig(index)" title="Configure parameters" style="margin-right: 4px;" :class="{ 'has-config': neg.params && Object.keys(neg.params).length > 0 }">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                                        </svg>
+                                    </button>
                                     <button class="btn btn-icon btn-sm" @click.stop="removeNegotiator(index)" :disabled="newNeg.negotiators.length <= 2" title="Remove">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                                             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -655,48 +667,46 @@
                     <div class="form-group" style="margin-bottom: 24px;">
                         <label class="form-label">Mechanism Protocol</label>
                         <div class="card-selector">
-                            <template x-for="mech in mechanisms" :key="mech.class_name">
+                            <template x-for="mech in (mechanisms || [])" :key="mech?.class_name || Math.random()">
                                 <button type="button" class="card-selector-option" 
-                                        :class="{ selected: newNeg.mechanism_type === mech.class_name }"
-                                        @click="selectMechanism(mech.class_name)">
+                                        :class="{ selected: newNeg.mechanism_type === mech?.class_name }"
+                                        @click="selectMechanism(mech?.class_name)">
                                     <div class="card-icon">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <template x-if="mech.class_name === 'SAOMechanism'">
-                                                <g>
-                                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                                                    <circle cx="9" cy="7" r="4"></circle>
-                                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                                                </g>
-                                            </template>
-                                            <template x-if="mech.class_name === 'TAUMechanism'">
-                                                <g>
-                                                    <line x1="8" y1="6" x2="21" y2="6"></line>
-                                                    <line x1="8" y1="12" x2="21" y2="12"></line>
-                                                    <line x1="8" y1="18" x2="21" y2="18"></line>
-                                                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                                                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                                                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                                                </g>
-                                            </template>
-                                            <template x-if="mech.class_name === 'GBMechanism'">
-                                                <g>
-                                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                                    <line x1="3" y1="9" x2="21" y2="9"></line>
-                                                    <line x1="9" y1="21" x2="9" y2="9"></line>
-                                                </g>
-                                            </template>
-                                            <template x-if="mech.class_name.includes('ST')">
-                                                <g>
-                                                    <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-                                                    <path d="M2 17l10 5 10-5"></path>
-                                                    <path d="M2 12l10 5 10-5"></path>
-                                                </g>
-                                            </template>
+                                            <g x-show="mech?.class_name === 'SAOMechanism'">
+                                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                                <circle cx="9" cy="7" r="4"></circle>
+                                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                            </g>
+                                            <g x-show="mech?.class_name === 'TAUMechanism'">
+                                                <line x1="8" y1="6" x2="21" y2="6"></line>
+                                                <line x1="8" y1="12" x2="21" y2="12"></line>
+                                                <line x1="8" y1="18" x2="21" y2="18"></line>
+                                                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                                                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                                                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                                            </g>
+                                            <g x-show="mech?.class_name === 'GBMechanism'">
+                                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                                <line x1="3" y1="9" x2="21" y2="9"></line>
+                                                <line x1="9" y1="21" x2="9" y2="9"></line>
+                                            </g>
+                                            <g x-show="mech?.class_name?.includes('ST')">
+                                                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                                                <path d="M2 17l10 5 10-5"></path>
+                                                <path d="M2 12l10 5 10-5"></path>
+                                            </g>
+                                            <!-- Default icon for unknown mechanisms -->
+                                            <g x-show="!['SAOMechanism', 'TAUMechanism', 'GBMechanism'].includes(mech?.class_name) && !mech?.class_name?.includes('ST')">
+                                                <circle cx="12" cy="12" r="10"></circle>
+                                                <path d="M12 16v-4"></path>
+                                                <path d="M12 8h.01"></path>
+                                            </g>
                                         </svg>
                                     </div>
-                                    <span class="card-title" x-text="mech.class_name.replace('Mechanism', '')"></span>
-                                    <span class="card-desc" x-text="mech.name.split('(')[0].trim()"></span>
+                                    <span class="card-title" x-text="mech?.class_name?.replace('Mechanism', '') || ''"></span>
+                                    <span class="card-desc" x-text="(mech?.name || '').split('(')[0].trim()"></span>
                                 </button>
                             </template>
                         </div>
@@ -937,6 +947,14 @@
                             <label class="form-checkbox"><input type="checkbox" x-model="newNeg.show_offers"><span>Show offer history</span></label>
                         </div>
                     </div>
+                    
+                    <div class="form-group" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                        <label class="form-checkbox">
+                            <input type="checkbox" x-model="newNeg.auto_save">
+                            <span>Auto-save negotiation</span>
+                        </label>
+                        <div class="form-inline-hint">Save results to disk when negotiation completes</div>
+                    </div>
                 </div>
                     </div><!-- end wizard-content -->
                 </div><!-- end wizard-layout -->
@@ -960,6 +978,158 @@
                         <span x-text="newNeg.auto_start ? 'Start Negotiation' : 'Open Negotiation'"></span>
                     </button>
                 </template>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Negotiator Configuration Modal -->
+    <div class="modal-overlay" :class="{ active: showNegotiatorConfig }" @click.self="showNegotiatorConfig = false">
+        <div class="modal medium">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    Configure Negotiator
+                    <span class="text-muted" style="font-size: 14px; font-weight: normal;" x-text="configNegotiatorIndex !== null ? (' - ' + (newNeg.negotiators[configNegotiatorIndex]?.name || 'Agent')) : ''"></span>
+                </h2>
+                <button class="modal-close" @click="showNegotiatorConfig = false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Loading state -->
+                <div x-show="configNegotiatorLoading" class="text-center" style="padding: 40px;">
+                    <div class="spinner"></div>
+                    <div class="text-muted" style="margin-top: 12px;">Loading parameters...</div>
+                </div>
+                
+                <!-- No parameters -->
+                <div x-show="!configNegotiatorLoading && configNegotiatorParams.length === 0" class="text-center" style="padding: 40px;">
+                    <div class="text-muted">No configurable parameters found for this negotiator type.</div>
+                </div>
+                
+                <!-- Parameters form -->
+                <div x-show="!configNegotiatorLoading && configNegotiatorParams.length > 0">
+                    <div class="form-hint" style="margin-bottom: 16px;">
+                        Configure parameters for <strong x-text="configNegotiatorIndex !== null ? getNegotiatorDisplayName(newNeg.negotiators[configNegotiatorIndex]?.type_name) : ''"></strong>
+                    </div>
+                    
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <template x-for="param in configNegotiatorParams" :key="param.name">
+                            <div class="form-group" x-show="!param.is_complex" style="margin-bottom: 16px;">
+                                <!-- Boolean parameters -->
+                                <template x-if="param.ui_type === 'bool'">
+                                    <div>
+                                        <label class="form-checkbox">
+                                            <input type="checkbox" 
+                                                   :checked="configNegotiatorValues[param.name] ?? param.default"
+                                                   @change="configNegotiatorValues[param.name] = $event.target.checked">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                        </label>
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                                
+                                <!-- Integer parameters -->
+                                <template x-if="param.ui_type === 'int' || param.ui_type === 'optional_int'">
+                                    <div>
+                                        <label class="form-label">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                            <span class="text-muted" x-show="param.ui_type === 'optional_int'">(optional)</span>
+                                        </label>
+                                        <input type="number" class="form-input" style="max-width: 200px;"
+                                               :value="configNegotiatorValues[param.name] ?? param.default"
+                                               @input="configNegotiatorValues[param.name] = $event.target.value ? parseInt($event.target.value) : null"
+                                               :placeholder="param.default !== null ? param.default : 'None'">
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                                
+                                <!-- Float parameters -->
+                                <template x-if="param.ui_type === 'float' || param.ui_type === 'optional_float'">
+                                    <div>
+                                        <label class="form-label">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                            <span class="text-muted" x-show="param.ui_type === 'optional_float'">(optional)</span>
+                                        </label>
+                                        <input type="number" class="form-input" style="max-width: 200px;" step="0.01"
+                                               :value="configNegotiatorValues[param.name] ?? param.default"
+                                               @input="configNegotiatorValues[param.name] = $event.target.value ? parseFloat($event.target.value) : null"
+                                               :placeholder="param.default !== null ? param.default : 'None'">
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                                
+                                <!-- String parameters -->
+                                <template x-if="param.ui_type === 'string' || param.ui_type === 'optional_string'">
+                                    <div>
+                                        <label class="form-label">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                            <span class="text-muted" x-show="param.ui_type === 'optional_string'">(optional)</span>
+                                        </label>
+                                        <input type="text" class="form-input" style="max-width: 300px;"
+                                               :value="configNegotiatorValues[param.name] ?? param.default ?? ''"
+                                               @input="configNegotiatorValues[param.name] = $event.target.value || null"
+                                               :placeholder="param.default !== null ? param.default : 'None'">
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                                
+                                <!-- Choice parameters -->
+                                <template x-if="param.ui_type === 'choice'">
+                                    <div>
+                                        <label class="form-label">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                        </label>
+                                        <select class="form-select" style="max-width: 200px;"
+                                                :value="configNegotiatorValues[param.name] ?? param.default"
+                                                @change="configNegotiatorValues[param.name] = $event.target.value">
+                                            <template x-for="choice in param.choices" :key="choice">
+                                                <option :value="choice" x-text="choice"></option>
+                                            </template>
+                                        </select>
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <!-- Show complex parameters as info -->
+                    <template x-if="configNegotiatorParams.some(p => p.is_complex)">
+                        <details style="margin-top: 16px;">
+                            <summary class="text-muted" style="cursor: pointer; font-size: 13px;">
+                                Advanced parameters (not editable in UI)
+                            </summary>
+                            <div style="padding: 12px; background: var(--bg-tertiary); border-radius: 6px; margin-top: 8px;">
+                                <template x-for="param in configNegotiatorParams.filter(p => p.is_complex)" :key="param.name">
+                                    <div style="margin-bottom: 8px; font-size: 13px;">
+                                        <code x-text="param.name" style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px;"></code>
+                                        <span class="text-muted" x-text="': ' + param.type"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </details>
+                    </template>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="showNegotiatorConfig = false">Cancel</button>
+                <button class="btn btn-secondary" @click="resetNegotiatorConfig()">Reset to Defaults</button>
+                <button class="btn btn-primary" @click="applyNegotiatorConfig()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Apply
+                </button>
             </div>
         </div>
     </div>
@@ -1030,6 +1200,18 @@
                                     <div class="palette-note">Charts will also use different line styles and markers</div>
                                 </div>
                             </div>
+                            
+                            <!-- Storage Section -->
+                            <div class="settings-section">
+                                <h4 class="settings-section-title">Storage</h4>
+                                <div class="form-group">
+                                    <label class="form-checkbox">
+                                        <input type="checkbox" x-model="settings.saveNegotiations" @change="saveSettings()">
+                                        <span>Save Negotiations</span>
+                                    </label>
+                                    <div class="form-hint">Persist completed negotiations to disk for later review</div>
+                                </div>
+                            </div>
                         </div>
                         
                         <div x-show="settingsTab === 'negotiation'">
@@ -1091,6 +1273,20 @@
                                     Refresh Sources
                                 </button>
                                 <span class="text-muted" style="margin-left: 12px; font-size: 12px;">Re-scan for available negotiators</span>
+                            </div>
+                            
+                            <div class="mt-4" style="padding-top: 16px; border-top: 1px solid var(--border-color);">
+                                <h4 class="font-semibold mb-2" style="font-size: 14px;">Parameter Cache</h4>
+                                <p class="text-muted" style="font-size: 12px; margin-bottom: 12px;">
+                                    Negotiator parameters are cached to improve performance. Clear the cache if parameters seem outdated.
+                                </p>
+                                <button class="btn btn-secondary" @click="clearParameterCache()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    </svg>
+                                    Clear Parameter Cache
+                                </button>
                             </div>
                         </div>
                         
@@ -1156,7 +1352,9 @@
                     <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px; font-size: 13px;">
                         <div><strong>Scenario:</strong> <span x-text="newNeg.scenario?.name"></span></div>
                         <div><strong>Negotiators:</strong> <span x-text="newNeg.negotiators.map(n => getNegotiatorDisplayName(n.type_name)).join(' vs ')"></span></div>
-                        <div><strong>Steps:</strong> <span x-text="newNeg.n_steps || 'No limit'"></span></div>
+                        <div><strong>Mechanism:</strong> <span x-text="newNeg.mechanism_type"></span></div>
+                        <div><strong>Steps:</strong> <span x-text="newNeg.mechanism_params?.n_steps || 'No limit'"></span></div>
+                        <div x-show="newNeg.mechanism_params?.time_limit"><strong>Time Limit:</strong> <span x-text="newNeg.mechanism_params?.time_limit + 's'"></span></div>
                         <div><strong>Mode:</strong> <span x-text="newNeg.mode === 'realtime' ? 'Real-time' : 'Batch'"></span></div>
                     </div>
                 </div>
@@ -1183,12 +1381,19 @@
             // Connection status
             connected: true,
             
-            // Sidebar state
-            sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true',
+            // Sidebar state - collapsed by default unless user explicitly opened it
+            sidebarCollapsed: localStorage.getItem('sidebarCollapsed') !== 'false',
             
             // Modal states
             showNewNegotiation: false,
             showSettings: false,
+            showNegotiatorConfig: false,
+            
+            // Negotiator configuration modal state
+            configNegotiatorIndex: null,  // Index of negotiator being configured
+            configNegotiatorParams: [],   // Parameters from API
+            configNegotiatorValues: {},   // Current values being edited
+            configNegotiatorLoading: false,
             
             // Page state (negotiations, scenarios)
             currentPage: 'negotiations',
@@ -1255,8 +1460,8 @@
                 source: '',
                 scenario: null,
                 negotiators: [
-                    { type_name: 'AspirationNegotiator', name: 'Agent1' },
-                    { type_name: 'BoulwareTBNegotiator', name: 'Agent2' }
+                    { type_name: 'AspirationNegotiator', name: 'Agent1', params: {} },
+                    { type_name: 'BoulwareTBNegotiator', name: 'Agent2', params: {} }
                 ],
                 // Scenario loading options
                 ignore_discount: false,
@@ -1271,13 +1476,21 @@
                 mode: 'realtime',
                 step_delay: 100,
                 show_plot: true,
-                show_offers: true
+                show_offers: true,
+                auto_save: true,  // Default from settings.saveNegotiations
+                // Panel settings
+                panels: {
+                    adjustable: true,
+                    utilityView: { xAxis: 0, yAxis: 1 },
+                    timeline: { xAxis: 'step' }
+                }
             },
             
             // Settings
             settings: {
                 darkMode: localStorage.getItem('darkMode') === 'true',
                 colorBlindMode: localStorage.getItem('colorBlindMode') === 'true',
+                saveNegotiations: localStorage.getItem('saveNegotiations') !== 'false',  // Default true
                 defaultSteps: 100,
                 defaultDelay: 100,
                 autoStartGenius: true,
@@ -1456,8 +1669,8 @@
                 
                 // Check Genius Bridge status
                 await this.checkGeniusBridgeStatus();
-                // Periodically check status
-                setInterval(() => this.checkGeniusBridgeStatus(), 10000);
+                // Periodically check status (every 60 seconds)
+                setInterval(() => this.checkGeniusBridgeStatus(), 60000);
             },
             
             initSortable() {
@@ -1735,6 +1948,17 @@
                 }
             },
             
+            async clearParameterCache() {
+                try {
+                    const res = await fetch('/api/negotiators/cache/clear', { method: 'POST' });
+                    const data = await res.json();
+                    alert(data.message || 'Parameter cache cleared');
+                } catch (e) {
+                    console.error('Failed to clear parameter cache:', e);
+                    alert('Failed to clear parameter cache');
+                }
+            },
+            
             async searchNegotiators() {
                 // Negotiators already loaded at init, just triggers reactivity
             },
@@ -1764,8 +1988,8 @@
                     source: '',
                     scenario: null,
                     negotiators: [
-                        { type_name: 'negmas.sao.AspirationNegotiator', name: 'Aspiration1', source: 'native' },
-                        { type_name: 'negmas.sao.BoulwareTBNegotiator', name: 'Boulware2', source: 'native' }
+                        { type_name: 'negmas.sao.AspirationNegotiator', name: 'Aspiration1', source: 'native', params: {} },
+                        { type_name: 'negmas.sao.BoulwareTBNegotiator', name: 'Boulware2', source: 'native', params: {} }
                     ],
                     mechanism_type: 'SAOMechanism',
                     mechanism_params: {},
@@ -1774,6 +1998,7 @@
                     step_delay: this.settings.defaultDelay,
                     show_plot: true,
                     show_offers: true,
+                    auto_save: this.settings.saveNegotiations,
                     auto_start: true,
                     panels: {
                         adjustable: true,
@@ -1821,7 +2046,8 @@
                 this.newNeg.negotiators.push({
                     type_name: 'negmas.sao.AspirationNegotiator',
                     name: `Aspiration${idx + 1}`,
-                    source: 'native'
+                    source: 'native',
+                    params: {}
                 });
             },
             
@@ -1846,7 +2072,8 @@
                     type_name: negInfo.type_name,
                     name: defaultName,
                     source: negInfo.source,
-                    requires_bridge: negInfo.requires_bridge
+                    requires_bridge: negInfo.requires_bridge,
+                    params: {}  // Initialize empty params
                 };
                 
                 if (slotIndex < this.newNeg.negotiators.length) {
@@ -1865,6 +2092,63 @@
                 if (slotIndex + 1 < requiredCount && slotIndex + 1 < this.newNeg.negotiators.length) {
                     this.selectedNegotiatorSlot = slotIndex + 1;
                 }
+            },
+            
+            async openNegotiatorConfig(index) {
+                this.configNegotiatorIndex = index;
+                this.configNegotiatorLoading = true;
+                this.configNegotiatorParams = [];
+                this.configNegotiatorValues = {};
+                this.showNegotiatorConfig = true;
+                
+                const negotiator = this.newNeg.negotiators[index];
+                if (!negotiator) return;
+                
+                try {
+                    const res = await fetch(`/api/negotiators/${encodeURIComponent(negotiator.type_name)}/parameters`);
+                    const data = await res.json();
+                    
+                    // Filter out 'name' parameter since we handle it separately
+                    this.configNegotiatorParams = (data.parameters || []).filter(p => p.name !== 'name');
+                    
+                    // Initialize values from existing params or defaults
+                    const existingParams = negotiator.params || {};
+                    this.configNegotiatorValues = {};
+                    
+                    for (const param of this.configNegotiatorParams) {
+                        if (param.name in existingParams) {
+                            this.configNegotiatorValues[param.name] = existingParams[param.name];
+                        }
+                        // Otherwise leave undefined to use default
+                    }
+                } catch (e) {
+                    console.error('Failed to load negotiator parameters:', e);
+                } finally {
+                    this.configNegotiatorLoading = false;
+                }
+            },
+            
+            applyNegotiatorConfig() {
+                if (this.configNegotiatorIndex === null) return;
+                
+                // Build params object with only non-default values
+                const params = {};
+                for (const param of this.configNegotiatorParams) {
+                    const value = this.configNegotiatorValues[param.name];
+                    // Only include if value was explicitly set and differs from default
+                    if (value !== undefined && value !== null && value !== param.default) {
+                        params[param.name] = value;
+                    }
+                }
+                
+                // Update negotiator params
+                this.newNeg.negotiators[this.configNegotiatorIndex].params = params;
+                this.showNegotiatorConfig = false;
+            },
+            
+            resetNegotiatorConfig() {
+                // Reset all values to undefined (will use defaults)
+                this.configNegotiatorValues = {};
             },
             
             getNegotiatorDisplayName(typeName) {
@@ -1962,19 +2246,23 @@
                 
                 // Check if any negotiator requires the Genius Bridge
                 const needsBridge = this.newNeg.negotiators.some(n => n.requires_bridge);
-                if (needsBridge && !this.geniusBridge.running) {
-                    // Try to start the bridge
-                    await this.startGeniusBridge();
+                if (needsBridge) {
+                    // Refresh Genius Bridge status before checking
+                    await this.checkGeniusBridgeStatus();
                     if (!this.geniusBridge.running) {
-                        alert('Cannot start negotiation: Genius Bridge is required but failed to start.');
-                        return;
+                        // Try to start the bridge
+                        await this.startGeniusBridge();
+                        if (!this.geniusBridge.running) {
+                            alert('Cannot start negotiation: Genius Bridge is required but failed to start.');
+                            return;
+                        }
                     }
                 }
                 
                 // Save to recent sessions
                 await this.addToRecentSessions();
                 
-                // Build request with new mechanism params structure
+                // Build request with mechanism params
                 const params = this.newNeg.mechanism_params || {};
                 
                 try {
@@ -1986,21 +2274,31 @@
                             negotiators: this.newNeg.negotiators,
                             mechanism_type: this.newNeg.mechanism_type,
                             mechanism_params: params,
-                            n_steps: params.n_steps || 100,
-                            time_limit: params.time_limit || null,
                             step_delay: this.newNeg.step_delay / 1000,
-                            share_ufuns: this.newNeg.share_ufuns
+                            share_ufuns: this.newNeg.share_ufuns,
+                            ignore_discount: this.newNeg.ignore_discount,
+                            ignore_reserved: this.newNeg.ignore_reserved,
+                            auto_save: this.newNeg.auto_save
                         })
                     });
                     
                     const data = await res.json();
                     
-                    // Add to running negotiations
+                    // Add to running negotiations with panel settings
                     this.runningNegotiations.push({
                         id: data.session_id,
                         scenario: this.newNeg.scenario.name,
                         step: 0,
-                        stream_url: data.stream_url
+                        stream_url: data.stream_url,
+                        // Store display settings with the negotiation
+                        panelSettings: {
+                            adjustable: this.newNeg.panels.adjustable,
+                            utilityView: { ...this.newNeg.panels.utilityView },
+                            timeline: { ...this.newNeg.panels.timeline }
+                        },
+                        mode: this.newNeg.mode,
+                        show_plot: this.newNeg.show_plot,
+                        show_offers: this.newNeg.show_offers
                     });
                     
                     this.showNewNegotiation = false;
@@ -2032,7 +2330,9 @@
                         const neg = this.runningNegotiations.splice(idx, 1)[0];
                         neg.agreement = result.agreement;
                         neg.final_utilities = result.final_utilities;
-                        neg.end_reason = result.end_reason;
+                        // Always set end_reason for completed negotiations
+                        neg.end_reason = result.end_reason || (result.error ? 'error' : (result.agreement ? 'agreement' : 'completed'));
+                        neg.error = result.error;
                         this.completedNegotiations.unshift(neg);
                     }
                     eventSource.close();
@@ -2056,6 +2356,7 @@
                     // Map backend settings to frontend model
                     this.settings.darkMode = data.general?.dark_mode ?? false;
                     this.settings.colorBlindMode = data.general?.color_blind_mode ?? false;
+                    this.settings.saveNegotiations = data.general?.save_negotiations ?? true;
                     this.settings.defaultSteps = data.negotiation?.default_max_steps ?? 100;
                     this.settings.defaultDelay = data.negotiation?.default_step_delay_ms ?? 100;
                     this.settings.autoStartGenius = data.genius_bridge?.auto_start ?? true;
@@ -2065,6 +2366,7 @@
                     // Sync localStorage with backend
                     localStorage.setItem('darkMode', this.settings.darkMode.toString());
                     localStorage.setItem('colorBlindMode', this.settings.colorBlindMode.toString());
+                    localStorage.setItem('saveNegotiations', this.settings.saveNegotiations.toString());
                     
                     // Apply dark mode based on loaded settings
                     document.documentElement.classList.toggle('dark-mode', this.settings.darkMode);
@@ -2104,12 +2406,14 @@
             
             async saveGeneralSettings() {
                 try {
+                    localStorage.setItem('saveNegotiations', this.settings.saveNegotiations.toString());
                     await fetch('/api/settings/general', {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
                             dark_mode: this.settings.darkMode,
-                            color_blind_mode: this.settings.colorBlindMode 
+                            color_blind_mode: this.settings.colorBlindMode,
+                            save_negotiations: this.settings.saveNegotiations
                         })
                     });
                 } catch (e) {
@@ -2124,10 +2428,12 @@
             
             async saveSettings() {
                 try {
+                    localStorage.setItem('saveNegotiations', this.settings.saveNegotiations.toString());
                     const settings = {
                         general: {
                             dark_mode: this.settings.darkMode,
-                            color_blind_mode: this.settings.colorBlindMode
+                            color_blind_mode: this.settings.colorBlindMode,
+                            save_negotiations: this.settings.saveNegotiations
                         },
                         negotiation: {
                             default_max_steps: this.settings.defaultSteps,
@@ -2196,39 +2502,13 @@
             loadFullSession(session) {
                 // Find the scenario in the loaded scenarios
                 const scenario = this.scenarios.find(s => s.path === session.scenario_path);
+                const mechType = session.mechanism_type || 'SAOMechanism';
                 
-                // Convert old format to new mechanism_params if needed
-                let mechanismParams = session.mechanism_params || {};
+                // First select the mechanism to initialize defaults
+                // This must happen BEFORE setting newNeg so we can override with loaded values
+                this.selectMechanism(mechType);
                 
-                // Handle old format where params were at top level
-                if (!session.mechanism_params) {
-                    mechanismParams = {
-                        n_steps: session.n_steps ?? null,
-                        time_limit: session.time_limit ?? null,
-                        pend: session.pend ?? 0,
-                        pend_per_second: session.pend_per_second ?? 0,
-                        step_time_limit: session.step_time_limit ?? null,
-                        negotiator_time_limit: session.negotiator_time_limit ?? null,
-                        hidden_time_limit: session.hidden_time_limit ?? null,
-                    };
-                    
-                    // Merge mechanism-specific params from old format
-                    const mechType = session.mechanism_type || 'SAOMechanism';
-                    if (mechType === 'SAOMechanism' || mechType === 'sao') {
-                        Object.assign(mechanismParams, session.sao || {});
-                    } else if (mechType === 'TAUMechanism' || mechType === 'tau') {
-                        Object.assign(mechanismParams, session.tau || {});
-                    } else if (mechType === 'GBMechanism' || mechType === 'gb') {
-                        Object.assign(mechanismParams, session.gb || {});
-                    }
-                }
-                
-                // Normalize mechanism_type to class name format
-                let mechType = session.mechanism_type || 'SAOMechanism';
-                if (mechType === 'sao') mechType = 'SAOMechanism';
-                else if (mechType === 'tau') mechType = 'TAUMechanism';
-                else if (mechType === 'gb') mechType = 'GBMechanism';
-                
+                // Now set up newNeg with loaded values (this will override any defaults)
                 this.newNeg = {
                     source: '',
                     scenario: scenario || { path: session.scenario_path, name: session.scenario_name },
@@ -2236,10 +2516,12 @@
                         type_name: n.type_name,
                         name: n.name || `Agent${i + 1}`,
                         source: n.source || 'native',
-                        requires_bridge: n.requires_bridge || false
+                        requires_bridge: n.requires_bridge || false,
+                        is_boa: n.is_boa || false,
+                        boa_config: n.boa_config || null
                     })),
                     mechanism_type: mechType,
-                    mechanism_params: mechanismParams,
+                    mechanism_params: { ...this.newNeg.mechanism_params, ...(session.mechanism_params || {}) },
                     share_ufuns: session.share_ufuns ?? false,
                     mode: session.mode || 'realtime',
                     step_delay: session.step_delay ?? 100,
@@ -2252,9 +2534,6 @@
                         timeline: { xAxis: 'step' }
                     }
                 };
-                
-                // Update selectedMechanism to match
-                this.selectMechanism(mechType);
                 
                 // Jump directly to display tab when loading a full session
                 this.negotiationTab = 'display';

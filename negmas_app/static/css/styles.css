@@ -320,6 +320,25 @@ body {
     letter-spacing: 0.5px;
     color: var(--text-muted);
     margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sidebar-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 10px;
+    font-weight: 600;
+    background: var(--primary);
+    color: white;
+    border-radius: 9px;
+    text-transform: none;
+    letter-spacing: 0;
 }
 
 .sidebar-btn {
@@ -568,6 +587,16 @@ body {
     height: 36px;
     padding: 0;
     border-radius: 6px;
+}
+
+.btn-icon.has-config {
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+.btn-icon.has-config:hover {
+    background: var(--primary);
+    color: white;
 }
 
 .btn:disabled {
@@ -1050,6 +1079,9 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100%;
 }
 
 .offer-item {
@@ -2071,4 +2103,430 @@ body {
 /* Hide with x-cloak until Alpine.js initializes */
 [x-cloak] {
     display: none !important;
+}
+
+/* ============================================
+   COMPACT PANEL LAYOUT SYSTEM
+   ============================================ */
+
+/* Main layout container - two columns */
+.panels-layout-compact {
+    display: flex;
+    flex-direction: row;
+    gap: 0;
+    padding: 8px;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Panel columns */
+.panels-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-width: 200px;
+    overflow: hidden;
+}
+
+.panels-column-left {
+    flex: 0 0 40%;
+    min-width: 280px;
+    max-width: 50%;
+}
+
+.panels-column-right {
+    flex: 1;
+    min-width: 300px;
+}
+
+/* Resize handle between columns */
+.resize-handle-vertical {
+    width: 6px;
+    cursor: col-resize;
+    background: transparent;
+    position: relative;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.resize-handle-vertical::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px;
+    height: 40px;
+    background: var(--border-color);
+    border-radius: 1px;
+    opacity: 0.5;
+    transition: all 0.15s ease;
+}
+
+.resize-handle-vertical:hover::after,
+.resize-handle-vertical.dragging::after {
+    height: 60px;
+    background: var(--primary);
+    opacity: 1;
+}
+
+/* Resize handle between panels (horizontal) */
+.resize-handle-horizontal {
+    height: 6px;
+    cursor: row-resize;
+    background: transparent;
+    position: relative;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.resize-handle-horizontal::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 2px;
+    background: var(--border-color);
+    border-radius: 1px;
+    opacity: 0.5;
+    transition: all 0.15s ease;
+}
+
+.resize-handle-horizontal:hover::after,
+.resize-handle-horizontal.dragging::after {
+    width: 60px;
+    background: var(--primary);
+    opacity: 1;
+}
+
+/* Compact panel styles */
+.panel-compact {
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    min-height: 40px;
+    transition: flex 0.2s ease;
+}
+
+.panel-compact.collapsed {
+    flex: 0 0 28px !important;
+    min-height: 28px;
+}
+
+.panel-compact.collapsed .panel-content,
+.panel-compact.collapsed .panel-content-compact,
+.panel-compact.collapsed .panel-content-ultra-compact {
+    display: none;
+}
+
+/* Panel size classes */
+.panel-info { flex: 0 0 auto; }
+.panel-history { flex: 1 1 60%; min-height: 150px; overflow: hidden; }
+.panel-result { flex: 0 0 auto; min-height: 60px; }
+.panel-2d-utility { flex: 1 1 55%; min-height: 200px; overflow: hidden; }
+.panel-timeline { flex: 1 1 45%; min-height: 150px; overflow: hidden; }
+.panel-issue-freq { flex: 0 0 150px; min-height: 100px; }
+
+/* Floating actions - top right of panel */
+.panel-floating-actions {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    z-index: 5;
+    background: var(--bg-secondary);
+    padding: 2px;
+    border-radius: 4px;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+}
+
+.panel-compact:hover .panel-floating-actions {
+    opacity: 1;
+}
+
+/* Collapse button */
+.panel-collapse-btn {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 3px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.15s ease;
+}
+
+.panel-collapse-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.panel-collapse-btn svg {
+    width: 12px;
+    height: 12px;
+    transition: transform 0.2s ease;
+}
+
+.panel-compact.collapsed .panel-collapse-btn svg {
+    transform: rotate(180deg);
+}
+
+/* Panel buttons - smaller */
+.panel-btn {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 3px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.1s ease;
+    padding: 0;
+}
+
+.panel-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.panel-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.panel-btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.panel-btn-primary:hover {
+    background: var(--primary-hover);
+    color: white;
+}
+
+/* Inline controls in floating actions */
+.panel-inline-controls {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-right: 4px;
+}
+
+/* Extra small form select */
+.form-select-xs {
+    padding: 2px 4px;
+    font-size: 9px;
+    height: 20px;
+    min-width: 50px;
+    border-radius: 3px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+/* Panel content variants */
+.panel-content-compact {
+    flex: 1;
+    overflow: hidden;
+    padding: 8px;
+    min-height: 0; /* Critical for flex children to respect overflow */
+}
+
+/* History panel needs vertical scroll */
+.panel-history .panel-content-compact {
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.panel-content-ultra-compact {
+    padding: 10px 12px;
+    font-size: 11px;
+}
+
+/* Info panel specific styles */
+.info-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.info-row-negotiators {
+    gap: 3px;
+}
+
+.info-scenario {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-primary);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.info-stats {
+    font-size: 9px;
+    color: var(--text-muted);
+}
+
+.info-progress {
+    flex: 0 0 60px;
+}
+
+.progress-mini {
+    height: 3px;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+/* Badge extra small */
+.badge-xs {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+/* Result panel styles */
+.result-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.result-row-center {
+    justify-content: center;
+}
+
+.result-item {
+    font-size: 11px;
+}
+
+.result-separator {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.result-utility {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.result-reason {
+    font-size: 9px;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Spinner variants */
+.spinner-sm {
+    width: 14px;
+    height: 14px;
+}
+
+.spinner-xs {
+    width: 10px;
+    height: 10px;
+}
+
+/* Empty state mini */
+.empty-state-mini {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 16px;
+    color: var(--text-muted);
+    font-size: 10px;
+    height: 100%;
+}
+
+/* Offer item compact */
+.offer-item-compact {
+    padding: 4px 6px;
+    margin-bottom: 3px;
+    border-radius: 3px;
+    background: var(--bg-tertiary);
+    font-size: 10px;
+}
+
+.offer-header-compact {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+.offer-header-compact .offer-agent {
+    font-weight: 500;
+    font-size: 10px;
+}
+
+.offer-header-compact .offer-step {
+    font-size: 9px;
+    color: var(--text-muted);
+}
+
+.offer-values-compact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 9px;
+    margin-bottom: 2px;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+.offer-values-compact span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.offer-utilities-compact {
+    display: flex;
+    gap: 8px;
+    font-size: 9px;
+    font-weight: 500;
+}
+
+/* Collapsed panel label */
+.panel-collapsed-label {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 9px;
+    color: var(--text-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Negotiator badges inline */
+.negotiator-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
 }

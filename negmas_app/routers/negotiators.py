@@ -2,7 +2,12 @@
 
 from fastapi import APIRouter, Query
 
-from ..services import NegotiatorFactory, BOAFactory
+from ..services import (
+    NegotiatorFactory,
+    BOAFactory,
+    get_negotiator_parameters,
+    clear_parameter_cache,
+)
 
 router = APIRouter(prefix="/api/negotiators", tags=["negotiators"])
 
@@ -122,6 +127,52 @@ def refresh_registry():
     """
     NegotiatorFactory.refresh_registry()
     return {"status": "ok", "message": "Registry refreshed"}
+
+
+@router.post("/cache/clear")
+def clear_cache():
+    """Clear the negotiator parameter cache.
+
+    Call this if negotiator parameters seem stale.
+    """
+    count = clear_parameter_cache()
+    return {"status": "ok", "message": f"Cleared {count} cached entries"}
+
+
+@router.get("/{type_name:path}/parameters")
+def get_negotiator_params(
+    type_name: str,
+    use_cache: bool = Query(True, description="Whether to use cached results"),
+):
+    """Get configurable parameters for a negotiator type.
+
+    Args:
+        type_name: Full type name of the negotiator (e.g., "negmas.sao.AspirationNegotiator")
+        use_cache: Whether to use cached parameter info
+
+    Returns:
+        List of parameter info objects with type, default, and UI hints.
+    """
+    params = get_negotiator_parameters(type_name, use_cache=use_cache)
+    return {
+        "type_name": type_name,
+        "parameters": [
+            {
+                "name": p.name,
+                "type": p.type,
+                "default": p.default,
+                "required": p.required,
+                "description": p.description,
+                "ui_type": p.ui_type,
+                "choices": p.choices,
+                "min_value": p.min_value,
+                "max_value": p.max_value,
+                "is_complex": p.is_complex,
+            }
+            for p in params
+        ],
+        "count": len(params),
+    }
 
 
 @router.get("/{type_name:path}")

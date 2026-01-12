@@ -31,10 +31,11 @@ class StartNegotiationRequest(BaseModel):
     negotiators: list[NegotiatorConfigRequest]
     mechanism_type: str = "SAOMechanism"  # Class name of mechanism
     mechanism_params: dict = {}  # All mechanism parameters
-    n_steps: int = 100  # Kept for backwards compatibility
-    time_limit: float | None = None  # Kept for backwards compatibility
     step_delay: float = 0.1
     share_ufuns: bool = False
+    ignore_discount: bool = False
+    ignore_reserved: bool = False
+    auto_save: bool = True  # Whether to save negotiation on completion
 
 
 @router.post("/start")
@@ -53,20 +54,14 @@ async def start_negotiation(request: StartNegotiationRequest):
         for n in request.negotiators
     ]
 
-    # Merge mechanism_params with backwards-compatible n_steps/time_limit
-    mechanism_params = request.mechanism_params.copy()
-    # Only use top-level n_steps/time_limit if not in mechanism_params
-    if "n_steps" not in mechanism_params:
-        mechanism_params["n_steps"] = request.n_steps
-    if "time_limit" not in mechanism_params:
-        mechanism_params["time_limit"] = request.time_limit
-
     # Create session
     session = _manager.create_session(
         scenario_path=request.scenario_path,
         negotiator_configs=configs,
         mechanism_type=request.mechanism_type,
-        mechanism_params=mechanism_params,
+        mechanism_params=request.mechanism_params,
+        ignore_discount=request.ignore_discount,
+        ignore_reserved=request.ignore_reserved,
     )
 
     return {
@@ -207,6 +202,41 @@ async def resume_negotiation(session_id: str):
     return {"status": "running"}
 
 
+@router.get("/sessions/list")
+async def list_sessions():
+    """List all negotiation sessions.
+
+    Returns sessions grouped by status (running, completed, failed).
+    """
+    sessions = []
+    for session in _manager.sessions.values():
+        sessions.append(
+            {
+                "id": session.id,
+                "status": session.status.value,
+                "scenario_name": session.scenario_name
+                or session.scenario_path.split("/")[-1]
+                if session.scenario_path
+                else "Unknown",
+                "mechanism_type": session.mechanism_type,
+                "negotiator_names": session.negotiator_names,
+                "current_step": session.current_step,
+                "n_steps": session.n_steps,
+                "start_time": session.start_time.isoformat()
+                if session.start_time
+                else None,
+                "end_time": session.end_time.isoformat() if session.end_time else None,
+                "agreement": session.agreement_dict is not None,
+                "end_reason": session.end_reason,
+            }
+        )
+
+    # Sort by start time (most recent first), with None at the end
+    sessions.sort(key=lambda s: s["start_time"] or "", reverse=True)
+
+    return {"sessions": sessions}
+
+
 @router.get("/{session_id}")
 async def get_session(session_id: str):
     """Get current session state."""
@@ -218,12 +248,55 @@ async def get_session(session_id: str):
         "id": session.id,
         "status": session.status.value,
         "scenario_path": session.scenario_path,
+        "scenario_name": session.scenario_name or session.scenario_path.split("/")[-1]
+        if session.scenario_path
+        else "Unknown",
         "mechanism_type": session.mechanism_type,
         "negotiator_names": session.negotiator_names,
+        "negotiator_types": session.negotiator_types,
+        "negotiator_colors": [info.color for info in session.negotiator_infos]
+        if session.negotiator_infos
+        else [],
         "current_step": session.current_step,
         "n_steps": session.n_steps,
+        "time_limit": session.time_limit,
+        "issue_names": session.issue_names,
+        "start_time": session.start_time.isoformat() if session.start_time else None,
+        "end_time": session.end_time.isoformat() if session.end_time else None,
         "agreement": session.agreement_dict,
         "final_utilities": session.final_utilities,
         "end_reason": session.end_reason,
         "error": session.error,
+        "offers": [
+            {
+                "step": o.step,
+                "proposer": o.proposer,
+                "proposer_index": o.proposer_index,
+                "offer": o.offer_dict,
+                "utilities": o.utilities,
+                "relative_time": o.relative_time,
+            }
+            for o in session.offers
+        ],
+        "outcome_space_data": {
+            "outcome_utilities": session.outcome_space_data.outcome_utilities,
+            "pareto_utilities": session.outcome_space_data.pareto_utilities,
+            "nash_point": session.outcome_space_data.nash_point.utilities
+            if session.outcome_space_data.nash_point
+            else None,
+            "kalai_point": session.outcome_space_data.kalai_point.utilities
+            if session.outcome_space_data.kalai_point
+            else None,
+            "kalai_smorodinsky_point": session.outcome_space_data.kalai_smorodinsky_point.utilities
+            if session.outcome_space_data.kalai_smorodinsky_point
+            else None,
+            "max_welfare_point": session.outcome_space_data.max_welfare_point.utilities
+            if session.outcome_space_data.max_welfare_point
+            else None,
+            "total_outcomes": session.outcome_space_data.total_outcomes,
+            "sampled": session.outcome_space_data.sampled,
+            "sample_size": session.outcome_space_data.sample_size,
+        }
+        if session.outcome_space_data
+        else None,
     }

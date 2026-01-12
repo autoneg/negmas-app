@@ -5,6 +5,23 @@ from .negotiator_factory import NegotiatorFactory, NEGOTIATOR_REGISTRY, BOAFacto
 from .mechanism_factory import MechanismFactory
 from .session_manager import SessionManager
 from .outcome_analysis import compute_outcome_space_data, compute_outcome_utilities
+from .parameter_inspector import (
+    get_negotiator_parameters,
+    clear_parameter_cache,
+    clear_parameter_cache_for_type,
+    ParameterInfo,
+)
+
+# Optional services that may have additional dependencies
+try:
+    from .negotiation_storage import NegotiationStorageService
+except ImportError:
+    NegotiationStorageService = None  # type: ignore
+
+try:
+    from .tournament_manager import TournamentManager
+except ImportError:
+    TournamentManager = None  # type: ignore
 
 __all__ = [
     "ScenarioLoader",
@@ -13,6 +30,12 @@ __all__ = [
     "BOAFactory",
     "MechanismFactory",
     "SessionManager",
+    "TournamentManager",
+    "NegotiationStorageService",
     "compute_outcome_space_data",
     "compute_outcome_utilities",
+    "get_negotiator_parameters",
+    "clear_parameter_cache",
+    "clear_parameter_cache_for_type",
+    "ParameterInfo",
 ]
