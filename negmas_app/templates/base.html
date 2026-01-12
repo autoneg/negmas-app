@@ -45,7 +45,8 @@
             </div>
             
             <nav class="header-nav">
-                <button class="header-nav-btn active">Negotiations</button>
+                <button class="header-nav-btn" :class="{ active: currentPage === 'negotiations' }" @click="currentPage = 'negotiations'">Negotiations</button>
+                <button class="header-nav-btn" :class="{ active: currentPage === 'scenarios' }" @click="currentPage = 'scenarios'; loadScenariosForExplorer()">Scenarios</button>
                 <button class="header-nav-btn" @click="showSettings = true">Settings</button>
             </nav>
             
@@ -136,10 +137,148 @@
                 </div>
             </aside>
             
-            <!-- Content Area -->
-            <main class="content-area">
+            <!-- Content Area - Negotiations -->
+            <main class="content-area" x-show="currentPage === 'negotiations'">
                 {% block content %}{% endblock %}
             </main>
+            
+            <!-- Content Area - Scenario Explorer -->
+            <div class="content-area scenario-explorer" x-show="currentPage === 'scenarios'" x-cloak>
+                <div class="scenario-explorer-layout">
+                    <!-- Left Panel: Filters & List -->
+                    <div class="scenario-explorer-list">
+                        <div class="scenario-explorer-header">
+                            <h2>Scenario Explorer</h2>
+                        </div>
+                        
+                        <div class="scenario-explorer-filters">
+                            <div class="form-group">
+                                <input type="text" class="form-input" placeholder="Search scenarios..." 
+                                       x-model="explorerSearch" @input.debounce.300ms="filterExplorerScenarios()">
+                            </div>
+                            <div class="form-group">
+                                <select class="form-select" x-model="explorerSourceFilter" @change="filterExplorerScenarios()">
+                                    <option value="">All Sources</option>
+                                    <template x-for="source in sources" :key="source.id">
+                                        <option :value="source.id" x-text="source.name + ' (' + source.count + ')'"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="scenario-explorer-results">
+                            <div class="text-muted" style="padding: 12px; font-size: 13px;" x-show="explorerLoading">
+                                Loading scenarios...
+                            </div>
+                            <div class="text-muted" style="padding: 12px; font-size: 13px;" x-show="!explorerLoading && filteredExplorerScenarios.length === 0">
+                                No scenarios found
+                            </div>
+                            <template x-for="scenario in filteredExplorerScenarios" :key="scenario.path">
+                                <div class="scenario-explorer-item" 
+                                     :class="{ selected: selectedScenario?.path === scenario.path }"
+                                     @click="selectScenarioForExplorer(scenario)">
+                                    <div class="scenario-explorer-item-name" x-text="scenario.name"></div>
+                                    <div class="scenario-explorer-item-meta">
+                                        <span class="badge badge-secondary" x-text="scenario.source"></span>
+                                        <span x-text="scenario.n_negotiators + ' parties'"></span>
+                                        <span x-text="(scenario.issues?.length || scenario.n_issues || '?') + ' issues'"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- Right Panel: Scenario Details -->
+                    <div class="scenario-explorer-details">
+                        <template x-if="!selectedScenario">
+                            <div class="scenario-explorer-empty">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="64" height="64" style="opacity: 0.3;">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                                <p>Select a scenario to view details</p>
+                            </div>
+                        </template>
+                        <template x-if="selectedScenario">
+                            <div class="scenario-detail-view">
+                                <div class="scenario-detail-header">
+                                    <h2 x-text="selectedScenario.name"></h2>
+                                    <div class="scenario-detail-actions">
+                                        <button class="btn btn-primary btn-sm" @click="useScenarioInNegotiation(selectedScenario)">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                            </svg>
+                                            Use in Negotiation
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="scenario-detail-content">
+                                    <div class="scenario-detail-section">
+                                        <h3>Overview</h3>
+                                        <div class="scenario-detail-grid">
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Source</span>
+                                                <span class="stat-value" x-text="selectedScenario.source"></span>
+                                            </div>
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Parties</span>
+                                                <span class="stat-value" x-text="selectedScenario.n_negotiators"></span>
+                                            </div>
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Issues</span>
+                                                <span class="stat-value" x-text="selectedScenario.issues?.length || selectedScenario.n_issues || '?'"></span>
+                                            </div>
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Outcomes</span>
+                                                <span class="stat-value" x-text="selectedScenario.n_outcomes || '?'"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="scenario-detail-section">
+                                        <h3>Issues</h3>
+                                        <div class="scenario-issues-list">
+                                            <template x-for="issue in (selectedScenario.issues || [])" :key="issue.name">
+                                                <div class="scenario-issue-item">
+                                                    <div class="issue-name" x-text="issue.name"></div>
+                                                    <div class="issue-type">
+                                                        <span class="badge badge-neutral" x-text="issue.type"></span>
+                                                    </div>
+                                                    <div class="issue-values" x-show="issue.values">
+                                                        <template x-if="issue.values && issue.values.length <= 10">
+                                                            <span class="text-muted" x-text="issue.values.join(', ')"></span>
+                                                        </template>
+                                                        <template x-if="issue.values && issue.values.length > 10">
+                                                            <span class="text-muted" x-text="issue.values.slice(0, 10).join(', ') + '... (' + issue.values.length + ' total)'"></span>
+                                                        </template>
+                                                    </div>
+                                                    <div class="issue-range" x-show="issue.min !== undefined">
+                                                        <span class="text-muted" x-text="'Range: ' + issue.min + ' - ' + issue.max"></span>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <div class="text-muted" x-show="!selectedScenario.issues || selectedScenario.issues.length === 0" style="padding: 8px 0;">
+                                                Issue details not available
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="scenario-detail-section">
+                                        <h3>Path</h3>
+                                        <div class="scenario-path">
+                                            <code x-text="selectedScenario.path"></code>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -1184,6 +1323,9 @@
             showNewNegotiation: false,
             showSettings: false,
             
+            // Page state (negotiations, scenarios)
+            currentPage: 'negotiations',
+            
             // Tabs
             negotiationTab: 'scenario',
             settingsTab: 'general',
@@ -1224,6 +1366,13 @@
                 offering_policy: '',
                 opponent_model: ''
             },
+            
+            // Scenario Explorer state
+            explorerScenarios: [],
+            explorerSearch: '',
+            explorerSourceFilter: '',
+            selectedScenario: null,
+            explorerLoading: false,
             
             // Running/completed negotiations
             runningNegotiations: [],
@@ -1374,6 +1523,26 @@
                 return results;
             },
             
+            get filteredExplorerScenarios() {
+                let results = this.explorerScenarios;
+                
+                // Filter by source if selected
+                if (this.explorerSourceFilter) {
+                    results = results.filter(s => s.source === this.explorerSourceFilter);
+                }
+                
+                // Filter by search term
+                if (this.explorerSearch) {
+                    const search = this.explorerSearch.toLowerCase();
+                    results = results.filter(s => 
+                        s.name.toLowerCase().includes(search) ||
+                        s.source.toLowerCase().includes(search)
+                    );
+                }
+                
+                return results;
+            },
+            
             get canProceed() {
                 if (this.negotiationTab === 'scenario') {
                     return this.newNeg.scenario !== null;
@@ -1487,6 +1656,37 @@
             async filterBySource() {
                 // Load all scenarios when filtering
                 await this.loadAllScenarios();
+            },
+            
+            // Scenario Explorer methods
+            async loadScenariosForExplorer() {
+                if (this.explorerScenarios.length > 0) return; // Already loaded
+                this.explorerLoading = true;
+                try {
+                    const res = await fetch('/api/scenarios');
+                    const data = await res.json();
+                    this.explorerScenarios = data.scenarios;
+                } catch (e) {
+                    console.error('Failed to load scenarios for explorer:', e);
+                } finally {
+                    this.explorerLoading = false;
+                }
+            },
+            
+            selectScenarioForExplorer(scenario) {
+                this.selectedScenario = scenario;
+            },
+            
+            useScenarioInNegotiation(scenario) {
+                this.currentPage = 'negotiations';
+                this.openNewNegotiation();
+                this.newNeg.scenario = scenario;
+                this.newNeg.source = scenario.source;
+                this.negotiationTab = 'negotiators';
+            },
+            
+            filterExplorerScenarios() {
+                // Reactivity handles filtering via computed property
             },
             
             async loadNegotiatorTypes() {

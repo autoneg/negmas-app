@@ -1833,3 +1833,242 @@ body {
     margin-top: 8px;
     font-style: italic;
 }
+
+/* ===== Scenario Explorer ===== */
+.scenario-explorer {
+    height: 100%;
+    overflow: hidden;
+}
+
+.scenario-explorer-layout {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    height: 100%;
+    gap: 0;
+}
+
+.scenario-explorer-list {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    overflow: hidden;
+}
+
+.scenario-explorer-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.scenario-explorer-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.scenario-explorer-filters {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.scenario-explorer-filters .form-group {
+    margin: 0;
+}
+
+.scenario-explorer-results {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.scenario-explorer-item {
+    padding: 12px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    border: 1px solid transparent;
+    margin-bottom: 4px;
+}
+
+.scenario-explorer-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.scenario-explorer-item.selected {
+    background: var(--primary-bg);
+    border-color: var(--primary);
+}
+
+.scenario-explorer-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.scenario-explorer-item-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Right panel: Details */
+.scenario-explorer-details {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-primary);
+}
+
+.scenario-explorer-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-muted);
+    gap: 16px;
+}
+
+.scenario-explorer-empty p {
+    font-size: 14px;
+    margin: 0;
+}
+
+.scenario-detail-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.scenario-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.scenario-detail-header h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.scenario-detail-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.scenario-detail-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+.scenario-detail-section {
+    margin-bottom: 28px;
+}
+
+.scenario-detail-section:last-child {
+    margin-bottom: 0;
+}
+
+.scenario-detail-section h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 12px 0;
+}
+
+.scenario-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 16px;
+}
+
+.scenario-detail-stat {
+    background: var(--bg-secondary);
+    padding: 16px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.scenario-detail-stat .stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.scenario-detail-stat .stat-value {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.scenario-issues-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.scenario-issue-item {
+    background: var(--bg-secondary);
+    padding: 12px 16px;
+    border-radius: 8px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 4px 12px;
+}
+
+.scenario-issue-item .issue-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.scenario-issue-item .issue-type {
+    grid-row: 1 / 3;
+    grid-column: 2;
+    align-self: center;
+}
+
+.scenario-issue-item .issue-values,
+.scenario-issue-item .issue-range {
+    font-size: 12px;
+    color: var(--text-secondary);
+    grid-column: 1;
+}
+
+.scenario-path {
+    background: var(--bg-secondary);
+    padding: 12px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+}
+
+.scenario-path code {
+    font-size: 12px;
+    color: var(--text-secondary);
+    word-break: break-all;
+}
+
+/* Hide with x-cloak until Alpine.js initializes */
+[x-cloak] {
+    display: none !important;
+}
