@@ -1,0 +1,67 @@
+"""Scenario API endpoints."""
+
+from fastapi import APIRouter, HTTPException
+
+from ..services import ScenarioLoader
+
+router = APIRouter(prefix="/api/scenarios", tags=["scenarios"])
+
+# Shared scenario loader
+_loader = ScenarioLoader()
+
+
+@router.get("")
+def list_scenarios(source: str | None = None):
+    """List all available scenarios.
+
+    Args:
+        source: Optional filter by source (e.g., "anac2019").
+
+    Returns:
+        List of scenario info objects.
+    """
+    scenarios = _loader.list_scenarios(source=source)
+    return {"scenarios": [_scenario_to_dict(s) for s in scenarios]}
+
+
+@router.get("/sources")
+def list_sources():
+    """List available scenario sources."""
+    sources = _loader.list_sources()
+    return {"sources": sources}
+
+
+@router.get("/{path:path}")
+def get_scenario(path: str):
+    """Get details for a specific scenario.
+
+    Args:
+        path: Full path to scenario directory.
+
+    Returns:
+        Scenario info with full details.
+    """
+    info = _loader.get_scenario_info(path)
+    if info is None:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    return _scenario_to_dict(info)
+
+
+def _scenario_to_dict(info) -> dict:
+    """Convert ScenarioInfo to dict for JSON response."""
+    return {
+        "path": info.path,
+        "name": info.name,
+        "n_negotiators": info.n_negotiators,
+        "n_issues": info.n_issues,
+        "n_outcomes": info.n_outcomes,
+        "source": info.source,
+        "issues": [
+            {
+                "name": i.name,
+                "type": i.type,
+                "values": i.values,
+            }
+            for i in info.issues
+        ],
+    }

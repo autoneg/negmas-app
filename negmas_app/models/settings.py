@@ -1,0 +1,282 @@
+"""Settings models for NegMAS App."""
+
+from dataclasses import dataclass, field
+from typing import Any
+
+
+@dataclass
+class ThemeSettings:
+    """Theme and accessibility settings."""
+
+    dark_mode: bool = False
+    color_blind_mode: bool = False
+    # Color-blind friendly palette (Okabe-Ito palette)
+    # These colors are distinguishable for most forms of color blindness
+
+
+@dataclass
+class GeneralSettings:
+    """General application settings."""
+
+    dark_mode: bool = False
+    color_blind_mode: bool = False
+
+
+@dataclass
+class NegotiationSettings:
+    """Default negotiation parameters."""
+
+    default_max_steps: int = 100
+    default_step_delay_ms: int = 100
+    default_time_limit: int | None = None
+
+
+@dataclass
+class GeniusBridgeSettings:
+    """Genius bridge configuration."""
+
+    auto_start: bool = True
+    java_path: str | None = None
+    port: int = 25337
+
+
+@dataclass
+class CustomNegotiatorSource:
+    """User-defined negotiator source configuration."""
+
+    # Unique identifier
+    id: str
+
+    # Display name
+    name: str
+
+    # Description
+    description: str = ""
+
+    # Supported mechanism types (e.g., ["SAO", "TAU", "GAO"])
+    mechanisms: list[str] = field(default_factory=lambda: ["SAO"])
+
+    # Whether this source requires the Genius bridge
+    requires_bridge: bool = False
+
+    # Library to import from (e.g., "negmas_llm", "my_negotiators")
+    library: str = ""
+
+    # Regex pattern to match class names (e.g., ".*Negotiator$")
+    class_pattern: str = ""
+
+    # Or explicit module and class names
+    module: str = ""
+    class_names: list[str] = field(default_factory=list)
+
+
+@dataclass
+class NegotiatorSourcesSettings:
+    """Settings for negotiator sources."""
+
+    # Custom user-defined sources
+    custom_sources: list[CustomNegotiatorSource] = field(default_factory=list)
+
+    # Disabled built-in sources (by ID)
+    disabled_sources: list[str] = field(default_factory=list)
+
+
+@dataclass
+class PathSettings:
+    """Custom paths for scenarios."""
+
+    scenario_paths: list[str] = field(default_factory=list)
+
+
+@dataclass
+class AppSettings:
+    """Complete application settings."""
+
+    general: GeneralSettings = field(default_factory=GeneralSettings)
+    negotiation: NegotiationSettings = field(default_factory=NegotiationSettings)
+    genius_bridge: GeniusBridgeSettings = field(default_factory=GeniusBridgeSettings)
+    negotiator_sources: NegotiatorSourcesSettings = field(
+        default_factory=NegotiatorSourcesSettings
+    )
+    paths: PathSettings = field(default_factory=PathSettings)
+
+
+# =============================================================================
+# Preset Models for Saving/Loading Negotiation Configurations
+# =============================================================================
+
+
+@dataclass
+class NegotiatorPreset:
+    """A negotiator configuration in a preset."""
+
+    type_name: str
+    name: str
+    source: str = "native"
+    requires_bridge: bool = False
+    params: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ScenarioPreset:
+    """Saved scenario selection preset."""
+
+    name: str  # Preset name
+    scenario_path: str  # Path to scenario
+    scenario_name: str  # Display name of scenario
+    created_at: str = ""  # ISO timestamp
+
+
+@dataclass
+class NegotiatorsPreset:
+    """Saved negotiators configuration preset."""
+
+    name: str  # Preset name
+    negotiators: list[NegotiatorPreset] = field(default_factory=list)
+    created_at: str = ""  # ISO timestamp
+
+
+@dataclass
+class ParametersPreset:
+    """Saved mechanism parameters preset."""
+
+    name: str  # Preset name
+    mechanism_type: str = "sao"
+    # Deadline params
+    n_steps: int | None = 100
+    time_limit: float | None = None
+    pend: float = 0
+    pend_per_second: float = 0
+    step_time_limit: float | None = None
+    negotiator_time_limit: float | None = None
+    hidden_time_limit: float | None = None
+    # SAO params
+    sao: dict[str, Any] = field(default_factory=dict)
+    # TAU params
+    tau: dict[str, Any] = field(default_factory=dict)
+    # GB params
+    gb: dict[str, Any] = field(default_factory=dict)
+    created_at: str = ""  # ISO timestamp
+
+
+@dataclass
+class DisplayPreset:
+    """Saved display settings preset."""
+
+    name: str  # Preset name
+    mode: str = "realtime"  # 'realtime' or 'batch'
+    step_delay: int = 100  # milliseconds
+    show_plot: bool = True
+    show_offers: bool = True
+    created_at: str = ""  # ISO timestamp
+
+
+@dataclass
+class FullSessionPreset:
+    """Complete negotiation session preset (all settings)."""
+
+    name: str  # Preset name
+    # Scenario
+    scenario_path: str
+    scenario_name: str
+    # Negotiators
+    negotiators: list[NegotiatorPreset] = field(default_factory=list)
+    # Parameters
+    mechanism_type: str = "sao"
+    n_steps: int | None = 100
+    time_limit: float | None = None
+    pend: float = 0
+    pend_per_second: float = 0
+    step_time_limit: float | None = None
+    negotiator_time_limit: float | None = None
+    hidden_time_limit: float | None = None
+    sao: dict[str, Any] = field(default_factory=dict)
+    tau: dict[str, Any] = field(default_factory=dict)
+    gb: dict[str, Any] = field(default_factory=dict)
+    # Display
+    mode: str = "realtime"
+    step_delay: int = 100
+    show_plot: bool = True
+    show_offers: bool = True
+    # Metadata
+    created_at: str = ""  # ISO timestamp
+    last_used_at: str = ""  # ISO timestamp
+
+
+# =============================================================================
+# Layout Preset Models for Customizable Panel Layouts
+# =============================================================================
+
+
+@dataclass
+class PanelPlacement:
+    """Defines where a panel is placed on the grid."""
+
+    panel_id: (
+        str  # e.g., 'outcome_space', 'offer_history', 'info', 'timeline', 'result'
+    )
+    row_start: int  # 1-based grid row start
+    row_end: int  # 1-based grid row end (exclusive, CSS grid style)
+    col_start: int  # 1-based grid column start
+    col_end: int  # 1-based grid column end (exclusive, CSS grid style)
+
+
+@dataclass
+class LayoutPreset:
+    """Saved layout configuration for the negotiation view."""
+
+    name: str  # Preset name (e.g., "Default", "Compact", "Wide Timeline")
+    grid_size: int = 4  # 3 or 4 (3x3 or 4x4 grid)
+    panels: list[PanelPlacement] = field(default_factory=list)
+    created_at: str = ""  # ISO timestamp
+
+
+# Available panel types
+PANEL_TYPES = [
+    {
+        "id": "info",
+        "name": "Negotiation Info",
+        "description": "Shows progress, status, and negotiator info",
+    },
+    {
+        "id": "outcome_space",
+        "name": "Outcome Space",
+        "description": "2D utility plot with Pareto frontier",
+    },
+    {
+        "id": "offer_history",
+        "name": "Offer History",
+        "description": "List of offers made during negotiation",
+    },
+    {
+        "id": "timeline",
+        "name": "Utility Timeline",
+        "description": "Utility values over time",
+    },
+    {"id": "result", "name": "Result", "description": "Final agreement and utilities"},
+]
+
+
+def get_default_layout() -> LayoutPreset:
+    """Returns the default 4x4 layout."""
+    return LayoutPreset(
+        name="Default",
+        grid_size=4,
+        panels=[
+            PanelPlacement(
+                panel_id="info", row_start=1, row_end=2, col_start=1, col_end=3
+            ),
+            PanelPlacement(
+                panel_id="outcome_space", row_start=1, row_end=3, col_start=3, col_end=5
+            ),
+            PanelPlacement(
+                panel_id="offer_history", row_start=2, row_end=3, col_start=1, col_end=3
+            ),
+            PanelPlacement(
+                panel_id="timeline", row_start=3, row_end=4, col_start=1, col_end=5
+            ),
+            PanelPlacement(
+                panel_id="result", row_start=4, row_end=5, col_start=1, col_end=5
+            ),
+        ],
+    )

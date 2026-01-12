@@ -19,8 +19,20 @@ dependencies = [
     "python-multipart>=0.0.12",
     "httpx>=0.28.0",
     "sse-starlette>=2.1.0",
+    "plotly>=6.5.1",
 ]
+
+# Optional dependencies - uncomment when negmas-rl is published
+# [project.optional-dependencies]
+# rl = ["negmas-rl"]
 
 [project.scripts]
 negmas-app = "negmas_app.main:run"
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["negmas_app", "scenarios"]
+
+[tool.hatch.build.targets.sdist]
+include = ["negmas_app", "scenarios"]
 

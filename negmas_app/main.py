@@ -1,22 +1,28 @@
-"""Main FastAPI application for NegMAS App."""
+"""NegMAS App - FastAPI entry point."""
 
-import uvicorn
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
-from .routers import negotiation
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
-# Get the package directory
-PACKAGE_DIR = Path(__file__).parent
-TEMPLATES_DIR = PACKAGE_DIR / "templates"
-STATIC_DIR = PACKAGE_DIR / "static"
+from .routers import (
+    scenarios_router,
+    negotiators_router,
+    negotiation_router,
+    settings_router,
+    genius_router,
+)
 
+# Path configuration
+APP_DIR = Path(__file__).parent
+TEMPLATES_DIR = APP_DIR / "templates"
+STATIC_DIR = APP_DIR / "static"
+
+# Create FastAPI app
 app = FastAPI(
     title="NegMAS App",
-    description="A modern browser-based GUI for running negotiations and tournaments using the NegMAS ecosystem",
+    description="Run and monitor negotiations using NegMAS",
     version="0.1.0",
 )
 
@@ -27,27 +33,30 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 # Include routers
-app.include_router(negotiation.router, prefix="/negotiation", tags=["negotiation"])
+app.include_router(scenarios_router)
+app.include_router(negotiators_router)
+app.include_router(negotiation_router)
+app.include_router(settings_router)
+app.include_router(genius_router)
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 async def home(request: Request):
-    """Render the main application page."""
-    return templates.TemplateResponse(
-        "index.html",
-        {"request": request, "active_page": "home"},
-    )
+    """Render the home page."""
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
-def run():
-    """Run the application server."""
+def main():
+    """Run the app with uvicorn."""
+    import uvicorn
+
     uvicorn.run(
         "negmas_app.main:app",
         host="127.0.0.1",
-        port=8000,
+        port=8019,
         reload=True,
     )
 
 
 if __name__ == "__main__":
-    run()
+    main()

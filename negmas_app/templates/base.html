@@ -4,541 +4,1930 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}NegMAS App{% endblock %}</title>
-    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-    <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
-    <style>
-        :root {
-            --primary-color: #2563eb;
-            --primary-hover: #1d4ed8;
-            --bg-color: #f8fafc;
-            --sidebar-bg: #1e293b;
-            --sidebar-text: #e2e8f0;
-            --card-bg: #ffffff;
-            --border-color: #e2e8f0;
-            --text-color: #334155;
-            --text-muted: #64748b;
-            --success-color: #10b981;
-            --error-color: #ef4444;
-            --warning-color: #f59e0b;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            min-height: 100vh;
-        }
-
-        /* Header */
-        .header {
-            background: linear-gradient(135deg, var(--sidebar-bg) 0%, #334155 100%);
-            color: white;
-            padding: 1rem 2rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 100;
-            height: 64px;
-        }
-
-        .header-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .header-title svg {
-            width: 32px;
-            height: 32px;
-        }
-
-        .header-nav {
-            display: flex;
-            gap: 1rem;
-        }
-
-        .header-nav a {
-            color: var(--sidebar-text);
-            text-decoration: none;
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
-            transition: all 0.2s;
-        }
-
-        .header-nav a:hover,
-        .header-nav a.active {
-            background-color: rgba(255, 255, 255, 0.1);
-            color: white;
-        }
-
-        /* Layout */
-        .layout {
-            display: flex;
-            margin-top: 64px;
-            min-height: calc(100vh - 64px);
-        }
-
-        /* Sidebar */
-        .sidebar {
-            width: 260px;
-            background-color: var(--sidebar-bg);
-            color: var(--sidebar-text);
-            padding: 1.5rem 0;
-            transition: width 0.3s, transform 0.3s;
-            position: fixed;
-            top: 64px;
-            left: 0;
-            bottom: 0;
-            overflow-y: auto;
-            z-index: 50;
-        }
-
-        .sidebar.collapsed {
-            width: 60px;
-        }
-
-        .sidebar-toggle {
-            position: absolute;
-            right: -12px;
-            top: 20px;
-            width: 24px;
-            height: 24px;
-            background: var(--primary-color);
-            border: none;
-            border-radius: 50%;
-            color: white;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 60;
-        }
-
-        .sidebar-section {
-            margin-bottom: 1.5rem;
-        }
-
-        .sidebar-section-title {
-            padding: 0.5rem 1.5rem;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-        }
-
-        .sidebar-link {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.75rem 1.5rem;
-            color: var(--sidebar-text);
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-
-        .sidebar-link:hover,
-        .sidebar-link.active {
-            background-color: rgba(255, 255, 255, 0.1);
-            color: white;
-        }
-
-        .sidebar-link svg {
-            width: 20px;
-            height: 20px;
-            flex-shrink: 0;
-        }
-
-        .sidebar.collapsed .sidebar-link span,
-        .sidebar.collapsed .sidebar-section-title {
-            display: none;
-        }
-
-        /* Main Content */
-        .main-content {
-            flex: 1;
-            padding: 2rem;
-            margin-left: 260px;
-            transition: margin-left 0.3s;
-        }
-
-        .sidebar.collapsed + .main-content {
-            margin-left: 60px;
-        }
-
-        /* Cards */
-        .card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            margin-bottom: 1.5rem;
-        }
-
-        .card-header {
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .card-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
-
-        .card-body {
-            padding: 1.5rem;
-        }
-
-        /* Collapsible Sections */
-        .collapsible {
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-
-        .collapsible-header {
-            padding: 1rem;
-            background: var(--bg-color);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-radius: 8px;
-            user-select: none;
-        }
-
-        .collapsible-header:hover {
-            background: #f1f5f9;
-        }
-
-        .collapsible-title {
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .collapsible-icon {
-            transition: transform 0.2s;
-        }
-
-        .collapsible.open .collapsible-icon {
-            transform: rotate(180deg);
-        }
-
-        .collapsible-content {
-            display: none;
-            padding: 1rem;
-            border-top: 1px solid var(--border-color);
-        }
-
-        .collapsible.open .collapsible-content {
-            display: block;
-        }
-
-        /* Form Elements */
-        .form-group {
-            margin-bottom: 1rem;
-        }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-            font-size: 0.9rem;
-        }
-
-        .label-hint {
-            font-weight: 400;
-            color: var(--text-muted);
-            font-size: 0.8rem;
-        }
-
-        input[type="text"],
-        input[type="number"],
-        select,
-        textarea {
-            width: 100%;
-            padding: 0.625rem 0.875rem;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.9rem;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-
-        input:focus,
-        select:focus,
-        textarea:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .checkbox-group input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
-
-        .checkbox-group label {
-            margin-bottom: 0;
-            cursor: pointer;
-        }
-
-        /* Buttons */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-primary {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: var(--primary-hover);
-        }
-
-        .btn-secondary {
-            background: var(--bg-color);
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-        }
-
-        .btn-secondary:hover {
-            background: #f1f5f9;
-        }
-
-        .btn-lg {
-            padding: 1rem 2rem;
-            font-size: 1rem;
-        }
-
-        /* Output/Terminal */
-        .terminal {
-            background: #1e1e1e;
-            color: #d4d4d4;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.85rem;
-            padding: 1rem;
-            border-radius: 8px;
-            max-height: 400px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-
-        .terminal .line {
-            line-height: 1.5;
-        }
-
-        .terminal .success {
-            color: var(--success-color);
-        }
-
-        .terminal .error {
-            color: var(--error-color);
-        }
-
-        /* Status Badges */
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.8rem;
-            font-weight: 500;
-        }
-
-        .badge-pending {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .badge-running {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .badge-completed {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .badge-failed {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        /* Loading Spinner */
-        .spinner {
-            width: 20px;
-            height: 20px;
-            border: 2px solid var(--border-color);
-            border-top-color: var(--primary-color);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* HTMX Loading States */
-        .htmx-request .btn-text {
-            display: none;
-        }
-
-        .htmx-request .btn-loading {
-            display: inline-flex;
-        }
-
-        .btn-loading {
-            display: none;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .sidebar {
-                transform: translateX(-100%);
-            }
-
-            .sidebar.open {
-                transform: translateX(0);
-            }
-
-            .main-content {
-                margin-left: 0;
-            }
-
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
-</head>
-<body>
-    <header class="header">
-        <div class="header-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                <path d="M2 17l10 5 10-5"/>
-                <path d="M2 12l10 5 10-5"/>
-            </svg>
-            <span>NegMAS App</span>
-        </div>
-        <nav class="header-nav">
-            <a href="/" class="{% if active_page == 'home' %}active{% endif %}">Home</a>
-            <a href="/negotiation" class="{% if active_page == 'negotiation' %}active{% endif %}">Negotiation</a>
-            <a href="#" class="{% if active_page == 'tournament' %}active{% endif %}">Tournament</a>
-            <a href="#" class="{% if active_page == 'options' %}active{% endif %}">Options</a>
-        </nav>
-    </header>
-
-    <div class="layout">
-        <aside class="sidebar" id="sidebar">
-            <button class="sidebar-toggle" onclick="toggleSidebar()">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M15 18l-6-6 6-6"/>
-                </svg>
-            </button>
-            <div class="sidebar-section">
-                <div class="sidebar-section-title">Actions</div>
-                <a href="/negotiation" class="sidebar-link {% if active_page == 'negotiation' %}active{% endif %}">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                        <circle cx="9" cy="7" r="4"/>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                    </svg>
-                    <span>Run Negotiation</span>
-                </a>
-                <a href="#" class="sidebar-link {% if active_page == 'tournament' %}active{% endif %}">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
-                        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
-                        <path d="M4 22h16"/>
-                        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
-                        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
-                        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
-                    </svg>
-                    <span>Run Tournament</span>
-                </a>
-            </div>
-            <div class="sidebar-section">
-                <div class="sidebar-section-title">Settings</div>
-                <a href="#" class="sidebar-link">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                    </svg>
-                    <span>Options</span>
-                </a>
-            </div>
-        </aside>
-
-        <main class="main-content">
-            {% block content %}{% endblock %}
-        </main>
-    </div>
-
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+    
+    <!-- Apply dark mode immediately to prevent flash -->
     <script>
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            sidebar.classList.toggle('collapsed');
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.documentElement.classList.add('dark-mode');
         }
-
-        function toggleCollapsible(element) {
-            const parent = element.closest('.collapsible');
-            parent.classList.toggle('open');
+        if (localStorage.getItem('colorBlindMode') === 'true') {
+            document.documentElement.classList.add('color-blind-mode');
         }
-
-        // Initialize collapsibles - open the first one by default
-        document.addEventListener('DOMContentLoaded', function() {
-            const firstCollapsible = document.querySelector('.collapsible');
-            if (firstCollapsible) {
-                firstCollapsible.classList.add('open');
-            }
-        });
     </script>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/sse.js"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- SortableJS for drag-reorder -->
+    <script src="https://unpkg.com/sortablejs@1.15.0/Sortable.min.js"></script>
+    
+    <!-- Plotly.js for real-time plotting -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+    
+    {% block head %}{% endblock %}
+</head>
+<body x-data="app()" x-init="init()">
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-logo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                <span>NegMAS App</span>
+            </div>
+            
+            <nav class="header-nav">
+                <button class="header-nav-btn active">Negotiations</button>
+                <button class="header-nav-btn" @click="showSettings = true">Settings</button>
+            </nav>
+            
+            <div class="header-spacer"></div>
+            
+            <!-- Genius Bridge Status -->
+            <div class="header-status genius-bridge-status" 
+                 @click="toggleGeniusBridge()"
+                 :title="geniusBridge.running ? 'Click to stop Genius Bridge' : 'Click to start Genius Bridge'">
+                <span class="status-dot" :class="{ 'running': geniusBridge.running, 'stopped': !geniusBridge.running }"></span>
+                <span x-text="geniusBridge.running ? 'Genius Bridge' : 'Genius Bridge (Off)'"></span>
+                <span class="bridge-action-icon" x-show="geniusBridge.loading">
+                    <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                        <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"></circle>
+                    </svg>
+                </span>
+            </div>
+            
+            <div class="header-status">
+                <span class="status-dot" :class="{ 'disconnected': !connected }"></span>
+                <span x-text="connected ? 'Connected' : 'Disconnected'"></span>
+            </div>
+            
+            <div class="header-actions">
+                <button class="btn btn-primary" @click="openNewNegotiation()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    New Negotiation
+                </button>
+            </div>
+        </header>
+        
+        <!-- Main Layout -->
+        <div class="main-layout">
+            <!-- Sidebar -->
+            <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+                <button class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed" :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <polyline :points="sidebarCollapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6'"></polyline>
+                    </svg>
+                </button>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title" x-show="!sidebarCollapsed">Quick Actions</div>
+                    <button class="sidebar-btn primary" @click="openNewNegotiation()" :title="sidebarCollapsed ? 'Start Negotiation' : ''">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span x-show="!sidebarCollapsed">Start Negotiation</span>
+                    </button>
+                </div>
+                
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title" x-show="!sidebarCollapsed">Running</div>
+                    <div class="negotiation-list" x-show="!sidebarCollapsed">
+                        <template x-if="runningNegotiations.length === 0">
+                            <p class="text-muted" style="font-size: 12px; padding: 8px;">No active negotiations</p>
+                        </template>
+                        <template x-for="neg in runningNegotiations" :key="neg.id">
+                            <div class="negotiation-item" :class="{ active: currentNegotiation?.id === neg.id }" @click="selectNegotiation(neg)">
+                                <div class="negotiation-item-title" x-text="neg.scenario"></div>
+                                <div class="negotiation-item-meta">
+                                    <span class="badge badge-primary">Running</span>
+                                    <span x-text="'Step ' + neg.step"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title" x-show="!sidebarCollapsed">Completed</div>
+                    <div class="negotiation-list" x-show="!sidebarCollapsed">
+                        <template x-if="completedNegotiations.length === 0">
+                            <p class="text-muted" style="font-size: 12px; padding: 8px;">No completed negotiations</p>
+                        </template>
+                        <template x-for="neg in completedNegotiations" :key="neg.id">
+                            <div class="negotiation-item" :class="{ active: currentNegotiation?.id === neg.id }" @click="selectNegotiation(neg)">
+                                <div class="negotiation-item-title" x-text="neg.scenario"></div>
+                                <div class="negotiation-item-meta">
+                                    <span class="badge" :class="neg.agreement ? 'badge-success' : 'badge-warning'" x-text="neg.agreement ? 'Agreement' : 'No Agreement'"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </aside>
+            
+            <!-- Content Area -->
+            <main class="content-area">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    
+    <!-- Start Negotiation Modal -->
+    <div class="modal-overlay" :class="{ active: showNewNegotiation }" @click.self="showNewNegotiation = false">
+        <div class="modal large">
+            <div class="modal-header">
+                <h2 class="modal-title">Start New Negotiation</h2>
+                <div class="modal-header-actions">
+                    <!-- Recent Sessions Dropdown -->
+                    <div class="dropdown" x-data="{ open: false }">
+                        <button class="btn btn-sm btn-secondary" @click="open = !open; loadRecentSessions()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            Recent
+                        </button>
+                        <div class="dropdown-menu" x-show="open" @click.away="open = false" style="right: 0; min-width: 280px;">
+                            <template x-if="recentSessions.length === 0">
+                                <div class="dropdown-item text-muted">No recent sessions</div>
+                            </template>
+                            <template x-for="session in recentSessions" :key="session.name + session.last_used_at">
+                                <div class="dropdown-item" @click="loadFullSession(session); open = false">
+                                    <div class="font-medium" x-text="session.scenario_name"></div>
+                                    <div class="text-muted" style="font-size: 11px;" x-text="session.negotiators.map(n => n.name).join(' vs ')"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <!-- Saved Sessions Dropdown -->
+                    <div class="dropdown" x-data="{ open: false }">
+                        <button class="btn btn-sm btn-secondary" @click="open = !open; loadSessionPresets()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                <polyline points="7 3 7 8 15 8"></polyline>
+                            </svg>
+                            Load
+                        </button>
+                        <div class="dropdown-menu" x-show="open" @click.away="open = false" style="right: 0; min-width: 280px;">
+                            <template x-if="sessionPresets.length === 0">
+                                <div class="dropdown-item text-muted">No saved sessions</div>
+                            </template>
+                            <template x-for="preset in sessionPresets" :key="preset.name">
+                                <div class="dropdown-item" style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div @click="loadFullSession(preset); open = false" style="flex: 1; cursor: pointer;">
+                                        <div class="font-medium" x-text="preset.name"></div>
+                                        <div class="text-muted" style="font-size: 11px;" x-text="preset.scenario_name"></div>
+                                    </div>
+                                    <button class="btn-icon-sm" @click.stop="deleteSessionPreset(preset.name)" title="Delete">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <!-- Save Session Button -->
+                    <button class="btn btn-sm btn-primary" @click="showSaveSessionModal = true" :disabled="!newNeg.scenario">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                            <polyline points="7 3 7 8 15 8"></polyline>
+                        </svg>
+                        Save
+                    </button>
+                </div>
+                <button class="modal-close" @click="showNewNegotiation = false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body" style="padding: 0;">
+                <!-- Wizard Layout with Vertical Tabs -->
+                <div class="wizard-layout">
+                    <!-- Vertical Sidebar Tabs -->
+                    <div class="wizard-sidebar">
+                        <button class="wizard-tab" :class="{ active: negotiationTab === 'scenario', completed: newNeg.scenario }" @click="negotiationTab = 'scenario'" title="Scenario">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                            </svg>
+                            <span class="wizard-tab-label">Scenario</span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: negotiationTab === 'negotiators', completed: newNeg.negotiators.length >= (newNeg.scenario?.n_negotiators || 2) }" @click="negotiationTab = 'negotiators'" title="Negotiators">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                            <span class="wizard-tab-label">Agents</span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: negotiationTab === 'parameters' }" @click="negotiationTab = 'parameters'" title="Parameters">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                            </svg>
+                            <span class="wizard-tab-label">Params</span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: negotiationTab === 'panels' }" @click="negotiationTab = 'panels'" title="Panels">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="14" width="7" height="7"></rect>
+                                <rect x="3" y="14" width="7" height="7"></rect>
+                            </svg>
+                            <span class="wizard-tab-label">Panels</span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: negotiationTab === 'display' }" @click="negotiationTab = 'display'" title="Display & Run">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            <span class="wizard-tab-label">Run</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Tab Content -->
+                    <div class="wizard-content">
+                
+                <!-- Tab: Scenario Selection -->
+                <div x-show="negotiationTab === 'scenario'">
+                    <div class="form-group">
+                        <label class="form-label">Search Scenarios</label>
+                        <input type="text" class="form-input" placeholder="Type to search all scenarios..." x-model="scenarioSearch" @input="searchScenarios()">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Filter by Source <span class="text-muted">(optional)</span></label>
+                        <select class="form-select" x-model="newNeg.source" @change="filterBySource()">
+                            <option value="">All sources</option>
+                            <template x-for="source in sources" :key="source">
+                                <option :value="source" x-text="source"></option>
+                            </template>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" x-show="filteredScenarios.length > 0 || scenarioSearch || newNeg.source">
+                        <label class="form-label">
+                            Select Scenario 
+                            <span class="text-muted" x-text="'(' + filteredScenarios.length + ' found)'"></span>
+                        </label>
+                        <div class="scenario-grid" style="max-height: 300px; overflow-y: auto;">
+                            <template x-for="scenario in filteredScenarios" :key="scenario.path">
+                                <div class="scenario-card" 
+                                     :class="{ selected: newNeg.scenario?.path === scenario.path }"
+                                     @click="selectScenario(scenario)">
+                                    <div class="scenario-card-title" x-text="scenario.name"></div>
+                                    <div class="scenario-card-meta">
+                                        <span class="badge badge-neutral" x-text="scenario.source"></span>
+                                        <span x-text="scenario.n_negotiators + ' parties'"></span>
+                                        <span x-text="scenario.issues?.length + ' issues'"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <template x-if="filteredScenarios.length === 0 && (scenarioSearch || newNeg.source)">
+                            <p class="text-muted" style="padding: 16px; text-align: center;">No scenarios found</p>
+                        </template>
+                    </div>
+                    
+                    <div class="form-group" x-show="!scenarioSearch && !newNeg.source && filteredScenarios.length === 0">
+                        <p class="text-muted" style="padding: 16px; text-align: center;">Start typing to search scenarios, or select a source to browse</p>
+                    </div>
+                    
+                    <!-- Selected Scenario Details -->
+                    <div class="form-group" x-show="newNeg.scenario">
+                        <label class="form-label">Scenario Details</label>
+                        <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px;">
+                            <div class="font-semibold mb-2" x-text="newNeg.scenario?.name"></div>
+                            <div class="text-secondary" style="font-size: 13px;">
+                                <div><strong>Issues:</strong></div>
+                                <template x-for="issue in newNeg.scenario?.issues || []" :key="issue.name">
+                                    <div style="margin-left: 12px; margin-top: 4px;">
+                                        <span x-text="issue.name"></span>
+                                        <span class="text-muted" x-text="'(' + issue.type + ')'"></span>
+                                        <template x-if="issue.values">
+                                            <span class="text-muted" x-text="': ' + issue.values.slice(0, 5).join(', ') + (issue.values.length > 5 ? '...' : '')"></span>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab: Negotiators -->
+                <div x-show="negotiationTab === 'negotiators'">
+                    <div class="form-group">
+                        <label class="form-label">Search Negotiators</label>
+                        <input type="text" class="form-input" placeholder="Type to search all negotiators..." x-model="negotiatorSearch" @input="searchNegotiators()">
+                    </div>
+                    
+                    <div class="form-row" style="gap: 12px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">Filter by Source <span class="text-muted">(optional)</span></label>
+                            <select class="form-select" x-model="negotiatorSourceFilter" @change="filterNegotiators()">
+                                <option value="">All sources</option>
+                                <template x-for="source in negotiatorSources" :key="source.id">
+                                    <option :value="source.id" x-text="source.name"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;" x-show="negotiatorSourceFilter === 'genius'">
+                            <label class="form-label">Filter by Year <span class="text-muted">(optional)</span></label>
+                            <select class="form-select" x-model="negotiatorGroupFilter" @change="filterNegotiators()">
+                                <option value="">All years</option>
+                                <option value="y2019">ANAC 2019</option>
+                                <option value="y2018">ANAC 2018</option>
+                                <option value="y2017">ANAC 2017</option>
+                                <option value="y2016">ANAC 2016</option>
+                                <option value="y2015">ANAC 2015</option>
+                                <option value="y2014">ANAC 2014</option>
+                                <option value="y2013">ANAC 2013</option>
+                                <option value="y2012">ANAC 2012</option>
+                                <option value="y2011">ANAC 2011</option>
+                                <option value="y2010">ANAC 2010</option>
+                                <option value="basic">Basic</option>
+                                <option value="others">Others</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">
+                            Assigned Negotiators 
+                            <span class="text-muted" x-text="'(' + newNeg.negotiators.length + '/' + (newNeg.scenario?.n_negotiators || 2) + ' required)'"></span>
+                        </label>
+                        
+                        <div class="negotiator-list" x-ref="negotiatorList">
+                            <template x-for="(neg, index) in newNeg.negotiators" :key="index">
+                                <div class="negotiator-item" 
+                                     :data-index="index"
+                                     :class="{ 'selected': selectedNegotiatorSlot === index }"
+                                     @click="selectedNegotiatorSlot = index"
+                                     :style="selectedNegotiatorSlot === index ? 'border-color: var(--primary); background: var(--bg-tertiary);' : ''">
+                                    <div class="drag-handle">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                            <circle cx="9" cy="6" r="1.5"/>
+                                            <circle cx="15" cy="6" r="1.5"/>
+                                            <circle cx="9" cy="12" r="1.5"/>
+                                            <circle cx="15" cy="12" r="1.5"/>
+                                            <circle cx="9" cy="18" r="1.5"/>
+                                            <circle cx="15" cy="18" r="1.5"/>
+                                        </svg>
+                                    </div>
+                                    <div class="negotiator-item-content">
+                                        <input type="text" class="negotiator-name-input" x-model="neg.name" @click.stop placeholder="Agent name">
+                                        <div class="negotiator-type" x-text="getNegotiatorDisplayName(neg.type_name)"></div>
+                                        <span class="badge" :class="getSourceBadgeClass(neg.source)" x-text="neg.source" style="font-size: 10px;"></span>
+                                    </div>
+                                    <button class="btn btn-icon btn-sm" @click.stop="removeNegotiator(index)" :disabled="newNeg.negotiators.length <= 2" title="Remove">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="text-muted" style="font-size: 12px; margin-top: 8px;">
+                            Click a slot to select it, then choose a negotiator from the list below
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Available Negotiators <span class="text-muted" x-text="'(' + filteredNegotiators.length + ' found)'"></span></label>
+                        <div class="negotiator-grid" style="max-height: 250px; overflow-y: auto;">
+                            <template x-for="neg in filteredNegotiators" :key="neg.type_name">
+                                <div class="negotiator-card" @click="selectNegotiatorForSlot(neg)">
+                                    <div class="negotiator-card-name" x-text="neg.name"></div>
+                                    <div class="negotiator-card-meta">
+                                        <span class="badge" :class="getSourceBadgeClass(neg.source)" x-text="neg.source"></span>
+                                    </div>
+                                    <div class="negotiator-card-desc" x-text="neg.description" x-show="neg.description"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab: Parameters -->
+                <div x-show="negotiationTab === 'parameters'">
+                    <!-- Sub-tabs for parameters -->
+                    <div class="tabs" style="margin-bottom: 16px;">
+                        <button class="tab" :class="{ active: paramSubTab === 'deadline' }" @click="paramSubTab = 'deadline'">Deadline</button>
+                        <button class="tab" :class="{ active: paramSubTab === 'mechanism' }" @click="paramSubTab = 'mechanism'">Mechanism</button>
+                    </div>
+                    
+                    <!-- Sub-tab: Deadline Parameters -->
+                    <div x-show="paramSubTab === 'deadline'">
+                        <div class="form-group">
+                            <label class="form-label">Mechanism Type</label>
+                            <div class="mechanism-selector">
+                                <template x-for="mech in ['sao', 'tau', 'gb']" :key="mech">
+                                    <button class="mechanism-option" 
+                                            :class="{ selected: newNeg.mechanism_type === mech }"
+                                            @click="newNeg.mechanism_type = mech">
+                                        <span class="mechanism-name" x-text="mech.toUpperCase()"></span>
+                                        <span class="mechanism-desc" x-text="getMechanismDescription(mech)"></span>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+                        
+                        <div class="param-group">
+                            <div class="param-group-header">
+                                <span class="param-group-title">Primary Deadline</span>
+                            </div>
+                            <div class="param-group-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Max Steps</label>
+                                        <input type="number" class="form-input" x-model.number="newNeg.n_steps" min="0" placeholder="e.g. 100">
+                                        <div class="form-hint">Maximum negotiation rounds (0 = unlimited)</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Time Limit (seconds)</label>
+                                        <input type="number" class="form-input" x-model.number="newNeg.time_limit" min="0" step="0.1" placeholder="No limit">
+                                        <div class="form-hint">Wall-clock time limit</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="param-group" :class="{ collapsed: !showAdvancedDeadline }">
+                            <div class="param-group-header" @click="showAdvancedDeadline = !showAdvancedDeadline">
+                                <span class="param-group-title">Advanced Deadline Options</span>
+                                <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                            <div class="param-group-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">P(end) per step</label>
+                                        <input type="number" class="form-input" x-model.number="newNeg.pend" min="0" max="1" step="0.01" placeholder="0">
+                                        <div class="form-hint">Probability of ending each step</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">P(end) per second</label>
+                                        <input type="number" class="form-input" x-model.number="newNeg.pend_per_second" min="0" max="1" step="0.01" placeholder="0">
+                                        <div class="form-hint">Probability of ending per second</div>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Step Time Limit</label>
+                                        <input type="number" class="form-input" x-model.number="newNeg.step_time_limit" min="0" step="0.1" placeholder="No limit">
+                                        <div class="form-hint">Max time per step (seconds)</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Negotiator Time Limit</label>
+                                        <input type="number" class="form-input" x-model.number="newNeg.negotiator_time_limit" min="0" step="0.1" placeholder="No limit">
+                                        <div class="form-hint">Max time per negotiator action</div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Hidden Time Limit</label>
+                                    <input type="number" class="form-input" x-model.number="newNeg.hidden_time_limit" min="0" step="0.1" placeholder="No limit" style="max-width: 200px;">
+                                    <div class="form-hint">Secret deadline negotiators don't see</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sub-tab: Mechanism Parameters -->
+                    <div x-show="paramSubTab === 'mechanism'">
+                        <!-- SAO Parameters -->
+                        <div x-show="newNeg.mechanism_type === 'sao'">
+                            <div class="param-group">
+                                <div class="param-group-header" @click="showSAOResponse = !showSAOResponse">
+                                    <span class="param-group-title">Response Handling</span>
+                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                                <div class="param-group-content" x-show="showSAOResponse">
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.end_on_no_response"><span>End on no response</span></label>
+                                        <div class="form-inline-hint">End negotiation if a negotiator doesn't respond</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.avoid_ultimatum"><span>Avoid ultimatum</span></label>
+                                        <div class="form-inline-hint">Prevent last-step ultimatum tactics</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="param-group" :class="{ collapsed: !showSAOOffers }">
+                                <div class="param-group-header" @click="showSAOOffers = !showSAOOffers">
+                                    <span class="param-group-title">Offer Validation</span>
+                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                                <div class="param-group-content">
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.check_offers"><span>Check offers</span></label>
+                                        <div class="form-inline-hint">Validate offers against outcome space</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.enforce_issue_types"><span>Enforce issue types</span></label>
+                                        <div class="form-inline-hint">Strictly enforce issue value types</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.cast_offers"><span>Cast offers</span></label>
+                                        <div class="form-inline-hint">Auto-cast offer values to correct types</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="param-group" :class="{ collapsed: !showSAOSemantics }">
+                                <div class="param-group-header" @click="showSAOSemantics = !showSAOSemantics">
+                                    <span class="param-group-title">Offer Semantics</span>
+                                    <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                                <div class="param-group-content">
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.offering_is_accepting"><span>Offering is accepting</span></label>
+                                        <div class="form-inline-hint">Making an offer implies accepting it</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.allow_offering_just_rejected_outcome"><span>Allow re-offering rejected</span></label>
+                                        <div class="form-inline-hint">Can offer an outcome that was just rejected</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.sao.one_offer_per_step"><span>One offer per step</span></label>
+                                        <div class="form-inline-hint">Limit to one offer per negotiation step</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Information Sharing (applies to all mechanism types) -->
+                        <div class="param-group">
+                            <div class="param-group-header" @click="showInfoSharing = !showInfoSharing">
+                                <span class="param-group-title">Information Sharing</span>
+                                <svg class="param-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                            <div class="param-group-content" x-show="showInfoSharing">
+                                <div class="form-group">
+                                    <label class="form-checkbox"><input type="checkbox" x-model="newNeg.share_ufuns"><span>Share utility functions</span></label>
+                                    <div class="form-inline-hint">Give each negotiator access to opponent's utility function (required for NaiveTitForTat and similar)</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- TAU Parameters -->
+                        <div x-show="newNeg.mechanism_type === 'tau'">
+                            <div class="form-group">
+                                <label class="form-checkbox"><input type="checkbox" x-model="newNeg.tau.accept_in_any_thread"><span>Accept in any thread</span></label>
+                                <div class="form-inline-hint">Acceptance in any thread ends negotiation</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-checkbox"><input type="checkbox" x-model="newNeg.tau.parallel"><span>Parallel threads</span></label>
+                                <div class="form-inline-hint">Run threads in parallel</div>
+                            </div>
+                        </div>
+                        
+                        <!-- GB Parameters -->
+                        <div x-show="newNeg.mechanism_type === 'gb'">
+                            <div class="form-group">
+                                <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.parallel"><span>Parallel evaluation</span></label>
+                                <div class="form-inline-hint">Evaluate offers in parallel</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.end_on_no_response"><span>End on no response</span></label>
+                                <div class="form-inline-hint">End if no response received</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-checkbox"><input type="checkbox" x-model="newNeg.gb.check_offers"><span>Check offers</span></label>
+                                <div class="form-inline-hint">Validate all offers</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab: Panels -->
+                <div x-show="negotiationTab === 'panels'">
+                    <div class="form-group">
+                        <label class="form-label">Panel Configuration</label>
+                        <div class="form-hint">Configure which panels to display during the negotiation</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-checkbox">
+                            <input type="checkbox" x-model="newNeg.panels.adjustable">
+                            <span>Adjustable panels</span>
+                        </label>
+                        <div class="form-inline-hint">Allow resizing panels during negotiation</div>
+                    </div>
+                    
+                    <div class="param-group">
+                        <div class="param-group-header">
+                            <span class="param-group-title">Utility Space View</span>
+                        </div>
+                        <div class="param-group-content">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">X-Axis (Negotiator)</label>
+                                    <select class="form-select" x-model.number="newNeg.panels.utilityView.xAxis">
+                                        <template x-for="(neg, idx) in newNeg.negotiators" :key="idx">
+                                            <option :value="idx" x-text="neg.name || ('Agent ' + (idx + 1))"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Y-Axis (Negotiator)</label>
+                                    <select class="form-select" x-model.number="newNeg.panels.utilityView.yAxis">
+                                        <template x-for="(neg, idx) in newNeg.negotiators" :key="idx">
+                                            <option :value="idx" x-text="neg.name || ('Agent ' + (idx + 1))"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="param-group">
+                        <div class="param-group-header">
+                            <span class="param-group-title">Timeline View</span>
+                        </div>
+                        <div class="param-group-content">
+                            <div class="form-group">
+                                <label class="form-label">X-Axis</label>
+                                <select class="form-select" x-model="newNeg.panels.timeline.xAxis" style="max-width: 200px;">
+                                    <option value="step">Step</option>
+                                    <option value="time">Time</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab: Display & Run -->
+                <div x-show="negotiationTab === 'display'">
+                    <div class="form-group">
+                        <label class="form-label">Summary</label>
+                        <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px;">
+                            <div><strong>Scenario:</strong> <span x-text="newNeg.scenario?.name || 'Not selected'"></span></div>
+                            <div><strong>Negotiators:</strong> <span x-text="newNeg.negotiators.map(n => getNegotiatorDisplayName(n.type_name)).join(' vs ')"></span></div>
+                            <div><strong>Mechanism:</strong> <span x-text="newNeg.mechanism_type.toUpperCase()"></span></div>
+                            <div><strong>Deadline:</strong> <span x-text="newNeg.n_steps > 0 ? newNeg.n_steps + ' steps' : (newNeg.time_limit ? newNeg.time_limit + 's' : 'None')"></span></div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Run Mode</label>
+                        <div class="mode-selector">
+                            <button class="mode-option" :class="{ selected: newNeg.mode === 'realtime' }" @click="newNeg.mode = 'realtime'">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                </svg>
+                                <span>Real-time</span>
+                            </button>
+                            <button class="mode-option" :class="{ selected: newNeg.mode === 'batch' }" @click="newNeg.mode = 'batch'">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <polyline points="13 17 18 12 13 7"></polyline>
+                                    <polyline points="6 17 11 12 6 7"></polyline>
+                                </svg>
+                                <span>Batch</span>
+                            </button>
+                        </div>
+                        <div class="form-hint" x-text="newNeg.mode === 'realtime' ? 'Watch negotiation step-by-step with live updates' : 'Run negotiation instantly and show results'"></div>
+                    </div>
+                    
+                    <div class="form-group" x-show="newNeg.mode === 'realtime'">
+                        <label class="form-label">Step Delay: <span x-text="newNeg.step_delay + 'ms'"></span></label>
+                        <input type="range" class="form-range" x-model.number="newNeg.step_delay" min="0" max="1000" step="50">
+                        <div class="form-hint">Delay between steps for visualization</div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-checkbox"><input type="checkbox" x-model="newNeg.show_plot"><span>Show live utility plot</span></label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-checkbox"><input type="checkbox" x-model="newNeg.show_offers"><span>Show offer history</span></label>
+                        </div>
+                    </div>
+                </div>
+                    </div><!-- end wizard-content -->
+                </div><!-- end wizard-layout -->
+            </div><!-- end modal-body -->
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="showNewNegotiation = false">Cancel</button>
+                <template x-if="negotiationTab !== 'scenario'">
+                    <button class="btn btn-secondary" @click="prevNegotiationTab()">Back</button>
+                </template>
+                <template x-if="negotiationTab !== 'display'">
+                    <button class="btn btn-primary" @click="nextNegotiationTab()" :disabled="!canProceed">
+                        Next
+                    </button>
+                </template>
+                <template x-if="negotiationTab === 'display'">
+                    <button class="btn btn-primary" @click="startNegotiation()" :disabled="!canStart">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        <span x-text="newNeg.auto_start ? 'Start Negotiation' : 'Open Negotiation'"></span>
+                    </button>
+                </template>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div class="modal-overlay" :class="{ active: showSettings }" @click.self="showSettings = false">
+        <div class="modal large">
+            <div class="modal-header">
+                <h2 class="modal-title">Settings</h2>
+                <button class="modal-close" @click="showSettings = false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body" style="padding: 0;">
+                <div class="settings-layout">
+                    <div class="settings-sidebar">
+                        <div class="settings-nav">
+                            <button class="settings-nav-item" :class="{ active: settingsTab === 'general' }" @click="settingsTab = 'general'">General</button>
+                            <button class="settings-nav-item" :class="{ active: settingsTab === 'negotiation' }" @click="settingsTab = 'negotiation'">Negotiation</button>
+                            <button class="settings-nav-item" :class="{ active: settingsTab === 'sources' }" @click="settingsTab = 'sources'; loadSourceSettings()">Negotiator Sources</button>
+                            <button class="settings-nav-item" :class="{ active: settingsTab === 'genius' }" @click="settingsTab = 'genius'">Genius Bridge</button>
+                            <button class="settings-nav-item" :class="{ active: settingsTab === 'paths' }" @click="settingsTab = 'paths'">Custom Paths</button>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-content">
+                        <div x-show="settingsTab === 'general'">
+                            <h3 class="font-semibold mb-4">General Settings</h3>
+                            
+                            <!-- Theme Section -->
+                            <div class="settings-section">
+                                <h4 class="settings-section-title">Theme</h4>
+                                <div class="form-group">
+                                    <label class="form-checkbox">
+                                        <input type="checkbox" x-model="settings.darkMode" @change="toggleDarkMode()">
+                                        <span>Dark Mode</span>
+                                    </label>
+                                    <div class="form-hint">Use dark color scheme</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Accessibility Section -->
+                            <div class="settings-section">
+                                <h4 class="settings-section-title">Accessibility</h4>
+                                <div class="form-group">
+                                    <label class="form-checkbox">
+                                        <input type="checkbox" x-model="settings.colorBlindMode" @change="toggleColorBlindMode()">
+                                        <span>Color Blind Mode</span>
+                                    </label>
+                                    <div class="form-hint">Use color-blind friendly palette with distinct line styles and markers</div>
+                                </div>
+                                <div class="color-palette-preview" x-show="settings.colorBlindMode">
+                                    <div class="palette-label">Color-blind friendly palette:</div>
+                                    <div class="palette-colors">
+                                        <span class="color-swatch" style="background: #0072B2;" title="Blue"></span>
+                                        <span class="color-swatch" style="background: #E69F00;" title="Orange"></span>
+                                        <span class="color-swatch" style="background: #009E73;" title="Bluish Green"></span>
+                                        <span class="color-swatch" style="background: #CC79A7;" title="Reddish Purple"></span>
+                                        <span class="color-swatch" style="background: #F0E442;" title="Yellow"></span>
+                                        <span class="color-swatch" style="background: #56B4E9;" title="Sky Blue"></span>
+                                        <span class="color-swatch" style="background: #D55E00;" title="Vermillion"></span>
+                                        <span class="color-swatch" style="background: #000000;" title="Black"></span>
+                                    </div>
+                                    <div class="palette-note">Charts will also use different line styles and markers</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div x-show="settingsTab === 'negotiation'">
+                            <h3 class="font-semibold mb-4">Default Negotiation Settings</h3>
+                            <div class="form-group">
+                                <label class="form-label">Default Max Steps</label>
+                                <input type="number" class="form-input" x-model.number="settings.defaultSteps">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Default Step Delay (ms)</label>
+                                <input type="number" class="form-input" x-model.number="settings.defaultDelay">
+                            </div>
+                        </div>
+                        
+                        <div x-show="settingsTab === 'sources'">
+                            <h3 class="font-semibold mb-4">Negotiator Sources</h3>
+                            <p class="text-secondary mb-4" style="font-size: 13px;">
+                                Enable or disable negotiator sources. Disabled sources won't appear in the negotiator selection.
+                            </p>
+                            
+                            <div class="source-toggle-list">
+                                <template x-for="source in sourceSettingsList" :key="source.id">
+                                    <div class="source-toggle-item">
+                                        <div class="source-toggle-info">
+                                            <div class="source-toggle-name" x-text="source.name"></div>
+                                            <div class="source-toggle-desc" x-text="source.description"></div>
+                                            <div class="source-toggle-status">
+                                                <template x-if="source.available">
+                                                    <span class="text-success" x-text="source.count + ' negotiators available'"></span>
+                                                </template>
+                                                <template x-if="!source.available">
+                                                    <span class="text-muted" x-text="source.unavailable_reason || 'Not installed'"></span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   :checked="!sourceSettings.disabled_sources.includes(source.id)" 
+                                                   :disabled="!source.available"
+                                                   @change="toggleSource(source.id)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </template>
+                            </div>
+                            
+                            <div class="mt-4">
+                                <button class="btn btn-secondary" @click="refreshNegotiators()" :disabled="refreshingNegotiators">
+                                    <template x-if="refreshingNegotiators">
+                                        <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                    </template>
+                                    <template x-if="!refreshingNegotiators">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <path d="M23 4v6h-6"></path>
+                                            <path d="M1 20v-6h6"></path>
+                                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                        </svg>
+                                    </template>
+                                    Refresh Sources
+                                </button>
+                                <span class="text-muted" style="margin-left: 12px; font-size: 12px;">Re-scan for available negotiators</span>
+                            </div>
+                        </div>
+                        
+                        <div x-show="settingsTab === 'genius'">
+                            <h3 class="font-semibold mb-4">Genius Bridge</h3>
+                            <div class="form-group">
+                                <label class="form-label">Status</label>
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <span class="badge" :class="geniusBridge.running ? 'badge-success' : 'badge-neutral'" x-text="geniusBridge.running ? 'Running' : 'Stopped'"></span>
+                                    <button class="btn btn-secondary" @click="toggleGeniusBridge()" x-text="geniusBridge.running ? 'Stop' : 'Start'"></button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" x-model="settings.autoStartGenius">
+                                    <span>Auto-start when needed</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div x-show="settingsTab === 'paths'">
+                            <h3 class="font-semibold mb-4">Custom Paths</h3>
+                            <div class="form-group">
+                                <label class="form-label">Additional Scenario Paths</label>
+                                <textarea class="form-textarea" placeholder="One path per line..." x-model="settings.scenarioPaths"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Additional Negotiator Paths</label>
+                                <textarea class="form-textarea" placeholder="One path per line..." x-model="settings.negotiatorPaths"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="showSettings = false">Close</button>
+                <button class="btn btn-primary" @click="saveSettings()">Save Settings</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Save Session Preset Modal -->
+    <div class="modal-overlay" :class="{ active: showSaveSessionModal }" @click.self="showSaveSessionModal = false">
+        <div class="modal small">
+            <div class="modal-header">
+                <h2 class="modal-title">Save Session</h2>
+                <button class="modal-close" @click="showSaveSessionModal = false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Preset Name</label>
+                    <input type="text" class="form-input" placeholder="My Negotiation Setup" x-model="savePresetName" @keyup.enter="saveFullSession()">
+                    <div class="form-hint">Give this configuration a memorable name</div>
+                </div>
+                <div class="form-group" x-show="newNeg.scenario">
+                    <label class="form-label">Configuration Summary</label>
+                    <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px; font-size: 13px;">
+                        <div><strong>Scenario:</strong> <span x-text="newNeg.scenario?.name"></span></div>
+                        <div><strong>Negotiators:</strong> <span x-text="newNeg.negotiators.map(n => getNegotiatorDisplayName(n.type_name)).join(' vs ')"></span></div>
+                        <div><strong>Steps:</strong> <span x-text="newNeg.n_steps || 'No limit'"></span></div>
+                        <div><strong>Mode:</strong> <span x-text="newNeg.mode === 'realtime' ? 'Real-time' : 'Batch'"></span></div>
+                    </div>
+                </div>
+                    </div><!-- end wizard-content -->
+                </div><!-- end wizard-layout -->
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="showSaveSessionModal = false">Cancel</button>
+                <button class="btn btn-primary" @click="saveFullSession()" :disabled="!savePresetName.trim()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    function app() {
+        return {
+            // Connection status
+            connected: true,
+            
+            // Sidebar state
+            sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true',
+            
+            // Modal states
+            showNewNegotiation: false,
+            showSettings: false,
+            
+            // Tabs
+            negotiationTab: 'scenario',
+            settingsTab: 'general',
+            paramSubTab: 'deadline',
+            
+            // Parameter group collapse states
+            showAdvancedDeadline: false,
+            showSAOResponse: true,
+            showSAOOffers: false,
+            showSAOSemantics: false,
+            showInfoSharing: true,
+            
+            // Data
+            sources: [],
+            scenarios: [],
+            scenarioSearch: '',
+            negotiatorTypes: [],
+            negotiatorSources: [],
+            negotiatorSearch: '',
+            negotiatorSourceFilter: '',
+            negotiatorGroupFilter: '',
+            selectedNegotiatorSlot: 0,
+            
+            // Running/completed negotiations
+            runningNegotiations: [],
+            completedNegotiations: [],
+            currentNegotiation: null,
+            
+            // New negotiation form
+            newNeg: {
+                source: '',
+                scenario: null,
+                negotiators: [
+                    { type_name: 'AspirationNegotiator', name: 'Agent1' },
+                    { type_name: 'BoulwareTBNegotiator', name: 'Agent2' }
+                ],
+                // Mechanism type
+                mechanism_type: 'sao',
+                // Deadline params
+                n_steps: 100,
+                time_limit: null,
+                pend: 0,
+                pend_per_second: 0,
+                step_time_limit: null,
+                negotiator_time_limit: null,
+                hidden_time_limit: null,
+                // SAO params
+                sao: {
+                    end_on_no_response: true,
+                    avoid_ultimatum: false,
+                    check_offers: false,
+                    enforce_issue_types: false,
+                    cast_offers: false,
+                    offering_is_accepting: true,
+                    allow_offering_just_rejected_outcome: true,
+                    one_offer_per_step: false
+                },
+                // TAU params
+                tau: {
+                    accept_in_any_thread: true,
+                    parallel: true
+                },
+                // GB params
+                gb: {
+                    parallel: true,
+                    end_on_no_response: true,
+                    check_offers: false
+                },
+                // Information sharing
+                share_ufuns: false,
+                // Display params
+                mode: 'realtime',
+                step_delay: 100,
+                show_plot: true,
+                show_offers: true
+            },
+            
+            // Settings
+            settings: {
+                darkMode: localStorage.getItem('darkMode') === 'true',
+                colorBlindMode: localStorage.getItem('colorBlindMode') === 'true',
+                defaultSteps: 100,
+                defaultDelay: 100,
+                autoStartGenius: true,
+                scenarioPaths: '',
+                negotiatorPaths: ''
+            },
+            
+            // Genius bridge
+            geniusBridge: {
+                installed: false,
+                running: false,
+                loading: false,
+                port: 25337
+            },
+            
+            // Negotiator source settings
+            sourceSettings: {
+                disabled_sources: [],
+                custom_sources: []
+            },
+            sourceSettingsList: [],
+            refreshingNegotiators: false,
+            
+            // Preset management
+            recentSessions: [],
+            sessionPresets: [],
+            showSaveSessionModal: false,
+            savePresetName: '',
+            
+            // Computed
+            get filteredScenarios() {
+                let results = this.scenarios;
+                
+                // Filter by source if selected
+                if (this.newNeg.source) {
+                    results = results.filter(s => s.source === this.newNeg.source);
+                }
+                
+                // Filter by search term
+                if (this.scenarioSearch) {
+                    const search = this.scenarioSearch.toLowerCase();
+                    results = results.filter(s => 
+                        s.name.toLowerCase().includes(search) ||
+                        s.source.toLowerCase().includes(search)
+                    );
+                }
+                
+                return results;
+            },
+            
+            get filteredNegotiators() {
+                let results = this.negotiatorTypes;
+                
+                // Filter by source if selected
+                if (this.negotiatorSourceFilter) {
+                    results = results.filter(n => n.source === this.negotiatorSourceFilter);
+                }
+                
+                // Filter by group if selected (for genius)
+                if (this.negotiatorGroupFilter) {
+                    results = results.filter(n => n.group === this.negotiatorGroupFilter);
+                }
+                
+                // Filter by search term
+                if (this.negotiatorSearch) {
+                    const search = this.negotiatorSearch.toLowerCase();
+                    results = results.filter(n => 
+                        n.name.toLowerCase().includes(search) ||
+                        n.type_name.toLowerCase().includes(search) ||
+                        (n.description && n.description.toLowerCase().includes(search))
+                    );
+                }
+                
+                return results;
+            },
+            
+            get canProceed() {
+                if (this.negotiationTab === 'scenario') {
+                    return this.newNeg.scenario !== null;
+                }
+                if (this.negotiationTab === 'negotiators') {
+                    return this.newNeg.negotiators.length >= (this.newNeg.scenario?.n_negotiators || 2);
+                }
+                return true;
+            },
+            
+            get canStart() {
+                if (this.newNeg.scenario === null) return false;
+                if (this.newNeg.negotiators.length < (this.newNeg.scenario?.n_negotiators || 2)) return false;
+                // Check deadline requirement for non-TAU mechanisms
+                if (this.newNeg.mechanism_type !== 'tau' && !this.hasDeadline()) return false;
+                return true;
+            },
+            
+            // Helper methods
+            hasDeadline() {
+                return this.newNeg.n_steps > 0 ||
+                       (this.newNeg.time_limit && this.newNeg.time_limit > 0) ||
+                       this.newNeg.pend > 0 ||
+                       this.newNeg.pend_per_second > 0 ||
+                       (this.newNeg.hidden_time_limit && this.newNeg.hidden_time_limit > 0);
+            },
+            
+            getMechanismDescription(type) {
+                const descriptions = {
+                    sao: 'Sequential offers with acceptance/rejection. Most common protocol.',
+                    tau: 'Parallel offers in multiple threads. Can run without deadline.',
+                    gb: 'General game-based mechanism with configurable evaluators.'
+                };
+                return descriptions[type] || '';
+            },
+            
+            // Init
+            async init() {
+                // Watch sidebar state
+                this.$watch('sidebarCollapsed', (val) => {
+                    localStorage.setItem('sidebarCollapsed', val);
+                });
+                
+                // Load settings from backend first
+                await this.loadSettings();
+                
+                // Apply dark mode to body (html already has it from inline script)
+                if (this.settings.darkMode) {
+                    document.body.classList.add('dark-mode');
+                }
+                await this.loadSources();
+                await this.loadNegotiatorSources();
+                await this.loadNegotiatorTypes();
+                // Pre-load all scenarios so search is instant
+                await this.loadAllScenarios();
+                this.initSortable();
+                
+                // Check Genius Bridge status
+                await this.checkGeniusBridgeStatus();
+                // Periodically check status
+                setInterval(() => this.checkGeniusBridgeStatus(), 10000);
+            },
+            
+            initSortable() {
+                this.$watch('showNewNegotiation', (show) => {
+                    if (show) {
+                        this.$nextTick(() => {
+                            const list = this.$refs.negotiatorList;
+                            if (list && !list._sortable) {
+                                list._sortable = new Sortable(list, {
+                                    handle: '.drag-handle',
+                                    animation: 150,
+                                    onEnd: (evt) => {
+                                        const item = this.newNeg.negotiators.splice(evt.oldIndex, 1)[0];
+                                        this.newNeg.negotiators.splice(evt.newIndex, 0, item);
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            },
+            
+            // API calls
+            async loadSources() {
+                try {
+                    const res = await fetch('/api/scenarios/sources');
+                    const data = await res.json();
+                    this.sources = data.sources;
+                } catch (e) {
+                    console.error('Failed to load sources:', e);
+                }
+            },
+            
+            async loadAllScenarios() {
+                if (this.scenarios.length > 0) return; // Already loaded
+                try {
+                    const res = await fetch('/api/scenarios');
+                    const data = await res.json();
+                    this.scenarios = data.scenarios;
+                } catch (e) {
+                    console.error('Failed to load scenarios:', e);
+                }
+            },
+            
+            async searchScenarios() {
+                // Load all scenarios on first search
+                await this.loadAllScenarios();
+            },
+            
+            async filterBySource() {
+                // Load all scenarios when filtering
+                await this.loadAllScenarios();
+            },
+            
+            async loadNegotiatorTypes() {
+                try {
+                    const res = await fetch('/api/negotiators');
+                    const data = await res.json();
+                    this.negotiatorTypes = data.negotiators;
+                } catch (e) {
+                    console.error('Failed to load negotiator types:', e);
+                }
+            },
+            
+            async loadNegotiatorSources() {
+                try {
+                    const res = await fetch('/api/negotiators/sources');
+                    const data = await res.json();
+                    this.negotiatorSources = data.sources;
+                } catch (e) {
+                    console.error('Failed to load negotiator sources:', e);
+                }
+            },
+            
+            async loadSourceSettings() {
+                try {
+                    // Load source settings from backend
+                    const res = await fetch('/api/settings/negotiator_sources');
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.sourceSettings = data;
+                    }
+                    
+                    // Build the list with availability info from negotiatorSources
+                    this.sourceSettingsList = this.negotiatorSources.map(source => {
+                        const count = this.negotiatorTypes.filter(n => n.source === source.id).length;
+                        return {
+                            ...source,
+                            count: count,
+                            available: source.available !== false,
+                            unavailable_reason: source.unavailable_reason
+                        };
+                    });
+                } catch (e) {
+                    console.error('Failed to load source settings:', e);
+                }
+            },
+            
+            // Genius Bridge methods
+            async checkGeniusBridgeStatus() {
+                try {
+                    const res = await fetch('/api/genius/status');
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.geniusBridge.installed = data.installed;
+                        this.geniusBridge.running = data.running;
+                        this.geniusBridge.port = data.port;
+                    }
+                } catch (e) {
+                    console.error('Failed to check Genius Bridge status:', e);
+                }
+            },
+            
+            async startGeniusBridge() {
+                if (this.geniusBridge.loading) return;
+                this.geniusBridge.loading = true;
+                try {
+                    const res = await fetch('/api/genius/start', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ port: this.geniusBridge.port })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.success) {
+                            this.geniusBridge.running = true;
+                            this.geniusBridge.port = data.port;
+                        } else {
+                            console.error('Failed to start Genius Bridge:', data.message);
+                            alert('Failed to start Genius Bridge: ' + data.message);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to start Genius Bridge:', e);
+                } finally {
+                    this.geniusBridge.loading = false;
+                }
+            },
+            
+            async stopGeniusBridge() {
+                if (this.geniusBridge.loading) return;
+                this.geniusBridge.loading = true;
+                try {
+                    const res = await fetch('/api/genius/stop?port=' + this.geniusBridge.port, {
+                        method: 'POST'
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.success) {
+                            this.geniusBridge.running = false;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to stop Genius Bridge:', e);
+                } finally {
+                    this.geniusBridge.loading = false;
+                }
+            },
+            
+            async toggleGeniusBridge() {
+                if (this.geniusBridge.running) {
+                    await this.stopGeniusBridge();
+                } else {
+                    await this.startGeniusBridge();
+                }
+            },
+            
+            async ensureGeniusBridgeRunning() {
+                if (!this.geniusBridge.running) {
+                    await this.startGeniusBridge();
+                }
+                return this.geniusBridge.running;
+            },
+            
+            toggleSource(sourceId) {
+                const idx = this.sourceSettings.disabled_sources.indexOf(sourceId);
+                if (idx >= 0) {
+                    this.sourceSettings.disabled_sources.splice(idx, 1);
+                } else {
+                    this.sourceSettings.disabled_sources.push(sourceId);
+                }
+            },
+            
+            async refreshNegotiators() {
+                this.refreshingNegotiators = true;
+                try {
+                    await fetch('/api/negotiators/refresh', { method: 'POST' });
+                    await this.loadNegotiatorTypes();
+                    await this.loadNegotiatorSources();
+                    await this.loadSourceSettings();
+                } catch (e) {
+                    console.error('Failed to refresh negotiators:', e);
+                } finally {
+                    this.refreshingNegotiators = false;
+                }
+            },
+            
+            async searchNegotiators() {
+                // Negotiators already loaded at init, just triggers reactivity
+            },
+            
+            async filterNegotiators() {
+                // Reset group filter if source changed
+                if (this.negotiatorSourceFilter !== 'genius') {
+                    this.negotiatorGroupFilter = '';
+                }
+            },
+            
+            // Modal actions
+            openNewNegotiation() {
+                this.showNewNegotiation = true;
+                this.negotiationTab = 'scenario';
+                this.paramSubTab = 'deadline';
+                this.scenarioSearch = '';
+                this.negotiatorSearch = '';
+                this.negotiatorSourceFilter = '';
+                this.negotiatorGroupFilter = '';
+                this.showAdvancedDeadline = false;
+                this.showSAOResponse = true;
+                this.showSAOOffers = false;
+                this.showSAOSemantics = false;
+                this.showInfoSharing = true;
+                this.newNeg = {
+                    source: '',
+                    scenario: null,
+                    negotiators: [
+                        { type_name: 'negmas.sao.AspirationNegotiator', name: 'Agent1', source: 'native' },
+                        { type_name: 'negmas.sao.BoulwareTBNegotiator', name: 'Agent2', source: 'native' }
+                    ],
+                    mechanism_type: 'sao',
+                    n_steps: this.settings.defaultSteps,
+                    time_limit: null,
+                    pend: 0,
+                    pend_per_second: 0,
+                    step_time_limit: null,
+                    negotiator_time_limit: null,
+                    hidden_time_limit: null,
+                    sao: {
+                        end_on_no_response: true,
+                        avoid_ultimatum: false,
+                        check_offers: false,
+                        enforce_issue_types: false,
+                        cast_offers: false,
+                        offering_is_accepting: true,
+                        allow_offering_just_rejected_outcome: true,
+                        one_offer_per_step: false
+                    },
+                    tau: {
+                        accept_in_any_thread: true,
+                        parallel: true
+                    },
+                    gb: {
+                        parallel: true,
+                        end_on_no_response: true,
+                        check_offers: false
+                    },
+                    share_ufuns: false,
+                    mode: 'realtime',
+                    step_delay: this.settings.defaultDelay,
+                    show_plot: true,
+                    show_offers: true,
+                    auto_start: true,
+                    panels: {
+                        adjustable: true,
+                        utilityView: {
+                            xAxis: 0,
+                            yAxis: 1
+                        },
+                        timeline: {
+                            xAxis: 'step'
+                        }
+                    }
+                };
+            },
+            
+            selectScenario(scenario) {
+                this.newNeg.scenario = scenario;
+                // Adjust negotiator count if needed
+                while (this.newNeg.negotiators.length < scenario.n_negotiators) {
+                    this.addNegotiator();
+                }
+                while (this.newNeg.negotiators.length > scenario.n_negotiators) {
+                    this.newNeg.negotiators.pop();
+                }
+            },
+            
+            nextNegotiationTab() {
+                if (this.negotiationTab === 'scenario') this.negotiationTab = 'negotiators';
+                else if (this.negotiationTab === 'negotiators') this.negotiationTab = 'parameters';
+                else if (this.negotiationTab === 'parameters') this.negotiationTab = 'panels';
+                else if (this.negotiationTab === 'panels') this.negotiationTab = 'display';
+            },
+            
+            prevNegotiationTab() {
+                if (this.negotiationTab === 'display') this.negotiationTab = 'panels';
+                else if (this.negotiationTab === 'panels') this.negotiationTab = 'parameters';
+                else if (this.negotiationTab === 'parameters') this.negotiationTab = 'negotiators';
+                else if (this.negotiationTab === 'negotiators') this.negotiationTab = 'scenario';
+            },
+            
+            // Negotiator management
+            addNegotiator() {
+                const idx = this.newNeg.negotiators.length;
+                this.newNeg.negotiators.push({
+                    type_name: 'negmas.sao.AspirationNegotiator',
+                    name: `Agent${idx + 1}`,
+                    source: 'native'
+                });
+            },
+            
+            removeNegotiator(index) {
+                if (this.newNeg.negotiators.length > 2) {
+                    this.newNeg.negotiators.splice(index, 1);
+                }
+            },
+            
+            selectNegotiatorForSlot(negInfo) {
+                // Use the currently selected slot
+                const slotIndex = this.selectedNegotiatorSlot;
+                const existingName = this.newNeg.negotiators[slotIndex]?.name;
+                
+                const newNeg = {
+                    type_name: negInfo.type_name,
+                    name: existingName || `Agent${slotIndex + 1}`,
+                    source: negInfo.source,
+                    requires_bridge: negInfo.requires_bridge
+                };
+                
+                if (slotIndex < this.newNeg.negotiators.length) {
+                    this.newNeg.negotiators[slotIndex] = newNeg;
+                } else {
+                    this.newNeg.negotiators.push(newNeg);
+                }
+                
+                // Auto-start Genius Bridge if needed
+                if (negInfo.requires_bridge && this.settings.autoStartGenius && !this.geniusBridge.running) {
+                    this.startGeniusBridge();
+                }
+                
+                // Auto-advance to next slot if there's room
+                const requiredCount = this.newNeg.scenario?.n_negotiators || 2;
+                if (slotIndex + 1 < requiredCount && slotIndex + 1 < this.newNeg.negotiators.length) {
+                    this.selectedNegotiatorSlot = slotIndex + 1;
+                }
+            },
+            
+            getNegotiatorDisplayName(typeName) {
+                const neg = this.negotiatorTypes.find(n => n.type_name === typeName);
+                return neg?.name || typeName.split('.').pop();
+            },
+            
+            getNegotiatorDescription(typeName) {
+                const neg = this.negotiatorTypes.find(n => n.type_name === typeName);
+                return neg?.description || '';
+            },
+            
+            getSourceBadgeClass(source) {
+                const classes = {
+                    'native': 'badge-primary',
+                    'genius': 'badge-warning',
+                    'genius-reimplemented': 'badge-success',
+                    'llm': 'badge-info',
+                    'rl': 'badge-info',
+                    'negolog': 'badge-secondary'
+                };
+                return classes[source] || 'badge-neutral';
+            },
+            
+            // Start negotiation
+            async startNegotiation() {
+                if (!this.canStart) return;
+                
+                // Check if any negotiator requires the Genius Bridge
+                const needsBridge = this.newNeg.negotiators.some(n => n.requires_bridge);
+                if (needsBridge && !this.geniusBridge.running) {
+                    // Try to start the bridge
+                    await this.startGeniusBridge();
+                    if (!this.geniusBridge.running) {
+                        alert('Cannot start negotiation: Genius Bridge is required but failed to start.');
+                        return;
+                    }
+                }
+                
+                // Save to recent sessions
+                await this.addToRecentSessions();
+                
+                try {
+                    const res = await fetch('/api/negotiation/start', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            scenario_path: this.newNeg.scenario.path,
+                            negotiators: this.newNeg.negotiators,
+                            n_steps: this.newNeg.n_steps,
+                            time_limit: this.newNeg.time_limit || null,
+                            step_delay: this.newNeg.step_delay / 1000,
+                            share_ufuns: this.newNeg.share_ufuns
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    
+                    // Add to running negotiations
+                    this.runningNegotiations.push({
+                        id: data.session_id,
+                        scenario: this.newNeg.scenario.name,
+                        step: 0,
+                        stream_url: data.stream_url
+                    });
+                    
+                    this.showNewNegotiation = false;
+                    
+                    // Start streaming
+                    this.connectToStream(data.session_id, data.stream_url);
+                    
+                } catch (e) {
+                    console.error('Failed to start negotiation:', e);
+                }
+            },
+            
+            connectToStream(sessionId, url) {
+                const eventSource = new EventSource(url);
+                
+                eventSource.addEventListener('offer', (event) => {
+                    const offer = JSON.parse(event.data);
+                    const neg = this.runningNegotiations.find(n => n.id === sessionId);
+                    if (neg) {
+                        neg.step = offer.step;
+                        neg.lastOffer = offer;
+                    }
+                });
+                
+                eventSource.addEventListener('complete', (event) => {
+                    const result = JSON.parse(event.data);
+                    const idx = this.runningNegotiations.findIndex(n => n.id === sessionId);
+                    if (idx >= 0) {
+                        const neg = this.runningNegotiations.splice(idx, 1)[0];
+                        neg.agreement = result.agreement;
+                        neg.final_utilities = result.final_utilities;
+                        neg.end_reason = result.end_reason;
+                        this.completedNegotiations.unshift(neg);
+                    }
+                    eventSource.close();
+                });
+                
+                eventSource.addEventListener('error', () => {
+                    eventSource.close();
+                });
+            },
+            
+            selectNegotiation(neg) {
+                this.currentNegotiation = neg;
+            },
+            
+            // Settings
+            async loadSettings() {
+                try {
+                    const res = await fetch('/api/settings');
+                    const data = await res.json();
+                    
+                    // Map backend settings to frontend model
+                    this.settings.darkMode = data.general?.dark_mode ?? false;
+                    this.settings.colorBlindMode = data.general?.color_blind_mode ?? false;
+                    this.settings.defaultSteps = data.negotiation?.default_max_steps ?? 100;
+                    this.settings.defaultDelay = data.negotiation?.default_step_delay_ms ?? 100;
+                    this.settings.autoStartGenius = data.genius_bridge?.auto_start ?? true;
+                    this.settings.scenarioPaths = (data.paths?.scenario_paths ?? []).join('\n');
+                    this.settings.negotiatorPaths = (data.paths?.negotiator_paths ?? []).join('\n');
+                    
+                    // Sync localStorage with backend
+                    localStorage.setItem('darkMode', this.settings.darkMode.toString());
+                    localStorage.setItem('colorBlindMode', this.settings.colorBlindMode.toString());
+                    
+                    // Apply dark mode based on loaded settings
+                    document.documentElement.classList.toggle('dark-mode', this.settings.darkMode);
+                    document.body.classList.toggle('dark-mode', this.settings.darkMode);
+                    
+                    // Apply color-blind mode based on loaded settings
+                    document.documentElement.classList.toggle('color-blind-mode', this.settings.colorBlindMode);
+                    document.body.classList.toggle('color-blind-mode', this.settings.colorBlindMode);
+                } catch (e) {
+                    console.error('Failed to load settings:', e);
+                }
+            },
+            
+            toggleDarkMode() {
+                localStorage.setItem('darkMode', this.settings.darkMode);
+                document.documentElement.classList.toggle('dark-mode', this.settings.darkMode);
+                document.body.classList.toggle('dark-mode', this.settings.darkMode);
+                // Also save to backend immediately for dark mode
+                this.saveGeneralSettings();
+                // Trigger chart redraws if any
+                window.dispatchEvent(new CustomEvent('dark-mode-changed', { 
+                    detail: { enabled: this.settings.darkMode } 
+                }));
+            },
+            
+            toggleColorBlindMode() {
+                localStorage.setItem('colorBlindMode', this.settings.colorBlindMode);
+                document.documentElement.classList.toggle('color-blind-mode', this.settings.colorBlindMode);
+                document.body.classList.toggle('color-blind-mode', this.settings.colorBlindMode);
+                // Save to backend immediately
+                this.saveGeneralSettings();
+                // Trigger chart redraws if any
+                window.dispatchEvent(new CustomEvent('colorblind-mode-changed', { 
+                    detail: { enabled: this.settings.colorBlindMode } 
+                }));
+            },
+            
+            async saveGeneralSettings() {
+                try {
+                    await fetch('/api/settings/general', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            dark_mode: this.settings.darkMode,
+                            color_blind_mode: this.settings.colorBlindMode 
+                        })
+                    });
+                } catch (e) {
+                    console.error('Failed to save general settings:', e);
+                }
+            },
+            
+            toggleGeniusBridge() {
+                // TODO: Implement
+                this.geniusBridge.running = !this.geniusBridge.running;
+            },
+            
+            async saveSettings() {
+                try {
+                    const settings = {
+                        general: {
+                            dark_mode: this.settings.darkMode,
+                            color_blind_mode: this.settings.colorBlindMode
+                        },
+                        negotiation: {
+                            default_max_steps: this.settings.defaultSteps,
+                            default_step_delay_ms: this.settings.defaultDelay,
+                            default_time_limit: null
+                        },
+                        genius_bridge: {
+                            auto_start: this.settings.autoStartGenius,
+                            java_path: null,
+                            port: 25337
+                        },
+                        paths: {
+                            scenario_paths: this.settings.scenarioPaths.split('\n').filter(p => p.trim()),
+                            negotiator_paths: this.settings.negotiatorPaths.split('\n').filter(p => p.trim())
+                        }
+                    };
+                    
+                    await fetch('/api/settings', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(settings)
+                    });
+                    
+                    // Also save source settings if modified
+                    if (this.sourceSettings.disabled_sources.length > 0 || this.sourceSettings.custom_sources.length > 0) {
+                        await fetch('/api/settings/negotiator_sources', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.sourceSettings)
+                        });
+                        // Refresh negotiator list after changing sources
+                        await this.refreshNegotiators();
+                    }
+                    
+                    this.showSettings = false;
+                } catch (e) {
+                    console.error('Failed to save settings:', e);
+                }
+            },
+            
+            // Preset management
+            async loadRecentSessions() {
+                try {
+                    const res = await fetch('/api/settings/presets/recent');
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.recentSessions = data.presets || [];
+                    }
+                } catch (e) {
+                    console.error('Failed to load recent sessions:', e);
+                }
+            },
+            
+            async loadSessionPresets() {
+                try {
+                    const res = await fetch('/api/settings/presets/sessions');
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.sessionPresets = data.presets || [];
+                    }
+                } catch (e) {
+                    console.error('Failed to load session presets:', e);
+                }
+            },
+            
+            loadFullSession(session) {
+                // Find the scenario in the loaded scenarios
+                const scenario = this.scenarios.find(s => s.path === session.scenario_path);
+                
+                this.newNeg = {
+                    source: '',
+                    scenario: scenario || { path: session.scenario_path, name: session.scenario_name },
+                    negotiators: session.negotiators.map((n, i) => ({
+                        type_name: n.type_name,
+                        name: n.name || `Agent${i + 1}`,
+                        source: n.source || 'native',
+                        requires_bridge: n.requires_bridge || false
+                    })),
+                    mechanism_type: session.mechanism_type || 'sao',
+                    n_steps: session.n_steps ?? 100,
+                    time_limit: session.time_limit,
+                    pend: session.pend ?? 0,
+                    pend_per_second: session.pend_per_second ?? 0,
+                    step_time_limit: session.step_time_limit,
+                    negotiator_time_limit: session.negotiator_time_limit,
+                    hidden_time_limit: session.hidden_time_limit,
+                    sao: session.sao || {
+                        end_on_no_response: true,
+                        avoid_ultimatum: false,
+                        check_offers: false,
+                        enforce_issue_types: false,
+                        cast_offers: false,
+                        offering_is_accepting: true,
+                        allow_offering_just_rejected_outcome: true,
+                        one_offer_per_step: false
+                    },
+                    tau: session.tau || {
+                        accept_in_any_thread: true,
+                        parallel: true
+                    },
+                    gb: session.gb || {
+                        parallel: true,
+                        end_on_no_response: true,
+                        check_offers: false
+                    },
+                    share_ufuns: session.share_ufuns ?? false,
+                    mode: session.mode || 'realtime',
+                    step_delay: session.step_delay ?? 100,
+                    show_plot: session.show_plot ?? true,
+                    show_offers: session.show_offers ?? true
+                };
+                
+                // Jump directly to display tab when loading a full session
+                this.negotiationTab = 'display';
+            },
+            
+            buildSessionPreset(name) {
+                return {
+                    name: name,
+                    scenario_path: this.newNeg.scenario?.path,
+                    scenario_name: this.newNeg.scenario?.name,
+                    negotiators: this.newNeg.negotiators.map(n => ({
+                        type_name: n.type_name,
+                        name: n.name,
+                        source: n.source,
+                        requires_bridge: n.requires_bridge
+                    })),
+                    mechanism_type: this.newNeg.mechanism_type,
+                    n_steps: this.newNeg.n_steps,
+                    time_limit: this.newNeg.time_limit,
+                    pend: this.newNeg.pend,
+                    pend_per_second: this.newNeg.pend_per_second,
+                    step_time_limit: this.newNeg.step_time_limit,
+                    negotiator_time_limit: this.newNeg.negotiator_time_limit,
+                    hidden_time_limit: this.newNeg.hidden_time_limit,
+                    sao: this.newNeg.sao,
+                    tau: this.newNeg.tau,
+                    gb: this.newNeg.gb,
+                    share_ufuns: this.newNeg.share_ufuns,
+                    mode: this.newNeg.mode,
+                    step_delay: this.newNeg.step_delay,
+                    show_plot: this.newNeg.show_plot,
+                    show_offers: this.newNeg.show_offers
+                };
+            },
+            
+            async saveFullSession() {
+                if (!this.savePresetName.trim() || !this.newNeg.scenario) return;
+                
+                try {
+                    const preset = this.buildSessionPreset(this.savePresetName.trim());
+                    const res = await fetch('/api/settings/presets/sessions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(preset)
+                    });
+                    
+                    if (res.ok) {
+                        this.showSaveSessionModal = false;
+                        this.savePresetName = '';
+                        // Refresh the list
+                        await this.loadSessionPresets();
+                    }
+                } catch (e) {
+                    console.error('Failed to save session preset:', e);
+                }
+            },
+            
+            async deleteSessionPreset(name) {
+                try {
+                    const res = await fetch(`/api/settings/presets/sessions/${encodeURIComponent(name)}`, {
+                        method: 'DELETE'
+                    });
+                    if (res.ok) {
+                        await this.loadSessionPresets();
+                    }
+                } catch (e) {
+                    console.error('Failed to delete session preset:', e);
+                }
+            },
+            
+            async addToRecentSessions() {
+                if (!this.newNeg.scenario) return;
+                
+                try {
+                    const preset = this.buildSessionPreset(this.newNeg.scenario.name);
+                    await fetch('/api/settings/presets/recent', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(preset)
+                    });
+                } catch (e) {
+                    console.error('Failed to add to recent sessions:', e);
+                }
+            }
+        };
+    }
+    </script>
+    
     {% block scripts %}{% endblock %}
 </body>
 </html>
