@@ -234,6 +234,108 @@ body {
     to { transform: rotate(360deg); }
 }
 
+/* Layout Switcher in Header */
+.layout-switcher-container {
+    position: relative;
+    margin-right: 12px;
+}
+
+.header-btn.layout-switcher-trigger {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: var(--header-text, #fff);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.header-btn.layout-switcher-trigger:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.header-btn.layout-switcher-trigger .layout-name {
+    font-weight: 500;
+}
+
+.header-btn.layout-switcher-trigger .dropdown-arrow {
+    opacity: 0.7;
+}
+
+.layout-switcher-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    min-width: 180px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.layout-switcher-dropdown .layout-switcher-section {
+    padding: 6px;
+}
+
+.layout-switcher-dropdown .layout-switcher-title {
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+}
+
+.layout-switcher-dropdown .layout-switcher-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 0;
+}
+
+.layout-switcher-dropdown .layout-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.layout-switcher-dropdown .layout-option:hover {
+    background: var(--bg-tertiary);
+}
+
+.layout-switcher-dropdown .layout-option.active {
+    background: var(--primary-alpha, rgba(59, 130, 246, 0.1));
+    color: var(--primary);
+}
+
+.layout-switcher-dropdown .layout-option svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.layout-switcher-dropdown .layout-option.active svg {
+    color: var(--primary);
+    opacity: 1;
+}
+
 .header-actions {
     display: flex;
     gap: 8px;
