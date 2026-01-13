@@ -3077,3 +3077,220 @@ body {
     flex-wrap: wrap;
     gap: 3px;
 }
+
+/* =============================================================================
+   Tabulator Customizations
+   ============================================================================= */
+
+/* Override Tabulator midnight theme to match our design */
+.tabulator {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+.tabulator .tabulator-header {
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tabulator .tabulator-header .tabulator-col {
+    background: transparent;
+    border-right: 1px solid var(--border-color);
+}
+
+.tabulator .tabulator-header .tabulator-col:last-child {
+    border-right: none;
+}
+
+.tabulator .tabulator-header .tabulator-col .tabulator-col-content {
+    padding: 10px 12px;
+}
+
+.tabulator .tabulator-header .tabulator-col .tabulator-col-title {
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tabulator .tabulator-tableholder .tabulator-table .tabulator-row {
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tabulator .tabulator-tableholder .tabulator-table .tabulator-row:hover {
+    background: var(--bg-secondary);
+    cursor: pointer;
+}
+
+.tabulator .tabulator-tableholder .tabulator-table .tabulator-row .tabulator-cell {
+    padding: 10px 12px;
+    border-right: none;
+    color: var(--text-primary);
+}
+
+.tabulator .tabulator-tableholder .tabulator-table .tabulator-row.tabulator-selected {
+    background: var(--primary-bg);
+}
+
+.tabulator .tabulator-tableholder .tabulator-table .tabulator-row.tabulator-selected:hover {
+    background: var(--primary-bg);
+}
+
+/* Tabulator footer/pagination */
+.tabulator .tabulator-footer {
+    background: var(--bg-tertiary);
+    border-top: 1px solid var(--border-color);
+    padding: 8px 12px;
+}
+
+.tabulator .tabulator-footer .tabulator-page {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 4px 10px;
+    border-radius: 4px;
+    margin: 0 2px;
+}
+
+.tabulator .tabulator-footer .tabulator-page.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+}
+
+.tabulator .tabulator-footer .tabulator-page:hover:not(.active):not(:disabled) {
+    background: var(--bg-tertiary);
+}
+
+/* Tabulator sorter icons */
+.tabulator .tabulator-header .tabulator-col.tabulator-sortable .tabulator-col-title {
+    padding-right: 20px;
+}
+
+.tabulator .tabulator-header .tabulator-col .tabulator-col-sorter {
+    color: var(--text-muted);
+}
+
+/* Light mode overrides */
+:root:not(.dark-mode) .tabulator {
+    background: var(--bg-primary);
+}
+
+:root:not(.dark-mode) .tabulator .tabulator-header {
+    background: var(--bg-secondary);
+}
+
+:root:not(.dark-mode) .tabulator .tabulator-tableholder .tabulator-table .tabulator-row {
+    background: var(--bg-primary);
+}
+
+:root:not(.dark-mode) .tabulator .tabulator-tableholder .tabulator-table .tabulator-row:hover {
+    background: var(--bg-secondary);
+}
+
+/* Negotiations table view styles */
+.negotiations-table-view {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+}
+
+.negotiations-table-view h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.negotiations-table-view .table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.negotiations-table-view .table-section {
+    margin-bottom: 24px;
+}
+
+.negotiations-table-view .table-section:last-child {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.negotiations-table-view .table-section h3 {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+}
+
+.negotiations-table-view .table-section .tabulator {
+    flex: 1;
+}
+
+/* Negotiator badges in table cells */
+.negotiator-badges-compact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.badge-sm {
+    padding: 2px 6px;
+    font-size: 10px;
+    border-radius: 4px;
+}
+
+/* Utilities display in table */
+.utilities-compact {
+    display: flex;
+    gap: 8px;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+/* Status dot indicator */
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.status-dot.running {
+    background: var(--primary);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Saved negotiations section */
+.saved-negotiations-section {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-color);
+}
+
+.saved-negotiations-section h3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.saved-negotiations-section .load-saved-btn {
+    font-size: 12px;
+    padding: 4px 12px;
+}

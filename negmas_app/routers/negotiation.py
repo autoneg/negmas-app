@@ -1,5 +1,6 @@
 """Negotiation API endpoints with SSE streaming."""
 
+import asyncio
 import json
 from dataclasses import asdict
 
@@ -9,6 +10,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from ..models import NegotiatorConfig, OfferEvent, SessionInitEvent
 from ..services import SessionManager
+from ..services.negotiation_storage import NegotiationStorageService
 
 router = APIRouter(prefix="/api/negotiation", tags=["negotiation"])
 
@@ -133,6 +135,7 @@ async def stream_negotiation(
                                 "issue_names": event.issue_names,
                                 "n_steps": event.n_steps,
                                 "time_limit": event.time_limit,
+                                "n_outcomes": event.n_outcomes,
                                 "outcome_space_data": osd_data,
                             }
                         ),
@@ -301,3 +304,110 @@ async def get_session(session_id: str):
         if session.outcome_space_data
         else None,
     }
+
+
+# =============================================================================
+# Saved Negotiations Endpoints
+# =============================================================================
+
+
+@router.get("/saved/list")
+async def list_saved_negotiations():
+    """List all saved negotiations from disk.
+
+    Returns summary info for each saved negotiation.
+    """
+    negotiations = await asyncio.to_thread(
+        NegotiationStorageService.list_saved_negotiations
+    )
+    return {"negotiations": negotiations, "count": len(negotiations)}
+
+
+@router.get("/saved/{session_id}")
+async def get_saved_negotiation(session_id: str):
+    """Load a saved negotiation from disk.
+
+    Returns full negotiation data including offers and outcome space.
+    """
+    session = await asyncio.to_thread(
+        NegotiationStorageService.load_negotiation, session_id
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="Saved negotiation not found")
+
+    # Convert to response format
+    return {
+        "id": session.id,
+        "status": session.status.value,
+        "scenario_path": session.scenario_path,
+        "scenario_name": session.scenario_name
+        or (
+            session.scenario_path.split("/")[-1] if session.scenario_path else "Unknown"
+        ),
+        "mechanism_type": session.mechanism_type,
+        "negotiator_names": session.negotiator_names,
+        "negotiator_types": session.negotiator_types,
+        "negotiator_colors": [info.color for info in session.negotiator_infos]
+        if session.negotiator_infos
+        else [],
+        "current_step": session.current_step,
+        "n_steps": session.n_steps,
+        "time_limit": session.time_limit,
+        "issue_names": session.issue_names,
+        "start_time": session.start_time.isoformat() if session.start_time else None,
+        "end_time": session.end_time.isoformat() if session.end_time else None,
+        "agreement": session.agreement_dict,
+        "final_utilities": session.final_utilities,
+        "end_reason": session.end_reason,
+        "error": session.error,
+        "offers": [
+            {
+                "step": o.step,
+                "proposer": o.proposer,
+                "proposer_index": o.proposer_index,
+                "offer": o.offer_dict,
+                "utilities": o.utilities,
+                "relative_time": o.relative_time,
+            }
+            for o in session.offers
+        ],
+        "outcome_space_data": {
+            "outcome_utilities": session.outcome_space_data.outcome_utilities,
+            "pareto_utilities": session.outcome_space_data.pareto_utilities,
+            "nash_point": session.outcome_space_data.nash_point.utilities
+            if session.outcome_space_data.nash_point
+            else None,
+            "kalai_point": session.outcome_space_data.kalai_point.utilities
+            if session.outcome_space_data.kalai_point
+            else None,
+            "kalai_smorodinsky_point": session.outcome_space_data.kalai_smorodinsky_point.utilities
+            if session.outcome_space_data.kalai_smorodinsky_point
+            else None,
+            "max_welfare_point": session.outcome_space_data.max_welfare_point.utilities
+            if session.outcome_space_data.max_welfare_point
+            else None,
+            "total_outcomes": session.outcome_space_data.total_outcomes,
+            "sampled": session.outcome_space_data.sampled,
+            "sample_size": session.outcome_space_data.sample_size,
+        }
+        if session.outcome_space_data
+        else None,
+    }
+
+
+@router.delete("/saved/{session_id}")
+async def delete_saved_negotiation(session_id: str):
+    """Delete a saved negotiation from disk."""
+    success = await asyncio.to_thread(
+        NegotiationStorageService.delete_negotiation, session_id
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Saved negotiation not found")
+    return {"status": "deleted"}
+
+
+@router.delete("/saved")
+async def clear_all_saved_negotiations():
+    """Delete all saved negotiations from disk."""
+    count = await asyncio.to_thread(NegotiationStorageService.clear_all_negotiations)
+    return {"status": "cleared", "count": count}

@@ -149,10 +149,11 @@ class SessionManager:
             ignore_discount = scenario_options.get("ignore_discount", False)
             ignore_reserved = scenario_options.get("ignore_reserved", False)
 
-            # Load scenario with options
-            scenario = self.scenario_loader.load_scenario(
+            # Load scenario with options (run in thread pool to avoid blocking)
+            scenario = await asyncio.to_thread(
+                self.scenario_loader.load_scenario,
                 session.scenario_path,
-                ignore_discount=ignore_discount,
+                ignore_discount,
             )
             if scenario is None:
                 session.status = SessionStatus.FAILED
@@ -177,17 +178,22 @@ class SessionManager:
             ):
                 mechanism_params["one_offer_per_step"] = True
 
-            # Create mechanism using the new factory method
-            mechanism = MechanismFactory.create_from_scenario_params(
-                scenario, mechanism_type, mechanism_params
+            # Create mechanism using the new factory method (run in thread pool)
+            mechanism = await asyncio.to_thread(
+                MechanismFactory.create_from_scenario_params,
+                scenario,
+                mechanism_type,
+                mechanism_params,
             )
 
-            # Create negotiators and add to mechanism with ufuns
-            negotiators = NegotiatorFactory.create_for_scenario(
-                negotiator_configs, scenario
+            # Create negotiators and add to mechanism with ufuns (run in thread pool)
+            negotiators = await asyncio.to_thread(
+                NegotiatorFactory.create_for_scenario,
+                negotiator_configs,
+                scenario,
             )
             for neg, ufun in zip(negotiators, scenario.ufuns):
-                mechanism.add(neg, ufun=ufun)
+                await asyncio.to_thread(mechanism.add, neg, ufun=ufun)
 
             # Share utility functions if requested
             # For 2-party: each negotiator gets opponent's ufun
@@ -236,17 +242,27 @@ class SessionManager:
                 )
 
             # Compute outcome space analysis data (for 2-party negotiations)
+            # Run in thread pool as it can be computationally expensive
             outcome_space_data = None
             if len(scenario.ufuns) == 2:
                 try:
-                    outcome_space_data = compute_outcome_space_data(
-                        scenario, max_samples=max_outcome_samples
+                    outcome_space_data = await asyncio.to_thread(
+                        compute_outcome_space_data,
+                        scenario,
+                        max_outcome_samples,
                     )
                     session.outcome_space_data = outcome_space_data
                 except Exception:
                     pass  # Non-critical, continue without analysis
 
             # Yield session init event with all initial data
+            # Get n_outcomes for TAU progress calculation
+            n_outcomes = None
+            try:
+                n_outcomes = scenario.outcome_space.cardinality
+            except Exception:
+                pass
+
             init_event = SessionInitEvent(
                 session_id=session_id,
                 scenario_name=Path(session.scenario_path).name,
@@ -256,6 +272,7 @@ class SessionManager:
                 issue_names=issue_names,
                 n_steps=session.n_steps,
                 time_limit=session.time_limit,
+                n_outcomes=n_outcomes,
                 outcome_space_data=outcome_space_data,
             )
             yield init_event
@@ -353,11 +370,13 @@ class SessionManager:
                 else:
                     session.end_reason = "no_agreement"
 
-            # Auto-save if enabled
+            # Auto-save if enabled (run in thread pool to avoid blocking)
             if self._auto_save.get(session_id, False):
                 try:
                     configs = self._configs.get(session_id)
-                    NegotiationStorageService.save_negotiation(session, configs)
+                    await asyncio.to_thread(
+                        NegotiationStorageService.save_negotiation, session, configs
+                    )
                 except Exception as e:
                     print(f"Failed to auto-save negotiation {session_id}: {e}")
 

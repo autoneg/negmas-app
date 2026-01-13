@@ -1,5 +1,7 @@
 """Scenario API endpoints."""
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 
 from ..services import ScenarioLoader
@@ -11,7 +13,7 @@ _loader = ScenarioLoader()
 
 
 @router.get("")
-def list_scenarios(source: str | None = None):
+async def list_scenarios(source: str | None = None):
     """List all available scenarios.
 
     Args:
@@ -20,19 +22,19 @@ def list_scenarios(source: str | None = None):
     Returns:
         List of scenario info objects.
     """
-    scenarios = _loader.list_scenarios(source=source)
+    scenarios = await asyncio.to_thread(_loader.list_scenarios, source=source)
     return {"scenarios": [_scenario_to_dict(s) for s in scenarios]}
 
 
 @router.get("/sources")
-def list_sources():
+async def list_sources():
     """List available scenario sources."""
-    sources = _loader.list_sources()
+    sources = await asyncio.to_thread(_loader.list_sources)
     return {"sources": sources}
 
 
 @router.get("/{path:path}")
-def get_scenario(path: str):
+async def get_scenario(path: str):
     """Get details for a specific scenario.
 
     Args:
@@ -41,7 +43,7 @@ def get_scenario(path: str):
     Returns:
         Scenario info with full details.
     """
-    info = _loader.get_scenario_info(path)
+    info = await asyncio.to_thread(_loader.get_scenario_info, path)
     if info is None:
         raise HTTPException(status_code=404, detail="Scenario not found")
     return _scenario_to_dict(info)

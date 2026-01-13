@@ -1,5 +1,6 @@
 """Settings API router for NegMAS App."""
 
+import asyncio
 from dataclasses import asdict
 from typing import Any
 
@@ -29,7 +30,7 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 @router.get("")
 async def get_all_settings() -> dict[str, Any]:
     """Get all application settings."""
-    settings = SettingsService.load_all()
+    settings = await asyncio.to_thread(SettingsService.load_all)
     return asdict(settings)
 
 
@@ -67,7 +68,7 @@ async def update_all_settings(settings: dict[str, Any]) -> dict[str, Any]:
         genius_bridge=GeniusBridgeSettings(**genius_bridge_filtered),
         paths=PathSettings(**paths_filtered),
     )
-    SettingsService.save_all(app_settings)
+    await asyncio.to_thread(SettingsService.save_all, app_settings)
     return asdict(app_settings)
 
 
@@ -77,63 +78,68 @@ async def update_all_settings(settings: dict[str, Any]) -> dict[str, Any]:
 @router.get("/general")
 async def get_general_settings() -> dict[str, Any]:
     """Get general settings."""
-    return asdict(SettingsService.load_general())
+    settings = await asyncio.to_thread(SettingsService.load_general)
+    return asdict(settings)
 
 
 @router.put("/general")
 async def update_general_settings(settings: dict[str, Any]) -> dict[str, Any]:
     """Update general settings."""
     general = GeneralSettings(**settings)
-    SettingsService.save_general(general)
+    await asyncio.to_thread(SettingsService.save_general, general)
     return asdict(general)
 
 
 @router.get("/negotiation")
 async def get_negotiation_settings() -> dict[str, Any]:
     """Get negotiation settings."""
-    return asdict(SettingsService.load_negotiation())
+    settings = await asyncio.to_thread(SettingsService.load_negotiation)
+    return asdict(settings)
 
 
 @router.put("/negotiation")
 async def update_negotiation_settings(settings: dict[str, Any]) -> dict[str, Any]:
     """Update negotiation settings."""
     negotiation = NegotiationSettings(**settings)
-    SettingsService.save_negotiation(negotiation)
+    await asyncio.to_thread(SettingsService.save_negotiation, negotiation)
     return asdict(negotiation)
 
 
 @router.get("/genius_bridge")
 async def get_genius_bridge_settings() -> dict[str, Any]:
     """Get genius bridge settings."""
-    return asdict(SettingsService.load_genius_bridge())
+    settings = await asyncio.to_thread(SettingsService.load_genius_bridge)
+    return asdict(settings)
 
 
 @router.put("/genius_bridge")
 async def update_genius_bridge_settings(settings: dict[str, Any]) -> dict[str, Any]:
     """Update genius bridge settings."""
     genius_bridge = GeniusBridgeSettings(**settings)
-    SettingsService.save_genius_bridge(genius_bridge)
+    await asyncio.to_thread(SettingsService.save_genius_bridge, genius_bridge)
     return asdict(genius_bridge)
 
 
 @router.get("/paths")
 async def get_path_settings() -> dict[str, Any]:
     """Get path settings."""
-    return asdict(SettingsService.load_paths())
+    settings = await asyncio.to_thread(SettingsService.load_paths)
+    return asdict(settings)
 
 
 @router.put("/paths")
 async def update_path_settings(settings: dict[str, Any]) -> dict[str, Any]:
     """Update path settings."""
     paths = PathSettings(**settings)
-    SettingsService.save_paths(paths)
+    await asyncio.to_thread(SettingsService.save_paths, paths)
     return asdict(paths)
 
 
 @router.get("/negotiator_sources")
 async def get_negotiator_sources_settings() -> dict[str, Any]:
     """Get negotiator sources settings."""
-    return asdict(SettingsService.load_negotiator_sources())
+    settings = await asyncio.to_thread(SettingsService.load_negotiator_sources)
+    return asdict(settings)
 
 
 @router.put("/negotiator_sources")
@@ -150,7 +156,7 @@ async def update_negotiator_sources_settings(
         custom_sources=custom_sources,
         disabled_sources=settings.get("disabled_sources", []),
     )
-    SettingsService.save_negotiator_sources(sources)
+    await asyncio.to_thread(SettingsService.save_negotiator_sources, sources)
     return asdict(sources)
 
 
@@ -165,7 +171,7 @@ async def update_negotiator_sources_settings(
 @router.get("/presets/scenarios")
 async def get_scenario_presets() -> dict[str, Any]:
     """Get all scenario presets."""
-    presets = SettingsService.load_scenario_presets()
+    presets = await asyncio.to_thread(SettingsService.load_scenario_presets)
     return {"presets": [asdict(p) for p in presets]}
 
 
@@ -177,14 +183,14 @@ async def save_scenario_preset(data: dict[str, Any]) -> dict[str, Any]:
         scenario_path=data["scenario_path"],
         scenario_name=data["scenario_name"],
     )
-    SettingsService.save_scenario_preset(preset)
+    await asyncio.to_thread(SettingsService.save_scenario_preset, preset)
     return asdict(preset)
 
 
 @router.delete("/presets/scenarios/{name}")
 async def delete_scenario_preset(name: str) -> dict[str, Any]:
     """Delete a scenario preset."""
-    success = SettingsService.delete_scenario_preset(name)
+    success = await asyncio.to_thread(SettingsService.delete_scenario_preset, name)
     return {"success": success}
 
 
@@ -194,7 +200,7 @@ async def delete_scenario_preset(name: str) -> dict[str, Any]:
 @router.get("/presets/negotiators")
 async def get_negotiators_presets() -> dict[str, Any]:
     """Get all negotiators presets."""
-    presets = SettingsService.load_negotiators_presets()
+    presets = await asyncio.to_thread(SettingsService.load_negotiators_presets)
     return {"presets": [asdict(p) for p in presets]}
 
 
@@ -206,14 +212,14 @@ async def save_negotiators_preset(data: dict[str, Any]) -> dict[str, Any]:
         name=data["name"],
         negotiators=negotiators,
     )
-    SettingsService.save_negotiators_preset(preset)
+    await asyncio.to_thread(SettingsService.save_negotiators_preset, preset)
     return asdict(preset)
 
 
 @router.delete("/presets/negotiators/{name}")
 async def delete_negotiators_preset(name: str) -> dict[str, Any]:
     """Delete a negotiators preset."""
-    success = SettingsService.delete_negotiators_preset(name)
+    success = await asyncio.to_thread(SettingsService.delete_negotiators_preset, name)
     return {"success": success}
 
 
@@ -223,7 +229,7 @@ async def delete_negotiators_preset(name: str) -> dict[str, Any]:
 @router.get("/presets/parameters")
 async def get_parameters_presets() -> dict[str, Any]:
     """Get all parameters presets."""
-    presets = SettingsService.load_parameters_presets()
+    presets = await asyncio.to_thread(SettingsService.load_parameters_presets)
     return {"presets": [asdict(p) for p in presets]}
 
 
@@ -236,14 +242,14 @@ async def save_parameters_preset(data: dict[str, Any]) -> dict[str, Any]:
         mechanism_params=data.get("mechanism_params", {}),
         share_ufuns=data.get("share_ufuns", False),
     )
-    SettingsService.save_parameters_preset(preset)
+    await asyncio.to_thread(SettingsService.save_parameters_preset, preset)
     return asdict(preset)
 
 
 @router.delete("/presets/parameters/{name}")
 async def delete_parameters_preset(name: str) -> dict[str, Any]:
     """Delete a parameters preset."""
-    success = SettingsService.delete_parameters_preset(name)
+    success = await asyncio.to_thread(SettingsService.delete_parameters_preset, name)
     return {"success": success}
 
 
@@ -253,7 +259,7 @@ async def delete_parameters_preset(name: str) -> dict[str, Any]:
 @router.get("/presets/display")
 async def get_display_presets() -> dict[str, Any]:
     """Get all display presets."""
-    presets = SettingsService.load_display_presets()
+    presets = await asyncio.to_thread(SettingsService.load_display_presets)
     return {"presets": [asdict(p) for p in presets]}
 
 
@@ -267,14 +273,14 @@ async def save_display_preset(data: dict[str, Any]) -> dict[str, Any]:
         show_plot=data.get("show_plot", True),
         show_offers=data.get("show_offers", True),
     )
-    SettingsService.save_display_preset(preset)
+    await asyncio.to_thread(SettingsService.save_display_preset, preset)
     return asdict(preset)
 
 
 @router.delete("/presets/display/{name}")
 async def delete_display_preset(name: str) -> dict[str, Any]:
     """Delete a display preset."""
-    success = SettingsService.delete_display_preset(name)
+    success = await asyncio.to_thread(SettingsService.delete_display_preset, name)
     return {"success": success}
 
 
@@ -284,7 +290,7 @@ async def delete_display_preset(name: str) -> dict[str, Any]:
 @router.get("/presets/sessions")
 async def get_session_presets() -> dict[str, Any]:
     """Get all full session presets."""
-    presets = SettingsService.load_session_presets()
+    presets = await asyncio.to_thread(SettingsService.load_session_presets)
     return {"presets": [asdict(p) for p in presets]}
 
 
@@ -305,14 +311,14 @@ async def save_session_preset(data: dict[str, Any]) -> dict[str, Any]:
         show_plot=data.get("show_plot", True),
         show_offers=data.get("show_offers", True),
     )
-    SettingsService.save_session_preset(preset)
+    await asyncio.to_thread(SettingsService.save_session_preset, preset)
     return asdict(preset)
 
 
 @router.delete("/presets/sessions/{name}")
 async def delete_session_preset(name: str) -> dict[str, Any]:
     """Delete a full session preset."""
-    success = SettingsService.delete_session_preset(name)
+    success = await asyncio.to_thread(SettingsService.delete_session_preset, name)
     return {"success": success}
 
 
@@ -322,7 +328,7 @@ async def delete_session_preset(name: str) -> dict[str, Any]:
 @router.get("/presets/recent")
 async def get_recent_sessions() -> dict[str, Any]:
     """Get recent session configurations."""
-    sessions = SettingsService.load_recent_sessions()
+    sessions = await asyncio.to_thread(SettingsService.load_recent_sessions)
     return {"sessions": [asdict(s) for s in sessions]}
 
 
@@ -343,12 +349,12 @@ async def add_recent_session(data: dict[str, Any]) -> dict[str, Any]:
         show_plot=data.get("show_plot", True),
         show_offers=data.get("show_offers", True),
     )
-    SettingsService.add_recent_session(session)
+    await asyncio.to_thread(SettingsService.add_recent_session, session)
     return {"success": True}
 
 
 @router.delete("/presets/recent")
 async def clear_recent_sessions() -> dict[str, Any]:
     """Clear all recent sessions."""
-    SettingsService.clear_recent_sessions()
+    await asyncio.to_thread(SettingsService.clear_recent_sessions)
     return {"success": True}

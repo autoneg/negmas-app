@@ -34,6 +34,10 @@
     <!-- Plotly.js for real-time plotting -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
     
+    <!-- Tabulator for data tables -->
+    <link href="https://unpkg.com/tabulator-tables@6.2.5/dist/css/tabulator_midnight.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/tabulator-tables@6.2.5/dist/js/tabulator.min.js"></script>
+    
     <!-- Layout System -->
     <link rel="stylesheet" href="/static/css/layout.css">
     <script src="/static/js/panel-registry.js"></script>
@@ -1932,7 +1936,7 @@
                 panels: {
                     adjustable: true,
                     utilityView: { xAxis: 0, yAxis: 1 },
-                    timeline: { xAxis: 'step' }
+                    timeline: { xAxis: 'relative_time' }
                 }
             },
             
@@ -2739,6 +2743,7 @@
                         id: data.session_id,
                         scenario: this.newNeg.scenario.name,
                         step: 0,
+                        mechanism_type: this.newNeg.mechanism_type,
                         stream_url: data.stream_url,
                         // Store display settings with the negotiation
                         panelSettings: {
@@ -3154,7 +3159,7 @@
                     panels: session.panels || {
                         adjustable: true,
                         utilityView: { xAxis: 0, yAxis: 1 },
-                        timeline: { xAxis: 'step' }
+                        timeline: { xAxis: 'relative_time' }
                     }
                 };
                 

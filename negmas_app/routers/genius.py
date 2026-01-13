@@ -1,5 +1,7 @@
 """Genius Bridge API endpoints."""
 
+import asyncio
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -49,9 +51,11 @@ class BridgeStopResponse(BaseModel):
 @router.get("/status", response_model=BridgeStatusResponse)
 async def get_bridge_status(port: int = DEFAULT_PORT) -> BridgeStatusResponse:
     """Get the current status of the Genius Bridge."""
+    installed = await asyncio.to_thread(genius_bridge_is_installed)
+    running = await asyncio.to_thread(genius_bridge_is_running, port)
     return BridgeStatusResponse(
-        installed=genius_bridge_is_installed(),
-        running=genius_bridge_is_running(port),
+        installed=installed,
+        running=running,
         port=port,
     )
 
@@ -65,7 +69,8 @@ async def start_bridge(request: BridgeStartRequest) -> BridgeStartResponse:
         - port = -1: Bridge already running on this port
         - port = 0: Failed to start bridge
     """
-    result = init_genius_bridge(
+    result = await asyncio.to_thread(
+        init_genius_bridge,
         port=request.port,
         timeout=request.timeout,
         debug=request.debug,
@@ -94,13 +99,14 @@ async def start_bridge(request: BridgeStartRequest) -> BridgeStartResponse:
 @router.post("/stop", response_model=BridgeStopResponse)
 async def stop_bridge(port: int = DEFAULT_PORT) -> BridgeStopResponse:
     """Stop the Genius Bridge."""
-    if not genius_bridge_is_running(port):
+    running = await asyncio.to_thread(genius_bridge_is_running, port)
+    if not running:
         return BridgeStopResponse(
             success=True,
             message="Bridge is not running",
         )
 
-    success = GeniusBridge.kill(port=port, wait=True)
+    success = await asyncio.to_thread(GeniusBridge.kill, port=port, wait=True)
     if success:
         return BridgeStopResponse(
             success=True,
@@ -108,7 +114,9 @@ async def stop_bridge(port: int = DEFAULT_PORT) -> BridgeStopResponse:
         )
     else:
         # Try forced kill
-        success = GeniusBridge.kill_forced(port=port, wait=True)
+        success = await asyncio.to_thread(
+            GeniusBridge.kill_forced, port=port, wait=True
+        )
         if success:
             return BridgeStopResponse(
                 success=True,
@@ -123,7 +131,8 @@ async def stop_bridge(port: int = DEFAULT_PORT) -> BridgeStopResponse:
 @router.post("/restart", response_model=BridgeStartResponse)
 async def restart_bridge(request: BridgeStartRequest) -> BridgeStartResponse:
     """Restart the Genius Bridge."""
-    success = GeniusBridge.restart(
+    success = await asyncio.to_thread(
+        GeniusBridge.restart,
         port=request.port,
         timeout=request.timeout,
         debug=request.debug,

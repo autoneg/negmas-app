@@ -1,5 +1,7 @@
 """Negotiator API endpoints."""
 
+import asyncio
+
 from fastapi import APIRouter, Query
 
 from ..services import (
@@ -13,7 +15,7 @@ router = APIRouter(prefix="/api/negotiators", tags=["negotiators"])
 
 
 @router.get("")
-def list_negotiators(
+async def list_negotiators(
     source: str | None = Query(None, description="Filter by source ID"),
     group: str | None = Query(None, description="Filter by group within source"),
     search: str | None = Query(None, description="Search in name/description"),
@@ -28,7 +30,8 @@ def list_negotiators(
     Returns:
         List of negotiator info objects.
     """
-    negotiators = NegotiatorFactory.list_available(
+    negotiators = await asyncio.to_thread(
+        NegotiatorFactory.list_available,
         source=source,
         group=group,
         search=search,
@@ -53,16 +56,16 @@ def list_negotiators(
 
 
 @router.get("/sources")
-def list_sources():
+async def list_sources():
     """List all available negotiator sources.
 
     Returns:
         List of source info objects with availability status.
     """
-    sources = NegotiatorFactory.get_available_sources()
+    sources = await asyncio.to_thread(NegotiatorFactory.get_available_sources)
 
     # Count negotiators per source
-    all_negotiators = NegotiatorFactory.list_available()
+    all_negotiators = await asyncio.to_thread(NegotiatorFactory.list_available)
     source_counts = {}
     for neg in all_negotiators:
         source_counts[neg.source] = source_counts.get(neg.source, 0) + 1
@@ -88,7 +91,7 @@ def list_sources():
 
 
 @router.get("/boa/components")
-def list_boa_components(
+async def list_boa_components(
     component_type: str | None = Query(
         None, description="Filter by type: acceptance, offering, model"
     ),
@@ -101,7 +104,7 @@ def list_boa_components(
     Returns:
         Dict mapping component type to list of components.
     """
-    components = BOAFactory.list_components(component_type)
+    components = await asyncio.to_thread(BOAFactory.list_components, component_type)
     return {
         "components": {
             ctype: [
@@ -120,27 +123,27 @@ def list_boa_components(
 
 
 @router.post("/refresh")
-def refresh_registry():
+async def refresh_registry():
     """Refresh the negotiator registry.
 
     Call this after changing negotiator source settings.
     """
-    NegotiatorFactory.refresh_registry()
+    await asyncio.to_thread(NegotiatorFactory.refresh_registry)
     return {"status": "ok", "message": "Registry refreshed"}
 
 
 @router.post("/cache/clear")
-def clear_cache():
+async def clear_cache_endpoint():
     """Clear the negotiator parameter cache.
 
     Call this if negotiator parameters seem stale.
     """
-    count = clear_parameter_cache()
+    count = await asyncio.to_thread(clear_parameter_cache)
     return {"status": "ok", "message": f"Cleared {count} cached entries"}
 
 
 @router.get("/{type_name:path}/parameters")
-def get_negotiator_params(
+async def get_negotiator_params(
     type_name: str,
     use_cache: bool = Query(True, description="Whether to use cached results"),
 ):
@@ -153,7 +156,9 @@ def get_negotiator_params(
     Returns:
         List of parameter info objects with type, default, and UI hints.
     """
-    params = get_negotiator_parameters(type_name, use_cache=use_cache)
+    params = await asyncio.to_thread(
+        get_negotiator_parameters, type_name, use_cache=use_cache
+    )
     return {
         "type_name": type_name,
         "parameters": [
@@ -176,7 +181,7 @@ def get_negotiator_params(
 
 
 @router.get("/{type_name:path}")
-def get_negotiator(type_name: str):
+async def get_negotiator(type_name: str):
     """Get details for a specific negotiator type.
 
     Args:
@@ -185,7 +190,7 @@ def get_negotiator(type_name: str):
     Returns:
         Negotiator info or 404.
     """
-    info = NegotiatorFactory.get_info(type_name)
+    info = await asyncio.to_thread(NegotiatorFactory.get_info, type_name)
     if info is None:
         return {"error": "Negotiator not found"}, 404
     return {

@@ -136,6 +136,9 @@ class SessionInitEvent:
     issue_names: list[str]
     n_steps: int | None
     time_limit: float | None
+    n_outcomes: int | None = (
+        None  # Number of outcomes in outcome space (for TAU progress)
+    )
     outcome_space_data: OutcomeSpaceData | None = None
 
 

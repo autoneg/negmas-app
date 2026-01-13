@@ -107,10 +107,12 @@ class TournamentManager:
         session.start_time = datetime.now()
 
         try:
-            # Load scenarios
+            # Load scenarios (run in thread pool to avoid blocking)
             scenarios: list[Scenario] = []  # type: ignore[type-arg]
             for path in config.scenario_paths:
-                scenario = self.scenario_loader.load_scenario(path)
+                scenario = await asyncio.to_thread(
+                    self.scenario_loader.load_scenario, path
+                )
                 if scenario is not None:
                     scenarios.append(scenario)
 
@@ -120,10 +122,10 @@ class TournamentManager:
                 yield session
                 return
 
-            # Get competitor classes
+            # Get competitor classes (run in thread pool as it may import modules)
             competitor_classes: list[type[SAONegotiator]] = []
             for type_name in config.competitor_types:
-                cls = _get_class_for_type(type_name)
+                cls = await asyncio.to_thread(_get_class_for_type, type_name)
                 if cls is not None:
                     competitor_classes.append(cls)  # type: ignore[arg-type]
 
@@ -321,9 +323,9 @@ class TournamentManager:
                 negotiator = cls()
                 mechanism.add(negotiator, ufun=ufun)
 
-            # Run the negotiation
+            # Run the negotiation (run in thread pool to avoid blocking)
             start = datetime.now()
-            mechanism.run()
+            await asyncio.to_thread(mechanism.run)
             execution_time = (datetime.now() - start).total_seconds()
 
             # Get results
@@ -491,10 +493,12 @@ class TournamentManager:
         try:
             from negmas.tournaments.neg import cartesian_tournament
 
-            # Load scenarios
+            # Load scenarios (run in thread pool to avoid blocking)
             scenarios: list[Scenario] = []  # type: ignore[type-arg]
             for path in config.scenario_paths:
-                scenario = self.scenario_loader.load_scenario(path)
+                scenario = await asyncio.to_thread(
+                    self.scenario_loader.load_scenario, path
+                )
                 if scenario is not None:
                     scenarios.append(scenario)
 
@@ -503,10 +507,10 @@ class TournamentManager:
                 session.error = "No valid scenarios found"
                 return session
 
-            # Get competitor classes
+            # Get competitor classes (run in thread pool as it may import modules)
             competitors: list[type[SAONegotiator]] = []
             for type_name in config.competitor_types:
-                cls = _get_class_for_type(type_name)
+                cls = await asyncio.to_thread(_get_class_for_type, type_name)
                 if cls is not None:
                     competitors.append(cls)  # type: ignore[arg-type]
 
@@ -518,8 +522,9 @@ class TournamentManager:
             # Get mechanism class
             mechanism_class = self._get_mechanism_class(config.mechanism_type)
 
-            # Run tournament
-            results = cartesian_tournament(
+            # Run tournament (run in thread pool - this can take hours/days)
+            results = await asyncio.to_thread(
+                cartesian_tournament,
                 competitors=competitors,  # type: ignore[arg-type]
                 scenarios=scenarios,
                 competitor_params=None,
