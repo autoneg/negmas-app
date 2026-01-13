@@ -1,5 +1,6 @@
 """Tournament API endpoints with SSE streaming."""
 
+import asyncio
 import json
 
 from fastapi import APIRouter, HTTPException
@@ -12,6 +13,7 @@ from ..models.tournament import (
     TournamentSession,
 )
 from ..services.tournament_manager import TournamentManager
+from ..services.tournament_storage import TournamentStorageService
 
 router = APIRouter(prefix="/api/tournament", tags=["tournament"])
 
@@ -311,3 +313,61 @@ async def run_batch(session_id: str):
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# =============================================================================
+# Saved Tournaments Endpoints
+# =============================================================================
+
+
+@router.get("/saved/list")
+async def list_saved_tournaments():
+    """List all saved tournaments from disk.
+
+    Returns summary info for each saved tournament.
+    """
+    tournaments = await asyncio.to_thread(
+        TournamentStorageService.list_saved_tournaments
+    )
+    return {"tournaments": tournaments, "count": len(tournaments)}
+
+
+@router.get("/saved/{tournament_id}")
+async def get_saved_tournament(tournament_id: str):
+    """Load a saved tournament from disk.
+
+    Returns full tournament data including scores and negotiation summaries.
+    """
+    tournament = await asyncio.to_thread(
+        TournamentStorageService.load_tournament, tournament_id
+    )
+    if tournament is None:
+        raise HTTPException(status_code=404, detail="Saved tournament not found")
+    return tournament
+
+
+@router.get("/saved/{tournament_id}/negotiation/{index}")
+async def get_saved_tournament_negotiation(tournament_id: str, index: int):
+    """Get full details of a specific negotiation from a saved tournament.
+
+    Args:
+        tournament_id: Tournament ID.
+        index: Index of the negotiation in the tournament results.
+    """
+    negotiation = await asyncio.to_thread(
+        TournamentStorageService.get_tournament_negotiation, tournament_id, index
+    )
+    if negotiation is None:
+        raise HTTPException(status_code=404, detail="Negotiation not found")
+    return negotiation
+
+
+@router.delete("/saved/{tournament_id}")
+async def delete_saved_tournament(tournament_id: str):
+    """Delete a saved tournament from disk."""
+    success = await asyncio.to_thread(
+        TournamentStorageService.delete_tournament, tournament_id
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Saved tournament not found")
+    return {"status": "deleted"}

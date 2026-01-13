@@ -258,6 +258,29 @@
                         </template>
                     </div>
                 </div>
+                
+                <!-- Saved Tournaments Section -->
+                <div class="sidebar-section" x-show="savedTournaments.length > 0">
+                    <div class="sidebar-section-title" x-show="!sidebarCollapsed">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="margin-right: 4px;">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        Saved Tournaments
+                        <span class="sidebar-badge" x-text="savedTournaments.length"></span>
+                    </div>
+                    <div class="negotiation-list" x-show="!sidebarCollapsed">
+                        <template x-for="t in savedTournaments.slice(0, 5)" :key="t.id">
+                            <div class="negotiation-item" :class="{ active: selectedTournament?.id === t.id && currentPage === 'tournaments' }" 
+                                 @click="currentPage = 'tournaments'; loadAndSelectSavedTournament(t.id)">
+                                <div class="negotiation-item-title" x-text="t.name || t.id"></div>
+                                <div class="negotiation-item-meta">
+                                    <span x-text="t.n_negotiations + ' negs'"></span>
+                                    <span x-text="Math.round((t.agreement_rate || 0) * 100) + '%'"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
             </aside>
             
             <!-- Content Area - Negotiations -->
@@ -405,9 +428,135 @@
             
             <!-- Content Area - Tournaments -->
             <div class="content-area tournament-page" x-show="currentPage === 'tournaments'" x-cloak>
-                <div class="tournament-layout">
-                    <!-- Tournament Details/Results (Full Width) -->
-                    <div class="tournament-details">
+                <!-- Header with actions -->
+                <div class="table-header" style="margin-bottom: 16px;">
+                    <h2>Tournaments</h2>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="btn btn-secondary btn-sm" @click="loadSavedTournaments()" :disabled="savedTournamentsLoading">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <span x-text="savedTournamentsLoading ? 'Loading...' : 'Load Saved'"></span>
+                        </button>
+                        <button class="btn btn-primary" @click="showNewTournament = true; loadScenarios(); loadNegotiatorTypes()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Start Tournament
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="tournament-layout" style="display: flex; gap: 16px; height: calc(100% - 60px);">
+                    <!-- Left: Tournament Lists -->
+                    <div class="tournament-lists" style="width: 400px; display: flex; flex-direction: column; gap: 16px; overflow: hidden;">
+                        <!-- Running Tournaments -->
+                        <div class="table-section" x-show="tournamentSessions.some(t => t.status === 'running')" style="flex-shrink: 0;">
+                            <h3>
+                                <span class="status-dot running"></span>
+                                Running (<span x-text="tournamentSessions.filter(t => t.status === 'running').length"></span>)
+                            </h3>
+                            <div class="tournament-list">
+                                <template x-for="session in tournamentSessions.filter(t => t.status === 'running')" :key="session.id">
+                                    <div class="tournament-list-item" 
+                                         :class="{ active: selectedTournament?.id === session.id }"
+                                         @click="selectTournament(session)">
+                                        <div class="tournament-list-item-header">
+                                            <span class="tournament-id">Tournament #<span x-text="session.id"></span></span>
+                                            <span class="badge badge-primary">Running</span>
+                                        </div>
+                                        <div class="progress" style="height: 4px; margin-top: 4px;">
+                                            <div class="progress-bar" :style="'width: ' + (session.progress?.percent || 0) + '%'"></div>
+                                        </div>
+                                        <div class="text-muted" style="font-size: 11px; margin-top: 4px;" x-text="Math.round(session.progress?.percent || 0) + '% complete'"></div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        
+                        <!-- Completed Tournaments (this session) -->
+                        <div class="table-section" x-show="tournamentSessions.some(t => t.status !== 'running')" style="flex-shrink: 0;">
+                            <h3>
+                                <span class="status-dot" style="background: var(--success);"></span>
+                                This Session (<span x-text="tournamentSessions.filter(t => t.status !== 'running').length"></span>)
+                            </h3>
+                            <div class="tournament-list">
+                                <template x-for="session in tournamentSessions.filter(t => t.status !== 'running')" :key="session.id">
+                                    <div class="tournament-list-item" 
+                                         :class="{ active: selectedTournament?.id === session.id }"
+                                         @click="selectTournament(session)">
+                                        <div class="tournament-list-item-header">
+                                            <span class="tournament-id">Tournament #<span x-text="session.id"></span></span>
+                                            <span class="badge" 
+                                                  :class="{'badge-success': session.status === 'completed', 'badge-danger': session.status === 'failed', 'badge-warning': session.status === 'cancelled'}"
+                                                  x-text="session.status"></span>
+                                        </div>
+                                        <div class="text-muted" style="font-size: 11px; margin-top: 4px;">
+                                            <span x-text="(session.results?.total_negotiations || 0) + ' negotiations'"></span>
+                                            <span x-show="session.results?.overall_agreement_rate !== undefined" x-text="' • ' + Math.round((session.results?.overall_agreement_rate || 0) * 100) + '% agreements'"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        
+                        <!-- Saved Tournaments -->
+                        <div class="table-section saved-tournaments-section" x-show="savedTournaments.length > 0" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+                            <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="display: flex; align-items: center; gap: 8px;">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                    Saved (<span x-text="savedTournaments.length"></span>)
+                                </span>
+                                <button class="btn btn-ghost btn-xs" @click="clearSavedTournaments()" title="Clear all saved">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    </svg>
+                                </button>
+                            </h3>
+                            <div class="tournament-list" style="flex: 1; overflow-y: auto;">
+                                <template x-for="t in savedTournaments" :key="t.id">
+                                    <div class="tournament-list-item" 
+                                         :class="{ active: selectedTournament?.id === t.id }"
+                                         @click="loadAndSelectSavedTournament(t.id)">
+                                        <div class="tournament-list-item-header">
+                                            <span class="tournament-id" x-text="t.name || t.id"></span>
+                                            <button class="btn btn-ghost btn-xs delete-btn" @click.stop="deleteSavedTournament(t.id)" title="Delete">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="text-muted" style="font-size: 11px; margin-top: 4px;">
+                                            <span x-text="t.n_negotiations + ' negotiations'"></span>
+                                            <span x-text="' • ' + Math.round((t.agreement_rate || 0) * 100) + '% agreements'"></span>
+                                        </div>
+                                        <div class="text-muted" style="font-size: 10px; margin-top: 2px;" x-text="t.created_at ? new Date(t.created_at).toLocaleString() : ''"></div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        
+                        <!-- Empty state when no tournaments -->
+                        <div class="empty-state" x-show="tournamentSessions.length === 0 && savedTournaments.length === 0" style="flex: 1;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48" style="opacity: 0.3;">
+                                <circle cx="12" cy="8" r="5"></circle>
+                                <path d="M12 13v7"></path>
+                                <path d="M9 20h6"></path>
+                            </svg>
+                            <div class="empty-state-title">No Tournaments</div>
+                            <div class="empty-state-text">Start a new tournament or load saved ones.</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Right: Tournament Details -->
+                    <div class="tournament-details" style="flex: 1; overflow-y: auto;">
                         <template x-if="!selectedTournament">
                             <div class="tournament-empty">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="64" height="64" style="opacity: 0.3;">
@@ -417,15 +566,27 @@
                                     <path d="M6 8l-4 4"></path>
                                     <path d="M18 8l4 4"></path>
                                 </svg>
-                                <p>Select a tournament from the sidebar to view details</p>
+                                <p>Select a tournament to view details</p>
                                 <p class="text-muted">or click "Start Tournament" to create one</p>
                             </div>
                         </template>
                         <template x-if="selectedTournament">
                             <div class="tournament-detail-content">
                                 <div class="tournament-detail-header">
-                                    <h3>Tournament #<span x-text="selectedTournament.id"></span></h3>
+                                    <h3>
+                                        <span x-text="selectedTournament._fromSaved ? selectedTournament.id : 'Tournament #' + selectedTournament.id"></span>
+                                        <span class="badge" style="margin-left: 8px;"
+                                              :class="{'badge-primary': selectedTournament.status === 'running', 'badge-success': selectedTournament.status === 'completed', 'badge-danger': selectedTournament.status === 'failed'}"
+                                              x-text="selectedTournament.status"></span>
+                                    </h3>
                                     <div class="tournament-actions">
+                                        <button class="btn btn-sm btn-secondary" x-show="selectedTournament" @click="selectedTournament = null">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                            </svg>
+                                            Close
+                                        </button>
                                         <button class="btn btn-sm btn-danger" 
                                                 x-show="selectedTournament.status === 'running'"
                                                 @click="cancelTournament(selectedTournament.id)">
@@ -452,8 +613,6 @@
                                 
                                 <!-- Results Section (for completed tournaments) -->
                                 <div class="tournament-results-section" x-show="selectedTournament.status === 'completed' && selectedTournament.results">
-                                    <h4>Results</h4>
-                                    
                                     <!-- Summary Stats -->
                                     <div class="tournament-summary">
                                         <div class="stat-card">
@@ -468,7 +627,7 @@
                                             <div class="stat-value" x-text="Math.round((selectedTournament.results?.overall_agreement_rate || 0) * 100) + '%'"></div>
                                             <div class="stat-label">Agreement Rate</div>
                                         </div>
-                                        <div class="stat-card">
+                                        <div class="stat-card" x-show="selectedTournament.results?.execution_time">
                                             <div class="stat-value" x-text="(selectedTournament.results?.execution_time || 0).toFixed(1) + 's'"></div>
                                             <div class="stat-label">Duration</div>
                                         </div>
@@ -498,11 +657,43 @@
                                                     </td>
                                                     <td x-text="score.score?.toFixed(4) || '-'"></td>
                                                     <td x-text="score.mean_utility?.toFixed(4) || '-'"></td>
-                                                    <td x-text="score.n_agreements + '/' + score.n_negotiations"></td>
+                                                    <td x-text="(score.n_agreements || '-') + '/' + (score.n_negotiations || '-')"></td>
                                                 </tr>
                                             </template>
                                         </tbody>
                                     </table>
+                                    
+                                    <!-- Negotiations List -->
+                                    <div x-show="selectedTournament.results?.negotiations?.length > 0" style="margin-top: 24px;">
+                                        <h4>Negotiations (<span x-text="selectedTournament.results?.negotiations?.length || 0"></span>)</h4>
+                                        <div class="tournament-negotiations-list" style="max-height: 400px; overflow-y: auto;">
+                                            <table class="tournament-table tournament-negotiations-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>#</th>
+                                                        <th>Scenario</th>
+                                                        <th>Partners</th>
+                                                        <th>Result</th>
+                                                        <th>Utilities</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <template x-for="neg in (selectedTournament.results?.negotiations || [])" :key="neg.index">
+                                                        <tr>
+                                                            <td x-text="neg.index + 1"></td>
+                                                            <td x-text="neg.scenario"></td>
+                                                            <td x-text="(neg.partners || []).join(' vs ')"></td>
+                                                            <td>
+                                                                <span class="badge" :class="neg.has_agreement ? 'badge-success' : 'badge-warning'"
+                                                                      x-text="neg.has_agreement ? 'Agreement' : 'No Agreement'"></span>
+                                                            </td>
+                                                            <td x-text="neg.utilities ? neg.utilities.map(u => u.toFixed(2)).join(', ') : '-'"></td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </div>
                                 
                                 <!-- Error Section (for failed tournaments) -->
@@ -518,7 +709,7 @@
                                 </div>
                                 
                                 <!-- Config Section -->
-                                <div class="tournament-config-section" x-show="selectedTournament.config">
+                                <div class="tournament-config-section" x-show="selectedTournament.config && selectedTournament.config.competitor_types?.length > 0">
                                     <h4>Configuration</h4>
                                     <div class="config-grid">
                                         <div class="config-item">
@@ -1834,6 +2025,8 @@
             // Tournament state
             showNewTournament: false,
             tournamentSessions: [],
+            savedTournaments: [],
+            savedTournamentsLoading: false,
             selectedTournament: null,
             tournamentEventSource: null,
             newTournament: {
@@ -2978,6 +3171,89 @@
                     n.name.toLowerCase().includes(search) ||
                     n.type_name.toLowerCase().includes(search)
                 );
+            },
+            
+            // Saved tournament methods
+            async loadSavedTournaments() {
+                this.savedTournamentsLoading = true;
+                try {
+                    const res = await fetch('/api/tournament/saved/list');
+                    const data = await res.json();
+                    this.savedTournaments = data.tournaments || [];
+                } catch (e) {
+                    console.error('Failed to load saved tournaments:', e);
+                } finally {
+                    this.savedTournamentsLoading = false;
+                }
+            },
+            
+            async loadAndSelectSavedTournament(tournamentId) {
+                try {
+                    const res = await fetch(`/api/tournament/saved/${tournamentId}`);
+                    if (!res.ok) throw new Error('Failed to load tournament');
+                    const data = await res.json();
+                    
+                    // Transform to match our tournament format
+                    this.selectedTournament = {
+                        id: data.id,
+                        status: 'completed',
+                        _fromSaved: true,
+                        config: {
+                            competitor_types: [],  // Not available from saved data
+                            scenario_paths: []
+                        },
+                        results: {
+                            total_negotiations: data.n_negotiations,
+                            total_agreements: data.n_agreements,
+                            overall_agreement_rate: data.agreement_rate,
+                            execution_time: 0,  // Not available from saved data
+                            final_scores: (data.scores || []).map((s, idx) => ({
+                                name: s.name,
+                                rank: s.rank,
+                                score: s.score,
+                                type_name: s.raw_data?.type || '',
+                                mean_utility: s.raw_data?.utility ? parseFloat(s.raw_data.utility) : null,
+                                n_agreements: s.raw_data?.n_agreements ? parseInt(s.raw_data.n_agreements) : '-',
+                                n_negotiations: s.raw_data?.n_negotiations ? parseInt(s.raw_data.n_negotiations) : '-'
+                            })),
+                            negotiations: data.negotiations || []
+                        },
+                        created_at: data.created_at
+                    };
+                } catch (e) {
+                    console.error('Failed to load saved tournament:', e);
+                }
+            },
+            
+            async deleteSavedTournament(tournamentId) {
+                if (!confirm('Delete this saved tournament?')) return;
+                
+                try {
+                    await fetch(`/api/tournament/saved/${tournamentId}`, { method: 'DELETE' });
+                    this.savedTournaments = this.savedTournaments.filter(t => t.id !== tournamentId);
+                    if (this.selectedTournament?.id === tournamentId) {
+                        this.selectedTournament = null;
+                    }
+                } catch (e) {
+                    console.error('Failed to delete tournament:', e);
+                }
+            },
+            
+            async clearSavedTournaments() {
+                if (!confirm('Delete ALL saved tournaments? This cannot be undone.')) return;
+                
+                try {
+                    // Delete each tournament individually
+                    for (const t of this.savedTournaments) {
+                        await fetch(`/api/tournament/saved/${t.id}`, { method: 'DELETE' });
+                    }
+                    this.savedTournaments = [];
+                    if (this.selectedTournament?._fromSaved) {
+                        this.selectedTournament = null;
+                    }
+                } catch (e) {
+                    console.error('Failed to clear tournaments:', e);
+                }
             },
             
             // Settings

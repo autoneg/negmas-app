@@ -23,6 +23,11 @@ try:
 except ImportError:
     TournamentManager = None  # type: ignore
 
+try:
+    from .tournament_storage import TournamentStorageService
+except ImportError:
+    TournamentStorageService = None  # type: ignore
+
 __all__ = [
     "ScenarioLoader",
     "NegotiatorFactory",
@@ -32,6 +37,7 @@ __all__ = [
     "SessionManager",
     "TournamentManager",
     "NegotiationStorageService",
+    "TournamentStorageService",
     "compute_outcome_space_data",
     "compute_outcome_utilities",
     "get_negotiator_parameters",
