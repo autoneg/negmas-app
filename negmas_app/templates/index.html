@@ -296,7 +296,7 @@
                     <template x-if="!currentNegotiation?.offers || currentNegotiation.offers.length === 0">
                         <div class="empty-state-mini"><span class="text-muted">Waiting for offers...</span></div>
                     </template>
-                    <template x-for="(offer, idx) in (currentNegotiation?.offers || []).slice(-50)" :key="idx">
+                    <template x-for="offer in (currentNegotiation?.offers || []).slice(-50)" :key="offer.step">
                         <div class="offer-item-compact animate-slide-up" :style="'border-left: 2px solid ' + (currentNegotiation?.negotiator_colors?.[offer.proposer_index] || 'var(--border-color)')">
                             <div class="offer-header-compact">
                                 <span class="offer-agent" :style="'color: ' + (currentNegotiation?.negotiator_colors?.[offer.proposer_index] || 'inherit')" x-text="offer.proposer"></span>
@@ -581,6 +581,10 @@ app = function() {
         _runningTable: null,
         _completedTable: null,
         _savedTable: null,
+        
+        // Throttle timestamps for SSE updates (max 30fps)
+        _lastPlotUpdate: 0,
+        _lastScrollUpdate: 0,
         
         // Override init
         async init() {
@@ -1112,12 +1116,12 @@ app = function() {
             
             const traces = [];
             
-            // 1. All outcomes
+            // 1. All outcomes - use scattergl (WebGL) for large outcome spaces
             if (osd.outcome_utilities && osd.outcome_utilities.length > 0) {
                 traces.push({
                     x: osd.outcome_utilities.map(u => u[xIdx] || 0),
                     y: osd.outcome_utilities.map(u => u[yIdx] || 0),
-                    type: 'scatter',
+                    type: 'scattergl',
                     mode: 'markers',
                     name: 'Outcomes',
                     marker: { color: colors.outcomeColor, size: 3, opacity: 0.5 },
@@ -1125,101 +1129,98 @@ app = function() {
                 });
             }
             
-            // 2. Pareto frontier (markers only, no lines, using special point color)
+            // 2. Pareto frontier (markers only, no lines, using special point color) - use scattergl
             if (osd.pareto_utilities && osd.pareto_utilities.length > 0) {
                 traces.push({
                     x: osd.pareto_utilities.map(u => u[xIdx] || 0),
                     y: osd.pareto_utilities.map(u => u[yIdx] || 0),
-                    type: 'scatter',
+                    type: 'scattergl',
                     mode: 'markers',
                     name: 'Pareto Frontier',
                     marker: { color: colors.specialPointColor, size: 6, opacity: 0.7 }
                 });
             }
             
-            // 3. Nash point (triangle-left marker)
+            // 3. Nash point (triangle-left marker) - use scattergl
             if (osd.nash_point && osd.nash_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.nash_point[xIdx]],
                     y: [osd.nash_point[yIdx]],
-                    type: 'scatter',
+                    type: 'scattergl',
                     mode: 'markers',
                     name: 'Nash',
                     marker: { color: colors.specialPointColor, size: 14, symbol: 'triangle-left' }
                 });
             }
             
-            // 4. Kalai point (triangle-down marker)
+            // 4. Kalai point (triangle-down marker) - use scattergl
             if (osd.kalai_point && osd.kalai_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.kalai_point[xIdx]],
                     y: [osd.kalai_point[yIdx]],
-                    type: 'scatter',
+                    type: 'scattergl',
                     mode: 'markers',
                     name: 'Kalai',
                     marker: { color: colors.specialPointColor, size: 14, symbol: 'triangle-down' }
                 });
             }
             
-            // 5. Kalai-Smorodinsky point (triangle-up marker)
+            // 5. Kalai-Smorodinsky point (triangle-up marker) - use scattergl
             if (osd.kalai_smorodinsky_point && osd.kalai_smorodinsky_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.kalai_smorodinsky_point[xIdx]],
                     y: [osd.kalai_smorodinsky_point[yIdx]],
-                    type: 'scatter',
+                    type: 'scattergl',
                     mode: 'markers',
                     name: 'Kalai-Smorodinsky',
                     marker: { color: colors.specialPointColor, size: 14, symbol: 'triangle-up' }
                 });
             }
             
-            // 6. Max welfare point (triangle-right marker)
+            // 6. Max welfare point (triangle-right marker) - use scattergl
             if (osd.max_welfare_point && osd.max_welfare_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.max_welfare_point[xIdx]],
                     y: [osd.max_welfare_point[yIdx]],
-                    type: 'scatter',
+                    type: 'scattergl',
                     mode: 'markers',
                     name: 'Max Welfare',
                     marker: { color: colors.specialPointColor, size: 14, symbol: 'triangle-right' }
                 });
             }
             
-            // 7. Offer traces per negotiator
+            // 7. Offer traces per negotiator - always create traces (even if empty) for incremental updates
+            // Use scattergl for WebGL acceleration
             const offers = neg.offers || [];
-            if (offers.length > 0) {
-                const numAgents = neg.negotiator_names?.length || 2;
-                for (let i = 0; i < numAgents; i++) {
-                    // Use Number() for type coercion (proposer_index may be string or number from JSON)
-                    const agentOffers = offers.filter(o => Number(o.proposer_index) === i);
-                    if (agentOffers.length > 0) {
-                        traces.push({
-                            x: agentOffers.map(o => o.utilities[xIdx] || 0),
-                            y: agentOffers.map(o => o.utilities[yIdx] || 0),
-                            type: 'scatter',
-                            mode: 'lines+markers',
-                            name: neg.negotiator_names?.[i] || `Agent ${i + 1}`,
-                            line: { 
-                                color: negColors[i % negColors.length], 
-                                width: 2,
-                                dash: isColorBlind ? LINE_DASHES[i % LINE_DASHES.length] : 'solid'
-                            },
-                            marker: { 
-                                color: negColors[i % negColors.length], 
-                                size: isColorBlind ? 8 : 6,
-                                symbol: isColorBlind ? MARKER_SYMBOLS[i % MARKER_SYMBOLS.length] : 'circle'
-                            }
-                        });
+            const numAgents = neg.negotiator_names?.length || 2;
+            for (let i = 0; i < numAgents; i++) {
+                // Use Number() for type coercion (proposer_index may be string or number from JSON)
+                const agentOffers = offers.filter(o => Number(o.proposer_index) === i);
+                traces.push({
+                    x: agentOffers.map(o => o.utilities[xIdx] || 0),
+                    y: agentOffers.map(o => o.utilities[yIdx] || 0),
+                    type: 'scattergl',
+                    mode: 'lines+markers',
+                    name: neg.negotiator_names?.[i] || `Agent ${i + 1}`,
+                    line: { 
+                        color: negColors[i % negColors.length], 
+                        width: 2,
+                        dash: isColorBlind ? LINE_DASHES[i % LINE_DASHES.length] : 'solid'
+                    },
+                    marker: { 
+                        color: negColors[i % negColors.length], 
+                        size: isColorBlind ? 8 : 6,
+                        symbol: isColorBlind ? MARKER_SYMBOLS[i % MARKER_SYMBOLS.length] : 'circle'
                     }
-                }
+                });
             }
             
-            // 8. Agreement point
+            // 8. Agreement point - use scattergl
             if (neg.agreement && neg.final_utilities && neg.final_utilities.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [neg.final_utilities[xIdx]],
                     y: [neg.final_utilities[yIdx]],
-                    type: 'scatter',
+                    type: 'scattergl',
                     mode: 'markers',
                     name: 'Agreement',
                     marker: { color: colors.agreementColor, size: 16, symbol: 'star', line: { color: '#fff', width: 2 } }
@@ -1263,13 +1264,116 @@ app = function() {
             }
         },
         
-        // Update 2D plot with new offer
+        // Update 2D plot with new offer (incremental update using extendTraces)
         async updateOutcomeSpacePlot(offer) {
             if (!window.outcomeSpacePlotInitialized) {
                 await this.initOutcomeSpacePlot();
                 return;
             }
-            await this.initOutcomeSpacePlot();
+            
+            const plotDiv = document.getElementById('outcome-space-plot');
+            if (!plotDiv || !plotDiv.data) return;
+            
+            const neg = this.currentNegotiation;
+            if (!neg) return;
+            
+            const xIdx = this.panelState.utilityView.xAxis;
+            const yIdx = this.panelState.utilityView.yAxis;
+            const proposerIndex = Number(offer.proposer_index);
+            
+            // Find the trace index for this proposer
+            // Trace order: outcomes, pareto, nash, kalai, ks, max_welfare, then negotiator traces
+            const numAgents = neg.negotiator_names?.length || 2;
+            const osd = neg.outcome_space_data || {};
+            
+            // Count fixed traces (outcomes + special points that exist)
+            let fixedTraces = 1; // outcomes
+            if (osd.pareto_utilities?.length > 0) fixedTraces++;
+            if (osd.nash_point?.length > 0) fixedTraces++;
+            if (osd.kalai_point?.length > 0) fixedTraces++;
+            if (osd.kalai_smorodinsky_point?.length > 0) fixedTraces++;
+            if (osd.max_welfare_point?.length > 0) fixedTraces++;
+            
+            const traceIndex = fixedTraces + proposerIndex;
+            
+            // Check if trace exists
+            if (traceIndex < plotDiv.data.length) {
+                try {
+                    await Plotly.extendTraces(plotDiv, {
+                        x: [[offer.utilities[xIdx] || 0]],
+                        y: [[offer.utilities[yIdx] || 0]]
+                    }, [traceIndex]);
+                } catch (e) {
+                    // Fallback to full rebuild if extend fails
+                    await this.initOutcomeSpacePlot();
+                }
+            } else {
+                // Trace doesn't exist yet, do full rebuild
+                await this.initOutcomeSpacePlot();
+            }
+        },
+        
+        // Batched update for outcome space plot - processes multiple offers at once
+        async updateOutcomeSpacePlotBatched(offers) {
+            if (!offers || offers.length === 0) return;
+            
+            if (!window.outcomeSpacePlotInitialized) {
+                await this.initOutcomeSpacePlot();
+                return;
+            }
+            
+            const plotDiv = document.getElementById('outcome-space-plot');
+            if (!plotDiv || !plotDiv.data) return;
+            
+            const neg = this.currentNegotiation;
+            if (!neg) return;
+            
+            const xIdx = this.panelState.utilityView.xAxis;
+            const yIdx = this.panelState.utilityView.yAxis;
+            const numAgents = neg.negotiator_names?.length || 2;
+            const osd = neg.outcome_space_data || {};
+            
+            // Count fixed traces (outcomes + special points that exist)
+            let fixedTraces = 1; // outcomes
+            if (osd.pareto_utilities?.length > 0) fixedTraces++;
+            if (osd.nash_point?.length > 0) fixedTraces++;
+            if (osd.kalai_point?.length > 0) fixedTraces++;
+            if (osd.kalai_smorodinsky_point?.length > 0) fixedTraces++;
+            if (osd.max_welfare_point?.length > 0) fixedTraces++;
+            
+            // Group offers by proposer
+            const offersByProposer = {};
+            for (const offer of offers) {
+                const proposerIndex = Number(offer.proposer_index);
+                if (!offersByProposer[proposerIndex]) {
+                    offersByProposer[proposerIndex] = { x: [], y: [] };
+                }
+                offersByProposer[proposerIndex].x.push(offer.utilities[xIdx] || 0);
+                offersByProposer[proposerIndex].y.push(offer.utilities[yIdx] || 0);
+            }
+            
+            // Batch update all traces at once
+            const traceIndices = [];
+            const updateData = { x: [], y: [] };
+            
+            for (const [proposerStr, data] of Object.entries(offersByProposer)) {
+                const proposerIndex = parseInt(proposerStr);
+                const traceIndex = fixedTraces + proposerIndex;
+                if (traceIndex < plotDiv.data.length) {
+                    traceIndices.push(traceIndex);
+                    updateData.x.push(data.x);
+                    updateData.y.push(data.y);
+                }
+            }
+            
+            if (traceIndices.length > 0) {
+                try {
+                    await Plotly.extendTraces(plotDiv, updateData, traceIndices);
+                } catch (e) {
+                    // Fallback to full rebuild if extend fails
+                    await this.initOutcomeSpacePlot();
+                }
+            }
         },
         
         resetPlotView() {
@@ -1329,10 +1433,10 @@ app = function() {
                 const traces = [];
                 
                 // Create N series per plot - each series j shows utility of offers from agent j for agent agentIdx
+                // Always create traces (even empty) for incremental updates to work
                 for (let proposerIdx = 0; proposerIdx < numAgents; proposerIdx++) {
                     // Use Number() for type coercion (proposer_index may be string or number from JSON)
                     const proposerOffers = neg.offers.filter(o => Number(o.proposer_index) === proposerIdx);
-                    if (proposerOffers.length === 0) continue;
                     
                     const xValues = proposerOffers.map(getXValue);
                     const yValues = proposerOffers.map(o => o.utilities[agentIdx] || 0);
@@ -1414,7 +1518,128 @@ app = function() {
                 await this.initUtilityTimelinePlots();
                 return;
             }
-            await this.initUtilityTimelinePlots();
+            
+            const neg = this.currentNegotiation;
+            if (!neg) return;
+            
+            const numAgents = neg.negotiator_names?.length || 2;
+            const xAxisType = this.panelState.timeline.xAxis;
+            
+            // Get X value based on selected axis type
+            const getXValue = (o) => {
+                switch (xAxisType) {
+                    case 'time': return o.time || 0;
+                    case 'relative_time': return o.relative_time || 0;
+                    default: return o.step;
+                }
+            };
+            
+            const xVal = getXValue(offer);
+            const proposerIndex = Number(offer.proposer_index);
+            
+            // Build update promises for all timeline plots in parallel
+            const updatePromises = [];
+            
+            for (let i = 0; i < numAgents; i++) {
+                const plotDiv = document.getElementById(`timeline-plot-${i}`);
+                if (!plotDiv || !plotDiv.data) continue;
+                
+                // Each timeline plot has N traces (one per proposer)
+                // The trace index matches the proposer index
+                if (proposerIndex < plotDiv.data.length) {
+                    const yVal = offer.utilities[i] || 0;
+                    updatePromises.push(
+                        Plotly.extendTraces(plotDiv, {
+                            x: [[xVal]],
+                            y: [[yVal]]
+                        }, [proposerIndex]).catch(() => null) // Ignore individual failures
+                    );
+                }
+            }
+            
+            // Execute all updates in parallel
+            if (updatePromises.length > 0) {
+                try {
+                    await Promise.all(updatePromises);
+                } catch (e) {
+                    // Fallback to full rebuild if all fail
+                    await this.initUtilityTimelinePlots();
+                }
+            }
+        },
+        
+        // Batched update for timeline plots - processes multiple offers at once
+        async updateUtilityTimelinePlotsBatched(offers) {
+            if (!offers || offers.length === 0) return;
+            
+            if (!window.timelinePlotsInitialized) {
+                await this.initUtilityTimelinePlots();
+                return;
+            }
+            
+            const neg = this.currentNegotiation;
+            if (!neg) return;
+            
+            const numAgents = neg.negotiator_names?.length || 2;
+            const xAxisType = this.panelState.timeline.xAxis;
+            
+            // Get X value based on selected axis type
+            const getXValue = (o) => {
+                switch (xAxisType) {
+                    case 'time': return o.time || 0;
+                    case 'relative_time': return o.relative_time || 0;
+                    default: return o.step;
+                }
+            };
+            
+            // Group offers by proposer with their x/y values
+            const offersByProposer = {};
+            for (const offer of offers) {
+                const proposerIndex = Number(offer.proposer_index);
+                if (!offersByProposer[proposerIndex]) {
+                    offersByProposer[proposerIndex] = { x: [], utilities: [] };
+                }
+                offersByProposer[proposerIndex].x.push(getXValue(offer));
+                offersByProposer[proposerIndex].utilities.push(offer.utilities);
+            }
+            
+            // Update each agent's timeline plot with a single batched extendTraces call
+            const updatePromises = [];
+            
+            for (let agentIdx = 0; agentIdx < numAgents; agentIdx++) {
+                const plotDiv = document.getElementById(`timeline-plot-${agentIdx}`);
+                if (!plotDiv || !plotDiv.data) continue;
+                
+                // Build batched update for this plot - all proposers at once
+                const traceIndices = [];
+                const updateData = { x: [], y: [] };
+                
+                for (const [proposerStr, data] of Object.entries(offersByProposer)) {
+                    const proposerIndex = parseInt(proposerStr);
+                    if (proposerIndex < plotDiv.data.length) {
+                        traceIndices.push(proposerIndex);
+                        updateData.x.push(data.x);
+                        // Extract this agent's utility from each offer
+                        updateData.y.push(data.utilities.map(u => u[agentIdx] || 0));
+                    }
+                }
+                
+                if (traceIndices.length > 0) {
+                    updatePromises.push(
+                        Plotly.extendTraces(plotDiv, updateData, traceIndices).catch(() => null)
+                    );
+                }
+            }
+            
+            // Execute all plot updates in parallel
+            if (updatePromises.length > 0) {
+                try {
+                    await Promise.all(updatePromises);
+                } catch (e) {
+                    // Fallback to full rebuild if all fail
+                    await this.initUtilityTimelinePlots();
+                }
+            }
         },
         
         resetTimelinePlotView() {
@@ -1588,33 +1813,29 @@ app = function() {
                 });
             }
             
-            // 7. Offer traces per negotiator
+            // 7. Offer traces per negotiator - always create traces for consistency
             const offers = neg.offers || [];
-            if (offers.length > 0) {
-                const numAgents = neg.negotiator_names?.length || 2;
-                for (let i = 0; i < numAgents; i++) {
-                    // Use Number() for type coercion (proposer_index may be string or number from JSON)
-                    const agentOffers = offers.filter(o => Number(o.proposer_index) === i);
-                    if (agentOffers.length > 0) {
-                        traces.push({
-                            x: agentOffers.map(o => o.utilities[xIdx] || 0),
-                            y: agentOffers.map(o => o.utilities[yIdx] || 0),
-                            type: 'scatter',
-                            mode: 'lines+markers',
-                            name: neg.negotiator_names?.[i] || `Agent ${i + 1}`,
-                            line: { 
-                                color: negColors[i % negColors.length], 
-                                width: 2,
-                                dash: isColorBlind ? LINE_DASHES[i % LINE_DASHES.length] : 'solid'
-                            },
-                            marker: { 
-                                color: negColors[i % negColors.length], 
-                                size: isColorBlind ? 10 : 8,
-                                symbol: isColorBlind ? MARKER_SYMBOLS[i % MARKER_SYMBOLS.length] : 'circle'
-                            }
-                        });
+            const numAgents = neg.negotiator_names?.length || 2;
+            for (let i = 0; i < numAgents; i++) {
+                // Use Number() for type coercion (proposer_index may be string or number from JSON)
+                const agentOffers = offers.filter(o => Number(o.proposer_index) === i);
+                traces.push({
+                    x: agentOffers.map(o => o.utilities[xIdx] || 0),
+                    y: agentOffers.map(o => o.utilities[yIdx] || 0),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: neg.negotiator_names?.[i] || `Agent ${i + 1}`,
+                    line: { 
+                        color: negColors[i % negColors.length], 
+                        width: 2,
+                        dash: isColorBlind ? LINE_DASHES[i % LINE_DASHES.length] : 'solid'
+                    },
+                    marker: { 
+                        color: negColors[i % negColors.length], 
+                        size: isColorBlind ? 10 : 8,
+                        symbol: isColorBlind ? MARKER_SYMBOLS[i % MARKER_SYMBOLS.length] : 'circle'
                     }
-                }
+                });
             }
             
             // 8. Agreement point
@@ -1703,10 +1924,10 @@ app = function() {
                 const traces = [];
                 
                 // Create N series per plot - each series j shows utility of offers from agent j for agent agentIdx
+                // Always create traces for consistency with main plot
                 for (let proposerIdx = 0; proposerIdx < numAgents; proposerIdx++) {
                     // Use Number() for type coercion (proposer_index may be string or number from JSON)
                     const proposerOffers = neg.offers.filter(o => Number(o.proposer_index) === proposerIdx);
-                    if (proposerOffers.length === 0) continue;
                     
                     const xValues = proposerOffers.map(getXValue);
                     const yValues = proposerOffers.map(o => o.utilities[agentIdx] || 0);
@@ -1869,21 +2090,47 @@ app = function() {
                     neg.offers.push(offer);
                     neg.pendingStart = false;
                     
-                    // Force reactivity by updating currentNegotiation properties directly
+                    // Track pending offers for batched updates
+                    neg._pendingOffers = neg._pendingOffers || [];
+                    neg._pendingOffers.push(offer);
+                    
+                    // Update currentNegotiation if it's the active one
                     if (this.currentNegotiation?.id === sessionId) {
                         this.currentNegotiation.step = neg.step;
                         this.currentNegotiation.relative_time = neg.relative_time;
                         this.currentNegotiation.lastOffer = neg.lastOffer;
-                        this.currentNegotiation.offers = [...neg.offers];  // New array reference
+                        // Share the same offers array reference - don't copy!
+                        this.currentNegotiation.offers = neg.offers;
                         this.currentNegotiation.pendingStart = false;
                         
-                        this.updateOutcomeSpacePlot(offer);
-                        this.updateUtilityTimelinePlots(offer);
+                        // Time-based throttling: max 10 updates per second (100ms between updates)
+                        // Lower fps is sufficient for visualization and prevents browser freeze on large scenarios
+                        const now = performance.now();
+                        const MIN_UPDATE_INTERVAL = 100; // ~10fps
                         
-                        this.$nextTick(() => {
-                            const log = this.$refs.offerLog;
-                            if (log) log.scrollTop = log.scrollHeight;
-                        });
+                        if (!this._lastPlotUpdate || (now - this._lastPlotUpdate) >= MIN_UPDATE_INTERVAL) {
+                            this._lastPlotUpdate = now;
+                            // Grab pending offers and clear the queue
+                            const pendingOffers = neg._pendingOffers || [];
+                            neg._pendingOffers = [];
+                            
+                            // Use non-blocking update with batched offers
+                            requestAnimationFrame(() => {
+                                if (this.currentNegotiation?.id === sessionId && pendingOffers.length > 0) {
+                                    this.updateOutcomeSpacePlotBatched(pendingOffers);
+                                    this.updateUtilityTimelinePlotsBatched(pendingOffers);
+                                }
+                            });
+                        }
+                        
+                        // Throttle scroll updates (less frequent - every 100ms)
+                        if (!this._lastScrollUpdate || (now - this._lastScrollUpdate) >= 100) {
+                            this._lastScrollUpdate = now;
+                            requestAnimationFrame(() => {
+                                const log = this.$refs.offerLog;
+                                if (log) log.scrollTop = log.scrollHeight;
+                            });
+                        }
                     }
                 }
             });
