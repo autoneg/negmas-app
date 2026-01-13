@@ -54,6 +54,18 @@ async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/api/identity")
+async def identity():
+    """Return app identity for verification.
+
+    Used by the kill command to verify that the process on a port is negmas-app.
+    """
+    return {
+        "app": "negmas-app",
+        "version": app.version,
+    }
+
+
 # Typer CLI app
 cli = typer.Typer(
     name="negmas-app",
@@ -103,8 +115,19 @@ def run(
 @cli.command()
 def kill(
     port: Annotated[int, typer.Option(help="Port to kill the process on")] = 8019,
+    force: Annotated[
+        bool,
+        typer.Option("--force", "-f", help="Kill without checking if it's negmas-app"),
+    ] = False,
 ) -> None:
-    """Kill any process running on the specified port."""
+    """Kill the negmas-app process running on the specified port.
+
+    By default, only kills if the process is verified to be negmas-app.
+    Use --force/-f to kill any process on the port.
+    """
+    import urllib.request
+    import urllib.error
+
     # Find PIDs using the port
     result = subprocess.run(
         ["lsof", "-ti", f":{port}"],
@@ -116,6 +139,36 @@ def kill(
     if not pids:
         typer.echo(f"No process found on port {port}")
         sys.exit(0)
+
+    # Check if it's negmas-app (unless --force)
+    if not force:
+        try:
+            url = f"http://127.0.0.1:{port}/api/identity"
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=2) as response:
+                import json
+
+                data = json.loads(response.read().decode())
+                if data.get("app") != "negmas-app":
+                    typer.echo(
+                        f"Process on port {port} is not negmas-app. Use --force/-f to kill anyway.",
+                        err=True,
+                    )
+                    sys.exit(1)
+        except urllib.error.URLError:
+            typer.echo(
+                f"Could not verify process on port {port} is negmas-app (connection failed). "
+                "Use --force/-f to kill anyway.",
+                err=True,
+            )
+            sys.exit(1)
+        except Exception as e:
+            typer.echo(
+                f"Could not verify process on port {port} is negmas-app: {e}. "
+                "Use --force/-f to kill anyway.",
+                err=True,
+            )
+            sys.exit(1)
 
     # Kill all PIDs found
     killed = []

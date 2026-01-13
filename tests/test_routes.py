@@ -458,3 +458,11 @@ class TestMainRoutes:
         response = client.get("/static/css/styles.css")
         assert response.status_code == 200
         assert "text/css" in response.headers["content-type"]
+
+    def test_identity_endpoint(self, client: TestClient):
+        """Test that identity endpoint returns app info."""
+        response = client.get("/api/identity")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["app"] == "negmas-app"
+        assert "version" in data
