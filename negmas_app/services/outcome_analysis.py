@@ -8,6 +8,7 @@ from negmas import (
     pareto_frontier,
     nash_points,
     kalai_points,
+    ks_points,
     max_welfare_points,
 )
 from negmas.outcomes import Outcome
@@ -54,16 +55,84 @@ def compute_outcome_utilities(
 def compute_outcome_space_data(
     scenario: Scenario,
     max_samples: int = 50000,
+    use_cached_stats: bool = True,
 ) -> OutcomeSpaceData:
     """Compute full outcome space analysis data.
 
     Args:
         scenario: Loaded scenario with ufuns and outcome_space.
         max_samples: Maximum outcomes to sample for display.
+        use_cached_stats: If True and scenario.stats exists, use cached values.
 
     Returns:
         OutcomeSpaceData with all computed values.
     """
+    # Use cached stats if available
+    if use_cached_stats and scenario.stats is not None:
+        return _from_cached_stats(scenario, max_samples)
+
+    # Otherwise compute from scratch
+    return _compute_from_scratch(scenario, max_samples)
+
+
+def _from_cached_stats(scenario: Scenario, max_samples: int) -> OutcomeSpaceData:
+    """Build OutcomeSpaceData from cached scenario.stats."""
+    stats = scenario.stats
+    ufuns = scenario.ufuns
+    outcome_space = scenario.outcome_space
+
+    # Still need to compute outcome utilities for the scatter plot
+    outcomes = list(outcome_space.enumerate_or_sample(max_cardinality=max_samples * 2))
+    total_outcomes = outcome_space.cardinality
+
+    outcome_utilities, sampled, sample_size = compute_outcome_utilities(
+        ufuns, outcomes, max_samples
+    )
+
+    # Convert cached Pareto utilities
+    pareto_utilities = []
+    if stats.pareto_utils:
+        for utils in stats.pareto_utils:
+            pareto_utilities.append(tuple(float(u) for u in utils))
+
+    data = OutcomeSpaceData(
+        outcome_utilities=outcome_utilities,
+        pareto_utilities=pareto_utilities,
+        total_outcomes=total_outcomes if isinstance(total_outcomes, int) else 0,
+        sampled=sampled,
+        sample_size=sample_size,
+    )
+
+    # Map cached special points
+    if stats.nash_utils and len(stats.nash_utils) > 0:
+        data.nash_point = AnalysisPoint(
+            name="nash",
+            utilities=[float(u) for u in stats.nash_utils[0]],
+        )
+
+    if stats.kalai_utils and len(stats.kalai_utils) > 0:
+        data.kalai_point = AnalysisPoint(
+            name="kalai",
+            utilities=[float(u) for u in stats.kalai_utils[0]],
+        )
+
+    if stats.ks_utils and len(stats.ks_utils) > 0:
+        data.kalai_smorodinsky_point = AnalysisPoint(
+            name="kalai_smorodinsky",
+            utilities=[float(u) for u in stats.ks_utils[0]],
+        )
+
+    if stats.max_welfare_utils and len(stats.max_welfare_utils) > 0:
+        data.max_welfare_point = AnalysisPoint(
+            name="max_welfare",
+            utilities=[float(u) for u in stats.max_welfare_utils[0]],
+        )
+
+    return data
+
+
+def _compute_from_scratch(scenario: Scenario, max_samples: int) -> OutcomeSpaceData:
+    """Compute outcome space data from scratch (no cache)."""
     ufuns = scenario.ufuns
     outcome_space = scenario.outcome_space
     outcomes = list(outcome_space.enumerate_or_sample(max_cardinality=max_samples * 2))
@@ -126,6 +195,22 @@ def compute_outcome_space_data(
             data.kalai_point = AnalysisPoint(
                 name="kalai",
                 utilities=list(kalai_utils),
+            )
+    except Exception:
+        pass
+
+    # Kalai-Smorodinsky point(s) - proportional fairness
+    try:
+        ks_results = ks_points(
+            ufuns,
+            frontier=pareto_utilities,
+            outcome_space=outcome_space,
+        )
+        if ks_results:
+            ks_utils, ks_idx = ks_results[0]
+            data.kalai_smorodinsky_point = AnalysisPoint(
+                name="kalai_smorodinsky",
+                utilities=list(ks_utils),
             )
     except Exception:
         pass

@@ -130,6 +130,7 @@ class SessionInitEvent:
 
     session_id: str
     scenario_name: str
+    scenario_path: str
     negotiator_names: list[str]
     negotiator_types: list[str]
     negotiator_colors: list[str]

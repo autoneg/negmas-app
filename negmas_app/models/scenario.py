@@ -40,9 +40,50 @@ class ScenarioInfo:
     # Tags
     tags: list[str] = field(default_factory=list)
 
+    # Whether stats are cached
+    has_stats: bool = False
+
+    # Whether info is cached
+    has_info: bool = False
+
     @property
     def n_issues(self) -> int:
         return len(self.issues)
+
+
+@dataclass
+class ScenarioStatsInfo:
+    """Scenario statistics for API responses and display."""
+
+    # Whether stats are available
+    has_stats: bool = False
+
+    # Opposition measure (0-1, higher = more opposing preferences)
+    opposition: float | None = None
+
+    # Utility ranges per negotiator [(min, max), ...]
+    utility_ranges: list[tuple[float, float]] | None = None
+
+    # Number of Pareto optimal outcomes
+    n_pareto_outcomes: int = 0
+
+    # Special points - utilities for each negotiator
+    # Lists because there can be ties (multiple optimal points)
+    nash_utils: list[list[float]] | None = None
+    kalai_utils: list[list[float]] | None = None
+    ks_utils: list[list[float]] | None = None
+    max_welfare_utils: list[list[float]] | None = None
+
+    # Modified variants
+    modified_kalai_utils: list[list[float]] | None = None
+    modified_ks_utils: list[list[float]] | None = None
+    max_relative_welfare_utils: list[list[float]] | None = None
+
+    # Pareto utilities for plotting (can be large)
+    pareto_utils: list[list[float]] | None = None
+
+    # Negotiator names (for display)
+    negotiator_names: list[str] | None = None
 
 
 @dataclass

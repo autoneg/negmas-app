@@ -22,7 +22,7 @@ from .negotiator import (
     BOAComponentInfo,
     BOANegotiatorConfig,
 )
-from .scenario import ScenarioInfo, IssueInfo
+from .scenario import ScenarioInfo, IssueInfo, ScenarioStatsInfo
 from .session import (
     NegotiationSession,
     SessionStatus,
@@ -93,6 +93,7 @@ __all__ = [
     # Scenario
     "ScenarioInfo",
     "IssueInfo",
+    "ScenarioStatsInfo",
     # Session
     "NegotiationSession",
     "SessionStatus",

@@ -99,6 +99,127 @@
     </div>
 </div>
 
+<!-- Scenario Stats Modal -->
+<div class="panel-zoom-overlay" x-show="showScenarioStatsModal" @click.self="showScenarioStatsModal = false" 
+     style="position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px;">
+    <div class="panel" style="width: 600px; max-width: 90vw; max-height: 90vh; overflow: auto;" x-show="showScenarioStatsModal">
+        <div class="panel-header">
+            <span class="panel-title">Scenario Statistics</span>
+            <div class="panel-actions">
+                <button class="panel-btn" title="Close" @click="showScenarioStatsModal = false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="panel-content" style="padding: 16px;">
+            <!-- Loading state -->
+            <div x-show="currentNegotiationStatsLoading" class="text-muted" style="padding: 20px; text-align: center;">
+                Loading statistics...
+            </div>
+            
+            <!-- Error state -->
+            <div x-show="currentNegotiationStatsError" class="text-muted" style="padding: 20px; text-align: center; color: var(--danger);">
+                <span x-text="currentNegotiationStatsError"></span>
+            </div>
+            
+            <!-- Stats content -->
+            <div x-show="currentNegotiationStats && currentNegotiationStats.has_stats && !currentNegotiationStatsLoading">
+                <!-- Scenario name -->
+                <div style="margin-bottom: 16px;">
+                    <span class="text-muted" style="font-size: 12px;">Scenario:</span>
+                    <span style="font-weight: 500;" x-text="currentNegotiation?.scenario || 'Unknown'"></span>
+                </div>
+                
+                <!-- Opposition & Pareto count -->
+                <div class="scenario-detail-grid" style="margin-bottom: 16px;">
+                    <div class="scenario-detail-stat">
+                        <span class="stat-label">Opposition</span>
+                        <span class="stat-value" x-text="currentNegotiationStats?.opposition?.toFixed(3) ?? 'N/A'"></span>
+                    </div>
+                    <div class="scenario-detail-stat">
+                        <span class="stat-label">Pareto Outcomes</span>
+                        <span class="stat-value" x-text="currentNegotiationStats?.n_pareto_outcomes ?? 'N/A'"></span>
+                    </div>
+                </div>
+                
+                <!-- Utility Ranges -->
+                <template x-if="currentNegotiationStats?.utility_ranges && currentNegotiationStats.utility_ranges.length > 0">
+                    <div style="margin-bottom: 16px;">
+                        <div class="text-muted" style="font-size: 12px; margin-bottom: 8px;">Utility Ranges</div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            <template x-for="(range, idx) in currentNegotiationStats.utility_ranges" :key="idx">
+                                <span class="badge badge-neutral" 
+                                      x-text="(currentNegotiationStats.negotiator_names?.[idx] || ('Party ' + (idx+1))) + ': [' + range[0].toFixed(3) + ', ' + range[1].toFixed(3) + ']'">
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+                
+                <!-- Special Points Table -->
+                <div style="margin-bottom: 16px;">
+                    <div class="text-muted" style="font-size: 12px; margin-bottom: 8px;">Special Points</div>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <th style="text-align: left; padding: 8px 12px; font-weight: 500;">Point</th>
+                                <template x-for="(name, idx) in (currentNegotiationStats?.negotiator_names || [])" :key="idx">
+                                    <th style="text-align: right; padding: 8px 12px; font-weight: 500;" x-text="name"></th>
+                                </template>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr x-show="currentNegotiationStats?.nash_utils?.length > 0" style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding: 8px 12px;">Nash</td>
+                                <template x-for="(u, idx) in (currentNegotiationStats?.nash_utils?.[0] || [])" :key="idx">
+                                    <td style="text-align: right; padding: 8px 12px; font-family: var(--font-mono);" x-text="u.toFixed(4)"></td>
+                                </template>
+                            </tr>
+                            <tr x-show="currentNegotiationStats?.kalai_utils?.length > 0" style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding: 8px 12px;">Kalai</td>
+                                <template x-for="(u, idx) in (currentNegotiationStats?.kalai_utils?.[0] || [])" :key="idx">
+                                    <td style="text-align: right; padding: 8px 12px; font-family: var(--font-mono);" x-text="u.toFixed(4)"></td>
+                                </template>
+                            </tr>
+                            <tr x-show="currentNegotiationStats?.ks_utils?.length > 0" style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding: 8px 12px;">Kalai-Smorodinsky</td>
+                                <template x-for="(u, idx) in (currentNegotiationStats?.ks_utils?.[0] || [])" :key="idx">
+                                    <td style="text-align: right; padding: 8px 12px; font-family: var(--font-mono);" x-text="u.toFixed(4)"></td>
+                                </template>
+                            </tr>
+                            <tr x-show="currentNegotiationStats?.max_welfare_utils?.length > 0">
+                                <td style="padding: 8px 12px;">Max Welfare</td>
+                                <template x-for="(u, idx) in (currentNegotiationStats?.max_welfare_utils?.[0] || [])" :key="idx">
+                                    <td style="text-align: right; padding: 8px 12px; font-family: var(--font-mono);" x-text="u.toFixed(4)"></td>
+                                </template>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Actions -->
+                <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button class="btn btn-secondary btn-sm" @click="calculateCurrentNegotiationStats(true)" :disabled="currentNegotiationStatsLoading">
+                        Recalculate
+                    </button>
+                </div>
+            </div>
+            
+            <!-- No stats state -->
+            <div x-show="!currentNegotiationStatsLoading && !currentNegotiationStatsError && (!currentNegotiationStats || !currentNegotiationStats.has_stats)" 
+                 style="padding: 20px; text-align: center;">
+                <p class="text-muted" style="margin-bottom: 16px;">No statistics available for this scenario.</p>
+                <button class="btn btn-primary btn-sm" @click="calculateCurrentNegotiationStats(false)" :disabled="currentNegotiationStatsLoading">
+                    Calculate Stats
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Negotiation view when one is selected -->
 <div x-show="currentNegotiation" class="panels-container panels-layout-compact">
     <!-- LEFT COLUMN: Info, Offer History, Result -->
@@ -125,6 +246,9 @@
                 </template>
                 <button class="panel-btn panel-collapse-btn" title="Toggle panel" @click="panelCollapsed.info = !panelCollapsed.info">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                <button class="panel-btn" title="Scenario Stats" @click="showScenarioStatsModal = true; loadCurrentNegotiationStats()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
                 </button>
             </div>
             <div class="panel-content-ultra-compact" x-show="!panelCollapsed.info">
@@ -421,6 +545,10 @@ app = function() {
         // Panel state for controls
         zoomedPanel: null,
         showIssueFrequency: false,  // Hidden feature for now
+        showScenarioStatsModal: false,  // Stats modal visibility
+        currentNegotiationStats: null,  // Stats for current negotiation's scenario
+        currentNegotiationStatsLoading: false,
+        currentNegotiationStatsError: null,
         panelState: {
             utilityView: { xAxis: 0, yAxis: 1 },
             timeline: { xAxis: 'relative_time' }
@@ -790,18 +918,17 @@ app = function() {
                 gridColor: isDark ? '#38414a' : '#dfe1e6',
                 bgColor: 'transparent',
                 outcomeColor: isDark ? 'rgba(100, 120, 140, 0.3)' : 'rgba(100, 120, 140, 0.4)',
-                paretoColor: isDark ? '#f5cd47' : '#d97706',
-                nashColor: '#22c55e',
-                kalaiColor: '#8b5cf6',
-                welfareColor: '#ef4444',
+                // Use black/white for special points (not used for negotiators)
+                specialPointColor: isDark ? '#ffffff' : '#000000',
                 agreementColor: '#10b981'
             };
         },
         
-        // Get negotiator colors
+        // Get negotiator colors - avoid black/white as they're used for special points
         getNegotiatorColors() {
             const neg = this.currentNegotiation;
-            const defaultColors = neg?.negotiator_colors || ['#4a6fa5', '#22a06b', '#e65100', '#7b1fa2', '#00695c'];
+            // Colors that avoid black/white (reserved for Pareto/Nash/Kalai/Welfare)
+            const defaultColors = neg?.negotiator_colors || ['#4a6fa5', '#22a06b', '#e65100', '#7b1fa2', '#00695c', '#c62828', '#1565c0', '#6a1b9a'];
             const isColorBlind = document.documentElement.classList.contains('color-blind-mode');
             const isDark = document.documentElement.classList.contains('dark-mode');
             return isColorBlind ? (isDark ? COLORBLIND_COLORS_DARK : COLORBLIND_COLORS) : defaultColors;
@@ -998,20 +1125,19 @@ app = function() {
                 });
             }
             
-            // 2. Pareto frontier
+            // 2. Pareto frontier (markers only, no lines, using special point color)
             if (osd.pareto_utilities && osd.pareto_utilities.length > 0) {
                 traces.push({
                     x: osd.pareto_utilities.map(u => u[xIdx] || 0),
                     y: osd.pareto_utilities.map(u => u[yIdx] || 0),
                     type: 'scatter',
-                    mode: 'lines+markers',
+                    mode: 'markers',
                     name: 'Pareto Frontier',
-                    line: { color: colors.paretoColor, width: 2 },
-                    marker: { color: colors.paretoColor, size: 5 }
+                    marker: { color: colors.specialPointColor, size: 6, opacity: 0.7 }
                 });
             }
             
-            // 3. Nash point
+            // 3. Nash point (triangle-left marker)
             if (osd.nash_point && osd.nash_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.nash_point[xIdx]],
@@ -1019,11 +1145,11 @@ app = function() {
                     type: 'scatter',
                     mode: 'markers',
                     name: 'Nash',
-                    marker: { color: colors.nashColor, size: 12, symbol: 'diamond' }
+                    marker: { color: colors.specialPointColor, size: 14, symbol: 'triangle-left' }
                 });
             }
             
-            // 4. Kalai point
+            // 4. Kalai point (triangle-down marker)
             if (osd.kalai_point && osd.kalai_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.kalai_point[xIdx]],
@@ -1031,11 +1157,23 @@ app = function() {
                     type: 'scatter',
                     mode: 'markers',
                     name: 'Kalai',
-                    marker: { color: colors.kalaiColor, size: 12, symbol: 'square' }
+                    marker: { color: colors.specialPointColor, size: 14, symbol: 'triangle-down' }
                 });
             }
             
-            // 5. Max welfare point
+            // 5. Kalai-Smorodinsky point (triangle-up marker)
+            if (osd.kalai_smorodinsky_point && osd.kalai_smorodinsky_point.length > Math.max(xIdx, yIdx)) {
+                traces.push({
+                    x: [osd.kalai_smorodinsky_point[xIdx]],
+                    y: [osd.kalai_smorodinsky_point[yIdx]],
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: 'Kalai-Smorodinsky',
+                    marker: { color: colors.specialPointColor, size: 14, symbol: 'triangle-up' }
+                });
+            }
+            
+            // 6. Max welfare point (triangle-right marker)
             if (osd.max_welfare_point && osd.max_welfare_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.max_welfare_point[xIdx]],
@@ -1043,11 +1181,11 @@ app = function() {
                     type: 'scatter',
                     mode: 'markers',
                     name: 'Max Welfare',
-                    marker: { color: colors.welfareColor, size: 14, symbol: 'star' }
+                    marker: { color: colors.specialPointColor, size: 14, symbol: 'triangle-right' }
                 });
             }
             
-            // 6. Offer traces per negotiator
+            // 7. Offer traces per negotiator
             const offers = neg.offers || [];
             if (offers.length > 0) {
                 const numAgents = neg.negotiator_names?.length || 2;
@@ -1076,7 +1214,7 @@ app = function() {
                 }
             }
             
-            // 7. Agreement point
+            // 8. Agreement point
             if (neg.agreement && neg.final_utilities && neg.final_utilities.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [neg.final_utilities[xIdx]],
@@ -1206,17 +1344,12 @@ app = function() {
                         x: xValues,
                         y: yValues,
                         type: 'scatter',
-                        mode: 'lines+markers',
+                        mode: 'lines',
                         name: neg.negotiator_names?.[proposerIdx] || `Agent ${proposerIdx + 1}`,
                         line: { 
                             color: negColors[proposerIdx % negColors.length], 
                             width: isOwnOffers ? 3 : 1.5,
                             dash: isOwnOffers ? 'solid' : LINE_DASHES[(proposerIdx + 1) % LINE_DASHES.length]
-                        },
-                        marker: { 
-                            color: negColors[proposerIdx % negColors.length], 
-                            size: isOwnOffers ? 8 : 5,
-                            symbol: isColorBlind ? MARKER_SYMBOLS[proposerIdx % MARKER_SYMBOLS.length] : 'circle'
                         }
                     });
                 }
@@ -1315,6 +1448,54 @@ app = function() {
             }
         },
         
+        // Load stats for current negotiation's scenario
+        async loadCurrentNegotiationStats() {
+            const neg = this.currentNegotiation;
+            if (!neg || !neg.scenario_path) {
+                this.currentNegotiationStatsError = 'No scenario path available';
+                return;
+            }
+            
+            this.currentNegotiationStatsLoading = true;
+            this.currentNegotiationStatsError = null;
+            
+            try {
+                const res = await fetch(`/api/scenarios/${encodeURIComponent(neg.scenario_path)}/stats`);
+                if (!res.ok) throw new Error('Failed to load stats');
+                this.currentNegotiationStats = await res.json();
+            } catch (e) {
+                console.error('Failed to load negotiation stats:', e);
+                this.currentNegotiationStatsError = 'Failed to load stats';
+            } finally {
+                this.currentNegotiationStatsLoading = false;
+            }
+        },
+        
+        // Calculate stats for current negotiation's scenario
+        async calculateCurrentNegotiationStats(force = false) {
+            const neg = this.currentNegotiation;
+            if (!neg || !neg.scenario_path) {
+                this.currentNegotiationStatsError = 'No scenario path available';
+                return;
+            }
+            
+            this.currentNegotiationStatsLoading = true;
+            this.currentNegotiationStatsError = null;
+            
+            try {
+                const res = await fetch(`/api/scenarios/${encodeURIComponent(neg.scenario_path)}/stats/calculate?force=${force}`, {
+                    method: 'POST'
+                });
+                if (!res.ok) throw new Error('Failed to calculate stats');
+                this.currentNegotiationStats = await res.json();
+            } catch (e) {
+                console.error('Failed to calculate negotiation stats:', e);
+                this.currentNegotiationStatsError = 'Failed to calculate stats';
+            } finally {
+                this.currentNegotiationStatsLoading = false;
+            }
+        },
+        
         // Initialize outcome space plot to a specific element (for zoom)
         async initOutcomeSpacePlotToElement(elementId) {
             const plotDiv = document.getElementById(elementId);
@@ -1347,20 +1528,19 @@ app = function() {
                 });
             }
             
-            // 2. Pareto frontier
+            // 2. Pareto frontier (markers only, no lines, using special point color)
             if (osd.pareto_utilities && osd.pareto_utilities.length > 0) {
                 traces.push({
                     x: osd.pareto_utilities.map(u => u[xIdx] || 0),
                     y: osd.pareto_utilities.map(u => u[yIdx] || 0),
                     type: 'scatter',
-                    mode: 'lines+markers',
+                    mode: 'markers',
                     name: 'Pareto Frontier',
-                    line: { color: colors.paretoColor, width: 2 },
-                    marker: { color: colors.paretoColor, size: 6 }
+                    marker: { color: colors.specialPointColor, size: 7, opacity: 0.7 }
                 });
             }
             
-            // 3. Nash point
+            // 3. Nash point (triangle-left marker)
             if (osd.nash_point && osd.nash_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.nash_point[xIdx]],
@@ -1368,11 +1548,11 @@ app = function() {
                     type: 'scatter',
                     mode: 'markers',
                     name: 'Nash',
-                    marker: { color: colors.nashColor, size: 14, symbol: 'diamond' }
+                    marker: { color: colors.specialPointColor, size: 16, symbol: 'triangle-left' }
                 });
             }
             
-            // 4. Kalai point
+            // 4. Kalai point (triangle-down marker)
             if (osd.kalai_point && osd.kalai_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.kalai_point[xIdx]],
@@ -1380,11 +1560,23 @@ app = function() {
                     type: 'scatter',
                     mode: 'markers',
                     name: 'Kalai',
-                    marker: { color: colors.kalaiColor, size: 14, symbol: 'square' }
+                    marker: { color: colors.specialPointColor, size: 16, symbol: 'triangle-down' }
                 });
             }
             
-            // 5. Max welfare point
+            // 5. Kalai-Smorodinsky point (triangle-up marker)
+            if (osd.kalai_smorodinsky_point && osd.kalai_smorodinsky_point.length > Math.max(xIdx, yIdx)) {
+                traces.push({
+                    x: [osd.kalai_smorodinsky_point[xIdx]],
+                    y: [osd.kalai_smorodinsky_point[yIdx]],
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: 'Kalai-Smorodinsky',
+                    marker: { color: colors.specialPointColor, size: 16, symbol: 'triangle-up' }
+                });
+            }
+            
+            // 6. Max welfare point (triangle-right marker)
             if (osd.max_welfare_point && osd.max_welfare_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.max_welfare_point[xIdx]],
@@ -1392,11 +1584,11 @@ app = function() {
                     type: 'scatter',
                     mode: 'markers',
                     name: 'Max Welfare',
-                    marker: { color: colors.welfareColor, size: 16, symbol: 'star' }
+                    marker: { color: colors.specialPointColor, size: 16, symbol: 'triangle-right' }
                 });
             }
             
-            // 6. Offer traces per negotiator
+            // 7. Offer traces per negotiator
             const offers = neg.offers || [];
             if (offers.length > 0) {
                 const numAgents = neg.negotiator_names?.length || 2;
@@ -1425,7 +1617,7 @@ app = function() {
                 }
             }
             
-            // 7. Agreement point
+            // 8. Agreement point
             if (neg.agreement && neg.final_utilities && neg.final_utilities.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [neg.final_utilities[xIdx]],
@@ -1649,6 +1841,7 @@ app = function() {
                     neg.n_outcomes = initData.n_outcomes;
                     neg.outcome_space_data = initData.outcome_space_data;
                     neg.scenario = initData.scenario_name;
+                    neg.scenario_path = initData.scenario_path;
                     
                     // Initialize panel state for this negotiation
                     const numAgents = neg.negotiator_names?.length || 2;

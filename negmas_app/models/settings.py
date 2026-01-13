@@ -21,6 +21,7 @@ class GeneralSettings:
     dark_mode: bool = False
     color_blind_mode: bool = False
     save_negotiations: bool = True  # Whether to persist negotiations to disk
+    cache_scenario_stats: bool = True  # Auto-cache computed scenario statistics
 
 
 @dataclass
@@ -238,6 +239,11 @@ PANEL_TYPES = [
         "description": "Utility values over time",
     },
     {"id": "result", "name": "Result", "description": "Final agreement and utilities"},
+    {
+        "id": "stats",
+        "name": "Scenario Stats",
+        "description": "Scenario statistics: opposition, Pareto, Nash, Kalai, KS, Max Welfare",
+    },
 ]
 
 

@@ -129,6 +129,7 @@ async def stream_negotiation(
                             {
                                 "session_id": event.session_id,
                                 "scenario_name": event.scenario_name,
+                                "scenario_path": event.scenario_path,
                                 "negotiator_names": event.negotiator_names,
                                 "negotiator_types": event.negotiator_types,
                                 "negotiator_colors": event.negotiator_colors,

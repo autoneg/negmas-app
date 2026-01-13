@@ -413,6 +413,103 @@
                                         </div>
                                     </div>
                                     
+                                    <!-- Statistics Section -->
+                                    <div class="scenario-detail-section">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <h3>Statistics</h3>
+                                            <div style="display: flex; gap: 8px;">
+                                                <button class="btn btn-secondary btn-xs" 
+                                                        @click="calculateScenarioStats(selectedScenario.path, false)"
+                                                        :disabled="scenarioStatsLoading"
+                                                        x-show="!selectedScenario.has_stats && !scenarioStats">
+                                                    <span x-text="scenarioStatsLoading ? 'Calculating...' : 'Calculate Stats'"></span>
+                                                </button>
+                                                <button class="btn btn-secondary btn-xs" 
+                                                        @click="calculateScenarioStats(selectedScenario.path, true)"
+                                                        :disabled="scenarioStatsLoading"
+                                                        x-show="scenarioStats"
+                                                        title="Recalculate statistics">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                                        <path d="M23 4v6h-6"></path>
+                                                        <path d="M1 20v-6h6"></path>
+                                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+                                                        <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Loading state -->
+                                        <div x-show="scenarioStatsLoading" class="text-muted" style="padding: 12px 0;">
+                                            Loading statistics...
+                                        </div>
+                                        
+                                        <!-- Error state -->
+                                        <div x-show="scenarioStatsError" class="text-muted" style="padding: 12px 0; color: var(--danger);">
+                                            <span x-text="scenarioStatsError"></span>
+                                        </div>
+                                        
+                                        <!-- No stats available -->
+                                        <div x-show="!scenarioStatsLoading && !scenarioStats && !scenarioStatsError" class="text-muted" style="padding: 12px 0;">
+                                            <span x-show="selectedScenario.has_stats">Stats cached but not loaded</span>
+                                            <span x-show="!selectedScenario.has_stats">Click "Calculate Stats" to compute scenario statistics</span>
+                                        </div>
+                                        
+                                        <!-- Stats display -->
+                                        <div x-show="scenarioStats && scenarioStats.has_stats" class="scenario-stats-content">
+                                            <!-- Opposition -->
+                                            <div class="scenario-detail-grid" style="margin-bottom: 12px;">
+                                                <div class="scenario-detail-stat">
+                                                    <span class="stat-label">Opposition</span>
+                                                    <span class="stat-value" x-text="scenarioStats?.opposition?.toFixed(3) ?? 'N/A'"></span>
+                                                </div>
+                                                <div class="scenario-detail-stat">
+                                                    <span class="stat-label">Pareto Outcomes</span>
+                                                    <span class="stat-value" x-text="scenarioStats?.n_pareto_outcomes ?? 'N/A'"></span>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Utility Ranges -->
+                                            <template x-if="scenarioStats?.utility_ranges && scenarioStats.utility_ranges.length > 0">
+                                                <div style="margin-bottom: 12px;">
+                                                    <div class="text-muted" style="font-size: 11px; margin-bottom: 4px;">Utility Ranges</div>
+                                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                                        <template x-for="(range, idx) in scenarioStats.utility_ranges" :key="idx">
+                                                            <span class="badge badge-neutral" 
+                                                                  x-text="(scenarioStats.negotiator_names?.[idx] || ('Party ' + (idx+1))) + ': [' + range[0].toFixed(2) + ', ' + range[1].toFixed(2) + ']'">
+                                                            </span>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            
+                                            <!-- Special Points -->
+                                            <div class="text-muted" style="font-size: 11px; margin-bottom: 4px;">Special Points</div>
+                                            <div class="scenario-special-points" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                                                <!-- Nash Point -->
+                                                <div class="special-point-item" x-show="scenarioStats?.nash_utils?.length > 0">
+                                                    <span class="point-label">Nash:</span>
+                                                    <span class="point-value" x-text="scenarioStats?.nash_utils?.[0]?.map(u => u.toFixed(3)).join(', ') ?? 'N/A'"></span>
+                                                </div>
+                                                <!-- Kalai Point -->
+                                                <div class="special-point-item" x-show="scenarioStats?.kalai_utils?.length > 0">
+                                                    <span class="point-label">Kalai:</span>
+                                                    <span class="point-value" x-text="scenarioStats?.kalai_utils?.[0]?.map(u => u.toFixed(3)).join(', ') ?? 'N/A'"></span>
+                                                </div>
+                                                <!-- Kalai-Smorodinsky Point -->
+                                                <div class="special-point-item" x-show="scenarioStats?.ks_utils?.length > 0">
+                                                    <span class="point-label">KS:</span>
+                                                    <span class="point-value" x-text="scenarioStats?.ks_utils?.[0]?.map(u => u.toFixed(3)).join(', ') ?? 'N/A'"></span>
+                                                </div>
+                                                <!-- Max Welfare Point -->
+                                                <div class="special-point-item" x-show="scenarioStats?.max_welfare_utils?.length > 0">
+                                                    <span class="point-label">Max Welfare:</span>
+                                                    <span class="point-value" x-text="scenarioStats?.max_welfare_utils?.[0]?.map(u => u.toFixed(3)).join(', ') ?? 'N/A'"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
                                     <div class="scenario-detail-section">
                                         <h3>Path</h3>
                                         <div class="scenario-path">
@@ -1835,6 +1932,13 @@
                                     </label>
                                     <div class="form-hint">Persist completed negotiations to disk for later review</div>
                                 </div>
+                                <div class="form-group">
+                                    <label class="form-checkbox">
+                                        <input type="checkbox" x-model="settings.cacheScenarioStats" @change="saveSettings()">
+                                        <span>Cache Scenario Statistics</span>
+                                    </label>
+                                    <div class="form-hint">Auto-save computed Pareto, Nash, Kalai, and other statistics to scenario folders</div>
+                                </div>
                             </div>
                         </div>
                         
@@ -2096,6 +2200,9 @@
             explorerSourceFilter: '',
             selectedScenario: null,
             explorerLoading: false,
+            scenarioStats: null,  // Stats for the selected scenario
+            scenarioStatsLoading: false,
+            scenarioStatsError: null,
             
             // Running/completed negotiations
             runningNegotiations: [],
@@ -2138,6 +2245,7 @@
                 darkMode: localStorage.getItem('darkMode') === 'true',
                 colorBlindMode: localStorage.getItem('colorBlindMode') === 'true',
                 saveNegotiations: localStorage.getItem('saveNegotiations') !== 'false',  // Default true
+                cacheScenarioStats: true,  // Default true - cache scenario stats for faster loading
                 defaultSteps: 100,
                 defaultDelay: 100,
                 autoStartGenius: true,
@@ -2389,6 +2497,49 @@
             
             selectScenarioForExplorer(scenario) {
                 this.selectedScenario = scenario;
+                // Clear previous stats
+                this.scenarioStats = null;
+                this.scenarioStatsError = null;
+                // Auto-load stats if they're cached (fast operation)
+                if (scenario.has_stats) {
+                    this.loadScenarioStats(scenario.path);
+                }
+            },
+            
+            async loadScenarioStats(path) {
+                this.scenarioStatsLoading = true;
+                this.scenarioStatsError = null;
+                try {
+                    const res = await fetch(`/api/scenarios/${encodeURIComponent(path)}/stats`);
+                    if (!res.ok) throw new Error('Failed to load stats');
+                    this.scenarioStats = await res.json();
+                } catch (e) {
+                    console.error('Failed to load scenario stats:', e);
+                    this.scenarioStatsError = 'Failed to load stats';
+                } finally {
+                    this.scenarioStatsLoading = false;
+                }
+            },
+            
+            async calculateScenarioStats(path, force = false) {
+                this.scenarioStatsLoading = true;
+                this.scenarioStatsError = null;
+                try {
+                    const res = await fetch(`/api/scenarios/${encodeURIComponent(path)}/stats/calculate?force=${force}`, {
+                        method: 'POST'
+                    });
+                    if (!res.ok) throw new Error('Failed to calculate stats');
+                    this.scenarioStats = await res.json();
+                    // Update has_stats flag on the selected scenario
+                    if (this.selectedScenario) {
+                        this.selectedScenario.has_stats = true;
+                    }
+                } catch (e) {
+                    console.error('Failed to calculate scenario stats:', e);
+                    this.scenarioStatsError = 'Failed to calculate stats';
+                } finally {
+                    this.scenarioStatsLoading = false;
+                }
             },
             
             useScenarioInNegotiation(scenario) {
@@ -3266,6 +3417,7 @@
                     this.settings.darkMode = data.general?.dark_mode ?? false;
                     this.settings.colorBlindMode = data.general?.color_blind_mode ?? false;
                     this.settings.saveNegotiations = data.general?.save_negotiations ?? true;
+                    this.settings.cacheScenarioStats = data.general?.cache_scenario_stats ?? true;
                     this.settings.defaultSteps = data.negotiation?.default_max_steps ?? 100;
                     this.settings.defaultDelay = data.negotiation?.default_step_delay_ms ?? 100;
                     this.settings.autoStartGenius = data.genius_bridge?.auto_start ?? true;
@@ -3322,7 +3474,8 @@
                         body: JSON.stringify({ 
                             dark_mode: this.settings.darkMode,
                             color_blind_mode: this.settings.colorBlindMode,
-                            save_negotiations: this.settings.saveNegotiations
+                            save_negotiations: this.settings.saveNegotiations,
+                            cache_scenario_stats: this.settings.cacheScenarioStats
                         })
                     });
                 } catch (e) {
@@ -3337,7 +3490,8 @@
                         general: {
                             dark_mode: this.settings.darkMode,
                             color_blind_mode: this.settings.colorBlindMode,
-                            save_negotiations: this.settings.saveNegotiations
+                            save_negotiations: this.settings.saveNegotiations,
+                            cache_scenario_stats: this.settings.cacheScenarioStats
                         },
                         negotiation: {
                             default_max_steps: this.settings.defaultSteps,

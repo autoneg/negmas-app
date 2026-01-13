@@ -1,6 +1,7 @@
 """Scenario API endpoints."""
 
 import asyncio
+from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException
 
@@ -33,6 +34,35 @@ async def list_sources():
     return {"sources": sources}
 
 
+@router.get("/{path:path}/stats")
+async def get_scenario_stats(path: str):
+    """Get scenario statistics.
+
+    Args:
+        path: Full path to scenario directory.
+
+    Returns:
+        Scenario statistics if available.
+    """
+    stats = await asyncio.to_thread(_loader.get_scenario_stats, path)
+    return asdict(stats)
+
+
+@router.post("/{path:path}/stats/calculate")
+async def calculate_scenario_stats(path: str, force: bool = False):
+    """Calculate and save scenario statistics.
+
+    Args:
+        path: Full path to scenario directory.
+        force: If True, recalculate even if stats exist.
+
+    Returns:
+        Computed scenario statistics.
+    """
+    stats = await asyncio.to_thread(_loader.calculate_and_save_stats, path, force)
+    return asdict(stats)
+
+
 @router.get("/{path:path}")
 async def get_scenario(path: str):
     """Get details for a specific scenario.
@@ -58,6 +88,8 @@ def _scenario_to_dict(info) -> dict:
         "n_issues": info.n_issues,
         "n_outcomes": info.n_outcomes,
         "source": info.source,
+        "has_stats": info.has_stats,
+        "has_info": info.has_info,
         "issues": [
             {
                 "name": i.name,

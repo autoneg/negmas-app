@@ -1,7 +1,9 @@
 """Settings API router for NegMAS App."""
 
 import asyncio
+import json
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter
@@ -26,6 +28,20 @@ from ..services.settings_service import SettingsService
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
+# Path to JSON schema
+SCHEMA_PATH = Path.home() / "negmas" / "app" / "settings" / "schema.json"
+
+
+@router.get("/schema")
+async def get_settings_schema() -> dict[str, Any]:
+    """Get JSON schema for settings validation and documentation."""
+    if SCHEMA_PATH.exists():
+        try:
+            return json.loads(SCHEMA_PATH.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"error": "Schema file not found"}
+
 
 @router.get("")
 async def get_all_settings() -> dict[str, Any]:
@@ -39,7 +55,12 @@ async def update_all_settings(settings: dict[str, Any]) -> dict[str, Any]:
     """Update all application settings."""
     # Filter out unknown keys from each section to avoid TypeError
     general_data = settings.get("general", {})
-    general_keys = {"dark_mode", "color_blind_mode"}
+    general_keys = {
+        "dark_mode",
+        "color_blind_mode",
+        "save_negotiations",
+        "cache_scenario_stats",
+    }
     general_filtered = {k: v for k, v in general_data.items() if k in general_keys}
 
     negotiation_data = settings.get("negotiation", {})

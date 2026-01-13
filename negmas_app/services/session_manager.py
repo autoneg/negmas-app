@@ -266,6 +266,7 @@ class SessionManager:
             init_event = SessionInitEvent(
                 session_id=session_id,
                 scenario_name=Path(session.scenario_path).name,
+                scenario_path=session.scenario_path,
                 negotiator_names=session.negotiator_names,
                 negotiator_types=session.negotiator_types,
                 negotiator_colors=negotiator_colors,

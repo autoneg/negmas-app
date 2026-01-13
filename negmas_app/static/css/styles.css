@@ -2202,6 +2202,38 @@ body {
     word-break: break-all;
 }
 
+/* Scenario Statistics */
+.scenario-stats-content {
+    padding: 8px 0;
+}
+
+.special-point-item {
+    background: var(--bg-secondary);
+    padding: 8px 12px;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.special-point-item .point-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.special-point-item .point-value {
+    font-size: 13px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+/* Extra small button variant */
+.btn-xs {
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
 /* Hide with x-cloak until Alpine.js initializes */
 [x-cloak] {
     display: none !important;
