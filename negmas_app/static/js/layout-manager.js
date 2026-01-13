@@ -270,6 +270,9 @@ const LayoutManager = {
      * Get the active layout
      */
     getActiveLayout() {
+        if (!this._state) {
+            this.init();
+        }
         return this._state.layouts[this._state.activeLayoutId] || this._state.layouts.default;
     },
     
@@ -284,7 +287,17 @@ const LayoutManager = {
      * Get all layouts
      */
     getAllLayouts() {
+        if (!this._state) {
+            this.init();
+        }
         return Object.values(this._state.layouts);
+    },
+    
+    /**
+     * Get available layouts (alias for getAllLayouts)
+     */
+    getAvailableLayouts() {
+        return this.getAllLayouts();
     },
     
     /**
@@ -681,6 +694,23 @@ const LayoutManager = {
         this._state.activeLayoutId = 'default';
         this._saveToStorage();
         this._emit('layout-changed', { layoutId: 'default', layout: this.getActiveLayout() });
+    },
+    
+    /**
+     * Reset current layout to its default state
+     */
+    resetCurrentLayout() {
+        const currentId = this._state.activeLayoutId;
+        
+        // If it's a built-in layout, restore from BuiltInLayouts
+        if (BuiltInLayouts[currentId]) {
+            this._state.layouts[currentId] = JSON.parse(JSON.stringify(BuiltInLayouts[currentId]));
+            this._saveToStorage();
+            this._emit('layout-changed', { layoutId: currentId, layout: this.getActiveLayout() });
+        } else {
+            // For custom layouts, just switch to default
+            this.resetToDefault();
+        }
     },
     
     /**

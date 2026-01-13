@@ -499,14 +499,18 @@ const LayoutRenderer = {
         document.body.classList.add('resizing');
         document.body.style.cursor = direction === 'horizontal' ? 'col-resize' : 'row-resize';
         
-        document.addEventListener('mousemove', this._onResize);
-        document.addEventListener('mouseup', this._endResize);
+        // Bind methods to preserve 'this' context
+        this._boundOnResize = this._onResize.bind(this);
+        this._boundEndResize = this._endResize.bind(this);
+        
+        document.addEventListener('mousemove', this._boundOnResize);
+        document.addEventListener('mouseup', this._boundEndResize);
     },
     
     /**
-     * Handle resize movement
+     * Handle resize movement (bound in init)
      */
-    _onResize = (e) => {
+    _onResize(e) {
         if (!this._resizing) return;
         
         const { direction, id, startX, startY, startSizes } = this._resizing;
@@ -537,12 +541,12 @@ const LayoutRenderer = {
             const newHeight = Math.max(60, Math.min(containerRect.height - 200, startHeight - deltaY));
             LayoutManager.setZoneSize('bottomHeight', `${newHeight}px`);
         }
-    };
+    },
     
     /**
-     * End resize operation
+     * End resize operation (bound in init)
      */
-    _endResize = () => {
+    _endResize() {
         if (this._resizing) {
             this._resizing.handle.classList.remove('active');
             this._resizing = null;
@@ -551,12 +555,12 @@ const LayoutRenderer = {
         document.body.classList.remove('resizing');
         document.body.style.cursor = '';
         
-        document.removeEventListener('mousemove', this._onResize);
-        document.removeEventListener('mouseup', this._endResize);
+        document.removeEventListener('mousemove', this._boundOnResize);
+        document.removeEventListener('mouseup', this._boundEndResize);
         
         // Trigger resize event for Plotly charts
         window.dispatchEvent(new Event('resize'));
-    };
+    },
     
     /**
      * Parse CSS size value to pixels
@@ -567,7 +571,7 @@ const LayoutRenderer = {
         if (size.endsWith('%')) return (parseFloat(size) / 100) * containerSize;
         if (size === '1fr') return containerSize / 2; // Approximate
         return parseFloat(size) || 0;
-    },
+    }
     
     // ========== Panel Picker ==========
     

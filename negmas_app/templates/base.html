@@ -150,6 +150,14 @@
                         </svg>
                         <span x-show="!sidebarCollapsed">Start Negotiation</span>
                     </button>
+                    <button class="sidebar-btn" @click="showNewTournament = true; currentPage = 'tournaments'; loadTournamentSessions()" :title="sidebarCollapsed ? 'Start Tournament' : ''">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="8" r="5"></circle>
+                            <path d="M12 13v7"></path>
+                            <path d="M9 20h6"></path>
+                        </svg>
+                        <span x-show="!sidebarCollapsed">Start Tournament</span>
+                    </button>
                 </div>
                 
                 <div class="sidebar-section">
@@ -187,6 +195,60 @@
                                 <div class="negotiation-item-title" x-text="neg.scenario"></div>
                                 <div class="negotiation-item-meta">
                                     <span class="badge" :class="neg.agreement ? 'badge-success' : 'badge-warning'" x-text="neg.agreement ? 'Agreement' : 'No Agreement'"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                
+                <!-- Tournament Sections -->
+                <div class="sidebar-section" x-show="tournamentSessions.some(t => t.status === 'running')">
+                    <div class="sidebar-section-title" x-show="!sidebarCollapsed">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="margin-right: 4px;">
+                            <circle cx="12" cy="8" r="5"></circle>
+                            <path d="M12 13v7"></path>
+                            <path d="M9 20h6"></path>
+                        </svg>
+                        Running Tournaments
+                        <span class="sidebar-badge" x-text="tournamentSessions.filter(t => t.status === 'running').length"></span>
+                    </div>
+                    <div class="negotiation-list" x-show="!sidebarCollapsed">
+                        <template x-for="session in tournamentSessions.filter(t => t.status === 'running')" :key="session.id">
+                            <div class="negotiation-item" :class="{ active: selectedTournament?.id === session.id && currentPage === 'tournaments' }" 
+                                 @click="currentPage = 'tournaments'; selectTournament(session)">
+                                <div class="negotiation-item-title" x-text="'Tournament #' + session.id"></div>
+                                <div class="negotiation-item-meta">
+                                    <span class="badge badge-primary">Running</span>
+                                    <span x-text="Math.round(session.progress?.percent || 0) + '%'"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                
+                <div class="sidebar-section" x-show="tournamentSessions.some(t => t.status !== 'running')">
+                    <div class="sidebar-section-title" x-show="!sidebarCollapsed">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="margin-right: 4px;">
+                            <circle cx="12" cy="8" r="5"></circle>
+                            <path d="M12 13v7"></path>
+                            <path d="M9 20h6"></path>
+                        </svg>
+                        Past Tournaments
+                        <span class="sidebar-badge" x-text="tournamentSessions.filter(t => t.status !== 'running').length"></span>
+                    </div>
+                    <div class="negotiation-list" x-show="!sidebarCollapsed">
+                        <template x-for="session in tournamentSessions.filter(t => t.status !== 'running').slice(0, 5)" :key="session.id">
+                            <div class="negotiation-item" :class="{ active: selectedTournament?.id === session.id && currentPage === 'tournaments' }" 
+                                 @click="currentPage = 'tournaments'; selectTournament(session)">
+                                <div class="negotiation-item-title" x-text="'Tournament #' + session.id"></div>
+                                <div class="negotiation-item-meta">
+                                    <span class="badge" 
+                                          :class="{
+                                              'badge-success': session.status === 'completed',
+                                              'badge-danger': session.status === 'failed',
+                                              'badge-warning': session.status === 'cancelled'
+                                          }" 
+                                          x-text="session.status"></span>
                                 </div>
                             </div>
                         </template>
@@ -340,55 +402,7 @@
             <!-- Content Area - Tournaments -->
             <div class="content-area tournament-page" x-show="currentPage === 'tournaments'" x-cloak>
                 <div class="tournament-layout">
-                    <!-- Left Panel: Tournament List & New Tournament -->
-                    <div class="tournament-sidebar">
-                        <div class="tournament-header">
-                            <h2>Tournaments</h2>
-                            <button class="btn btn-primary btn-sm" @click="showNewTournament = true">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                                </svg>
-                                New
-                            </button>
-                        </div>
-                        
-                        <div class="tournament-sessions">
-                            <div class="text-muted" style="padding: 12px; font-size: 13px;" x-show="tournamentSessions.length === 0">
-                                No tournaments yet. Click "New" to start one.
-                            </div>
-                            <template x-for="session in tournamentSessions" :key="session.id">
-                                <div class="tournament-session-item" 
-                                     :class="{ selected: selectedTournament?.id === session.id, running: session.status === 'running' }"
-                                     @click="selectTournament(session)">
-                                    <div class="tournament-session-header">
-                                        <span class="tournament-session-id" x-text="'#' + session.id"></span>
-                                        <span class="badge" 
-                                              :class="{
-                                                  'badge-primary': session.status === 'running',
-                                                  'badge-success': session.status === 'completed',
-                                                  'badge-danger': session.status === 'failed',
-                                                  'badge-warning': session.status === 'cancelled',
-                                                  'badge-secondary': session.status === 'pending'
-                                              }"
-                                              x-text="session.status"></span>
-                                    </div>
-                                    <div class="tournament-session-meta">
-                                        <span x-text="(session.config?.competitor_types?.length || 0) + ' competitors'"></span>
-                                        <span x-text="(session.config?.scenario_paths?.length || 0) + ' scenarios'"></span>
-                                    </div>
-                                    <div class="tournament-session-progress" x-show="session.status === 'running' && session.progress">
-                                        <div class="progress-bar">
-                                            <div class="progress-fill" :style="'width: ' + (session.progress?.percent || 0) + '%'"></div>
-                                        </div>
-                                        <span class="progress-text" x-text="Math.round(session.progress?.percent || 0) + '%'"></span>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                    
-                    <!-- Right Panel: Tournament Details/Results -->
+                    <!-- Tournament Details/Results (Full Width) -->
                     <div class="tournament-details">
                         <template x-if="!selectedTournament">
                             <div class="tournament-empty">
@@ -399,8 +413,8 @@
                                     <path d="M6 8l-4 4"></path>
                                     <path d="M18 8l4 4"></path>
                                 </svg>
-                                <p>Select a tournament to view details</p>
-                                <p class="text-muted">or start a new tournament</p>
+                                <p>Select a tournament from the sidebar to view details</p>
+                                <p class="text-muted">or click "Start Tournament" to create one</p>
                             </div>
                         </template>
                         <template x-if="selectedTournament">

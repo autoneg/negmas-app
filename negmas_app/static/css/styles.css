@@ -2214,19 +2214,14 @@ body {
 }
 
 .tournament-layout {
-    display: grid;
-    grid-template-columns: 320px 1fr;
-    height: 100%;
-    gap: 0;
-}
-
-/* Tournament Sidebar */
-.tournament-sidebar {
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border-color);
-    background: var(--bg-secondary);
-    overflow: hidden;
+    height: 100%;
+}
+
+/* Tournament Sidebar - DEPRECATED, kept for backwards compatibility */
+.tournament-sidebar {
+    display: none;
 }
 
 .tournament-header {
@@ -2331,6 +2326,8 @@ body {
     flex-direction: column;
     overflow: hidden;
     background: var(--bg-primary);
+    flex: 1;
+    height: 100%;
 }
 
 .tournament-empty {
