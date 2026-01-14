@@ -847,6 +847,28 @@ class NegotiatorFactory:
                 )
                 extra_components.append(comp_cls(**cp))
 
+        # Validate: MAP negotiators must have at least one offering and one acceptance policy
+        # The components list can contain any number of each type in any order,
+        # but must have at least one of each
+        all_components = [acceptance, offering]
+        if extra_components:
+            all_components.extend(extra_components)
+
+        # Check if we have at least one offering and one acceptance policy
+        from negmas.gb.components import AcceptancePolicy, OfferingPolicy
+
+        has_acceptance = any(isinstance(c, AcceptancePolicy) for c in all_components)
+        has_offering = any(isinstance(c, OfferingPolicy) for c in all_components)
+
+        if not has_acceptance:
+            raise ValueError(
+                f"MAP negotiator '{config.name}' must have at least one acceptance policy"
+            )
+        if not has_offering:
+            raise ValueError(
+                f"MAP negotiator '{config.name}' must have at least one offering policy"
+            )
+
         # Create MAPNegotiator
         negotiator = MAPNegotiator(
             name=config.name,
