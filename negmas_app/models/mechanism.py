@@ -235,3 +235,64 @@ def default_config() -> MechanismConfig:
 
 # Backwards compatibility alias
 MechanismParams = BaseMechanismParams
+
+
+@dataclass
+class VirtualMechanism:
+    """A virtual mechanism - a saved configuration of a base mechanism with custom parameters.
+
+    Virtual mechanisms allow users to create named variants of existing mechanism types
+    with pre-configured parameters. They appear in the mechanism selection UI
+    alongside built-in mechanisms.
+    """
+
+    # Unique identifier for this virtual mechanism
+    id: str
+
+    # Display name for this virtual mechanism
+    name: str
+
+    # The base mechanism type this is built on (e.g., "sao", "tau", "gb")
+    base_type: str
+
+    # User-friendly description
+    description: str = ""
+
+    # Tags for filtering/categorization
+    tags: list[str] = field(default_factory=list)
+
+    # Custom parameters for the mechanism (deadline, specific params, etc.)
+    params: dict = field(default_factory=dict)
+
+    # Timestamp when created (ISO format string)
+    created_at: str = ""
+
+    # Timestamp when last modified (ISO format string)
+    modified_at: str = ""
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "base_type": self.base_type,
+            "description": self.description,
+            "tags": self.tags,
+            "params": self.params,
+            "created_at": self.created_at,
+            "modified_at": self.modified_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "VirtualMechanism":
+        """Create from dictionary."""
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            base_type=data["base_type"],
+            description=data.get("description", ""),
+            tags=data.get("tags", []),
+            params=data.get("params", {}),
+            created_at=data.get("created_at", ""),
+            modified_at=data.get("modified_at", ""),
+        )

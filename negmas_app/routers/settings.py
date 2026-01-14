@@ -3,10 +3,12 @@
 import asyncio
 import json
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile, File
+from fastapi.responses import Response
 
 from ..models.settings import (
     AppSettings,
@@ -23,6 +25,11 @@ from ..models.settings import (
     ParametersPreset,
     DisplayPreset,
     FullSessionPreset,
+    # Layout state
+    LayoutState,
+    LayoutConfig,
+    ZoneConfig,
+    ZoneSizes,
 )
 from ..services.settings_service import SettingsService
 
@@ -379,3 +386,107 @@ async def clear_recent_sessions() -> dict[str, Any]:
     """Clear all recent sessions."""
     await asyncio.to_thread(SettingsService.clear_recent_sessions)
     return {"success": True}
+
+
+# =============================================================================
+# Layout State Endpoints
+# =============================================================================
+
+
+@router.get("/layout")
+async def get_layout_state() -> dict[str, Any]:
+    """Get the current layout state."""
+    state = await asyncio.to_thread(SettingsService.load_layout_state)
+    # Convert to dict for JSON serialization
+    result = {
+        "version": state.version,
+        "activeLayoutId": state.activeLayoutId,
+        "customLayouts": [],
+        "panelCollapsed": state.panelCollapsed,
+        "leftColumnWidth": state.leftColumnWidth,
+    }
+    for layout in state.customLayouts:
+        layout_dict = {
+            "id": layout.id,
+            "name": layout.name,
+            "builtIn": layout.builtIn,
+            "topRowMode": layout.topRowMode,
+            "zones": {},
+            "zoneSizes": asdict(layout.zoneSizes)
+            if hasattr(layout.zoneSizes, "__dataclass_fields__")
+            else layout.zoneSizes,
+        }
+        for zone_id, zone in layout.zones.items():
+            if hasattr(zone, "__dataclass_fields__"):
+                layout_dict["zones"][zone_id] = asdict(zone)
+            else:
+                layout_dict["zones"][zone_id] = zone
+        result["customLayouts"].append(layout_dict)
+    return result
+
+
+@router.put("/layout")
+async def update_layout_state(data: dict[str, Any]) -> dict[str, Any]:
+    """Update the layout state."""
+    # Parse custom layouts
+    custom_layouts = []
+    for layout_data in data.get("customLayouts", []):
+        zones = {}
+        for zone_id, zone_data in layout_data.get("zones", {}).items():
+            zones[zone_id] = (
+                ZoneConfig(**zone_data) if isinstance(zone_data, dict) else zone_data
+            )
+        zone_sizes_data = layout_data.get("zoneSizes", {})
+        zone_sizes = ZoneSizes(**zone_sizes_data) if zone_sizes_data else ZoneSizes()
+        custom_layouts.append(
+            LayoutConfig(
+                id=layout_data.get("id", ""),
+                name=layout_data.get("name", ""),
+                builtIn=layout_data.get("builtIn", False),
+                topRowMode=layout_data.get("topRowMode", "two-column"),
+                zones=zones,
+                zoneSizes=zone_sizes,
+            )
+        )
+
+    state = LayoutState(
+        version=data.get("version", 1),
+        activeLayoutId=data.get("activeLayoutId", "default"),
+        customLayouts=custom_layouts,
+        panelCollapsed=data.get("panelCollapsed", {}),
+        leftColumnWidth=data.get("leftColumnWidth"),
+    )
+    await asyncio.to_thread(SettingsService.save_layout_state, state)
+    return {"success": True}
+
+
+# =============================================================================
+# Export/Import Endpoints
+# =============================================================================
+
+
+@router.get("/export")
+async def export_settings() -> Response:
+    """Export all settings and presets as a ZIP file."""
+    zip_data = await asyncio.to_thread(SettingsService.export_settings)
+
+    # Generate filename with timestamp
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"negmas_settings_{timestamp}.zip"
+
+    return Response(
+        content=zip_data,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.post("/import")
+async def import_settings(file: UploadFile = File(...)) -> dict[str, Any]:
+    """Import settings and presets from a ZIP file."""
+    if not file.filename or not file.filename.endswith(".zip"):
+        return {"status": "error", "message": "Please upload a ZIP file"}
+
+    zip_data = await file.read()
+    result = await asyncio.to_thread(SettingsService.import_settings, zip_data)
+    return result

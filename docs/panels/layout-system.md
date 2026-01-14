@@ -39,6 +39,37 @@ Each zone has the following properties:
 | `activePanel` | `string \| null` | Currently active panel (for tabbed mode) |
 | `displayMode` | `'tabbed' \| 'stacked'` | How panels are displayed |
 
+### Per-Zone Display Modes
+
+Each zone can have its own display mode, allowing you to mix tabbed and stacked layouts:
+
+```javascript
+panelLayout: {
+    // ... other settings
+    zoneModes: {
+        'left': 'stacked',      // Left zone shows all panels stacked vertically
+        'right': 'tabbed',      // Right zone uses tabs to switch between panels
+        'bottom-left': 'tabbed',
+        'bottom-right': 'tabbed'
+    }
+}
+```
+
+You can configure zone modes in the Settings dialog under "Zone Display Modes", or programmatically:
+
+```javascript
+// Get current zone mode
+const mode = panelLayout.zoneModes['right']; // 'tabbed' or 'stacked'
+
+// Set zone mode
+panelLayout.zoneModes['right'] = 'stacked';
+```
+
+**When to use each mode:**
+
+- **Stacked mode**: Best when you want to see multiple panels simultaneously (e.g., offer history while watching the 2D plot)
+- **Tabbed mode**: Best when panels need more space or you only need one panel at a time
+
 ### Display Modes
 
 #### Tabbed Mode
@@ -261,18 +292,20 @@ LayoutManager.on('panel-moved', (panelId, fromZone, toZone) => {
 
 ## Persistence
 
-Layout state is automatically persisted to `localStorage` under the key `negmas-layout-state`. The stored data includes:
+Layout state is automatically persisted to the server at `~/negmas/app/settings/layout.json`. The stored data includes:
 
 - Active layout ID
 - Custom layout definitions
-- Any runtime modifications to zones
+- Panel collapsed state
+- Column width preferences
 
-To clear persisted state:
+To reset to defaults, delete the layout file:
 
-```javascript
-localStorage.removeItem('negmas-layout-state');
-LayoutManager.init(); // Reinitialize with defaults
+```bash
+rm ~/negmas/app/settings/layout.json
 ```
+
+Then refresh the browser to reinitialize with defaults.
 
 ## CSS Variables
 

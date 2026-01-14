@@ -1,6 +1,7 @@
 """Tournament management service for running cartesian tournaments."""
 
 import asyncio
+import random
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import datetime
@@ -18,9 +19,32 @@ from ..models.tournament import (
     TournamentResults,
     CompetitorScore,
     NegotiationResult,
+    NegotiationEndReason,
+    CellStatus,
+    CellUpdate,
+    LeaderboardEntry,
+    TournamentGridInit,
 )
 from .scenario_loader import ScenarioLoader
 from .negotiator_factory import _get_class_for_type
+
+
+def _sample_range_int(value: int | tuple[int, int] | None) -> int | None:
+    """Sample a single value from an int or int range."""
+    if value is None:
+        return None
+    if isinstance(value, tuple):
+        return random.randint(value[0], value[1])
+    return value
+
+
+def _sample_range_float(value: float | tuple[float, float] | None) -> float | None:
+    """Sample a single value from a float or float range."""
+    if value is None:
+        return None
+    if isinstance(value, tuple):
+        return random.uniform(value[0], value[1])
+    return value
 
 
 class TournamentManager:
@@ -86,17 +110,62 @@ class TournamentManager:
         # Default to SAOMechanism
         return SAOMechanism
 
+    def _sample_mechanism_params(self, config: TournamentConfig) -> dict[str, Any]:
+        """Build mechanism params, sampling from ranges if specified."""
+        params: dict[str, Any] = {}
+
+        n_steps = _sample_range_int(config.n_steps)
+        if n_steps is not None:
+            params["n_steps"] = n_steps
+
+        time_limit = _sample_range_float(config.time_limit)
+        if time_limit is not None:
+            params["time_limit"] = time_limit
+
+        step_time_limit = _sample_range_float(config.step_time_limit)
+        if step_time_limit is not None:
+            params["step_time_limit"] = step_time_limit
+
+        negotiator_time_limit = _sample_range_float(config.negotiator_time_limit)
+        if negotiator_time_limit is not None:
+            params["negotiator_time_limit"] = negotiator_time_limit
+
+        hidden_time_limit = _sample_range_float(config.hidden_time_limit)
+        if hidden_time_limit is not None:
+            params["hidden_time_limit"] = hidden_time_limit
+
+        pend = _sample_range_float(config.pend)
+        if pend is not None:
+            params["pend"] = pend
+
+        pend_per_second = _sample_range_float(config.pend_per_second)
+        if pend_per_second is not None:
+            params["pend_per_second"] = pend_per_second
+
+        return params
+
     async def run_tournament_stream(
         self,
         session_id: str,
-    ) -> AsyncGenerator[TournamentProgress | TournamentSession, None]:
+    ) -> AsyncGenerator[
+        TournamentProgress
+        | TournamentSession
+        | TournamentGridInit
+        | CellUpdate
+        | list[LeaderboardEntry],
+        None,
+    ]:
         """Run a tournament with streaming progress updates.
 
         This method runs negotiations serially to provide progress updates.
         For faster execution without progress updates, use run_tournament_batch().
 
         Yields:
-            TournamentProgress updates, then final TournamentSession.
+            - TournamentGridInit: Initial grid structure
+            - CellUpdate: Cell status updates (running/complete)
+            - list[LeaderboardEntry]: Leaderboard updates
+            - TournamentProgress: Progress updates
+            - TournamentSession: Final session state
         """
         session = self.sessions.get(session_id)
         if session is None or session.config is None:
@@ -109,12 +178,16 @@ class TournamentManager:
         try:
             # Load scenarios (run in thread pool to avoid blocking)
             scenarios: list[Scenario] = []  # type: ignore[type-arg]
+            scenario_names: list[str] = []
             for path in config.scenario_paths:
                 scenario = await asyncio.to_thread(
                     self.scenario_loader.load_scenario, path
                 )
                 if scenario is not None:
                     scenarios.append(scenario)
+                    scenario_names.append(
+                        Path(scenario.outcome_space.name or "unknown").name
+                    )
 
             if not scenarios:
                 session.status = TournamentStatus.FAILED
@@ -124,10 +197,12 @@ class TournamentManager:
 
             # Get competitor classes (run in thread pool as it may import modules)
             competitor_classes: list[type[SAONegotiator]] = []
+            competitor_names: list[str] = []
             for type_name in config.competitor_types:
                 cls = await asyncio.to_thread(_get_class_for_type, type_name)
                 if cls is not None:
                     competitor_classes.append(cls)  # type: ignore[arg-type]
+                    competitor_names.append(cls.__name__)
 
             if len(competitor_classes) < 2:
                 session.status = TournamentStatus.FAILED
@@ -149,6 +224,17 @@ class TournamentManager:
                 n_scenarios * n_pairings_per_scenario * config.n_repetitions
             )
 
+            # Yield initial grid structure
+            grid_init = TournamentGridInit(
+                competitors=competitor_names,
+                opponents=competitor_names,  # Same as competitors for now
+                scenarios=scenario_names,
+                n_repetitions=config.n_repetitions,
+                rotate_ufuns=config.rotate_ufuns,
+                total_negotiations=total_negotiations,
+            )
+            yield grid_init
+
             session.progress = TournamentProgress(
                 completed=0,
                 total=total_negotiations,
@@ -168,20 +254,15 @@ class TournamentManager:
                 for cls in competitor_classes
             }
 
-            # Get mechanism class and params
+            # Get mechanism class - params will be sampled per negotiation if ranges
             mechanism_class = self._get_mechanism_class(config.mechanism_type)
-            mechanism_params: dict[str, Any] = {}
-            if config.n_steps is not None:
-                mechanism_params["n_steps"] = config.n_steps
-            if config.time_limit is not None:
-                mechanism_params["time_limit"] = config.time_limit
 
             completed = 0
             start_time = datetime.now()
 
             # Run all negotiations
-            for scenario in scenarios:
-                scenario_name = Path(scenario.outcome_space.name or "unknown").name
+            for scenario_idx, scenario in enumerate(scenarios):
+                scenario_name = scenario_names[scenario_idx]
 
                 for rep in range(config.n_repetitions):
                     for i, cls_i in enumerate(competitor_classes):
@@ -189,6 +270,20 @@ class TournamentManager:
                             # Skip self-play if disabled
                             if not config.self_play and i == j:
                                 continue
+
+                            # Emit cell_start
+                            cell_start = CellUpdate(
+                                competitor_idx=i,
+                                opponent_idx=j,
+                                scenario_idx=scenario_idx,
+                                repetition=rep,
+                                rotated=False,
+                                status=CellStatus.RUNNING,
+                            )
+                            yield cell_start
+
+                            # Sample mechanism params (may sample from ranges each time)
+                            mechanism_params = self._sample_mechanism_params(config)
 
                             # Run negotiation with original ufun assignment
                             result = await self._run_single_negotiation(
@@ -204,6 +299,28 @@ class TournamentManager:
                                 result,
                             )
                             completed += 1
+
+                            # Emit cell_complete
+                            cell_complete = CellUpdate(
+                                competitor_idx=i,
+                                opponent_idx=j,
+                                scenario_idx=scenario_idx,
+                                repetition=rep,
+                                rotated=False,
+                                status=CellStatus.COMPLETE,
+                                end_reason=result.end_reason,
+                                utilities=result.utilities,
+                                error=result.error_details,
+                            )
+                            yield cell_complete
+
+                            # Emit leaderboard update
+                            leaderboard = self._build_leaderboard(
+                                competitor_stats,
+                                config.final_score_metric,
+                                config.final_score_stat,
+                            )
+                            yield leaderboard
 
                             # Update progress
                             session.progress = TournamentProgress(
@@ -227,11 +344,27 @@ class TournamentManager:
 
                             # Run with rotated ufuns if enabled
                             if config.rotate_ufuns and len(scenario.ufuns) == 2:
+                                # Emit cell_start for rotated
+                                cell_start_rot = CellUpdate(
+                                    competitor_idx=i,
+                                    opponent_idx=j,
+                                    scenario_idx=scenario_idx,
+                                    repetition=rep,
+                                    rotated=True,
+                                    status=CellStatus.RUNNING,
+                                )
+                                yield cell_start_rot
+
+                                # Sample mechanism params again for rotated run
+                                mechanism_params_rot = self._sample_mechanism_params(
+                                    config
+                                )
+
                                 result = await self._run_single_negotiation(
                                     scenario=scenario,
                                     competitor_classes=[cls_i, cls_j],
                                     mechanism_class=mechanism_class,
-                                    mechanism_params=mechanism_params,
+                                    mechanism_params=mechanism_params_rot,
                                     rotate_ufuns=True,
                                 )
                                 negotiation_results.append(result)
@@ -242,6 +375,28 @@ class TournamentManager:
                                     result,
                                 )
                                 completed += 1
+
+                                # Emit cell_complete for rotated
+                                cell_complete_rot = CellUpdate(
+                                    competitor_idx=i,
+                                    opponent_idx=j,
+                                    scenario_idx=scenario_idx,
+                                    repetition=rep,
+                                    rotated=True,
+                                    status=CellStatus.COMPLETE,
+                                    end_reason=result.end_reason,
+                                    utilities=result.utilities,
+                                    error=result.error_details,
+                                )
+                                yield cell_complete_rot
+
+                                # Emit leaderboard update
+                                leaderboard = self._build_leaderboard(
+                                    competitor_stats,
+                                    config.final_score_metric,
+                                    config.final_score_stat,
+                                )
+                                yield leaderboard
 
                                 session.progress = TournamentProgress(
                                     completed=completed,
@@ -333,6 +488,18 @@ class TournamentManager:
             utilities: list[float] | None = None
             advantages: list[float] | None = None
 
+            # Determine end reason from mechanism state
+            end_reason: NegotiationEndReason
+            if agreement is not None:
+                end_reason = NegotiationEndReason.AGREEMENT
+            elif mechanism.state.broken:
+                end_reason = NegotiationEndReason.BROKEN
+            elif mechanism.state.timedout:
+                end_reason = NegotiationEndReason.TIMEOUT
+            else:
+                # No agreement and not broken/timeout - likely ran out of steps
+                end_reason = NegotiationEndReason.TIMEOUT
+
             if agreement is not None:
                 # Get actual utilities (in original ufun order if rotated)
                 if rotate_ufuns and len(scenario.ufuns) >= 2:
@@ -364,6 +531,7 @@ class TournamentManager:
                 advantages=advantages,
                 has_error=False,
                 execution_time=execution_time,
+                end_reason=end_reason,
             )
 
         except Exception as e:
@@ -375,6 +543,7 @@ class TournamentManager:
                 advantages=None,
                 has_error=True,
                 error_details=str(e),
+                end_reason=NegotiationEndReason.ERROR,
             )
 
     def _update_competitor_stats(
@@ -398,6 +567,62 @@ class TournamentManager:
 
             if result.advantages is not None and i < len(result.advantages):
                 stats[name]["advantages"].append(result.advantages[i])
+
+    def _build_leaderboard(
+        self,
+        stats: dict[str, dict[str, Any]],
+        metric: str,
+        stat: str,
+    ) -> list[LeaderboardEntry]:
+        """Build a live leaderboard from current competitor statistics."""
+        import statistics
+
+        entries: list[LeaderboardEntry] = []
+
+        for name, s in stats.items():
+            # Get values based on metric
+            if metric == "advantage":
+                values = s["advantages"]
+            elif metric == "utility":
+                values = s["utilities"]
+            else:
+                values = s["advantages"]
+
+            # Calculate score
+            if not values:
+                score = 0.0
+            elif stat == "mean":
+                score = statistics.mean(values)
+            elif stat == "median":
+                score = statistics.median(values)
+            elif stat == "min":
+                score = min(values)
+            elif stat == "max":
+                score = max(values)
+            elif stat == "std":
+                score = statistics.stdev(values) if len(values) > 1 else 0.0
+            else:
+                score = statistics.mean(values)
+
+            mean_utility = statistics.mean(s["utilities"]) if s["utilities"] else None
+
+            entries.append(
+                LeaderboardEntry(
+                    name=name,
+                    score=score,
+                    rank=0,  # Will be set after sorting
+                    n_negotiations=s["n_negotiations"],
+                    n_agreements=s["n_agreements"],
+                    mean_utility=mean_utility,
+                )
+            )
+
+        # Sort by score (descending) and assign ranks
+        entries.sort(key=lambda x: x.score, reverse=True)
+        for i, entry in enumerate(entries):
+            entry.rank = i + 1
+
+        return entries
 
     def _calculate_final_scores(
         self,
@@ -522,22 +747,52 @@ class TournamentManager:
             # Get mechanism class
             mechanism_class = self._get_mechanism_class(config.mechanism_type)
 
+            # Build tournament kwargs
+            tournament_kwargs: dict[str, Any] = {
+                "competitors": competitors,
+                "scenarios": scenarios,
+                "competitor_params": None,
+                "rotate_ufuns": config.rotate_ufuns,
+                "n_repetitions": config.n_repetitions,
+                "njobs": config.njobs,
+                "mechanism_type": mechanism_class,
+                "n_steps": config.n_steps,
+                "time_limit": config.time_limit,
+                "self_play": config.self_play,
+                "randomize_runs": config.randomize_runs,
+                "sort_runs": config.sort_runs,
+                "id_reveals_type": config.id_reveals_type,
+                "name_reveals_type": config.name_reveals_type,
+                "mask_scenario_names": config.mask_scenario_names,
+                "only_failures_on_self_play": config.only_failures_on_self_play,
+                "final_score": (config.final_score_metric, config.final_score_stat),
+                "save_stats": config.save_stats,
+                "save_scenario_figs": config.save_scenario_figs,
+                "save_every": config.save_every,
+                "verbosity": config.verbosity,
+                "path": Path(config.save_path) if config.save_path else None,
+            }
+
+            # Add optional time limits if set
+            if config.step_time_limit is not None:
+                tournament_kwargs["step_time_limit"] = config.step_time_limit
+            if config.negotiator_time_limit is not None:
+                tournament_kwargs["negotiator_time_limit"] = (
+                    config.negotiator_time_limit
+                )
+            if config.hidden_time_limit is not None:
+                tournament_kwargs["hidden_time_limit"] = config.hidden_time_limit
+
+            # Add probabilistic ending if set (defaults are 0.0)
+            if config.pend is not None:
+                tournament_kwargs["pend"] = config.pend
+            if config.pend_per_second is not None:
+                tournament_kwargs["pend_per_second"] = config.pend_per_second
+
             # Run tournament (run in thread pool - this can take hours/days)
             results = await asyncio.to_thread(
                 cartesian_tournament,
-                competitors=competitors,  # type: ignore[arg-type]
-                scenarios=scenarios,
-                competitor_params=None,
-                rotate_ufuns=config.rotate_ufuns,
-                n_repetitions=config.n_repetitions,
-                njobs=config.njobs,
-                mechanism_type=mechanism_class,  # type: ignore[arg-type]
-                n_steps=config.n_steps,
-                time_limit=config.time_limit,
-                self_play=config.self_play,
-                final_score=(config.final_score_metric, config.final_score_stat),
-                verbosity=config.verbosity,
-                path=Path(config.save_path) if config.save_path else None,
+                **tournament_kwargs,  # type: ignore[arg-type]
             )
 
             # Convert negmas results to our model

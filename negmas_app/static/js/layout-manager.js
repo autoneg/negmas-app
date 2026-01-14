@@ -4,7 +4,7 @@
  * This module provides:
  * - Layout definitions and presets
  * - Layout state management
- * - Persistence to localStorage
+ * - Persistence to server (~/negmas/app/settings/layout.json)
  * - Layout switching
  * - Zone configuration (2-col / 3-col modes)
  */
@@ -179,6 +179,48 @@ const BuiltInLayouts = {
             bottomHeight: '100px',
             bottomSplit: '50%'
         }
+    },
+    
+    // Full-Screen: Single zone with all panels tabbed
+    fullscreen: {
+        id: 'fullscreen',
+        name: 'Full Screen',
+        builtIn: true,
+        topRowMode: 'single-column',
+        zones: {
+            left: {
+                panels: [],
+                activePanel: null,
+                displayMode: 'tabbed'
+            },
+            center: {
+                panels: ['utility-2d', 'utility-timeline', 'offer-history', 'offer-histogram', 'info', 'result'],
+                activePanel: 'utility-2d',
+                displayMode: 'tabbed'
+            },
+            right: {
+                panels: [],
+                activePanel: null,
+                displayMode: 'tabbed'
+            },
+            bottomLeft: {
+                panels: [],
+                activePanel: null,
+                displayMode: 'tabbed'
+            },
+            bottomRight: {
+                panels: [],
+                activePanel: null,
+                displayMode: 'tabbed'
+            }
+        },
+        zoneSizes: {
+            leftWidth: '0',
+            centerWidth: '100%',
+            rightWidth: '0',
+            bottomHeight: '0',
+            bottomSplit: '50%'
+        }
     }
 };
 
@@ -189,21 +231,24 @@ const ZoneIds = ['left', 'center', 'right', 'bottomLeft', 'bottomRight'];
 
 /**
  * Layout Manager - Central controller for layout state
+ * 
+ * Uses server-side persistence instead of localStorage.
  */
 const LayoutManager = {
     _state: null,
     _listeners: new Map(),
-    _storageKey: 'negmas-layout-state',
     _initialized: false,
+    _saveTimeout: null,
+    _saveDebounceMs: 500,  // Debounce saves to avoid too many API calls
     
     /**
      * Initialize the layout manager
      */
-    init() {
-        if (this._initialized) return;
+    async init() {
+        if (this._initialized) return this;
         
-        // Load state from storage or use defaults
-        this._state = this._loadFromStorage() || this._getDefaultState();
+        // Load state from server or use defaults
+        this._state = await this._loadFromServer() || this._getDefaultState();
         
         // Ensure all built-in layouts are present
         Object.entries(BuiltInLayouts).forEach(([id, layout]) => {
@@ -225,38 +270,129 @@ const LayoutManager = {
             activeLayoutId: 'default',
             layouts: { ...BuiltInLayouts },
             customLayouts: [],
-            zoneState: {}
+            zoneState: {},
+            panelCollapsed: {},
+            leftColumnWidth: null
         };
     },
     
     /**
-     * Load state from localStorage
+     * Load state from server API
      */
-    _loadFromStorage() {
+    async _loadFromServer() {
         try {
-            const stored = localStorage.getItem(this._storageKey);
-            if (stored) {
-                const state = JSON.parse(stored);
-                // Migration: ensure version compatibility
-                if (state.version === 1) {
-                    return state;
-                }
+            const response = await fetch('/api/settings/layout');
+            if (!response.ok) {
+                console.warn('[LayoutManager] Server returned error:', response.status);
+                return null;
             }
+            const data = await response.json();
+            
+            // Build state from server response
+            const state = this._getDefaultState();
+            state.version = data.version || 1;
+            state.activeLayoutId = data.activeLayoutId || 'default';
+            state.panelCollapsed = data.panelCollapsed || {};
+            state.leftColumnWidth = data.leftColumnWidth || null;
+            
+            // Add custom layouts from server
+            if (data.customLayouts && Array.isArray(data.customLayouts)) {
+                data.customLayouts.forEach(layout => {
+                    if (layout.id && !layout.builtIn) {
+                        state.layouts[layout.id] = layout;
+                        state.customLayouts.push(layout.id);
+                    }
+                });
+            }
+            
+            return state;
         } catch (e) {
-            console.warn('[LayoutManager] Failed to load state from storage:', e);
+            console.warn('[LayoutManager] Failed to load state from server:', e);
+            return null;
         }
-        return null;
     },
     
     /**
-     * Save state to localStorage
+     * Save state to server API (debounced)
      */
-    _saveToStorage() {
-        try {
-            localStorage.setItem(this._storageKey, JSON.stringify(this._state));
-        } catch (e) {
-            console.warn('[LayoutManager] Failed to save state to storage:', e);
+    _saveToServer() {
+        // Debounce saves
+        if (this._saveTimeout) {
+            clearTimeout(this._saveTimeout);
         }
+        
+        this._saveTimeout = setTimeout(async () => {
+            try {
+                // Build payload with only custom layouts (built-in are always in JS)
+                const customLayouts = this._state.customLayouts
+                    .map(id => this._state.layouts[id])
+                    .filter(l => l && !l.builtIn);
+                
+                const payload = {
+                    version: this._state.version,
+                    activeLayoutId: this._state.activeLayoutId,
+                    customLayouts: customLayouts,
+                    panelCollapsed: this._state.panelCollapsed || {},
+                    leftColumnWidth: this._state.leftColumnWidth
+                };
+                
+                const response = await fetch('/api/settings/layout', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    console.warn('[LayoutManager] Failed to save state to server:', response.status);
+                }
+            } catch (e) {
+                console.warn('[LayoutManager] Failed to save state to server:', e);
+            }
+        }, this._saveDebounceMs);
+    },
+    
+    /**
+     * Get panel collapsed state
+     */
+    getPanelCollapsed() {
+        return this._state?.panelCollapsed || {};
+    },
+    
+    /**
+     * Set panel collapsed state
+     */
+    setPanelCollapsed(panelId, collapsed) {
+        if (!this._state) return;
+        this._state.panelCollapsed = this._state.panelCollapsed || {};
+        this._state.panelCollapsed[panelId] = collapsed;
+        this._saveToServer();
+        this._emit('panel-collapsed-changed', { panelId, collapsed });
+    },
+    
+    /**
+     * Set all panel collapsed state at once
+     */
+    setPanelCollapsedAll(collapsedState) {
+        if (!this._state) return;
+        this._state.panelCollapsed = { ...collapsedState };
+        this._saveToServer();
+        this._emit('panel-collapsed-changed', { all: true, state: collapsedState });
+    },
+    
+    /**
+     * Get left column width
+     */
+    getLeftColumnWidth() {
+        return this._state?.leftColumnWidth;
+    },
+    
+    /**
+     * Set left column width
+     */
+    setLeftColumnWidth(width) {
+        if (!this._state) return;
+        this._state.leftColumnWidth = width;
+        this._saveToServer();
     },
     
     /**
@@ -324,7 +460,7 @@ const LayoutManager = {
         }
         
         this._state.activeLayoutId = layoutId;
-        this._saveToStorage();
+        this._saveToServer();
         this._emit('layout-changed', { layoutId, layout: this.getActiveLayout() });
         
         return true;
@@ -347,7 +483,7 @@ const LayoutManager = {
         this._state.layouts[id] = newLayout;
         this._state.customLayouts.push(id);
         this._state.activeLayoutId = id;
-        this._saveToStorage();
+        this._saveToServer();
         
         this._emit('layout-saved', { layoutId: id, layout: newLayout });
         
@@ -379,7 +515,7 @@ const LayoutManager = {
             Object.assign(current, updates);
         }
         
-        this._saveToStorage();
+        this._saveToServer();
         this._emit('layout-updated', { layout: this.getActiveLayout() });
     },
     
@@ -401,7 +537,7 @@ const LayoutManager = {
             this._state.activeLayoutId = 'default';
         }
         
-        this._saveToStorage();
+        this._saveToServer();
         this._emit('layout-deleted', { layoutId });
         
         return true;
@@ -417,7 +553,7 @@ const LayoutManager = {
         }
         
         layout.name = newName;
-        this._saveToStorage();
+        this._saveToServer();
         this._emit('layout-renamed', { layoutId, name: newName });
         
         return true;
@@ -441,7 +577,7 @@ const LayoutManager = {
         if (!zone || !zone.panels.includes(panelId)) return false;
         
         zone.activePanel = panelId;
-        this._saveToStorage();
+        this._saveToServer();
         this._emit('panel-activated', { zoneId, panelId });
         
         return true;
@@ -469,7 +605,7 @@ const LayoutManager = {
             zone.activePanel = panelId;
         }
         
-        this._saveToStorage();
+        this._saveToServer();
         this._emit('panel-added', { zoneId, panelId, position });
         
         return true;
@@ -492,7 +628,7 @@ const LayoutManager = {
             zone.activePanel = zone.panels[0] || null;
         }
         
-        this._saveToStorage();
+        this._saveToServer();
         this._emit('panel-removed', { zoneId, panelId });
         
         return true;
@@ -518,7 +654,7 @@ const LayoutManager = {
         if (!zone) return false;
         
         zone.panels = panelIds;
-        this._saveToStorage();
+        this._saveToServer();
         this._emit('panels-reordered', { zoneId, panelIds });
         
         return true;
@@ -532,7 +668,7 @@ const LayoutManager = {
         if (!zone) return false;
         
         zone.displayMode = mode;
-        this._saveToStorage();
+        this._saveToServer();
         this._emit('zone-mode-changed', { zoneId, mode });
         
         return true;
@@ -570,7 +706,7 @@ const LayoutManager = {
     setZoneSize(sizeKey, value) {
         const sizes = this.getZoneSizes();
         sizes[sizeKey] = value;
-        this._saveToStorage();
+        this._saveToServer();
         this._emit('zone-resized', { sizeKey, value });
     },
     
@@ -602,7 +738,7 @@ const LayoutManager = {
             layout.zoneSizes.rightWidth = '280px';
         }
         
-        this._saveToStorage();
+        this._saveToServer();
         this._emit('top-row-mode-changed', { mode: newMode });
         
         return newMode;
@@ -692,7 +828,7 @@ const LayoutManager = {
      */
     resetToDefault() {
         this._state.activeLayoutId = 'default';
-        this._saveToStorage();
+        this._saveToServer();
         this._emit('layout-changed', { layoutId: 'default', layout: this.getActiveLayout() });
     },
     
@@ -705,7 +841,7 @@ const LayoutManager = {
         // If it's a built-in layout, restore from BuiltInLayouts
         if (BuiltInLayouts[currentId]) {
             this._state.layouts[currentId] = JSON.parse(JSON.stringify(BuiltInLayouts[currentId]));
-            this._saveToStorage();
+            this._saveToServer();
             this._emit('layout-changed', { layoutId: currentId, layout: this.getActiveLayout() });
         } else {
             // For custom layouts, just switch to default
@@ -732,7 +868,7 @@ const LayoutManager = {
                 Object.entries(BuiltInLayouts).forEach(([id, layout]) => {
                     this._state.layouts[id] = layout;
                 });
-                this._saveToStorage();
+                this._saveToServer();
                 this._emit('state-imported', { state: this._state });
                 return true;
             }

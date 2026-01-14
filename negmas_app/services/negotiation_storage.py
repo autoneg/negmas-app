@@ -2,6 +2,7 @@
 
 import csv
 import json
+import shutil
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -15,8 +16,9 @@ from ..models.session import (
 )
 from ..models.negotiator import NegotiatorConfig
 
-# Storage directory path
+# Storage directory paths
 NEGOTIATIONS_DIR = Path.home() / "negmas" / "app" / "negotiations"
+ARCHIVE_DIR = Path.home() / "negmas" / "app" / "negotiations_archive"
 
 
 def _ensure_dir(path: Path) -> None:
@@ -56,12 +58,14 @@ class NegotiationStorageService:
     def save_negotiation(
         session: NegotiationSession,
         negotiator_configs: list[NegotiatorConfig] | None = None,
+        tags: list[str] | None = None,
     ) -> Path:
         """Save a completed negotiation to disk.
 
         Args:
             session: The negotiation session to save.
             negotiator_configs: Original negotiator configurations (optional).
+            tags: Optional list of tags for categorization.
 
         Returns:
             Path to the session directory.
@@ -86,6 +90,8 @@ class NegotiationStorageService:
             "end_time": _serialize_datetime(session.end_time),
             "current_step": session.current_step,
             "error": session.error,
+            "tags": tags or [],
+            "archived": False,
         }
 
         # Add negotiator infos
@@ -349,17 +355,42 @@ class NegotiationStorageService:
         return outcome_space
 
     @staticmethod
-    def list_saved_negotiations() -> list[dict]:
+    def list_saved_negotiations(include_archived: bool = False) -> list[dict]:
         """List all saved negotiations.
+
+        Args:
+            include_archived: If True, also include archived negotiations.
 
         Returns:
             List of dictionaries with summary info for each negotiation.
         """
-        if not NEGOTIATIONS_DIR.exists():
-            return []
-
         negotiations = []
-        for session_dir in NEGOTIATIONS_DIR.iterdir():
+
+        # List from main directory
+        if NEGOTIATIONS_DIR.exists():
+            negotiations.extend(
+                NegotiationStorageService._list_from_dir(
+                    NEGOTIATIONS_DIR, archived=False
+                )
+            )
+
+        # List from archive if requested
+        if include_archived and ARCHIVE_DIR.exists():
+            negotiations.extend(
+                NegotiationStorageService._list_from_dir(ARCHIVE_DIR, archived=True)
+            )
+
+        # Sort by end_time descending (most recent first)
+        negotiations.sort(key=lambda x: x.get("end_time") or "", reverse=True)
+
+        return negotiations
+
+    @staticmethod
+    def _list_from_dir(directory: Path, archived: bool = False) -> list[dict]:
+        """List negotiations from a specific directory."""
+        negotiations = []
+
+        for session_dir in directory.iterdir():
             if not session_dir.is_dir():
                 continue
 
@@ -376,11 +407,15 @@ class NegotiationStorageService:
                 summary = {
                     "id": metadata.get("id"),
                     "scenario_name": metadata.get("scenario_name"),
+                    "scenario_path": metadata.get("scenario_path"),
+                    "mechanism_type": metadata.get("mechanism_type"),
                     "negotiator_names": metadata.get("negotiator_names", []),
                     "negotiator_types": metadata.get("negotiator_types", []),
                     "start_time": metadata.get("start_time"),
                     "end_time": metadata.get("end_time"),
                     "n_steps": metadata.get("n_steps"),
+                    "tags": metadata.get("tags", []),
+                    "archived": archived,
                 }
 
                 # Add result info if available
@@ -391,16 +426,206 @@ class NegotiationStorageService:
                     summary["end_reason"] = result.get("end_reason")
                     summary["final_utilities"] = result.get("final_utilities")
                     summary["n_offers"] = result.get("n_offers")
+                    summary["duration_seconds"] = result.get("duration_seconds")
 
                 negotiations.append(summary)
 
             except (json.JSONDecodeError, KeyError):
                 continue
 
-        # Sort by end_time descending (most recent first)
-        negotiations.sort(key=lambda x: x.get("end_time") or "", reverse=True)
-
         return negotiations
+
+    @staticmethod
+    def archive_negotiation(session_id: str) -> bool:
+        """Move a negotiation to the archive.
+
+        Args:
+            session_id: The session ID to archive.
+
+        Returns:
+            True if archived, False if not found.
+        """
+        session_dir = NEGOTIATIONS_DIR / session_id
+        if not session_dir.exists():
+            return False
+
+        _ensure_dir(ARCHIVE_DIR)
+        archive_dest = ARCHIVE_DIR / session_id
+
+        # Move to archive
+        shutil.move(str(session_dir), str(archive_dest))
+
+        # Update metadata to mark as archived
+        metadata_path = archive_dest / "metadata.json"
+        if metadata_path.exists():
+            with open(metadata_path) as f:
+                metadata = json.load(f)
+            metadata["archived"] = True
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f, indent=2)
+
+        return True
+
+    @staticmethod
+    def unarchive_negotiation(session_id: str) -> bool:
+        """Restore a negotiation from the archive.
+
+        Args:
+            session_id: The session ID to unarchive.
+
+        Returns:
+            True if unarchived, False if not found.
+        """
+        archive_dir = ARCHIVE_DIR / session_id
+        if not archive_dir.exists():
+            return False
+
+        _ensure_dir(NEGOTIATIONS_DIR)
+        dest = NEGOTIATIONS_DIR / session_id
+
+        # Move back from archive
+        shutil.move(str(archive_dir), str(dest))
+
+        # Update metadata
+        metadata_path = dest / "metadata.json"
+        if metadata_path.exists():
+            with open(metadata_path) as f:
+                metadata = json.load(f)
+            metadata["archived"] = False
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f, indent=2)
+
+        return True
+
+    @staticmethod
+    def update_tags(session_id: str, tags: list[str]) -> bool:
+        """Update tags for a negotiation.
+
+        Args:
+            session_id: The session ID to update.
+            tags: New list of tags.
+
+        Returns:
+            True if updated, False if not found.
+        """
+        # Check both directories
+        session_dir = NEGOTIATIONS_DIR / session_id
+        if not session_dir.exists():
+            session_dir = ARCHIVE_DIR / session_id
+        if not session_dir.exists():
+            return False
+
+        metadata_path = session_dir / "metadata.json"
+        if not metadata_path.exists():
+            return False
+
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+
+        metadata["tags"] = tags
+
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        return True
+
+    @staticmethod
+    def add_tag(session_id: str, tag: str) -> bool:
+        """Add a tag to a negotiation.
+
+        Args:
+            session_id: The session ID.
+            tag: Tag to add.
+
+        Returns:
+            True if added, False if not found.
+        """
+        # Check both directories
+        session_dir = NEGOTIATIONS_DIR / session_id
+        if not session_dir.exists():
+            session_dir = ARCHIVE_DIR / session_id
+        if not session_dir.exists():
+            return False
+
+        metadata_path = session_dir / "metadata.json"
+        if not metadata_path.exists():
+            return False
+
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+
+        tags = metadata.get("tags", [])
+        if tag not in tags:
+            tags.append(tag)
+            metadata["tags"] = tags
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f, indent=2)
+
+        return True
+
+    @staticmethod
+    def remove_tag(session_id: str, tag: str) -> bool:
+        """Remove a tag from a negotiation.
+
+        Args:
+            session_id: The session ID.
+            tag: Tag to remove.
+
+        Returns:
+            True if removed, False if not found.
+        """
+        # Check both directories
+        session_dir = NEGOTIATIONS_DIR / session_id
+        if not session_dir.exists():
+            session_dir = ARCHIVE_DIR / session_id
+        if not session_dir.exists():
+            return False
+
+        metadata_path = session_dir / "metadata.json"
+        if not metadata_path.exists():
+            return False
+
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+
+        tags = metadata.get("tags", [])
+        if tag in tags:
+            tags.remove(tag)
+            metadata["tags"] = tags
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f, indent=2)
+
+        return True
+
+    @staticmethod
+    def get_all_tags() -> list[str]:
+        """Get all unique tags used across all negotiations.
+
+        Returns:
+            Sorted list of unique tags.
+        """
+        all_tags = set()
+
+        for directory in [NEGOTIATIONS_DIR, ARCHIVE_DIR]:
+            if not directory.exists():
+                continue
+
+            for session_dir in directory.iterdir():
+                if not session_dir.is_dir():
+                    continue
+
+                metadata_path = session_dir / "metadata.json"
+                if not metadata_path.exists():
+                    continue
+
+                try:
+                    with open(metadata_path) as f:
+                        metadata = json.load(f)
+                    all_tags.update(metadata.get("tags", []))
+                except (json.JSONDecodeError, KeyError):
+                    continue
+
+        return sorted(all_tags)
 
     @staticmethod
     def delete_negotiation(session_id: str) -> bool:
@@ -412,9 +637,10 @@ class NegotiationStorageService:
         Returns:
             True if deleted, False if not found.
         """
-        import shutil
-
-        session_dir = NegotiationStorageService.get_session_dir(session_id)
+        # Check both directories
+        session_dir = NEGOTIATIONS_DIR / session_id
+        if not session_dir.exists():
+            session_dir = ARCHIVE_DIR / session_id
         if not session_dir.exists():
             return False
 
@@ -422,21 +648,27 @@ class NegotiationStorageService:
         return True
 
     @staticmethod
-    def clear_all_negotiations() -> int:
+    def clear_all_negotiations(include_archived: bool = False) -> int:
         """Delete all saved negotiations.
+
+        Args:
+            include_archived: If True, also delete archived negotiations.
 
         Returns:
             Number of negotiations deleted.
         """
-        import shutil
-
-        if not NEGOTIATIONS_DIR.exists():
-            return 0
-
         count = 0
-        for session_dir in NEGOTIATIONS_DIR.iterdir():
-            if session_dir.is_dir():
-                shutil.rmtree(session_dir)
-                count += 1
+
+        if NEGOTIATIONS_DIR.exists():
+            for session_dir in NEGOTIATIONS_DIR.iterdir():
+                if session_dir.is_dir():
+                    shutil.rmtree(session_dir)
+                    count += 1
+
+        if include_archived and ARCHIVE_DIR.exists():
+            for session_dir in ARCHIVE_DIR.iterdir():
+                if session_dir.is_dir():
+                    shutil.rmtree(session_dir)
+                    count += 1
 
         return count

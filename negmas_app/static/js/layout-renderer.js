@@ -571,7 +571,7 @@ const LayoutRenderer = {
         if (size.endsWith('%')) return (parseFloat(size) / 100) * containerSize;
         if (size === '1fr') return containerSize / 2; // Approximate
         return parseFloat(size) || 0;
-    }
+    },
     
     // ========== Panel Picker ==========
     

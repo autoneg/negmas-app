@@ -130,7 +130,6 @@ To reset to defaults:
 # Remove settings file
 rm ~/negmas/app/settings.yaml
 
-# Clear browser localStorage
-# (In browser console)
-localStorage.clear()
+# Remove layout preferences
+rm ~/negmas/app/settings/layout.json
 ```

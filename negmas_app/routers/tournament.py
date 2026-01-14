@@ -11,6 +11,9 @@ from ..models.tournament import (
     TournamentConfig,
     TournamentProgress,
     TournamentSession,
+    TournamentGridInit,
+    CellUpdate,
+    LeaderboardEntry,
 )
 from ..services.tournament_manager import TournamentManager
 from ..services.tournament_storage import TournamentStorageService
@@ -22,7 +25,13 @@ _manager = TournamentManager()
 
 
 class TournamentConfigRequest(BaseModel):
-    """Request model for tournament configuration."""
+    """Request model for tournament configuration.
+
+    Range parameters (n_steps, time_limit, etc.) can be specified as:
+    - Single value: 100, 60.0
+    - Range [min, max]: [50, 200], [30.0, 120.0] - will sample randomly for each negotiation
+    - null/None: No limit
+    """
 
     competitor_types: list[str]
     scenario_paths: list[str]
@@ -31,13 +40,68 @@ class TournamentConfigRequest(BaseModel):
     rotate_ufuns: bool = True
     self_play: bool = True
     mechanism_type: str = "SAOMechanism"
-    n_steps: int | None = 100
-    time_limit: float | None = None
+    # Mechanism settings - support single value or [min, max] range
+    n_steps: int | list[int] | None = 100
+    time_limit: float | list[float] | None = None
+
+    # Time limits for negotiators - support single value or [min, max] range
+    step_time_limit: float | list[float] | None = None
+    negotiator_time_limit: float | list[float] | None = None
+    hidden_time_limit: float | list[float] | None = None
+
+    # Probabilistic ending - support single value or [min, max] range
+    pend: float | list[float] | None = None
+    pend_per_second: float | list[float] | None = None
+
+    # Scoring
     final_score_metric: str = "advantage"
     final_score_stat: str = "mean"
+
+    # Run ordering
+    randomize_runs: bool = False
+    sort_runs: bool = True
+
+    # Information hiding
+    id_reveals_type: bool = False
+    name_reveals_type: bool = True
+    mask_scenario_names: bool = False
+
+    # Self-play options
+    only_failures_on_self_play: bool = False
+
+    # Save options
+    save_stats: bool = True
+    save_scenario_figs: bool = False
+    save_every: int = 0
+
+    # Execution
     njobs: int = -1
     save_path: str | None = None
     verbosity: int = 0
+
+
+def _to_range_int(value: int | list[int] | None) -> int | tuple[int, int] | None:
+    """Convert list [min, max] to tuple for int range parameters."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        if len(value) == 2:
+            return (value[0], value[1])
+        return value[0] if value else None
+    return value
+
+
+def _to_range_float(
+    value: float | list[float] | None,
+) -> float | tuple[float, float] | None:
+    """Convert list [min, max] to tuple for float range parameters."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        if len(value) == 2:
+            return (value[0], value[1])
+        return value[0] if value else None
+    return value
 
 
 @router.post("/start")
@@ -54,10 +118,24 @@ async def start_tournament(request: TournamentConfigRequest):
         rotate_ufuns=request.rotate_ufuns,
         self_play=request.self_play,
         mechanism_type=request.mechanism_type,
-        n_steps=request.n_steps,
-        time_limit=request.time_limit,
+        n_steps=_to_range_int(request.n_steps),
+        time_limit=_to_range_float(request.time_limit),
+        step_time_limit=_to_range_float(request.step_time_limit),
+        negotiator_time_limit=_to_range_float(request.negotiator_time_limit),
+        hidden_time_limit=_to_range_float(request.hidden_time_limit),
+        pend=_to_range_float(request.pend),
+        pend_per_second=_to_range_float(request.pend_per_second),
         final_score_metric=request.final_score_metric,
         final_score_stat=request.final_score_stat,
+        randomize_runs=request.randomize_runs,
+        sort_runs=request.sort_runs,
+        id_reveals_type=request.id_reveals_type,
+        name_reveals_type=request.name_reveals_type,
+        mask_scenario_names=request.mask_scenario_names,
+        only_failures_on_self_play=request.only_failures_on_self_play,
+        save_stats=request.save_stats,
+        save_scenario_figs=request.save_scenario_figs,
+        save_every=request.save_every,
         njobs=request.njobs,
         save_path=request.save_path,
         verbosity=request.verbosity,
@@ -77,6 +155,10 @@ async def stream_tournament(session_id: str):
     """Stream tournament progress via Server-Sent Events.
 
     Events:
+    - grid_init: Initial grid structure (competitors, opponents, scenarios)
+    - cell_start: Cell is starting (turn yellow)
+    - cell_complete: Cell is complete (color based on result)
+    - leaderboard: Updated leaderboard standings
     - progress: Progress update (completed, total, current_scenario, percent)
     - complete: Tournament finished (includes results)
     - error: Error occurred
@@ -88,7 +170,63 @@ async def stream_tournament(session_id: str):
     async def event_generator():
         try:
             async for event in _manager.run_tournament_stream(session_id):
-                if isinstance(event, TournamentProgress):
+                if isinstance(event, TournamentGridInit):
+                    yield {
+                        "event": "grid_init",
+                        "data": json.dumps(
+                            {
+                                "competitors": event.competitors,
+                                "opponents": event.opponents,
+                                "scenarios": event.scenarios,
+                                "n_repetitions": event.n_repetitions,
+                                "rotate_ufuns": event.rotate_ufuns,
+                                "total_negotiations": event.total_negotiations,
+                            }
+                        ),
+                    }
+                elif isinstance(event, CellUpdate):
+                    yield {
+                        "event": "cell_start"
+                        if event.status.value == "running"
+                        else "cell_complete",
+                        "data": json.dumps(
+                            {
+                                "competitor_idx": event.competitor_idx,
+                                "opponent_idx": event.opponent_idx,
+                                "scenario_idx": event.scenario_idx,
+                                "repetition": event.repetition,
+                                "rotated": event.rotated,
+                                "status": event.status.value,
+                                "end_reason": event.end_reason.value
+                                if event.end_reason
+                                else None,
+                                "utilities": event.utilities,
+                                "error": event.error,
+                            }
+                        ),
+                    }
+                elif (
+                    isinstance(event, list)
+                    and len(event) > 0
+                    and isinstance(event[0], LeaderboardEntry)
+                ):
+                    yield {
+                        "event": "leaderboard",
+                        "data": json.dumps(
+                            [
+                                {
+                                    "name": entry.name,
+                                    "score": entry.score,
+                                    "rank": entry.rank,
+                                    "n_negotiations": entry.n_negotiations,
+                                    "n_agreements": entry.n_agreements,
+                                    "mean_utility": entry.mean_utility,
+                                }
+                                for entry in event
+                            ]
+                        ),
+                    }
+                elif isinstance(event, TournamentProgress):
                     yield {
                         "event": "progress",
                         "data": json.dumps(
@@ -119,6 +257,28 @@ async def stream_tournament(session_id: str):
                                     "agreement_rate": s.agreement_rate,
                                 }
                                 for s in event.results.final_scores
+                            ],
+                            "negotiations": [
+                                {
+                                    "index": idx,
+                                    "scenario": n.scenario,
+                                    "partners": n.partners,
+                                    "has_agreement": n.agreement is not None,
+                                    "agreement": list(n.agreement)
+                                    if n.agreement
+                                    else None,
+                                    "utilities": n.utilities,
+                                    "advantages": n.advantages,
+                                    "has_error": n.has_error,
+                                    "error_details": n.error_details,
+                                    "execution_time": n.execution_time,
+                                    "end_reason": n.end_reason.value
+                                    if n.end_reason
+                                    else None,
+                                }
+                                for idx, n in enumerate(
+                                    event.results.negotiation_results
+                                )
                             ],
                             "total_negotiations": event.results.total_negotiations,
                             "total_agreements": event.results.total_agreements,

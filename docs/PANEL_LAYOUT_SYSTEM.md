@@ -321,7 +321,7 @@ Users can toggle mode per-zone via zone menu.
 ### Phase 6: Polish & Testing (1-2 days)
 1. Test all resize interactions
 2. Ensure Plotly charts resize correctly
-3. Test localStorage persistence
+3. Test server-side persistence
 4. Dark mode / color-blind mode compatibility
 5. Add feature flag for gradual rollout
 
@@ -371,7 +371,7 @@ negmas_app/
 ### 8.1 State Structure
 
 ```javascript
-// localStorage key: 'negmas-layout-state'
+// Stored at ~/negmas/app/settings/layout.json
 {
   version: 1,
   activeLayoutId: 'default',
@@ -381,11 +381,8 @@ negmas_app/
     // ... more layouts
   },
   customLayouts: ['my-layout-1'],
-  // Per-zone runtime state (not part of layout definition)
-  zoneState: {
-    left: { scrollPosition: 0 },
-    right: { scrollPosition: 0 }
-  }
+  panelCollapsed: { info: false, history: false, ... },
+  leftColumnWidth: '400px'
 }
 ```
 

@@ -188,3 +188,105 @@ class BOANegotiatorConfig:
 
     # Parameters for opponent model
     model_params: dict = field(default_factory=dict)
+
+
+@dataclass
+class MAPNegotiatorConfig:
+    """Configuration for a MAP-style modular negotiator.
+
+    MAPNegotiator is a more flexible version of BOANegotiator that supports:
+    - Multiple opponent models (not just one)
+    - Extra arbitrary components
+    - Control over acceptance/offering order via acceptance_first
+    """
+
+    # Display name for this instance
+    name: str
+
+    # Acceptance policy class name
+    acceptance_policy: str
+
+    # Offering policy class name
+    offering_policy: str
+
+    # List of opponent model class names (can have multiple, unlike BOA which has one)
+    models: list[str] = field(default_factory=list)
+
+    # Extra component class names (arbitrary GBComponents)
+    extra_components: list[str] = field(default_factory=list)
+
+    # If True, acceptance is evaluated before offering; if False, offering first
+    acceptance_first: bool = True
+
+    # Parameters for acceptance policy
+    acceptance_params: dict = field(default_factory=dict)
+
+    # Parameters for offering policy
+    offering_params: dict = field(default_factory=dict)
+
+    # Parameters for each model (list in same order as models)
+    model_params: list[dict] = field(default_factory=list)
+
+    # Parameters for each extra component (list in same order as extra_components)
+    extra_component_params: list[dict] = field(default_factory=list)
+
+
+@dataclass
+class VirtualNegotiator:
+    """A virtual negotiator - a saved configuration of a base negotiator with custom parameters.
+
+    Virtual negotiators allow users to create named variants of existing negotiators
+    with pre-configured parameters. They appear in the negotiator selection UI
+    alongside built-in negotiators.
+    """
+
+    # Unique identifier for this virtual negotiator
+    id: str
+
+    # Display name for this virtual negotiator
+    name: str
+
+    # The base negotiator type this is built on
+    base_type_name: str
+
+    # User-friendly description
+    description: str = ""
+
+    # Tags for filtering/categorization
+    tags: list[str] = field(default_factory=list)
+
+    # Custom parameters to pass to the base negotiator's __init__
+    params: dict = field(default_factory=dict)
+
+    # Timestamp when created (ISO format string)
+    created_at: str = ""
+
+    # Timestamp when last modified (ISO format string)
+    modified_at: str = ""
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "base_type_name": self.base_type_name,
+            "description": self.description,
+            "tags": self.tags,
+            "params": self.params,
+            "created_at": self.created_at,
+            "modified_at": self.modified_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "VirtualNegotiator":
+        """Create from dictionary."""
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            base_type_name=data["base_type_name"],
+            description=data.get("description", ""),
+            tags=data.get("tags", []),
+            params=data.get("params", {}),
+            created_at=data.get("created_at", ""),
+            modified_at=data.get("modified_at", ""),
+        )

@@ -27,6 +27,7 @@ from ..models import (
     BUILTIN_SOURCES,
     BOAComponentInfo,
     BOANegotiatorConfig,
+    MAPNegotiatorConfig,
 )
 from .settings_service import SettingsService
 
@@ -295,8 +296,63 @@ def _discover_from_library(
     return entries
 
 
+def _discover_from_negmas_registry() -> list[NegotiatorEntry]:
+    """Discover negotiators from negmas built-in registry.
+
+    This provides rich metadata including tags, anac_year, etc.
+    """
+    entries = []
+    try:
+        from negmas import negotiator_registry
+
+        for key in negotiator_registry.keys():
+            info = negotiator_registry.get(key)
+            if info is None:
+                continue
+
+            # Determine source based on tags
+            tags = list(info.tags) if info.tags else []
+            if "genius" in tags:
+                source = "genius"
+                group = f"y{info.anac_year}" if info.anac_year else "other"
+            elif "builtin" in tags:
+                source = "native"
+                group = "core"
+            else:
+                source = "native"
+                group = ""
+
+            # Create our NegotiatorInfo from negmas RegistryInfo
+            neg_info = NegotiatorInfo(
+                type_name=info.full_type_name or f"negmas.{key}",
+                name=info.short_name or key,
+                source=source,
+                group=group,
+                description=f"ANAC {info.anac_year}" if info.anac_year else "",
+                tags=tags,
+                mechanisms=["SAO", "TAU", "GAO"] if "sao" in tags else ["SAO"],
+                requires_bridge="genius" in tags and "builtin" not in tags,
+                available=True,
+                module_path=info.full_type_name.rsplit(".", 1)[0]
+                if info.full_type_name
+                else "",
+            )
+            entries.append(NegotiatorEntry(cls=info.cls, info=neg_info))
+    except ImportError:
+        pass
+    except Exception as e:
+        # Log but don't fail - fall back to manual discovery
+        print(f"Warning: Failed to load from negmas registry: {e}")
+
+    return entries
+
+
 def _discover_all_negotiators() -> None:
-    """Discover all negotiators from all sources and populate the registry."""
+    """Discover all negotiators from all sources and populate the registry.
+
+    Uses negmas built-in registry as primary source (has rich metadata),
+    then supplements with additional sources not in the registry.
+    """
     global NEGOTIATOR_REGISTRY
     NEGOTIATOR_REGISTRY.clear()
 
@@ -304,13 +360,23 @@ def _discover_all_negotiators() -> None:
     settings = SettingsService.load_negotiator_sources()
     disabled = set(settings.disabled_sources)
 
-    # Native negotiators
-    if "native" not in disabled:
+    # Track which sources we've populated from registry
+    registry_sources_found: set[str] = set()
+
+    # First: Try negmas built-in registry (preferred - has rich metadata)
+    if "native" not in disabled or "genius" not in disabled:
+        for entry in _discover_from_negmas_registry():
+            NEGOTIATOR_REGISTRY[entry.info.type_name] = entry
+            registry_sources_found.add(entry.info.source)
+
+    # Fall back to manual discovery if registry didn't have them
+    # Native negotiators (if registry didn't provide)
+    if "native" not in disabled and "native" not in registry_sources_found:
         for entry in _discover_native_negotiators():
             NEGOTIATOR_REGISTRY[entry.info.type_name] = entry
 
-    # Genius bridge negotiators
-    if "genius" not in disabled:
+    # Genius bridge negotiators (if registry didn't provide)
+    if "genius" not in disabled and "genius" not in registry_sources_found:
         for entry in _discover_genius_negotiators():
             NEGOTIATOR_REGISTRY[entry.info.type_name] = entry
 
@@ -613,13 +679,187 @@ class NegotiatorFactory:
         Raises:
             ValueError: If negotiator type is not found.
         """
-        cls = _get_class_for_type(config.type_name)
+        # Handle special composite negotiator types
+        type_name = config.type_name
+
+        # BOA negotiator: "BOA:AcceptPolicy/OfferPolicy" or with model "BOA:AcceptPolicy/OfferPolicy/Model"
+        if type_name.startswith("BOA:"):
+            return NegotiatorFactory._create_boa_negotiator(config, ufun)
+
+        # MAP negotiator: "MAP:AcceptPolicy/OfferPolicy" with models in params
+        if type_name.startswith("MAP:"):
+            return NegotiatorFactory._create_map_negotiator(config, ufun)
+
+        # Regular negotiator - look up class by type name
+        cls = _get_class_for_type(type_name)
         if cls is None:
-            raise ValueError(f"Unknown negotiator type: {config.type_name}")
+            raise ValueError(f"Unknown negotiator type: {type_name}")
 
         negotiator = cls(name=config.name, **config.params)
         if ufun is not None:
             negotiator.ufun = ufun
+        return negotiator
+
+    @staticmethod
+    def _create_boa_negotiator(
+        config: NegotiatorConfig,
+        ufun: UtilityFunction | None = None,
+    ) -> SAONegotiator:
+        """Create a BOA-style negotiator from type_name format.
+
+        Type format: BOA:AcceptPolicy/OfferPolicy or BOA:AcceptPolicy/OfferPolicy/Model
+        Additional params can include:
+          - acceptance_params: dict
+          - offering_params: dict
+          - model_params: dict
+        """
+        from negmas.gb.negotiators.modular.boa import BOANegotiator
+
+        # Parse type_name: "BOA:ACTime/GBoulwareOffering" or "BOA:ACTime/GBoulwareOffering/FrequencyUFunModel"
+        parts = config.type_name[4:].split("/")  # Remove "BOA:" prefix
+        if len(parts) < 2:
+            raise ValueError(f"Invalid BOA type format: {config.type_name}")
+
+        acceptance_name = parts[0]
+        offering_name = parts[1]
+        model_name = parts[2] if len(parts) > 2 else None
+
+        # Get component classes
+        acc_cls = BOAFactory.get_component_class(
+            f"negmas.gb.components.{acceptance_name}"
+        )
+        off_cls = BOAFactory.get_component_class(
+            f"negmas.gb.components.{offering_name}"
+        )
+
+        if acc_cls is None:
+            raise ValueError(f"Unknown acceptance policy: {acceptance_name}")
+        if off_cls is None:
+            raise ValueError(f"Unknown offering policy: {offering_name}")
+
+        # Get params from config
+        params = config.params or {}
+        acceptance_params = params.get("acceptance_params", {})
+        offering_params = params.get("offering_params", {})
+        model_params = params.get("model_params", {})
+
+        # Create components
+        acceptance = acc_cls(**acceptance_params)
+        offering = off_cls(**offering_params)
+
+        # Create model if specified
+        model = None
+        if model_name:
+            model_cls = BOAFactory.get_component_class(
+                f"negmas.gb.components.{model_name}"
+            )
+            if model_cls is not None:
+                model = model_cls(**model_params)
+
+        # Create BOANegotiator
+        negotiator = BOANegotiator(
+            name=config.name,
+            acceptance=acceptance,
+            offering=offering,
+            model=model,
+        )
+
+        if ufun is not None:
+            negotiator.ufun = ufun
+
+        return negotiator
+
+    @staticmethod
+    def _create_map_negotiator(
+        config: NegotiatorConfig,
+        ufun: UtilityFunction | None = None,
+    ) -> SAONegotiator:
+        """Create a MAP-style negotiator from type_name format.
+
+        Type format: MAP:AcceptPolicy/OfferPolicy
+        Additional params should include:
+          - models: list[str] - model class names
+          - extra_components: list[str] - extra component class names
+          - acceptance_first: bool
+          - acceptance_params: dict
+          - offering_params: dict
+          - model_params: list[dict] - params for each model
+          - extra_component_params: list[dict] - params for each extra component
+        """
+        from negmas.gb.negotiators.modular.mapneg import MAPNegotiator
+
+        # Parse type_name: "MAP:ACTime/GBoulwareOffering"
+        parts = config.type_name[4:].split("/")  # Remove "MAP:" prefix
+        if len(parts) < 2:
+            raise ValueError(f"Invalid MAP type format: {config.type_name}")
+
+        acceptance_name = parts[0]
+        offering_name = parts[1]
+
+        # Get component classes
+        acc_cls = BOAFactory.get_component_class(
+            f"negmas.gb.components.{acceptance_name}"
+        )
+        off_cls = BOAFactory.get_component_class(
+            f"negmas.gb.components.{offering_name}"
+        )
+
+        if acc_cls is None:
+            raise ValueError(f"Unknown acceptance policy: {acceptance_name}")
+        if off_cls is None:
+            raise ValueError(f"Unknown offering policy: {offering_name}")
+
+        # Get params from config
+        params = config.params or {}
+        acceptance_params = params.get("acceptance_params", {})
+        offering_params = params.get("offering_params", {})
+        model_names = params.get("models", [])
+        model_params_list = params.get("model_params", [])
+        extra_component_names = params.get("extra_components", [])
+        extra_component_params_list = params.get("extra_component_params", [])
+        acceptance_first = params.get("acceptance_first", True)
+
+        # Create acceptance and offering
+        acceptance = acc_cls(**acceptance_params)
+        offering = off_cls(**offering_params)
+
+        # Create models
+        models = []
+        for i, model_name in enumerate(model_names):
+            model_cls = BOAFactory.get_component_class(
+                f"negmas.gb.components.{model_name}"
+            )
+            if model_cls is not None:
+                mp = model_params_list[i] if i < len(model_params_list) else {}
+                models.append(model_cls(**mp))
+
+        # Create extra components
+        extra_components = []
+        for i, comp_name in enumerate(extra_component_names):
+            comp_cls = BOAFactory.get_component_class(
+                f"negmas.gb.components.{comp_name}"
+            )
+            if comp_cls is not None:
+                cp = (
+                    extra_component_params_list[i]
+                    if i < len(extra_component_params_list)
+                    else {}
+                )
+                extra_components.append(comp_cls(**cp))
+
+        # Create MAPNegotiator
+        negotiator = MAPNegotiator(
+            name=config.name,
+            acceptance=acceptance,
+            offering=offering,
+            models=models if models else None,
+            extra_components=extra_components if extra_components else None,
+            acceptance_first=acceptance_first,
+        )
+
+        if ufun is not None:
+            negotiator.ufun = ufun
+
         return negotiator
 
     @staticmethod

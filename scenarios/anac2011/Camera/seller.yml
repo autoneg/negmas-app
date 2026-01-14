@@ -1,5 +1,6 @@
 discount: 0.890596104
 dynamic_reservation: true
+factor: step
 name: seller
 reserved_value: -.inf
 type: ExpDiscountedUFun

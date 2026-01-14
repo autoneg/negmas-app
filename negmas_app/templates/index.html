@@ -3,13 +3,29 @@
 {% block title %}NegMAS App - Negotiations{% endblock %}
 
 {% block content %}
-<!-- Negotiations Table View when no negotiation selected -->
-<div x-show="!currentNegotiation" class="negotiations-table-view" x-init="initNegotiationsTables()">
+<!-- Negotiations Table View - Always visible at top -->
+<div class="negotiations-table-view" :class="{'compact-mode': currentNegotiation}" x-init="initNegotiationsTables()">
     <!-- Header with actions -->
     <div class="table-header">
-        <h2>Negotiations</h2>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <h2>Negotiations</h2>
+            <!-- Show current negotiation name when in compact mode -->
+            <template x-if="currentNegotiation">
+                <span class="badge badge-primary" style="font-size: 12px;">
+                    <span x-text="currentNegotiation.scenario"></span>
+                </span>
+            </template>
+        </div>
         <div style="display: flex; gap: 8px; align-items: center;">
-            <button class="btn btn-secondary btn-sm" @click="loadSavedNegotiations()" :disabled="savedNegotiationsLoading">
+            <!-- Deselect button when viewing a negotiation -->
+            <button class="btn btn-ghost btn-sm" x-show="currentNegotiation" @click="currentNegotiation = null" title="Close negotiation view">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                <span>Close</span>
+            </button>
+            <button class="btn btn-secondary btn-sm" @click="loadSavedNegotiations()" :disabled="savedNegotiationsLoading" x-show="!currentNegotiation">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="17 8 12 3 7 8"/>
@@ -17,12 +33,13 @@
                 </svg>
                 <span x-text="savedNegotiationsLoading ? 'Loading...' : 'Load Saved'"></span>
             </button>
-            <button class="btn btn-primary" @click="openNewNegotiation()">
+            <button class="btn btn-primary" @click="openNewNegotiation()" :class="{'btn-sm': currentNegotiation}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                 </svg>
-                Start Negotiation
+                <span x-show="!currentNegotiation">Start Negotiation</span>
+                <span x-show="currentNegotiation">New</span>
             </button>
         </div>
     </div>
@@ -59,22 +76,95 @@
     </div>
     
     <!-- Saved Negotiations Section -->
-    <div class="table-section saved-negotiations-section" x-show="savedNegotiations.length > 0" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
-        <h3>
+    <div class="table-section saved-negotiations-section" x-show="savedNegotiations.length > 0 || showArchivedNegotiations || tagFilter" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+        <h3 style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
             <span style="display: flex; align-items: center; gap: 8px;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                 </svg>
                 Saved (<span x-text="savedNegotiations.length"></span>)
             </span>
-            <button class="btn btn-ghost btn-xs" @click="clearSavedNegotiations()" title="Clear all saved">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                </svg>
-            </button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <!-- Tag filter -->
+                <select class="form-control form-control-sm" style="width: auto; min-width: 100px;" x-model="tagFilter" @change="loadSavedNegotiations()">
+                    <option value="">All tags</option>
+                    <template x-for="tag in availableTags" :key="tag">
+                        <option :value="tag" x-text="tag"></option>
+                    </template>
+                </select>
+                <!-- Show archived toggle -->
+                <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: normal; cursor: pointer;">
+                    <input type="checkbox" x-model="showArchivedNegotiations" @change="loadSavedNegotiations()">
+                    <span>Show archived</span>
+                </label>
+                <!-- Clear all button -->
+                <button class="btn btn-ghost btn-xs" @click="clearSavedNegotiations()" title="Clear all saved">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+            </div>
         </h3>
         <div id="saved-negotiations-table"></div>
+    </div>
+    
+    <!-- Tag Editor Modal -->
+    <div class="modal-overlay" :class="{ active: tagEditorNegotiation }" @click.self="closeTagEditor()">
+        <div class="modal" style="max-width: 400px;" x-show="tagEditorNegotiation">
+            <div class="modal-header">
+                <h2 class="modal-title">Edit Tags</h2>
+                <button class="btn btn-ghost btn-sm" @click="closeTagEditor()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-content" style="padding: 16px;">
+                <div class="text-muted" style="font-size: 12px; margin-bottom: 8px;">
+                    Negotiation: <code x-text="tagEditorNegotiation?.id"></code>
+                </div>
+                
+                <!-- Current tags -->
+                <div style="margin-bottom: 16px;">
+                    <div style="display: flex; flex-wrap: wrap; gap: 4px; min-height: 32px; padding: 8px; background: var(--bg-secondary); border-radius: 4px;">
+                        <template x-for="tag in tagEditorTags" :key="tag">
+                            <span class="badge badge-primary" style="display: flex; align-items: center; gap: 4px;">
+                                <span x-text="tag"></span>
+                                <button @click="removeTagFromEditor(tag)" style="background: none; border: none; padding: 0; cursor: pointer; color: inherit; opacity: 0.7;">&times;</button>
+                            </span>
+                        </template>
+                        <template x-if="tagEditorTags.length === 0">
+                            <span class="text-muted">No tags</span>
+                        </template>
+                    </div>
+                </div>
+                
+                <!-- Add new tag -->
+                <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                    <input type="text" class="form-control" placeholder="Add new tag..." 
+                           x-model="newTagInput" 
+                           @keydown.enter.prevent="addNewTag()"
+                           style="flex: 1;">
+                    <button class="btn btn-secondary btn-sm" @click="addNewTag()" :disabled="!newTagInput.trim()">Add</button>
+                </div>
+                
+                <!-- Existing tags suggestions -->
+                <div x-show="availableTags.length > 0" style="margin-bottom: 16px;">
+                    <div class="text-muted" style="font-size: 11px; margin-bottom: 4px;">Quick add:</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                        <template x-for="tag in availableTags.filter(t => !tagEditorTags.includes(t)).slice(0, 10)" :key="tag">
+                            <button class="badge badge-neutral" style="cursor: pointer; border: none;" @click="tagEditorTags.push(tag)" x-text="tag"></button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="closeTagEditor()">Cancel</button>
+                <button class="btn btn-primary" @click="saveTagsFromEditor()">Save Tags</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -297,7 +387,12 @@
                         <div class="empty-state-mini"><span class="text-muted">Waiting for offers...</span></div>
                     </template>
                     <template x-for="offer in (currentNegotiation?.offers || []).slice(-50)" :key="offer.step">
-                        <div class="offer-item-compact animate-slide-up" :style="'border-left: 2px solid ' + (currentNegotiation?.negotiator_colors?.[offer.proposer_index] || 'var(--border-color)')">
+                        <div class="offer-item-compact animate-slide-up" 
+                             :class="{
+                                 'offer-item-bilateral-first': (currentNegotiation?.negotiator_names?.length === 2) && offer.proposer_index === 0,
+                                 'offer-item-bilateral-second': (currentNegotiation?.negotiator_names?.length === 2) && offer.proposer_index === 1
+                             }"
+                             :style="'border-left: 2px solid ' + (currentNegotiation?.negotiator_colors?.[offer.proposer_index] || 'var(--border-color)')">
                             <div class="offer-header-compact">
                                 <span class="offer-agent" :style="'color: ' + (currentNegotiation?.negotiator_colors?.[offer.proposer_index] || 'inherit')" x-text="offer.proposer"></span>
                                 <span class="offer-step" x-text="'#' + offer.step"></span>
@@ -309,7 +404,10 @@
                             </div>
                             <div class="offer-utilities-compact">
                                 <template x-for="(util, uidx) in offer.utilities" :key="uidx">
-                                    <span :style="'color: ' + (currentNegotiation?.negotiator_colors?.[uidx] || 'inherit')" x-text="util.toFixed(2)"></span>
+                                    <span class="offer-utility-label" :style="'color: ' + (currentNegotiation?.negotiator_colors?.[uidx] || 'inherit')">
+                                        <span class="utility-name" x-text="(currentNegotiation?.negotiator_names?.[uidx] || 'A' + (uidx+1)).substring(0, 3)"></span>
+                                        <span x-text="util.toFixed(2)"></span>
+                                    </span>
                                 </template>
                             </div>
                         </div>
@@ -322,7 +420,13 @@
         <div class="resize-handle-horizontal" @mousedown="startPanelResize($event, 'history-result')"></div>
         
         <!-- Result Panel - Ultra Compact -->
-        <div class="panel panel-compact panel-result" x-ref="panelResult" :class="{'collapsed': panelCollapsed.result}">
+        <div class="panel panel-compact panel-result" x-ref="panelResult" 
+             :class="{
+                 'collapsed': panelCollapsed.result,
+                 'panel-result-agreement': currentNegotiation?.agreement,
+                 'panel-result-disagreement': currentNegotiation?.end_reason && !currentNegotiation?.agreement && !currentNegotiation?.error,
+                 'panel-result-error': currentNegotiation?.error
+             }">
             <span class="panel-collapsed-label" x-show="panelCollapsed.result">RESULT</span>
             <div class="panel-floating-actions">
                 <button class="panel-btn" title="Save Results" @click="saveResults()" x-show="currentNegotiation?.agreement || currentNegotiation?.end_reason">
@@ -334,20 +438,35 @@
             </div>
             <div class="panel-content-ultra-compact" x-show="!panelCollapsed.result">
                 <template x-if="currentNegotiation?.agreement">
-                    <div class="result-row">
+                    <div class="result-row result-agreement-display">
+                        <span class="result-state-badge agreement">Agreement</span>
                         <template x-for="(value, key) in currentNegotiation.agreement" :key="key">
                             <span class="result-item"><span class="text-muted" x-text="key"></span>=<strong x-text="value"></strong></span>
                         </template>
                         <span class="result-separator">→</span>
                         <template x-for="(util, idx) in (currentNegotiation.final_utilities || [])" :key="idx">
-                            <span class="result-utility" :style="'color: ' + (currentNegotiation?.negotiator_colors?.[idx] || 'var(--primary)')" x-text="util.toFixed(3)"></span>
+                            <span class="result-utility-labeled" :style="'color: ' + (currentNegotiation?.negotiator_colors?.[idx] || 'var(--primary)')">
+                                <span class="utility-name" x-text="(currentNegotiation?.negotiator_names?.[idx] || '').substring(0, 3)"></span>
+                                <span x-text="util.toFixed(3)"></span>
+                            </span>
                         </template>
                     </div>
                 </template>
                 <template x-if="currentNegotiation?.end_reason && !currentNegotiation?.agreement">
-                    <div class="result-row">
-                        <span class="badge badge-xs" :class="currentNegotiation.error ? 'badge-danger' : 'badge-warning'" x-text="currentNegotiation.error ? 'Error' : 'No Agreement'"></span>
-                        <span class="text-muted result-reason" x-text="currentNegotiation.error || currentNegotiation.end_reason"></span>
+                    <div class="result-row result-final-state">
+                        <span class="result-state-badge" 
+                              :class="{
+                                  'timeout': currentNegotiation.end_reason === 'timeout' || currentNegotiation.end_reason === 'no_agreement',
+                                  'error': currentNegotiation.error,
+                                  'ended': !currentNegotiation.error && currentNegotiation.end_reason !== 'timeout' && currentNegotiation.end_reason !== 'no_agreement'
+                              }"
+                              x-text="currentNegotiation.error ? 'Error' : (currentNegotiation.end_reason === 'timeout' || currentNegotiation.end_reason === 'no_agreement' ? 'No Agreement' : 'Ended')"></span>
+                        <template x-if="currentNegotiation.error">
+                            <span class="result-error-scrollable" x-text="currentNegotiation.error"></span>
+                        </template>
+                        <template x-if="!currentNegotiation.error">
+                            <span class="text-muted result-reason" x-text="currentNegotiation.end_reason"></span>
+                        </template>
                     </div>
                 </template>
                 <template x-if="!currentNegotiation?.end_reason && !currentNegotiation?.agreement && !currentNegotiation?.pendingStart">
@@ -554,6 +673,24 @@ app = function() {
             timeline: { xAxis: 'relative_time' }
         },
         
+        // Layout state - integrates with LayoutManager
+        currentLayoutId: 'default',
+        zoneModes: {
+            left: 'stacked',   // 'stacked' or 'tabbed'
+            right: 'stacked'
+        },
+        activeTab: {
+            left: 'info',      // Active panel ID when in tabbed mode
+            right: 'utility2d',
+            fullscreen: 'utility2d'
+        },
+        
+        // Panel definitions for each zone
+        panelDefs: {
+            left: ['info', 'history', 'result'],
+            right: ['utility2d', 'timeline']
+        },
+        
         // Panel collapse state
         panelCollapsed: {
             info: false,
@@ -576,6 +713,9 @@ app = function() {
         // Saved negotiations state
         savedNegotiations: [],
         savedNegotiationsLoading: false,
+        showArchivedNegotiations: false,
+        availableTags: [],
+        tagFilter: '',
         
         // Tabulator instances
         _runningTable: null,
@@ -590,32 +730,39 @@ app = function() {
         async init() {
             await base.init.call(this);
             
-            // Load saved panel collapse state
-            const savedCollapsed = localStorage.getItem('panelCollapsed');
-            if (savedCollapsed) {
-                try {
-                    Object.assign(this.panelCollapsed, JSON.parse(savedCollapsed));
-                } catch (e) {}
+            // Wait for LayoutManager to initialize (it loads from server)
+            if (window.LayoutManager && !window.LayoutManager._initialized) {
+                await window.LayoutManager.init();
             }
             
-            // Load saved column width
-            const savedColumnWidth = localStorage.getItem('leftColumnWidth');
-            if (savedColumnWidth) {
-                this.$nextTick(() => {
-                    const leftCol = this.$refs.leftColumn;
-                    if (leftCol) {
-                        leftCol.style.flex = `0 0 ${savedColumnWidth}`;
-                    }
-                });
+            // Load saved panel collapse state from LayoutManager
+            if (window.LayoutManager) {
+                const savedCollapsed = window.LayoutManager.getPanelCollapsed();
+                if (savedCollapsed && Object.keys(savedCollapsed).length > 0) {
+                    Object.assign(this.panelCollapsed, savedCollapsed);
+                }
+                
+                // Load saved column width from LayoutManager
+                const savedColumnWidth = window.LayoutManager.getLeftColumnWidth();
+                if (savedColumnWidth) {
+                    this.$nextTick(() => {
+                        const leftCol = this.$refs.leftColumn;
+                        if (leftCol) {
+                            leftCol.style.flex = `0 0 ${savedColumnWidth}`;
+                        }
+                    });
+                }
             }
             
             // Add mouse move/up listeners for resize
             document.addEventListener('mousemove', this.handleResizeMove.bind(this));
             document.addEventListener('mouseup', this.handleResizeEnd.bind(this));
             
-            // Watch for panel collapse changes and save to localStorage
+            // Watch for panel collapse changes and save to server via LayoutManager
             this.$watch('panelCollapsed', () => {
-                localStorage.setItem('panelCollapsed', JSON.stringify(this.panelCollapsed));
+                if (window.LayoutManager) {
+                    window.LayoutManager.setPanelCollapsedAll(this.panelCollapsed);
+                }
             }, { deep: true });
             
             // Listen for theme changes to redraw charts
@@ -641,6 +788,23 @@ app = function() {
             this.$watch('runningNegotiations', () => this.updateRunningTable(), { deep: true });
             this.$watch('completedNegotiations', () => this.updateCompletedTable(), { deep: true });
             this.$watch('savedNegotiations', () => this.updateSavedTable(), { deep: true });
+            
+            // Watch for currentNegotiation changes to redraw tables when returning to table view
+            this.$watch('currentNegotiation', (newVal, oldVal) => {
+                if (newVal === null && oldVal !== null) {
+                    // Returning from single negotiation view to table view
+                    // Need to redraw tables after they become visible again
+                    this.$nextTick(() => {
+                        if (this._runningTable) this._runningTable.redraw(true);
+                        if (this._completedTable) this._completedTable.redraw(true);
+                        if (this._savedTable) this._savedTable.redraw(true);
+                    });
+                }
+            });
+            
+            // Auto-load saved negotiations on startup
+            this.loadSavedNegotiations();
+            this.loadAvailableTags();
         },
         
         // Initialize Tabulator tables for negotiations view
@@ -768,49 +932,83 @@ app = function() {
                 data: this.savedNegotiations,
                 layout: "fitColumns",
                 height: "auto",
-                maxHeight: "300px",
+                maxHeight: "400px",
                 placeholder: "No saved negotiations",
                 columns: [
-                    { title: "ID", field: "id", width: 100, formatter: (cell) => `<code>${cell.getValue()}</code>` },
+                    { title: "ID", field: "id", width: 80, formatter: (cell) => `<code>${cell.getValue()}</code>` },
                     { title: "Scenario", field: "scenario_name", sorter: "string" },
                     { title: "Negotiators", field: "negotiator_names", formatter: (cell, params, onRendered) => {
                         const row = cell.getRow().getData();
                         return self.formatNegotiatorBadges(row.negotiator_names, row.negotiator_colors);
                     }, headerSort: false },
-                    { title: "Mechanism", field: "mechanism_type", width: 120, sorter: "string" },
-                    { title: "Steps", field: "current_step", width: 80, sorter: "number" },
-                    { title: "Result", field: "agreement", width: 120, formatter: (cell) => {
+                    { title: "Steps", field: "n_offers", width: 60, sorter: "number", formatter: (cell) => {
+                        return cell.getValue() || '-';
+                    } },
+                    { title: "Result", field: "has_agreement", width: 100, formatter: (cell) => {
                         const row = cell.getRow().getData();
-                        if (row.agreement) {
-                            return '<span class="badge badge-success">Agreement</span>';
+                        if (row.has_agreement) {
+                            return '<span class="badge badge-success badge-sm">Agreement</span>';
                         } else if (row.error) {
-                            return '<span class="badge badge-danger">Error</span>';
+                            return '<span class="badge badge-danger badge-sm">Error</span>';
                         } else {
-                            return `<span class="badge badge-warning">${row.end_reason || 'No Agreement'}</span>`;
+                            return `<span class="badge badge-warning badge-sm">${row.end_reason || 'No Agr.'}</span>`;
                         }
                     } },
-                    { title: "Date", field: "end_time", width: 120, sorter: "datetime", formatter: (cell) => {
+                    { title: "Tags", field: "tags", width: 120, formatter: (cell) => {
+                        const tags = cell.getValue() || [];
+                        if (tags.length === 0) return '<span class="text-muted">-</span>';
+                        return tags.map(t => `<span class="badge badge-neutral badge-sm">${t}</span>`).join(' ');
+                    }, headerSort: false },
+                    { title: "Date", field: "end_time", width: 100, sorter: "datetime", formatter: (cell) => {
                         const val = cell.getValue();
                         if (!val) return '-';
                         const date = new Date(val);
-                        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        return date.toLocaleDateString();
                     } },
-                    { title: "", width: 50, headerSort: false, formatter: () => {
-                        return `<button class="btn btn-ghost btn-xs delete-btn" title="Delete">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                                <polyline points="3 6 5 6 21 6"></polyline>
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            </svg>
-                        </button>`;
+                    { title: "Actions", width: 100, headerSort: false, formatter: (cell) => {
+                        const row = cell.getRow().getData();
+                        const archiveIcon = row.archived 
+                            ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 10v11h18V10"/><path d="M21 3H3v7h18V3z"/><path d="M10 14h4"/></svg>`
+                            : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 8v13H3V8"/><path d="M23 3H1v5h22V3z"/><path d="M10 12h4"/></svg>`;
+                        const archiveTitle = row.archived ? 'Unarchive' : 'Archive';
+                        return `<div style="display: flex; gap: 2px;">
+                            <button class="btn btn-ghost btn-xs tag-btn" title="Edit Tags">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                                    <line x1="7" y1="7" x2="7.01" y2="7"/>
+                                </svg>
+                            </button>
+                            <button class="btn btn-ghost btn-xs archive-btn" title="${archiveTitle}">
+                                ${archiveIcon}
+                            </button>
+                            <button class="btn btn-ghost btn-xs delete-btn" title="Delete">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </div>`;
                     }, cellClick: (e, cell) => {
                         e.stopPropagation();
                         const row = cell.getRow().getData();
-                        self.deleteSavedNegotiation(row.id);
+                        if (e.target.closest('.delete-btn')) {
+                            self.deleteSavedNegotiation(row.id);
+                        } else if (e.target.closest('.archive-btn')) {
+                            self.toggleArchiveNegotiation(row.id, row.archived);
+                        } else if (e.target.closest('.tag-btn')) {
+                            self.openTagEditor(row);
+                        }
                     } }
                 ],
+                rowFormatter: (row) => {
+                    const data = row.getData();
+                    if (data.archived) {
+                        row.getElement().style.opacity = '0.6';
+                    }
+                },
                 rowClick: (e, row) => {
-                    // Don't trigger row click if clicking delete button
-                    if (e.target.closest('.delete-btn')) return;
+                    // Don't trigger row click if clicking action buttons
+                    if (e.target.closest('.delete-btn') || e.target.closest('.archive-btn') || e.target.closest('.tag-btn')) return;
                     self.loadAndSelectSavedNegotiation(row.getData().id);
                 }
             });
@@ -841,13 +1039,106 @@ app = function() {
         async loadSavedNegotiations() {
             this.savedNegotiationsLoading = true;
             try {
-                const response = await fetch('/api/negotiation/saved/list');
+                const includeArchived = this.showArchivedNegotiations ? 'true' : 'false';
+                const response = await fetch(`/api/negotiation/saved/list?include_archived=${includeArchived}`);
                 const data = await response.json();
-                this.savedNegotiations = data.negotiations || [];
+                let negotiations = data.negotiations || [];
+                
+                // Apply tag filter if set
+                if (this.tagFilter) {
+                    negotiations = negotiations.filter(n => 
+                        n.tags && n.tags.includes(this.tagFilter)
+                    );
+                }
+                
+                this.savedNegotiations = negotiations;
             } catch (e) {
                 console.error('Failed to load saved negotiations:', e);
             } finally {
                 this.savedNegotiationsLoading = false;
+            }
+        },
+        
+        // Load available tags
+        async loadAvailableTags() {
+            try {
+                const response = await fetch('/api/negotiation/tags');
+                const data = await response.json();
+                this.availableTags = data.tags || [];
+            } catch (e) {
+                console.error('Failed to load tags:', e);
+            }
+        },
+        
+        // Toggle archive state for a negotiation
+        async toggleArchiveNegotiation(sessionId, isArchived) {
+            try {
+                const endpoint = isArchived ? 'unarchive' : 'archive';
+                await fetch(`/api/negotiation/saved/${sessionId}/${endpoint}`, { method: 'POST' });
+                // Reload the list
+                await this.loadSavedNegotiations();
+            } catch (e) {
+                console.error('Failed to toggle archive:', e);
+            }
+        },
+        
+        // Tag editor state
+        tagEditorNegotiation: null,
+        tagEditorTags: [],
+        newTagInput: '',
+        
+        // Open tag editor for a negotiation
+        openTagEditor(negotiation) {
+            this.tagEditorNegotiation = negotiation;
+            this.tagEditorTags = [...(negotiation.tags || [])];
+            this.newTagInput = '';
+        },
+        
+        // Close tag editor
+        closeTagEditor() {
+            this.tagEditorNegotiation = null;
+            this.tagEditorTags = [];
+            this.newTagInput = '';
+        },
+        
+        // Add a new tag in the editor
+        addNewTag() {
+            const tag = this.newTagInput.trim();
+            if (tag && !this.tagEditorTags.includes(tag)) {
+                this.tagEditorTags.push(tag);
+            }
+            this.newTagInput = '';
+        },
+        
+        // Remove a tag in the editor
+        removeTagFromEditor(tag) {
+            this.tagEditorTags = this.tagEditorTags.filter(t => t !== tag);
+        },
+        
+        // Save tags from editor
+        async saveTagsFromEditor() {
+            if (!this.tagEditorNegotiation) return;
+            
+            try {
+                await fetch(`/api/negotiation/saved/${this.tagEditorNegotiation.id}/tags`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tags: this.tagEditorTags })
+                });
+                
+                // Update local state
+                const neg = this.savedNegotiations.find(n => n.id === this.tagEditorNegotiation.id);
+                if (neg) {
+                    neg.tags = [...this.tagEditorTags];
+                }
+                
+                // Reload tags list
+                await this.loadAvailableTags();
+                
+                this.closeTagEditor();
+                this.updateSavedTable();
+            } catch (e) {
+                console.error('Failed to save tags:', e);
             }
         },
         
@@ -922,8 +1213,13 @@ app = function() {
                 gridColor: isDark ? '#38414a' : '#dfe1e6',
                 bgColor: 'transparent',
                 outcomeColor: isDark ? 'rgba(100, 120, 140, 0.3)' : 'rgba(100, 120, 140, 0.4)',
-                // Use black/white for special points (not used for negotiators)
-                specialPointColor: isDark ? '#ffffff' : '#000000',
+                // Pareto points use black/white
+                paretoColor: isDark ? '#ffffff' : '#000000',
+                // Distinct colors for special solution points (hollow markers)
+                nashColor: isDark ? '#ff6b6b' : '#dc2626',           // Red
+                kalaiColor: isDark ? '#4ecdc4' : '#0891b2',          // Cyan/Teal
+                kalaiSmorodinskyColor: isDark ? '#a855f7' : '#7c3aed', // Purple
+                maxWelfareColor: isDark ? '#fbbf24' : '#d97706',     // Amber/Orange
                 agreementColor: '#10b981'
             };
         },
@@ -972,7 +1268,9 @@ app = function() {
         
         // Save panel collapse state
         savePanelCollapsed() {
-            localStorage.setItem('panelCollapsed', JSON.stringify(this.panelCollapsed));
+            if (window.LayoutManager) {
+                window.LayoutManager.setPanelCollapsedAll(this.panelCollapsed);
+            }
         },
         
         // Column resize start
@@ -1057,11 +1355,12 @@ app = function() {
         handleResizeEnd() {
             if (!this.resizeState.active) return;
             
-            // Save column width
+            // Save column width to server via LayoutManager
             if (this.resizeState.type === 'column') {
                 const leftCol = this.$refs.leftColumn;
-                if (leftCol) {
-                    localStorage.setItem('leftColumnWidth', leftCol.style.flex.replace('0 0 ', ''));
+                if (leftCol && window.LayoutManager) {
+                    const width = leftCol.style.flex.replace('0 0 ', '');
+                    window.LayoutManager.setLeftColumnWidth(width);
                 }
             }
             
@@ -1137,11 +1436,11 @@ app = function() {
                     type: 'scattergl',
                     mode: 'markers',
                     name: 'Pareto Frontier',
-                    marker: { color: colors.specialPointColor, size: 6, opacity: 0.7 }
+                    marker: { color: colors.paretoColor, size: 6, opacity: 0.7 }
                 });
             }
             
-            // 3. Nash point (triangle-left marker) - use scattergl
+            // 3. Nash point (triangle-left marker, hollow) - use scattergl
             if (osd.nash_point && osd.nash_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.nash_point[xIdx]],
@@ -1149,11 +1448,16 @@ app = function() {
                     type: 'scattergl',
                     mode: 'markers',
                     name: 'Nash',
-                    marker: { color: colors.specialPointColor, size: 14, symbol: 'triangle-left' }
+                    marker: { 
+                        color: 'rgba(0,0,0,0)',
+                        size: 14, 
+                        symbol: 'triangle-left',
+                        line: { color: colors.nashColor, width: 2.5 }
+                    }
                 });
             }
             
-            // 4. Kalai point (triangle-down marker) - use scattergl
+            // 4. Kalai point (triangle-down marker, hollow) - use scattergl
             if (osd.kalai_point && osd.kalai_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.kalai_point[xIdx]],
@@ -1161,11 +1465,16 @@ app = function() {
                     type: 'scattergl',
                     mode: 'markers',
                     name: 'Kalai',
-                    marker: { color: colors.specialPointColor, size: 14, symbol: 'triangle-down' }
+                    marker: { 
+                        color: 'rgba(0,0,0,0)',
+                        size: 14, 
+                        symbol: 'triangle-down',
+                        line: { color: colors.kalaiColor, width: 2.5 }
+                    }
                 });
             }
             
-            // 5. Kalai-Smorodinsky point (triangle-up marker) - use scattergl
+            // 5. Kalai-Smorodinsky point (triangle-up marker, hollow) - use scattergl
             if (osd.kalai_smorodinsky_point && osd.kalai_smorodinsky_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.kalai_smorodinsky_point[xIdx]],
@@ -1173,11 +1482,16 @@ app = function() {
                     type: 'scattergl',
                     mode: 'markers',
                     name: 'Kalai-Smorodinsky',
-                    marker: { color: colors.specialPointColor, size: 14, symbol: 'triangle-up' }
+                    marker: { 
+                        color: 'rgba(0,0,0,0)',
+                        size: 14, 
+                        symbol: 'triangle-up',
+                        line: { color: colors.kalaiSmorodinskyColor, width: 2.5 }
+                    }
                 });
             }
             
-            // 6. Max welfare point (triangle-right marker) - use scattergl
+            // 6. Max welfare point (triangle-right marker, hollow) - use scattergl
             if (osd.max_welfare_point && osd.max_welfare_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.max_welfare_point[xIdx]],
@@ -1185,7 +1499,12 @@ app = function() {
                     type: 'scattergl',
                     mode: 'markers',
                     name: 'Max Welfare',
-                    marker: { color: colors.specialPointColor, size: 14, symbol: 'triangle-right' }
+                    marker: { 
+                        color: 'rgba(0,0,0,0)',
+                        size: 14, 
+                        symbol: 'triangle-right',
+                        line: { color: colors.maxWelfareColor, width: 2.5 }
+                    }
                 });
             }
             
@@ -1761,11 +2080,11 @@ app = function() {
                     type: 'scatter',
                     mode: 'markers',
                     name: 'Pareto Frontier',
-                    marker: { color: colors.specialPointColor, size: 7, opacity: 0.7 }
+                    marker: { color: colors.paretoColor, size: 7, opacity: 0.7 }
                 });
             }
             
-            // 3. Nash point (triangle-left marker)
+            // 3. Nash point (triangle-up marker, hollow)
             if (osd.nash_point && osd.nash_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.nash_point[xIdx]],
@@ -1773,11 +2092,16 @@ app = function() {
                     type: 'scatter',
                     mode: 'markers',
                     name: 'Nash',
-                    marker: { color: colors.specialPointColor, size: 16, symbol: 'triangle-left' }
+                    marker: { 
+                        color: 'rgba(0,0,0,0)',
+                        size: 16, 
+                        symbol: 'triangle-up',
+                        line: { color: colors.nashColor, width: 3 }
+                    }
                 });
             }
             
-            // 4. Kalai point (triangle-down marker)
+            // 4. Kalai point (triangle-down marker, hollow)
             if (osd.kalai_point && osd.kalai_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.kalai_point[xIdx]],
@@ -1785,11 +2109,16 @@ app = function() {
                     type: 'scatter',
                     mode: 'markers',
                     name: 'Kalai',
-                    marker: { color: colors.specialPointColor, size: 16, symbol: 'triangle-down' }
+                    marker: { 
+                        color: 'rgba(0,0,0,0)',
+                        size: 16, 
+                        symbol: 'triangle-down',
+                        line: { color: colors.kalaiColor, width: 3 }
+                    }
                 });
             }
             
-            // 5. Kalai-Smorodinsky point (triangle-up marker)
+            // 5. Kalai-Smorodinsky point (triangle-left marker, hollow)
             if (osd.kalai_smorodinsky_point && osd.kalai_smorodinsky_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.kalai_smorodinsky_point[xIdx]],
@@ -1797,11 +2126,16 @@ app = function() {
                     type: 'scatter',
                     mode: 'markers',
                     name: 'Kalai-Smorodinsky',
-                    marker: { color: colors.specialPointColor, size: 16, symbol: 'triangle-up' }
+                    marker: { 
+                        color: 'rgba(0,0,0,0)',
+                        size: 16, 
+                        symbol: 'triangle-left',
+                        line: { color: colors.kalaiSmorodinskyColor, width: 3 }
+                    }
                 });
             }
             
-            // 6. Max welfare point (triangle-right marker)
+            // 6. Max welfare point (triangle-right marker, hollow)
             if (osd.max_welfare_point && osd.max_welfare_point.length > Math.max(xIdx, yIdx)) {
                 traces.push({
                     x: [osd.max_welfare_point[xIdx]],
@@ -1809,7 +2143,12 @@ app = function() {
                     type: 'scatter',
                     mode: 'markers',
                     name: 'Max Welfare',
-                    marker: { color: colors.specialPointColor, size: 16, symbol: 'triangle-right' }
+                    marker: { 
+                        color: 'rgba(0,0,0,0)',
+                        size: 16, 
+                        symbol: 'triangle-right',
+                        line: { color: colors.maxWelfareColor, width: 3 }
+                    }
                 });
             }
             
@@ -2164,8 +2503,9 @@ app = function() {
                 eventSource.close();
             });
             
+            // Auto-select the negotiation to show its details
             if (neg) {
-                this.currentNegotiation = neg;
+                this.selectNegotiation(neg);
             }
             
             // Store eventSource reference for manual start
@@ -2189,7 +2529,16 @@ app = function() {
         
         // Override selectNegotiation to init plots
         selectNegotiation(neg) {
-            this.currentNegotiation = neg;
+            // If neg is from Tabulator (plain object copy), find the actual object by ID
+            // to preserve the offers array and other properties
+            if (neg && neg.id) {
+                const actualNeg = this.runningNegotiations.find(n => n.id === neg.id) 
+                    || this.completedNegotiations.find(n => n.id === neg.id)
+                    || neg;
+                this.currentNegotiation = actualNeg;
+            } else {
+                this.currentNegotiation = neg;
+            }
             
             // Update panel state from negotiation settings
             const numAgents = neg.negotiator_names?.length || 2;

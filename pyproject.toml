@@ -63,3 +63,8 @@ addopts = "-v --tb=short"
 source = ["negmas_app"]
 omit = ["negmas_app/static/*", "negmas_app/templates/*"]
 
+[dependency-groups]
+dev = [
+    "playwright>=1.57.0",
+]
+

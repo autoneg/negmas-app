@@ -313,13 +313,16 @@ async def get_session(session_id: str):
 
 
 @router.get("/saved/list")
-async def list_saved_negotiations():
+async def list_saved_negotiations(include_archived: bool = False):
     """List all saved negotiations from disk.
+
+    Args:
+        include_archived: If True, also include archived negotiations.
 
     Returns summary info for each saved negotiation.
     """
     negotiations = await asyncio.to_thread(
-        NegotiationStorageService.list_saved_negotiations
+        NegotiationStorageService.list_saved_negotiations, include_archived
     )
     return {"negotiations": negotiations, "count": len(negotiations)}
 
@@ -408,7 +411,97 @@ async def delete_saved_negotiation(session_id: str):
 
 
 @router.delete("/saved")
-async def clear_all_saved_negotiations():
-    """Delete all saved negotiations from disk."""
-    count = await asyncio.to_thread(NegotiationStorageService.clear_all_negotiations)
+async def clear_all_saved_negotiations(include_archived: bool = False):
+    """Delete all saved negotiations from disk.
+
+    Args:
+        include_archived: If True, also delete archived negotiations.
+    """
+    count = await asyncio.to_thread(
+        NegotiationStorageService.clear_all_negotiations, include_archived
+    )
     return {"status": "cleared", "count": count}
+
+
+# =============================================================================
+# Archive Endpoints
+# =============================================================================
+
+
+@router.post("/saved/{session_id}/archive")
+async def archive_negotiation(session_id: str):
+    """Move a negotiation to the archive."""
+    success = await asyncio.to_thread(
+        NegotiationStorageService.archive_negotiation, session_id
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Negotiation not found")
+    return {"status": "archived"}
+
+
+@router.post("/saved/{session_id}/unarchive")
+async def unarchive_negotiation(session_id: str):
+    """Restore a negotiation from the archive."""
+    success = await asyncio.to_thread(
+        NegotiationStorageService.unarchive_negotiation, session_id
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Archived negotiation not found")
+    return {"status": "unarchived"}
+
+
+# =============================================================================
+# Tagging Endpoints
+# =============================================================================
+
+
+class TagsUpdateRequest(BaseModel):
+    """Request model for updating tags."""
+
+    tags: list[str]
+
+
+class TagRequest(BaseModel):
+    """Request model for adding/removing a single tag."""
+
+    tag: str
+
+
+@router.get("/tags")
+async def get_all_tags():
+    """Get all unique tags used across all negotiations."""
+    tags = await asyncio.to_thread(NegotiationStorageService.get_all_tags)
+    return {"tags": tags}
+
+
+@router.put("/saved/{session_id}/tags")
+async def update_tags(session_id: str, request: TagsUpdateRequest):
+    """Update all tags for a negotiation."""
+    success = await asyncio.to_thread(
+        NegotiationStorageService.update_tags, session_id, request.tags
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Negotiation not found")
+    return {"status": "updated", "tags": request.tags}
+
+
+@router.post("/saved/{session_id}/tags")
+async def add_tag(session_id: str, request: TagRequest):
+    """Add a tag to a negotiation."""
+    success = await asyncio.to_thread(
+        NegotiationStorageService.add_tag, session_id, request.tag
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Negotiation not found")
+    return {"status": "added", "tag": request.tag}
+
+
+@router.delete("/saved/{session_id}/tags/{tag}")
+async def remove_tag(session_id: str, tag: str):
+    """Remove a tag from a negotiation."""
+    success = await asyncio.to_thread(
+        NegotiationStorageService.remove_tag, session_id, tag
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Negotiation not found")
+    return {"status": "removed", "tag": tag}

@@ -4,9 +4,32 @@ from pathlib import Path
 from typing import Any
 
 from negmas import Scenario
+from negmas.preferences.ops import is_rational
 
 from ..models import ScenarioInfo, IssueInfo, ScenarioStatsInfo
 from .settings_service import SettingsService
+
+
+def calculate_rational_fraction(scenario: Scenario, max_samples: int = 50000) -> float:
+    """Calculate the fraction of outcomes that are rational for all negotiators.
+
+    An outcome is rational if its utility is >= reserved value for all negotiators.
+
+    Args:
+        scenario: The scenario to analyze.
+        max_samples: Maximum number of outcomes to sample for large spaces.
+
+    Returns:
+        Fraction of rational outcomes (0.0 to 1.0).
+    """
+    outcomes = list(
+        scenario.outcome_space.enumerate_or_sample(max_cardinality=max_samples)
+    )
+    if not outcomes:
+        return 0.0
+
+    n_rational = sum(1 for o in outcomes if is_rational(scenario.ufuns, o))
+    return n_rational / len(outcomes)
 
 
 class ScenarioLoader:
@@ -81,15 +104,22 @@ class ScenarioLoader:
             if hasattr(scenario.outcome_space, "cardinality"):
                 n_outcomes = scenario.outcome_space.cardinality
 
+            # Get rational_fraction from cached info if available
+            rational_fraction = None
+            if scenario.info and "rational_fraction" in scenario.info:
+                rational_fraction = float(scenario.info["rational_fraction"])
+
             return ScenarioInfo(
                 path=str(path),
                 name=path.name,
                 n_negotiators=len(scenario.ufuns),
                 issues=issues,
                 n_outcomes=n_outcomes,
+                rational_fraction=rational_fraction,
                 source=source,
                 has_stats=scenario.stats is not None,
-                has_info=scenario.info is not None,
+                has_info=scenario.info is not None
+                and "rational_fraction" in scenario.info,
             )
         except Exception:
             return None
@@ -164,10 +194,30 @@ class ScenarioLoader:
             return ScenarioStatsInfo(has_stats=False)
 
         # Calculate stats if needed
-        if scenario.stats is None or force:
+        needs_stats = scenario.stats is None or force
+        needs_info = (
+            scenario.info is None
+            or "n_outcomes" not in scenario.info
+            or "rational_fraction" not in scenario.info
+            or force
+        )
+
+        if needs_stats:
             scenario.calc_stats()
 
-            # Save if caching is enabled
+        if needs_info:
+            # Calculate and store n_outcomes and rational_fraction in info
+            if scenario.info is None:
+                scenario.info = {}
+
+            n_outcomes = scenario.outcome_space.cardinality
+            rational_fraction = calculate_rational_fraction(scenario)
+
+            scenario.info["n_outcomes"] = n_outcomes
+            scenario.info["rational_fraction"] = rational_fraction
+
+        # Save if caching is enabled and something was calculated
+        if needs_stats or needs_info:
             settings = SettingsService.load_general()
             if settings.cache_scenario_stats:
                 try:
@@ -190,6 +240,21 @@ class ScenarioLoader:
             name = getattr(ufun, "name", None) or f"Negotiator {i + 1}"
             negotiator_names.append(name)
 
+        # Get issue names from outcome space
+        issue_names = [issue.name for issue in scenario.outcome_space.issues]
+
+        # Get total outcomes count
+        n_outcomes = None
+        try:
+            n_outcomes = scenario.outcome_space.cardinality
+        except Exception:
+            pass
+
+        # Get rational_fraction from scenario.info if available
+        rational_fraction = None
+        if scenario.info and "rational_fraction" in scenario.info:
+            rational_fraction = float(scenario.info["rational_fraction"])
+
         # Convert numpy types to Python types for JSON serialization
         def to_list(utils: Any) -> list[list[float]] | None:
             if utils is None:
@@ -199,8 +264,21 @@ class ScenarioLoader:
                 result.append([float(x) for x in u])
             return result if result else None
 
+        def outcomes_to_dicts(outcomes: Any) -> list[dict] | None:
+            """Convert outcome tuples to dicts with issue names."""
+            if outcomes is None:
+                return None
+            result = []
+            for outcome in outcomes:
+                if outcome is not None:
+                    outcome_dict = dict(zip(issue_names, outcome))
+                    result.append(outcome_dict)
+            return result if result else None
+
         return ScenarioStatsInfo(
             has_stats=True,
+            n_outcomes=n_outcomes,
+            rational_fraction=rational_fraction,
             opposition=float(stats.opposition)
             if stats.opposition is not None
             else None,
@@ -210,11 +288,16 @@ class ScenarioLoader:
             n_pareto_outcomes=len(stats.pareto_utils) if stats.pareto_utils else 0,
             nash_utils=to_list(stats.nash_utils),
             kalai_utils=to_list(stats.kalai_utils),
-            ks_utils=to_list(stats.ks_utils),
+            ks_utils=to_list(getattr(stats, "ks_utils", None)),
             max_welfare_utils=to_list(stats.max_welfare_utils),
+            nash_outcomes=outcomes_to_dicts(stats.nash_outcomes),
+            kalai_outcomes=outcomes_to_dicts(stats.kalai_outcomes),
+            ks_outcomes=outcomes_to_dicts(getattr(stats, "ks_outcomes", None)),
+            max_welfare_outcomes=outcomes_to_dicts(stats.max_welfare_outcomes),
             modified_kalai_utils=to_list(stats.modified_kalai_utils),
-            modified_ks_utils=to_list(stats.modified_ks_utils),
+            modified_ks_utils=to_list(getattr(stats, "modified_ks_utils", None)),
             max_relative_welfare_utils=to_list(stats.max_relative_welfare_utils),
             pareto_utils=to_list(stats.pareto_utils),
             negotiator_names=negotiator_names,
+            issue_names=issue_names,
         )

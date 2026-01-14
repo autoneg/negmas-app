@@ -11,6 +11,16 @@ from .parameter_inspector import (
     clear_parameter_cache_for_type,
     ParameterInfo,
 )
+from .virtual_negotiator_service import VirtualNegotiatorService
+from .virtual_mechanism_service import VirtualMechanismService
+from .module_inspector import (
+    inspect_module_ast,
+    inspect_module_dynamic,
+    validate_scenario_path,
+    list_scenario_folders,
+    ClassInfo,
+    ModuleInspectionResult,
+)
 
 # Optional services that may have additional dependencies
 try:
@@ -38,10 +48,18 @@ __all__ = [
     "TournamentManager",
     "NegotiationStorageService",
     "TournamentStorageService",
+    "VirtualNegotiatorService",
+    "VirtualMechanismService",
     "compute_outcome_space_data",
     "compute_outcome_utilities",
     "get_negotiator_parameters",
     "clear_parameter_cache",
     "clear_parameter_cache_for_type",
     "ParameterInfo",
+    "inspect_module_ast",
+    "inspect_module_dynamic",
+    "validate_scenario_path",
+    "list_scenario_folders",
+    "ClassInfo",
+    "ModuleInspectionResult",
 ]

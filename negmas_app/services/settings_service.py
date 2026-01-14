@@ -1,6 +1,8 @@
 """Settings service for persisting app settings to ~/negmas/app/settings/."""
 
+import io
 import json
+import zipfile
 from dataclasses import asdict, fields
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,6 +22,11 @@ from ..models.settings import (
     ParametersPreset,
     DisplayPreset,
     FullSessionPreset,
+    # Layout state
+    LayoutState,
+    LayoutConfig,
+    ZoneConfig,
+    ZoneSizes,
 )
 
 # Settings directory path
@@ -435,3 +442,213 @@ class SettingsService:
         """Clear all recent sessions."""
         _ensure_presets_dir()
         _save_json(RECENT_SESSIONS_FILE, [])
+
+    # =========================================================================
+    # Layout State Methods
+    # =========================================================================
+
+    @staticmethod
+    def load_layout_state() -> LayoutState:
+        """Load layout state from disk."""
+        layout_file = SETTINGS_DIR / "layout.json"
+        data = _load_json(layout_file)
+        if data is None:
+            return LayoutState()
+
+        # Parse custom layouts
+        custom_layouts = []
+        for layout_data in data.get("customLayouts", []):
+            # Parse zones
+            zones = {}
+            for zone_id, zone_data in layout_data.get("zones", {}).items():
+                if isinstance(zone_data, dict):
+                    zones[zone_id] = ZoneConfig(**zone_data)
+                else:
+                    zones[zone_id] = zone_data
+            # Parse zone sizes
+            zone_sizes_data = layout_data.get("zoneSizes", {})
+            zone_sizes = (
+                ZoneSizes(**zone_sizes_data) if zone_sizes_data else ZoneSizes()
+            )
+            # Create layout config
+            custom_layouts.append(
+                LayoutConfig(
+                    id=layout_data.get("id", ""),
+                    name=layout_data.get("name", ""),
+                    builtIn=layout_data.get("builtIn", False),
+                    topRowMode=layout_data.get("topRowMode", "two-column"),
+                    zones=zones,
+                    zoneSizes=zone_sizes,
+                )
+            )
+
+        return LayoutState(
+            version=data.get("version", 1),
+            activeLayoutId=data.get("activeLayoutId", "default"),
+            customLayouts=custom_layouts,
+            panelCollapsed=data.get("panelCollapsed", {}),
+            leftColumnWidth=data.get("leftColumnWidth"),
+        )
+
+    @staticmethod
+    def save_layout_state(state: LayoutState) -> None:
+        """Save layout state to disk."""
+        _ensure_settings_dir()
+        layout_file = SETTINGS_DIR / "layout.json"
+
+        # Convert to dict, handling nested dataclasses
+        data = {
+            "version": state.version,
+            "activeLayoutId": state.activeLayoutId,
+            "customLayouts": [],
+            "panelCollapsed": state.panelCollapsed,
+            "leftColumnWidth": state.leftColumnWidth,
+        }
+
+        for layout in state.customLayouts:
+            layout_dict = {
+                "id": layout.id,
+                "name": layout.name,
+                "builtIn": layout.builtIn,
+                "topRowMode": layout.topRowMode,
+                "zones": {},
+                "zoneSizes": asdict(layout.zoneSizes)
+                if isinstance(layout.zoneSizes, ZoneSizes)
+                else layout.zoneSizes,
+            }
+            for zone_id, zone in layout.zones.items():
+                if isinstance(zone, ZoneConfig):
+                    layout_dict["zones"][zone_id] = asdict(zone)
+                else:
+                    layout_dict["zones"][zone_id] = zone
+            data["customLayouts"].append(layout_dict)
+
+        _save_json(layout_file, data)
+
+    # =========================================================================
+    # Export/Import Methods
+    # =========================================================================
+
+    @staticmethod
+    def export_settings() -> bytes:
+        """Export all settings and presets to a ZIP file.
+
+        Returns:
+            bytes: ZIP file contents containing all settings files
+        """
+        buffer = io.BytesIO()
+
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            # Export manifest with version and timestamp
+            manifest = {
+                "version": 1,
+                "exported_at": SettingsService._now_iso(),
+                "app": "negmas-app",
+            }
+            zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+
+            # Export all settings files
+            settings_files = [
+                GENERAL_SETTINGS_FILE,
+                NEGOTIATION_SETTINGS_FILE,
+                GENIUS_BRIDGE_SETTINGS_FILE,
+                NEGOTIATOR_SOURCES_SETTINGS_FILE,
+                PATHS_SETTINGS_FILE,
+                SETTINGS_DIR / "layout.json",
+            ]
+
+            for file_path in settings_files:
+                if file_path.exists():
+                    # Store with relative path from settings dir
+                    rel_path = file_path.relative_to(SETTINGS_DIR)
+                    zf.writestr(f"settings/{rel_path}", file_path.read_text())
+
+            # Export all preset files
+            preset_files = [
+                SCENARIO_PRESETS_FILE,
+                NEGOTIATORS_PRESETS_FILE,
+                PARAMETERS_PRESETS_FILE,
+                DISPLAY_PRESETS_FILE,
+                SESSION_PRESETS_FILE,
+                RECENT_SESSIONS_FILE,
+            ]
+
+            for file_path in preset_files:
+                if file_path.exists():
+                    rel_path = file_path.relative_to(SETTINGS_DIR)
+                    zf.writestr(f"settings/{rel_path}", file_path.read_text())
+
+        buffer.seek(0)
+        return buffer.read()
+
+    @staticmethod
+    def import_settings(zip_data: bytes) -> dict[str, str | list[str]]:
+        """Import settings and presets from a ZIP file.
+
+        Args:
+            zip_data: ZIP file contents
+
+        Returns:
+            dict with 'status' and 'imported' list of file names
+        """
+        _ensure_settings_dir()
+        _ensure_presets_dir()
+
+        imported_files: list[str] = []
+        errors: list[str] = []
+
+        try:
+            buffer = io.BytesIO(zip_data)
+            with zipfile.ZipFile(buffer, "r") as zf:
+                # Check manifest
+                if "manifest.json" not in zf.namelist():
+                    return {
+                        "status": "error",
+                        "message": "Invalid settings file: missing manifest",
+                    }
+
+                manifest_data = zf.read("manifest.json")
+                manifest = json.loads(manifest_data)
+
+                if manifest.get("app") != "negmas-app":
+                    return {
+                        "status": "error",
+                        "message": "Invalid settings file: not a negmas-app export",
+                    }
+
+                # Import all settings files
+                for name in zf.namelist():
+                    if name == "manifest.json":
+                        continue
+
+                    # Handle settings/* paths
+                    if name.startswith("settings/"):
+                        rel_path = name[len("settings/") :]
+                        target_path = SETTINGS_DIR / rel_path
+
+                        # Ensure parent directory exists
+                        target_path.parent.mkdir(parents=True, exist_ok=True)
+
+                        try:
+                            content = zf.read(name)
+                            # Validate JSON
+                            json.loads(content)
+                            target_path.write_bytes(content)
+                            imported_files.append(rel_path)
+                        except json.JSONDecodeError:
+                            errors.append(f"Invalid JSON in {rel_path}")
+                        except OSError as e:
+                            errors.append(f"Failed to write {rel_path}: {e}")
+
+            result: dict[str, str | list[str]] = {
+                "status": "success" if not errors else "partial",
+                "imported": imported_files,
+            }
+            if errors:
+                result["errors"] = errors
+            return result
+
+        except zipfile.BadZipFile:
+            return {"status": "error", "message": "Invalid ZIP file"}
+        except Exception as e:
+            return {"status": "error", "message": f"Import failed: {e}"}

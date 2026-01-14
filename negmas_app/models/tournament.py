@@ -34,6 +34,23 @@ class FinalScoreStatistic(str, Enum):
     STD = "std"
 
 
+class NegotiationEndReason(str, Enum):
+    """Reason why a negotiation ended."""
+
+    AGREEMENT = "agreement"  # Parties reached an agreement
+    TIMEOUT = "timeout"  # Ran out of steps/time without agreement
+    ERROR = "error"  # An error occurred during negotiation
+    BROKEN = "broken"  # A negotiator raised an exception
+
+
+class CellStatus(str, Enum):
+    """Status of a cell in the tournament grid."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETE = "complete"
+
+
 @dataclass
 class TournamentConfig:
     """Configuration for running a tournament."""
@@ -52,12 +69,42 @@ class TournamentConfig:
 
     # Mechanism settings
     mechanism_type: str = "SAOMechanism"
-    n_steps: int | None = 100
-    time_limit: float | None = None
+    # n_steps can be int, (min, max) tuple for random sampling, or None for unlimited
+    n_steps: int | tuple[int, int] | None = 100
+    # time_limit can be float, (min, max) tuple, or None for unlimited
+    time_limit: float | tuple[float, float] | None = None
+
+    # Time limits for negotiators (all support single value or (min, max) range)
+    step_time_limit: float | tuple[float, float] | None = None
+    negotiator_time_limit: float | tuple[float, float] | None = None
+    hidden_time_limit: float | tuple[float, float] | None = None
+
+    # Probabilistic ending (all support single value or (min, max) range)
+    pend: float | tuple[float, float] | None = None
+    pend_per_second: float | tuple[float, float] | None = None
 
     # Scoring
     final_score_metric: str = "advantage"
     final_score_stat: str = "mean"
+
+    # Run ordering
+    randomize_runs: bool = False  # Randomize order of negotiations
+    sort_runs: bool = (
+        True  # Sort runs by scenario/competitors (ignored if randomize_runs)
+    )
+
+    # Information hiding
+    id_reveals_type: bool = False  # Whether negotiator ID reveals its type
+    name_reveals_type: bool = True  # Whether negotiator name reveals its type
+    mask_scenario_names: bool = False  # Hide scenario names from negotiators
+
+    # Self-play options
+    only_failures_on_self_play: bool = False  # Only record failures for self-play
+
+    # Save options
+    save_stats: bool = True  # Save statistics
+    save_scenario_figs: bool = False  # Save scenario figures
+    save_every: int = 0  # Save results every N negotiations (0 = only at end)
 
     # Execution
     njobs: int = -1  # -1 = serial (safer for web app), 0 = all cores
@@ -96,6 +143,50 @@ class NegotiationResult:
     has_error: bool = False
     error_details: str | None = None
     execution_time: float | None = None
+    end_reason: NegotiationEndReason | None = None
+
+
+@dataclass
+class CellUpdate:
+    """Update for a cell in the tournament grid.
+
+    The grid is organized as competitors (rows) vs opponents (columns).
+    Each cell can have multiple negotiations (scenarios x repetitions x ufun_rotations).
+    """
+
+    competitor_idx: int  # Row index (which competitor)
+    opponent_idx: int  # Column index (which opponent)
+    scenario_idx: int  # Which scenario
+    repetition: int  # Which repetition
+    rotated: bool  # Whether ufuns were rotated
+    status: CellStatus  # pending, running, complete
+    end_reason: NegotiationEndReason | None = None  # Only set when complete
+    utilities: list[float] | None = None  # Utilities achieved
+    error: str | None = None  # Error message if end_reason is ERROR or BROKEN
+
+
+@dataclass
+class LeaderboardEntry:
+    """A single entry in the live tournament leaderboard."""
+
+    name: str
+    score: float
+    rank: int
+    n_negotiations: int
+    n_agreements: int
+    mean_utility: float | None = None
+
+
+@dataclass
+class TournamentGridInit:
+    """Initial grid structure sent at tournament start."""
+
+    competitors: list[str]  # Row labels
+    opponents: list[str]  # Column labels (same as competitors usually)
+    scenarios: list[str]  # Scenario names
+    n_repetitions: int
+    rotate_ufuns: bool
+    total_negotiations: int
 
 
 @dataclass

@@ -33,7 +33,7 @@ Choose from built-in layouts optimized for different workflows:
 
 ### Persistence
 
-Your layout preferences are automatically saved to localStorage and restored when you return.
+Your layout preferences are automatically saved to the server at `~/negmas/app/settings/layout.json` and restored when you return.
 
 ## Architecture Overview
 

@@ -42,4 +42,5 @@ issues:
   - Memory
   - Strap
 name: camera_domain
+path: __PATH__:/Users/yasser/code/projects/negmas-app/scenarios/anac2011/Camera/camera_domain.yml
 type: DiscreteCartesianOutcomeSpace

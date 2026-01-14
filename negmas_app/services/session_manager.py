@@ -241,19 +241,18 @@ class SessionManager:
                     )
                 )
 
-            # Compute outcome space analysis data (for 2-party negotiations)
+            # Compute outcome space analysis data (for N-party negotiations)
             # Run in thread pool as it can be computationally expensive
             outcome_space_data = None
-            if len(scenario.ufuns) == 2:
-                try:
-                    outcome_space_data = await asyncio.to_thread(
-                        compute_outcome_space_data,
-                        scenario,
-                        max_outcome_samples,
-                    )
-                    session.outcome_space_data = outcome_space_data
-                except Exception:
-                    pass  # Non-critical, continue without analysis
+            try:
+                outcome_space_data = await asyncio.to_thread(
+                    compute_outcome_space_data,
+                    scenario,
+                    max_outcome_samples,
+                )
+                session.outcome_space_data = outcome_space_data
+            except Exception:
+                pass  # Non-critical, continue without analysis
 
             # Yield session init event with all initial data
             # Get n_outcomes for TAU progress calculation

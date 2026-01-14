@@ -34,6 +34,9 @@ class ScenarioInfo:
     # Number of possible outcomes (None if continuous)
     n_outcomes: int | None = None
 
+    # Fraction of rational outcomes (from cached info, None if not calculated)
+    rational_fraction: float | None = None
+
     # Source (e.g., "anac2019", "user", "builtin")
     source: str = "builtin"
 
@@ -58,6 +61,13 @@ class ScenarioStatsInfo:
     # Whether stats are available
     has_stats: bool = False
 
+    # Total number of outcomes in the outcome space
+    n_outcomes: int | None = None
+
+    # Fraction of outcomes that are rational for all negotiators (0-1)
+    # An outcome is rational if its utility >= reserved value for all negotiators
+    rational_fraction: float | None = None
+
     # Opposition measure (0-1, higher = more opposing preferences)
     opposition: float | None = None
 
@@ -74,6 +84,12 @@ class ScenarioStatsInfo:
     ks_utils: list[list[float]] | None = None
     max_welfare_utils: list[list[float]] | None = None
 
+    # Special points - outcomes (as dicts with issue names as keys)
+    nash_outcomes: list[dict] | None = None
+    kalai_outcomes: list[dict] | None = None
+    ks_outcomes: list[dict] | None = None
+    max_welfare_outcomes: list[dict] | None = None
+
     # Modified variants
     modified_kalai_utils: list[list[float]] | None = None
     modified_ks_utils: list[list[float]] | None = None
@@ -84,6 +100,9 @@ class ScenarioStatsInfo:
 
     # Negotiator names (for display)
     negotiator_names: list[str] | None = None
+
+    # Issue names (for outcome display)
+    issue_names: list[str] | None = None
 
 
 @dataclass

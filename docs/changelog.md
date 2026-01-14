@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Panel layout system with VS Code-style dockable panels
 - Layout presets (Default, Focus, Compact, Analysis)
-- Layout persistence to localStorage
+- Layout persistence to server (`~/negmas/app/settings/layout.json`)
 - Panel Registry for registering custom panels
 - Layout Renderer for DOM rendering
 - Comprehensive documentation with MkDocs

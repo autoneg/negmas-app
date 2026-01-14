@@ -90,6 +90,75 @@ class PathSettings:
     scenario_paths: list[str] = field(default_factory=list)
 
 
+# =============================================================================
+# Layout State Models for Panel Layout Persistence
+# =============================================================================
+
+
+@dataclass
+class ZoneConfig:
+    """Configuration for a single zone in the layout."""
+
+    panels: list[str] = field(default_factory=list)
+    activePanel: str | None = None
+    displayMode: str = "tabbed"  # 'tabbed' or 'stacked'
+
+
+@dataclass
+class ZoneSizes:
+    """Size configuration for layout zones."""
+
+    leftWidth: str = "35%"
+    centerWidth: str = "0"
+    rightWidth: str = "65%"
+    bottomHeight: str = "120px"
+    bottomSplit: str = "50%"
+
+
+@dataclass
+class LayoutConfig:
+    """Configuration for a single layout."""
+
+    id: str
+    name: str
+    builtIn: bool = False
+    topRowMode: str = "two-column"  # 'two-column', 'three-column', 'single-column'
+    zones: dict[str, ZoneConfig] = field(default_factory=dict)
+    zoneSizes: ZoneSizes = field(default_factory=ZoneSizes)
+
+    def __post_init__(self) -> None:
+        # Ensure zones is a dict of ZoneConfig objects
+        if self.zones:
+            new_zones = {}
+            for key, val in self.zones.items():
+                if isinstance(val, dict):
+                    new_zones[key] = ZoneConfig(**val)
+                else:
+                    new_zones[key] = val
+            self.zones = new_zones
+        # Ensure zoneSizes is a ZoneSizes object
+        if isinstance(self.zoneSizes, dict):
+            self.zoneSizes = ZoneSizes(**self.zoneSizes)
+
+
+@dataclass
+class LayoutState:
+    """
+    Complete layout state persisted to server.
+
+    This mirrors the state structure used by LayoutManager in JS.
+    """
+
+    version: int = 1
+    activeLayoutId: str = "default"
+    # Custom layouts (built-in layouts are always available in JS)
+    customLayouts: list[LayoutConfig] = field(default_factory=list)
+    # Panel collapse state
+    panelCollapsed: dict[str, bool] = field(default_factory=dict)
+    # Column widths for resizable areas
+    leftColumnWidth: str | None = None
+
+
 @dataclass
 class AppSettings:
     """Complete application settings."""
