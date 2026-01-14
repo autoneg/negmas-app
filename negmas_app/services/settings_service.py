@@ -15,6 +15,7 @@ from ..models.settings import (
     NegotiationSettings,
     NegotiatorSourcesSettings,
     PathSettings,
+    PerformanceSettings,
     # Presets
     NegotiatorPreset,
     ScenarioPreset,
@@ -22,6 +23,7 @@ from ..models.settings import (
     ParametersPreset,
     DisplayPreset,
     FullSessionPreset,
+    TournamentPreset,
     # Layout state
     LayoutState,
     LayoutConfig,
@@ -38,6 +40,7 @@ NEGOTIATION_SETTINGS_FILE = SETTINGS_DIR / "negotiation.json"
 GENIUS_BRIDGE_SETTINGS_FILE = SETTINGS_DIR / "genius_bridge.json"
 NEGOTIATOR_SOURCES_SETTINGS_FILE = SETTINGS_DIR / "negotiator_sources.json"
 PATHS_SETTINGS_FILE = SETTINGS_DIR / "paths.json"
+PERFORMANCE_SETTINGS_FILE = SETTINGS_DIR / "performance.json"
 
 # Presets directories
 PRESETS_DIR = SETTINGS_DIR / "presets"
@@ -47,6 +50,7 @@ PARAMETERS_PRESETS_FILE = PRESETS_DIR / "parameters.json"
 DISPLAY_PRESETS_FILE = PRESETS_DIR / "display.json"
 SESSION_PRESETS_FILE = PRESETS_DIR / "sessions.json"
 RECENT_SESSIONS_FILE = PRESETS_DIR / "recent.json"
+TOURNAMENT_PRESETS_FILE = PRESETS_DIR / "tournaments.json"
 
 # Max recent sessions to keep
 MAX_RECENT_SESSIONS = 10
@@ -139,6 +143,17 @@ class SettingsService:
         _save_json(PATHS_SETTINGS_FILE, asdict(settings))
 
     @staticmethod
+    def load_performance() -> PerformanceSettings:
+        """Load performance settings."""
+        data = _load_json(PERFORMANCE_SETTINGS_FILE)
+        return _dataclass_from_dict(PerformanceSettings, data)
+
+    @staticmethod
+    def save_performance(settings: PerformanceSettings) -> None:
+        """Save performance settings."""
+        _save_json(PERFORMANCE_SETTINGS_FILE, asdict(settings))
+
+    @staticmethod
     def load_negotiator_sources() -> NegotiatorSourcesSettings:
         """Load negotiator sources settings."""
         data = _load_json(NEGOTIATOR_SOURCES_SETTINGS_FILE)
@@ -169,6 +184,7 @@ class SettingsService:
             genius_bridge=SettingsService.load_genius_bridge(),
             negotiator_sources=SettingsService.load_negotiator_sources(),
             paths=SettingsService.load_paths(),
+            performance=SettingsService.load_performance(),
         )
 
     @staticmethod
@@ -179,6 +195,7 @@ class SettingsService:
         SettingsService.save_genius_bridge(settings.genius_bridge)
         SettingsService.save_negotiator_sources(settings.negotiator_sources)
         SettingsService.save_paths(settings.paths)
+        SettingsService.save_performance(settings.performance)
 
     @staticmethod
     def get_settings_dir() -> Path:
@@ -443,6 +460,41 @@ class SettingsService:
         _ensure_presets_dir()
         _save_json(RECENT_SESSIONS_FILE, [])
 
+    # --- Tournament Presets ---
+
+    @staticmethod
+    def load_tournament_presets() -> list[TournamentPreset]:
+        """Load all tournament presets."""
+        data = _load_json(TOURNAMENT_PRESETS_FILE)
+        if not data:
+            return []
+        return [_dataclass_from_dict(TournamentPreset, p) for p in data]
+
+    @staticmethod
+    def save_tournament_preset(preset: TournamentPreset) -> None:
+        """Save a tournament preset (add or update by name)."""
+        _ensure_presets_dir()
+        presets = SettingsService.load_tournament_presets()
+        preset.created_at = preset.created_at or SettingsService._now_iso()
+        existing = next(
+            (i for i, p in enumerate(presets) if p.name == preset.name), None
+        )
+        if existing is not None:
+            presets[existing] = preset
+        else:
+            presets.append(preset)
+        _save_json(TOURNAMENT_PRESETS_FILE, [asdict(p) for p in presets])
+
+    @staticmethod
+    def delete_tournament_preset(name: str) -> bool:
+        """Delete a tournament preset by name."""
+        presets = SettingsService.load_tournament_presets()
+        new_presets = [p for p in presets if p.name != name]
+        if len(new_presets) == len(presets):
+            return False
+        _save_json(TOURNAMENT_PRESETS_FILE, [asdict(p) for p in new_presets])
+        return True
+
     # =========================================================================
     # Layout State Methods
     # =========================================================================
@@ -554,6 +606,7 @@ class SettingsService:
                 GENIUS_BRIDGE_SETTINGS_FILE,
                 NEGOTIATOR_SOURCES_SETTINGS_FILE,
                 PATHS_SETTINGS_FILE,
+                PERFORMANCE_SETTINGS_FILE,
                 SETTINGS_DIR / "layout.json",
             ]
 

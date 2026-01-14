@@ -37,6 +37,9 @@ class ScenarioInfo:
     # Fraction of rational outcomes (from cached info, None if not calculated)
     rational_fraction: float | None = None
 
+    # Opposition measure (0-1, higher = more opposing preferences)
+    opposition: float | None = None
+
     # Source (e.g., "anac2019", "user", "builtin")
     source: str = "builtin"
 

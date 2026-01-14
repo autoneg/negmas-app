@@ -37,7 +37,20 @@ class StartNegotiationRequest(BaseModel):
     share_ufuns: bool = False
     ignore_discount: bool = False
     ignore_reserved: bool = False
+    normalize: bool = False  # Whether to normalize the scenario utility functions
     auto_save: bool = True  # Whether to save negotiation on completion
+
+
+class TagsUpdateRequest(BaseModel):
+    """Request model for updating tags."""
+
+    tags: list[str]
+
+
+class TagRequest(BaseModel):
+    """Request model for adding/removing a single tag."""
+
+    tag: str
 
 
 @router.post("/start")
@@ -64,6 +77,7 @@ async def start_negotiation(request: StartNegotiationRequest):
         mechanism_params=request.mechanism_params,
         ignore_discount=request.ignore_discount,
         ignore_reserved=request.ignore_reserved,
+        normalize=request.normalize,
         auto_save=request.auto_save,
     )
 
@@ -240,6 +254,13 @@ async def list_sessions():
     sessions.sort(key=lambda s: s["start_time"] or "", reverse=True)
 
     return {"sessions": sessions}
+
+
+@router.get("/tags")
+async def get_all_tags():
+    """Get all unique tags used across all negotiations."""
+    tags = await asyncio.to_thread(NegotiationStorageService.get_all_tags)
+    return {"tags": tags}
 
 
 @router.get("/{session_id}")
@@ -453,25 +474,6 @@ async def unarchive_negotiation(session_id: str):
 # =============================================================================
 # Tagging Endpoints
 # =============================================================================
-
-
-class TagsUpdateRequest(BaseModel):
-    """Request model for updating tags."""
-
-    tags: list[str]
-
-
-class TagRequest(BaseModel):
-    """Request model for adding/removing a single tag."""
-
-    tag: str
-
-
-@router.get("/tags")
-async def get_all_tags():
-    """Get all unique tags used across all negotiations."""
-    tags = await asyncio.to_thread(NegotiationStorageService.get_all_tags)
-    return {"tags": tags}
 
 
 @router.put("/saved/{session_id}/tags")

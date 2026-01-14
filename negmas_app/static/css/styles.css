@@ -2954,11 +2954,11 @@ body {
 
 /* Panel size classes */
 .panel-info { flex: 0 0 auto; }
-.panel-history { flex: 1 1 60%; min-height: 150px; overflow: hidden; }
+.panel-history { flex: 1 1 40%; min-height: 100px; overflow: hidden; }
+.panel-histogram { flex: 0 0 180px; min-height: 120px; overflow: hidden; }
 .panel-result { flex: 0 0 auto; min-height: 60px; }
 .panel-2d-utility { flex: 1 1 55%; min-height: 200px; overflow: hidden; }
 .panel-timeline { flex: 1 1 45%; min-height: 150px; overflow: hidden; }
-.panel-issue-freq { flex: 0 0 150px; min-height: 100px; }
 
 /* Floating actions - top right of panel */
 .panel-floating-actions {
@@ -2978,6 +2978,23 @@ body {
 
 .panel-compact:hover .panel-floating-actions {
     opacity: 1;
+}
+
+/* Left-aligned floating actions (for plot panels to leave room for Plotly controls) */
+.panel-floating-actions-left {
+    right: auto;
+    left: 4px;
+}
+
+/* Active state for toggle buttons */
+.panel-btn-active {
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+.panel-btn-active:hover {
+    background: var(--primary-light);
+    color: var(--primary);
 }
 
 /* Collapse button */

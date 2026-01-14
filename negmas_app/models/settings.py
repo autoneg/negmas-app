@@ -90,6 +90,26 @@ class PathSettings:
     scenario_paths: list[str] = field(default_factory=list)
 
 
+@dataclass
+class PerformanceSettings:
+    """Performance settings for limiting resource-intensive operations.
+
+    All limits use None or 0 to indicate no limit.
+    """
+
+    # Maximum number of outcomes for running negotiations/tournaments
+    # Scenarios exceeding this will be blocked from running
+    max_outcomes_run: int | None = None
+
+    # Maximum number of outcomes for calculating scenario stats
+    # (Pareto, Nash, Kalai, etc.) - above this, only info is calculated
+    max_outcomes_stats: int | None = 1_000_000
+
+    # Maximum number of outcomes for calculating any scenario info
+    # (other than n_outcomes itself)
+    max_outcomes_info: int | None = 10_000_000
+
+
 # =============================================================================
 # Layout State Models for Panel Layout Persistence
 # =============================================================================
@@ -170,6 +190,7 @@ class AppSettings:
         default_factory=NegotiatorSourcesSettings
     )
     paths: PathSettings = field(default_factory=PathSettings)
+    performance: PerformanceSettings = field(default_factory=PerformanceSettings)
 
 
 # =============================================================================
@@ -252,6 +273,76 @@ class FullSessionPreset:
     step_delay: int = 100
     show_plot: bool = True
     show_offers: bool = True
+    # Metadata
+    created_at: str = ""  # ISO timestamp
+    last_used_at: str = ""  # ISO timestamp
+
+
+# =============================================================================
+# Tournament Preset Models
+# =============================================================================
+
+
+@dataclass
+class CompetitorConfig:
+    """Configuration for a competitor in a tournament."""
+
+    type_name: str
+    params: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class TournamentPreset:
+    """Saved tournament configuration preset."""
+
+    name: str  # Preset name
+    # Scenarios
+    scenario_paths: list[str] = field(default_factory=list)
+    # Competitors
+    competitor_types: list[str] = field(default_factory=list)
+    competitor_configs: dict[str, dict[str, Any]] = field(
+        default_factory=dict
+    )  # type_name -> params
+    # Opponents (None means same as competitors)
+    opponent_types: list[str] | None = None
+    opponents_same_as_competitors: bool = True
+    # Basic settings
+    n_repetitions: int = 1
+    rotate_ufuns: bool = True
+    self_play: bool = True
+    mechanism_type: str = "SAOMechanism"
+    # Steps/time limits
+    n_steps: int | None = 100
+    n_steps_min: int | None = None
+    n_steps_max: int | None = None
+    time_limit: float | None = None
+    time_limit_min: float | None = None
+    time_limit_max: float | None = None
+    # Advanced time limits
+    step_time_limit: float | None = None
+    negotiator_time_limit: float | None = None
+    hidden_time_limit: float | None = None
+    # Probabilistic ending
+    pend: float | None = None
+    pend_per_second: float | None = None
+    # Scoring
+    final_score_metric: str = "advantage"
+    final_score_stat: str = "mean"
+    # Run ordering
+    randomize_runs: bool = False
+    sort_runs: bool = True
+    # Information hiding
+    id_reveals_type: bool = False
+    name_reveals_type: bool = True
+    mask_scenario_names: bool = False
+    # Self-play options
+    only_failures_on_self_play: bool = False
+    # Save options
+    save_stats: bool = True
+    save_scenario_figs: bool = True
+    save_every: int = 1
+    # Scenario options
+    normalize: bool = True  # Normalize utility functions
     # Metadata
     created_at: str = ""  # ISO timestamp
     last_used_at: str = ""  # ISO timestamp

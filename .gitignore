@@ -229,3 +229,7 @@ PLAN.md
 TASKS.md
 ISSUES.md
 
+# Scenario cache files (stats and info)
+scenarios/**/_info.yml
+scenarios/**/_stats.yaml
+

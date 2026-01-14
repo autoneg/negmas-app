@@ -44,8 +44,8 @@
         </div>
     </div>
     
-    <!-- Running Negotiations Section -->
-    <div class="table-section" x-show="runningNegotiations.length > 0" style="margin-bottom: 24px;">
+    <!-- Running Negotiations Section - only show in list view -->
+    <div class="table-section" x-show="runningNegotiations.length > 0 && !currentNegotiation" style="margin-bottom: 24px;">
         <h3>
             <span class="status-dot running"></span>
             Running (<span x-text="runningNegotiations.length"></span>)
@@ -53,8 +53,8 @@
         <div id="running-negotiations-table"></div>
     </div>
     
-    <!-- Completed Negotiations Section (current session) -->
-    <div class="table-section" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+    <!-- Completed Negotiations Section (current session) - only show in list view -->
+    <div class="table-section" x-show="!currentNegotiation" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
         <h3>
             <span class="status-dot" style="background: var(--success);"></span>
             Completed This Session (<span x-text="completedNegotiations.length"></span>)
@@ -75,8 +75,8 @@
         <div id="completed-negotiations-table" x-show="completedNegotiations.length > 0"></div>
     </div>
     
-    <!-- Saved Negotiations Section -->
-    <div class="table-section saved-negotiations-section" x-show="savedNegotiations.length > 0 || showArchivedNegotiations || tagFilter" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+    <!-- Saved Negotiations Section - only show in list view -->
+    <div class="table-section saved-negotiations-section" x-show="(savedNegotiations.length > 0 || showArchivedNegotiations || tagFilter) && !currentNegotiation" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
         <h3 style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
             <span style="display: flex; align-items: center; gap: 8px;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -383,10 +383,10 @@
             </div>
             <div class="panel-content panel-content-compact" style="padding: 4px;" x-show="!panelCollapsed.history">
                 <div class="offer-log" x-ref="offerLog">
-                    <template x-if="!currentNegotiation?.offers || currentNegotiation.offers.length === 0">
-                        <div class="empty-state-mini"><span class="text-muted">Waiting for offers...</span></div>
-                    </template>
-                    <template x-for="offer in (currentNegotiation?.offers || []).slice(-50)" :key="offer.step">
+                    <div x-show="!currentNegotiation?.offers || currentNegotiation.offers.length === 0" class="empty-state-mini">
+                        <span class="text-muted">Waiting for offers...</span>
+                    </div>
+                    <template x-for="(offer, offerIdx) in (currentNegotiation?.offers || []).slice(-50)" :key="offer.step ?? offerIdx">
                         <div class="offer-item-compact animate-slide-up" 
                              :class="{
                                  'offer-item-bilateral-first': (currentNegotiation?.negotiator_names?.length === 2) && offer.proposer_index === 0,
@@ -416,8 +416,40 @@
             </div>
         </div>
         
-        <!-- Resize handle between History and Result -->
-        <div class="resize-handle-horizontal" @mousedown="startPanelResize($event, 'history-result')"></div>
+        <!-- Resize handle between History and Histogram -->
+        <div class="resize-handle-horizontal" @mousedown="startPanelResize($event, 'history-histogram')"></div>
+        
+        <!-- Issue Frequency / Histogram Panel -->
+        <div class="panel panel-compact panel-histogram" x-ref="panelHistogram" :class="{'collapsed': panelCollapsed.histogram}">
+            <span class="panel-collapsed-label" x-show="panelCollapsed.histogram">HISTOGRAM</span>
+            <div class="panel-floating-actions panel-floating-actions-left">
+                <button class="panel-btn" title="Save as Image" @click="savePlot('issue-frequency-container', 'issue-frequency')" x-show="!panelCollapsed.histogram">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                </button>
+                <button class="panel-btn" title="Zoom" @click="zoomPanel('Issue Frequency', 'issue-frequency-container')" x-show="!panelCollapsed.histogram">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+                    </svg>
+                </button>
+                <button class="panel-btn panel-collapse-btn" title="Toggle panel" @click="panelCollapsed.histogram = !panelCollapsed.histogram">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+            </div>
+            <div class="panel-content panel-content-compact" style="padding: 0; position: relative; overflow: hidden;" x-show="!panelCollapsed.histogram">
+                <div id="issue-frequency-container" style="width: 100%; height: 100%;"></div>
+                <div x-show="!currentNegotiation?.offers || currentNegotiation.offers.length === 0" class="empty-state-mini" style="position: absolute; inset: 0; background: var(--bg-secondary);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px; opacity: 0.4;">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+                    </svg>
+                    <span class="text-muted">Waiting...</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Resize handle between Histogram and Result -->
+        <div class="resize-handle-horizontal" @mousedown="startPanelResize($event, 'histogram-result')"></div>
         
         <!-- Result Panel - Ultra Compact -->
         <div class="panel panel-compact panel-result" x-ref="panelResult" 
@@ -499,7 +531,7 @@
         <!-- 2D Utility View Panel -->
         <div class="panel panel-compact panel-2d-utility" x-ref="panel2dUtility" :class="{'collapsed': panelCollapsed.utility2d}">
             <span class="panel-collapsed-label" x-show="panelCollapsed.utility2d">2D VIEW</span>
-            <div class="panel-floating-actions">
+            <div class="panel-floating-actions panel-floating-actions-left">
                 <div class="panel-inline-controls" x-show="currentNegotiation?.panelSettings?.adjustable && !panelCollapsed.utility2d">
                     <select class="form-select form-select-xs" x-model.number="panelState.utilityView.xAxis" @change="applyUtilityViewAxes()" title="X-Axis">
                         <template x-for="(name, idx) in (currentNegotiation?.negotiator_names || [])" :key="idx">
@@ -549,12 +581,22 @@
         <!-- Utility Timeline Panel -->
         <div class="panel panel-compact panel-timeline" x-ref="panelTimeline" :class="{'collapsed': panelCollapsed.timeline}">
             <span class="panel-collapsed-label" x-show="panelCollapsed.timeline">TIMELINE</span>
-            <div class="panel-floating-actions">
+            <div class="panel-floating-actions panel-floating-actions-left">
                 <select class="form-select form-select-xs" x-show="currentNegotiation?.panelSettings?.adjustable && !panelCollapsed.timeline" x-model="panelState.timeline.xAxis" @change="initUtilityTimelinePlots()" title="X-Axis">
                     <option value="step">Step</option>
                     <option value="time">Time</option>
                     <option value="relative_time">Rel</option>
                 </select>
+                <button class="panel-btn" :class="{'panel-btn-active': !timelineSimplifiedView}" title="Full View (per-agent)" @click="timelineSimplifiedView = false; initUtilityTimelinePlots()" x-show="!panelCollapsed.timeline">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+                    </svg>
+                </button>
+                <button class="panel-btn" :class="{'panel-btn-active': timelineSimplifiedView}" title="Simplified View (single plot)" @click="timelineSimplifiedView = true; initUtilityTimelinePlots()" x-show="!panelCollapsed.timeline">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    </svg>
+                </button>
                 <button class="panel-btn" title="Save as Image" @click="savePlot('utility-timeline-container', 'utility-timeline')" x-show="!panelCollapsed.timeline">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -574,36 +616,11 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </button>
             </div>
-            <div class="panel-content panel-content-compact" style="padding: 0; position: relative;" x-show="!panelCollapsed.timeline">
-                <div id="utility-timeline-container" style="width: 100%; height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 2px;"></div>
+            <div class="panel-content panel-content-compact" style="padding: 0; position: relative; overflow: hidden;" x-show="!panelCollapsed.timeline">
+                <div id="utility-timeline-container" style="width: 100%; height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px;"></div>
                 <div x-show="!currentNegotiation?.offers || currentNegotiation.offers.length === 0" class="empty-state-mini" style="position: absolute; inset: 0; background: var(--bg-secondary);">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px; opacity: 0.4;">
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-                    </svg>
-                    <span class="text-muted">Waiting...</span>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Issue Frequency Panel (hidden by default, ready for use) -->
-        <div class="panel panel-compact panel-issue-freq" x-show="showIssueFrequency" style="display: none;">
-            <div class="panel-floating-actions">
-                <button class="panel-btn" title="Save as Image" @click="savePlot('issue-frequency-container', 'issue-frequency')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                </button>
-                <button class="panel-btn" title="Zoom" @click="zoomPanel('Issue Frequency', 'issue-frequency-container')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="panel-content panel-content-compact" style="padding: 0; position: relative;">
-                <div id="issue-frequency-container" style="width: 100%; height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 2px;"></div>
-                <div x-show="!currentNegotiation?.offers || currentNegotiation.offers.length === 0" class="empty-state-mini" style="position: absolute; inset: 0; background: var(--bg-secondary);">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px; opacity: 0.4;">
-                        <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
                     </svg>
                     <span class="text-muted">Waiting...</span>
                 </div>
@@ -619,6 +636,7 @@
 document.addEventListener('alpine:init', () => {
     window.outcomeSpacePlotInitialized = false;
     window.timelinePlotsInitialized = false;
+    window.histogramPlotInitialized = false;
 });
 
 // Override/extend app functions for plotting
@@ -697,8 +715,12 @@ app = function() {
             history: false,
             result: false,
             utility2d: false,
-            timeline: false
+            timeline: false,
+            histogram: false
         },
+        
+        // Timeline view mode: false = full (per-agent), true = simplified (single plot)
+        timelineSimplifiedView: false,
         
         // Resize state
         resizeState: {
@@ -771,6 +793,7 @@ app = function() {
                     this.$nextTick(() => {
                         this.initOutcomeSpacePlot();
                         this.initUtilityTimelinePlots();
+                        this.initHistogramPlot();
                     });
                 }
             });
@@ -780,6 +803,7 @@ app = function() {
                     this.$nextTick(() => {
                         this.initOutcomeSpacePlot();
                         this.initUtilityTimelinePlots();
+                        this.initHistogramPlot();
                     });
                 }
             });
@@ -853,35 +877,35 @@ app = function() {
             const self = this;
             this._runningTable = new Tabulator(container, {
                 data: this.runningNegotiations,
-                layout: "fitColumns",
-                height: "auto",
-                maxHeight: "200px",
+                layout: "fitDataStretch",
+                height: "150px",
                 placeholder: "No running negotiations",
+                selectableRows: 1,
                 columns: [
-                    { title: "ID", field: "id", width: 100, formatter: (cell) => `<code>${cell.getValue()}</code>` },
-                    { title: "Scenario", field: "scenario", formatter: (cell) => cell.getValue() || 'Loading...' },
-                    { title: "Negotiators", field: "negotiator_names", formatter: (cell, params, onRendered) => {
+                    { title: "ID", field: "id", width: 70, formatter: (cell) => `<code style="font-size: 11px;">${cell.getValue().substring(0, 6)}...</code>` },
+                    { title: "Scenario", field: "scenario", minWidth: 120, formatter: (cell) => cell.getValue() || 'Loading...' },
+                    { title: "Negotiators", field: "negotiator_names", minWidth: 150, formatter: (cell, params, onRendered) => {
                         const row = cell.getRow().getData();
                         return self.formatNegotiatorBadges(row.negotiator_names, row.negotiator_colors);
                     }, headerSort: false },
-                    { title: "Progress", field: "relative_time", width: 150, formatter: (cell) => {
+                    { title: "Progress", field: "relative_time", width: 140, formatter: (cell) => {
                         const row = cell.getRow().getData();
                         const progress = Math.min(100, (row.relative_time || 0) * 100);
                         return `<div style="display: flex; align-items: center; gap: 8px;">
-                            <div class="progress" style="width: 80px; height: 6px;">
+                            <div class="progress" style="width: 60px; height: 6px;">
                                 <div class="progress-bar" style="width: ${progress}%"></div>
                             </div>
-                            <span style="font-size: 12px;">${row.step ? 'Step ' + row.step : 'Starting...'}</span>
+                            <span style="font-size: 11px;">${row.step ? 'Step ' + row.step : 'Starting...'}</span>
                         </div>`;
                     }, headerSort: false },
-                    { title: "Status", field: "paused", width: 100, formatter: (cell) => {
+                    { title: "Status", field: "paused", width: 80, hozAlign: "center", formatter: (cell) => {
                         const paused = cell.getValue();
-                        return `<span class="badge badge-primary">${paused ? 'Paused' : 'Running'}</span>`;
+                        return `<span class="badge badge-primary badge-sm">${paused ? 'Paused' : 'Running'}</span>`;
                     } }
-                ],
-                rowClick: (e, row) => {
-                    self.selectNegotiation(row.getData());
-                }
+                ]
+            });
+            this._runningTable.on("rowClick", function(e, row) {
+                self.selectNegotiation(row.getData());
             });
         },
         
@@ -893,32 +917,32 @@ app = function() {
             const self = this;
             this._completedTable = new Tabulator(container, {
                 data: this.completedNegotiations,
-                layout: "fitColumns",
-                height: "auto",
-                maxHeight: "300px",
+                layout: "fitDataStretch",
+                height: "200px",
                 placeholder: "No completed negotiations",
+                selectableRows: 1,
                 columns: [
-                    { title: "ID", field: "id", width: 100, formatter: (cell) => `<code>${cell.getValue()}</code>` },
-                    { title: "Scenario", field: "scenario", sorter: "string" },
-                    { title: "Negotiators", field: "negotiator_names", formatter: (cell, params, onRendered) => {
+                    { title: "ID", field: "id", width: 70, formatter: (cell) => `<code style="font-size: 11px;">${cell.getValue().substring(0, 6)}...</code>` },
+                    { title: "Scenario", field: "scenario", minWidth: 120, sorter: "string" },
+                    { title: "Negotiators", field: "negotiator_names", minWidth: 150, formatter: (cell, params, onRendered) => {
                         const row = cell.getRow().getData();
                         return self.formatNegotiatorBadges(row.negotiator_names, row.negotiator_colors);
                     }, headerSort: false },
-                    { title: "Steps", field: "step", width: 80, sorter: "number", formatter: (cell) => {
+                    { title: "Steps", field: "step", width: 60, hozAlign: "center", sorter: "number", formatter: (cell) => {
                         const row = cell.getRow().getData();
                         return row.step || row.offers?.length || '-';
                     } },
-                    { title: "Result", field: "agreement", width: 120, formatter: (cell) => {
+                    { title: "Result", field: "agreement", width: 90, hozAlign: "center", formatter: (cell) => {
                         return self.formatResultBadge(cell.getRow().getData());
                     } },
-                    { title: "Utilities", field: "final_utilities", formatter: (cell, params, onRendered) => {
+                    { title: "Utilities", field: "final_utilities", minWidth: 120, formatter: (cell, params, onRendered) => {
                         const row = cell.getRow().getData();
                         return self.formatUtilities(row.final_utilities, row.negotiator_colors);
                     }, headerSort: false }
-                ],
-                rowClick: (e, row) => {
-                    self.selectNegotiation(row.getData());
-                }
+                ]
+            });
+            this._completedTable.on("rowClick", function(e, row) {
+                self.selectNegotiation(row.getData());
             });
         },
         
@@ -930,21 +954,21 @@ app = function() {
             const self = this;
             this._savedTable = new Tabulator(container, {
                 data: this.savedNegotiations,
-                layout: "fitColumns",
-                height: "auto",
-                maxHeight: "400px",
+                layout: "fitDataStretch",
+                height: "300px",
                 placeholder: "No saved negotiations",
+                selectableRows: 1,
                 columns: [
-                    { title: "ID", field: "id", width: 80, formatter: (cell) => `<code>${cell.getValue()}</code>` },
-                    { title: "Scenario", field: "scenario_name", sorter: "string" },
-                    { title: "Negotiators", field: "negotiator_names", formatter: (cell, params, onRendered) => {
+                    { title: "ID", field: "id", width: 70, formatter: (cell) => `<code style="font-size: 11px;">${cell.getValue().substring(0, 6)}...</code>` },
+                    { title: "Scenario", field: "scenario_name", minWidth: 120, sorter: "string" },
+                    { title: "Negotiators", field: "negotiator_names", minWidth: 150, formatter: (cell, params, onRendered) => {
                         const row = cell.getRow().getData();
                         return self.formatNegotiatorBadges(row.negotiator_names, row.negotiator_colors);
                     }, headerSort: false },
-                    { title: "Steps", field: "n_offers", width: 60, sorter: "number", formatter: (cell) => {
+                    { title: "Steps", field: "n_offers", width: 60, hozAlign: "center", sorter: "number", formatter: (cell) => {
                         return cell.getValue() || '-';
                     } },
-                    { title: "Result", field: "has_agreement", width: 100, formatter: (cell) => {
+                    { title: "Result", field: "has_agreement", width: 90, hozAlign: "center", formatter: (cell) => {
                         const row = cell.getRow().getData();
                         if (row.has_agreement) {
                             return '<span class="badge badge-success badge-sm">Agreement</span>';
@@ -954,35 +978,35 @@ app = function() {
                             return `<span class="badge badge-warning badge-sm">${row.end_reason || 'No Agr.'}</span>`;
                         }
                     } },
-                    { title: "Tags", field: "tags", width: 120, formatter: (cell) => {
+                    { title: "Tags", field: "tags", width: 100, formatter: (cell) => {
                         const tags = cell.getValue() || [];
                         if (tags.length === 0) return '<span class="text-muted">-</span>';
                         return tags.map(t => `<span class="badge badge-neutral badge-sm">${t}</span>`).join(' ');
                     }, headerSort: false },
-                    { title: "Date", field: "end_time", width: 100, sorter: "datetime", formatter: (cell) => {
+                    { title: "Date", field: "end_time", width: 90, hozAlign: "center", sorter: "datetime", formatter: (cell) => {
                         const val = cell.getValue();
                         if (!val) return '-';
                         const date = new Date(val);
                         return date.toLocaleDateString();
                     } },
-                    { title: "Actions", width: 100, headerSort: false, formatter: (cell) => {
+                    { title: "", field: "actions", width: 90, hozAlign: "center", headerSort: false, frozen: true, formatter: (cell) => {
                         const row = cell.getRow().getData();
                         const archiveIcon = row.archived 
                             ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 10v11h18V10"/><path d="M21 3H3v7h18V3z"/><path d="M10 14h4"/></svg>`
                             : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 8v13H3V8"/><path d="M23 3H1v5h22V3z"/><path d="M10 12h4"/></svg>`;
                         const archiveTitle = row.archived ? 'Unarchive' : 'Archive';
-                        return `<div style="display: flex; gap: 2px;">
-                            <button class="btn btn-ghost btn-xs tag-btn" title="Edit Tags">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        return `<div style="display: flex; gap: 4px; justify-content: center;">
+                            <button class="btn btn-ghost btn-xs tag-btn" title="Edit Tags" style="padding: 2px 4px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
                                     <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
                                     <line x1="7" y1="7" x2="7.01" y2="7"/>
                                 </svg>
                             </button>
-                            <button class="btn btn-ghost btn-xs archive-btn" title="${archiveTitle}">
-                                ${archiveIcon}
+                            <button class="btn btn-ghost btn-xs archive-btn" title="${archiveTitle}" style="padding: 2px 4px;">
+                                ${archiveIcon.replace(/width="14" height="14"/g, 'width="12" height="12"')}
                             </button>
-                            <button class="btn btn-ghost btn-xs delete-btn" title="Delete">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <button class="btn btn-ghost btn-xs delete-btn" title="Delete" style="padding: 2px 4px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
                                     <polyline points="3 6 5 6 21 6"></polyline>
                                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                                 </svg>
@@ -1005,12 +1029,12 @@ app = function() {
                     if (data.archived) {
                         row.getElement().style.opacity = '0.6';
                     }
-                },
-                rowClick: (e, row) => {
-                    // Don't trigger row click if clicking action buttons
-                    if (e.target.closest('.delete-btn') || e.target.closest('.archive-btn') || e.target.closest('.tag-btn')) return;
-                    self.loadAndSelectSavedNegotiation(row.getData().id);
                 }
+            });
+            this._savedTable.on("rowClick", function(e, row) {
+                // Don't trigger row click if clicking action buttons
+                if (e.target.closest('.delete-btn') || e.target.closest('.archive-btn') || e.target.closest('.tag-btn')) return;
+                self.loadAndSelectSavedNegotiation(row.getData().id);
             });
         },
         
@@ -1308,6 +1332,8 @@ app = function() {
             // Store starting heights
             const panels = {
                 'info-history': [this.$refs.panelInfo, this.$refs.panelHistory],
+                'history-histogram': [this.$refs.panelHistory, this.$refs.panelHistogram],
+                'histogram-result': [this.$refs.panelHistogram, this.$refs.panelResult],
                 'history-result': [this.$refs.panelHistory, this.$refs.panelResult],
                 'utility2d-timeline': [this.$refs.panel2dUtility, this.$refs.panelTimeline]
             };
@@ -1371,11 +1397,26 @@ app = function() {
             
             this.resizeState = { active: false, type: null, startX: 0, startY: 0, startWidth: 0, startHeight: 0 };
             
-            // Redraw plots after resize
+            // Resize plots after panel resize
             this.$nextTick(() => {
                 if (this.currentNegotiation) {
-                    this.initOutcomeSpacePlot();
+                    // Force Plotly to resize to new container dimensions
+                    const outcomeSpacePlot = document.getElementById('outcome-space-plot');
+                    if (outcomeSpacePlot && window.Plotly) {
+                        Plotly.Plots.resize(outcomeSpacePlot);
+                    }
+                    
+                    // Timeline plots need to be reinitialized due to dynamic subplot heights
                     this.initUtilityTimelinePlots();
+                    
+                    // Histogram: resize if initialized, otherwise try to initialize
+                    const histogramPlot = document.getElementById('histogram-plot');
+                    if (histogramPlot && window.Plotly && window.histogramPlotInitialized) {
+                        Plotly.Plots.resize(histogramPlot);
+                    } else if (!window.histogramPlotInitialized) {
+                        // Plot wasn't initialized (maybe panel was too small), try now
+                        this.initHistogramPlot();
+                    }
                 }
             });
         },
@@ -1702,7 +1743,7 @@ app = function() {
             }
         },
         
-        // Initialize utility timeline plots - N plots for N negotiators
+        // Initialize utility timeline plots - N plots for N negotiators (full) or single plot (simplified)
         async initUtilityTimelinePlots() {
             const container = document.getElementById('utility-timeline-container');
             if (!container) return;
@@ -1726,105 +1767,200 @@ app = function() {
                 const numAgents = neg.negotiator_names?.length || 2;
                 const isColorBlind = document.documentElement.classList.contains('color-blind-mode');
                 const xAxisType = this.panelState.timeline.xAxis;
-            
-            // Get X values based on selected axis type
-            const getXValue = (offer) => {
-                switch (xAxisType) {
-                    case 'time': return offer.time || 0;
-                    case 'relative_time': return offer.relative_time || 0;
-                    default: return offer.step;
-                }
-            };
-            
-            const xAxisTitle = xAxisType === 'time' ? 'Time (s)' : (xAxisType === 'relative_time' ? 'Relative Time' : 'Step');
-            
-            // Clear and rebuild container
-            container.innerHTML = '';
-            
-            // Create N plots, one per negotiator
-            for (let agentIdx = 0; agentIdx < numAgents; agentIdx++) {
-                const plotId = `timeline-plot-${agentIdx}`;
-                const plotWrapper = document.createElement('div');
-                plotWrapper.style.cssText = 'flex: 1; min-height: 150px;';
-                plotWrapper.innerHTML = `<div id="${plotId}" style="width: 100%; height: 100%;"></div>`;
-                container.appendChild(plotWrapper);
                 
-                const traces = [];
+                // Get X values based on selected axis type
+                const getXValue = (offer) => {
+                    switch (xAxisType) {
+                        case 'time': return offer.time || 0;
+                        case 'relative_time': return offer.relative_time || 0;
+                        default: return offer.step;
+                    }
+                };
                 
-                // Create N series per plot - each series j shows utility of offers from agent j for agent agentIdx
-                // Always create traces (even empty) for incremental updates to work
-                for (let proposerIdx = 0; proposerIdx < numAgents; proposerIdx++) {
-                    // Use Number() for type coercion (proposer_index may be string or number from JSON)
-                    const proposerOffers = neg.offers.filter(o => Number(o.proposer_index) === proposerIdx);
+                const xAxisTitle = xAxisType === 'time' ? 'Time (s)' : (xAxisType === 'relative_time' ? 'Relative Time' : 'Step');
+                
+                // Clear and rebuild container
+                container.innerHTML = '';
+                
+                if (this.timelineSimplifiedView) {
+                    // SIMPLIFIED VIEW: Single plot showing each agent's own utility for their offers
+                    const plotId = 'timeline-plot-simplified';
+                    const plotWrapper = document.createElement('div');
+                    plotWrapper.style.cssText = 'flex: 1; min-height: 0; height: 100%;';
+                    plotWrapper.innerHTML = `<div id="${plotId}" style="width: 100%; height: 100%;"></div>`;
+                    container.appendChild(plotWrapper);
                     
-                    const xValues = proposerOffers.map(getXValue);
-                    const yValues = proposerOffers.map(o => o.utilities[agentIdx] || 0);
+                    const traces = [];
                     
-                    // Own offers get thick solid line, others get dashed
-                    const isOwnOffers = proposerIdx === agentIdx;
+                    // Each agent gets one trace showing their own utility for their own offers
+                    for (let agentIdx = 0; agentIdx < numAgents; agentIdx++) {
+                        const agentOffers = neg.offers.filter(o => Number(o.proposer_index) === agentIdx);
+                        
+                        const xValues = agentOffers.map(getXValue);
+                        const yValues = agentOffers.map(o => o.utilities[agentIdx] || 0);
+                        
+                        traces.push({
+                            x: xValues,
+                            y: yValues,
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            name: neg.negotiator_names?.[agentIdx] || `Agent ${agentIdx + 1}`,
+                            line: { 
+                                color: negColors[agentIdx % negColors.length], 
+                                width: 2,
+                                dash: isColorBlind ? LINE_DASHES[agentIdx % LINE_DASHES.length] : 'solid'
+                            },
+                            marker: {
+                                color: negColors[agentIdx % negColors.length],
+                                size: 6,
+                                symbol: isColorBlind ? MARKER_SYMBOLS[agentIdx % MARKER_SYMBOLS.length] : 'circle'
+                            }
+                        });
+                    }
                     
-                    traces.push({
-                        x: xValues,
-                        y: yValues,
-                        type: 'scatter',
-                        mode: 'lines',
-                        name: neg.negotiator_names?.[proposerIdx] || `Agent ${proposerIdx + 1}`,
-                        line: { 
-                            color: negColors[proposerIdx % negColors.length], 
-                            width: isOwnOffers ? 3 : 1.5,
-                            dash: isOwnOffers ? 'solid' : LINE_DASHES[(proposerIdx + 1) % LINE_DASHES.length]
+                    // Add agreement markers if exists
+                    if (neg.agreement && neg.final_utilities) {
+                        const lastOffer = neg.offers[neg.offers.length - 1];
+                        for (let agentIdx = 0; agentIdx < numAgents; agentIdx++) {
+                            if (neg.final_utilities.length > agentIdx) {
+                                traces.push({
+                                    x: [getXValue(lastOffer)],
+                                    y: [neg.final_utilities[agentIdx]],
+                                    type: 'scatter',
+                                    mode: 'markers',
+                                    name: agentIdx === 0 ? 'Agreement' : undefined,
+                                    showlegend: agentIdx === 0,
+                                    marker: { color: colors.agreementColor, size: 14, symbol: 'star', line: { color: '#fff', width: 1 } }
+                                });
+                            }
                         }
-                    });
+                    }
+                    
+                    const layout = {
+                        title: { 
+                            text: 'Utility of Own Offers',
+                            font: { size: 13, color: colors.textColor }
+                        },
+                        xaxis: { 
+                            title: { text: xAxisTitle, font: { color: colors.textColor, size: 11 } },
+                            tickfont: { color: colors.textColor, size: 10 },
+                            gridcolor: colors.gridColor,
+                            linecolor: colors.gridColor
+                        },
+                        yaxis: { 
+                            title: { text: 'Utility', font: { color: colors.textColor, size: 11 } },
+                            tickfont: { color: colors.textColor, size: 10 },
+                            gridcolor: colors.gridColor,
+                            linecolor: colors.gridColor
+                        },
+                        margin: { t: 40, r: 20, b: 50, l: 50 },
+                        showlegend: true,
+                        legend: { orientation: 'h', y: -0.15, x: 0.5, xanchor: 'center', font: { color: colors.textColor, size: 10 } },
+                        paper_bgcolor: colors.bgColor,
+                        plot_bgcolor: colors.bgColor,
+                        font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 11, color: colors.textColor }
+                    };
+                    
+                    const config = {
+                        responsive: true,
+                        displayModeBar: 'hover',
+                        modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                        toImageButtonOptions: { format: 'png', filename: 'utility-timeline-simplified', scale: 2 }
+                    };
+                    
+                    await Plotly.newPlot(plotId, traces, layout, config);
+                } else {
+                    // FULL VIEW: N plots, one per negotiator
+                    // Calculate height per plot based on container
+                    const containerHeight = container.clientHeight || 300;
+                    const plotHeight = Math.max(120, Math.floor((containerHeight - (numAgents - 1) * 8) / numAgents));
+                    
+                    for (let agentIdx = 0; agentIdx < numAgents; agentIdx++) {
+                        const plotId = `timeline-plot-${agentIdx}`;
+                        const plotWrapper = document.createElement('div');
+                        plotWrapper.style.cssText = `flex: 0 0 ${plotHeight}px; min-height: ${plotHeight}px; height: ${plotHeight}px;`;
+                        plotWrapper.innerHTML = `<div id="${plotId}" style="width: 100%; height: 100%;"></div>`;
+                        container.appendChild(plotWrapper);
+                        
+                        const traces = [];
+                        
+                        // Create N series per plot - each series j shows utility of offers from agent j for agent agentIdx
+                        for (let proposerIdx = 0; proposerIdx < numAgents; proposerIdx++) {
+                            const proposerOffers = neg.offers.filter(o => Number(o.proposer_index) === proposerIdx);
+                            
+                            const xValues = proposerOffers.map(getXValue);
+                            const yValues = proposerOffers.map(o => o.utilities[agentIdx] || 0);
+                            
+                            // Own offers get thick solid line, others get dashed
+                            const isOwnOffers = proposerIdx === agentIdx;
+                            
+                            traces.push({
+                                x: xValues,
+                                y: yValues,
+                                type: 'scatter',
+                                mode: 'lines',
+                                name: neg.negotiator_names?.[proposerIdx] || `Agent ${proposerIdx + 1}`,
+                                line: { 
+                                    color: negColors[proposerIdx % negColors.length], 
+                                    width: isOwnOffers ? 3 : 1.5,
+                                    dash: isOwnOffers ? 'solid' : LINE_DASHES[(proposerIdx + 1) % LINE_DASHES.length]
+                                }
+                            });
+                        }
+                        
+                        // Add agreement marker if exists
+                        if (neg.agreement && neg.final_utilities && neg.final_utilities.length > agentIdx) {
+                            const lastOffer = neg.offers[neg.offers.length - 1];
+                            traces.push({
+                                x: [getXValue(lastOffer)],
+                                y: [neg.final_utilities[agentIdx]],
+                                type: 'scatter',
+                                mode: 'markers',
+                                name: 'Agreement',
+                                showlegend: agentIdx === 0,
+                                marker: { color: colors.agreementColor, size: 10, symbol: 'star', line: { color: '#fff', width: 1 } }
+                            });
+                        }
+                        
+                        // Only show legend on the last plot to avoid overlap
+                        const isLastPlot = agentIdx === numAgents - 1;
+                        
+                        const layout = {
+                            title: { 
+                                text: `${neg.negotiator_names?.[agentIdx] || 'Agent ' + (agentIdx + 1)}'s Utility`,
+                                font: { size: 11, color: colors.textColor }
+                            },
+                            xaxis: { 
+                                title: { text: isLastPlot ? xAxisTitle : '', font: { color: colors.textColor, size: 9 } },
+                                tickfont: { color: colors.textColor, size: 8 },
+                                gridcolor: colors.gridColor,
+                                linecolor: colors.gridColor
+                            },
+                            yaxis: { 
+                                title: { text: 'Utility', font: { color: colors.textColor, size: 9 } },
+                                tickfont: { color: colors.textColor, size: 8 },
+                                gridcolor: colors.gridColor,
+                                linecolor: colors.gridColor
+                            },
+                            margin: { t: 25, r: 15, b: isLastPlot ? 40 : 20, l: 35 },
+                            showlegend: isLastPlot,
+                            legend: { orientation: 'h', y: -0.35, x: 0.5, xanchor: 'center', font: { color: colors.textColor, size: 8 } },
+                            paper_bgcolor: colors.bgColor,
+                            plot_bgcolor: colors.bgColor,
+                            font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 9, color: colors.textColor }
+                        };
+                        
+                        const config = {
+                            responsive: true,
+                            displayModeBar: 'hover',
+                            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                            toImageButtonOptions: { format: 'png', filename: `utility-timeline-${agentIdx}`, scale: 2 }
+                        };
+                        
+                        await Plotly.newPlot(plotId, traces, layout, config);
+                    }
                 }
                 
-                // Add agreement marker if exists
-                if (neg.agreement && neg.final_utilities && neg.final_utilities.length > agentIdx) {
-                    const lastOffer = neg.offers[neg.offers.length - 1];
-                    traces.push({
-                        x: [getXValue(lastOffer)],
-                        y: [neg.final_utilities[agentIdx]],
-                        type: 'scatter',
-                        mode: 'markers',
-                        name: 'Agreement',
-                        showlegend: agentIdx === 0,
-                        marker: { color: colors.agreementColor, size: 12, symbol: 'star', line: { color: '#fff', width: 1 } }
-                    });
-                }
-                
-                const layout = {
-                    title: { 
-                        text: `${neg.negotiator_names?.[agentIdx] || 'Agent ' + (agentIdx + 1)}'s Utility`,
-                        font: { size: 12, color: colors.textColor }
-                    },
-                    xaxis: { 
-                        title: { text: xAxisTitle, font: { color: colors.textColor, size: 10 } },
-                        tickfont: { color: colors.textColor, size: 9 },
-                        gridcolor: colors.gridColor,
-                        linecolor: colors.gridColor
-                    },
-                    yaxis: { 
-                        title: { text: 'Utility', font: { color: colors.textColor, size: 10 } },
-                        tickfont: { color: colors.textColor, size: 9 },
-                        gridcolor: colors.gridColor,
-                        linecolor: colors.gridColor
-                    },
-                    margin: { t: 35, r: 20, b: 35, l: 40 },
-                    legend: { orientation: 'h', y: -0.3, font: { color: colors.textColor, size: 9 } },
-                    paper_bgcolor: colors.bgColor,
-                    plot_bgcolor: colors.bgColor,
-                    font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 10, color: colors.textColor }
-                };
-                
-                const config = {
-                    responsive: true,
-                    displayModeBar: 'hover',
-                    modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-                    toImageButtonOptions: { format: 'png', filename: `utility-timeline-${agentIdx}`, scale: 2 }
-                };
-                
-                await Plotly.newPlot(plotId, traces, layout, config);
-            }
-            
                 window.timelinePlotsInitialized = true;
             } catch (e) {
                 console.warn('Failed to initialize timeline plots:', e);
@@ -1965,11 +2101,277 @@ app = function() {
             const neg = this.currentNegotiation;
             if (!neg) return;
             const numAgents = neg.negotiator_names?.length || 2;
-            for (let i = 0; i < numAgents; i++) {
-                const plotDiv = document.getElementById(`timeline-plot-${i}`);
+            
+            if (this.timelineSimplifiedView) {
+                const plotDiv = document.getElementById('timeline-plot-simplified');
                 if (plotDiv) {
                     Plotly.relayout(plotDiv, { 'xaxis.autorange': true, 'yaxis.autorange': true });
                 }
+            } else {
+                for (let i = 0; i < numAgents; i++) {
+                    const plotDiv = document.getElementById(`timeline-plot-${i}`);
+                    if (plotDiv) {
+                        Plotly.relayout(plotDiv, { 'xaxis.autorange': true, 'yaxis.autorange': true });
+                    }
+                }
+            }
+        },
+        
+        // Initialize histogram plot showing offer frequency per issue value
+        async initHistogramPlot(retryCount = 0) {
+            const container = document.getElementById('issue-frequency-container');
+            if (!container) return;
+            
+            // Don't try to render if panel is collapsed or hidden
+            // But retry a few times with delay in case the panel is still being rendered
+            if (container.offsetParent === null || container.clientWidth === 0) {
+                window.histogramPlotInitialized = false;
+                // Retry up to 3 times with increasing delay
+                if (retryCount < 3) {
+                    setTimeout(() => this.initHistogramPlot(retryCount + 1), 100 * (retryCount + 1));
+                }
+                return;
+            }
+            
+            const neg = this.currentNegotiation;
+            if (!neg || !neg.offers || neg.offers.length === 0) {
+                container.innerHTML = '';
+                window.histogramPlotInitialized = false;
+                return;
+            }
+            
+            try {
+                const colors = this.getPlotColors();
+                const negColors = this.getNegotiatorColors();
+                const numAgents = neg.negotiator_names?.length || 2;
+                
+                // Determine if we have issue-based or enumerated outcome space
+                const firstOffer = neg.offers[0]?.offer;
+                const issueNames = neg.issue_names || (typeof firstOffer === 'object' && firstOffer !== null && !Array.isArray(firstOffer) 
+                    ? Object.keys(firstOffer) 
+                    : []);
+                
+                const isEnumerated = issueNames.length === 0;
+                
+                // Clear container and create plot div
+                container.innerHTML = '<div id="histogram-plot" style="width: 100%; height: 100%;"></div>';
+                const plotDiv = document.getElementById('histogram-plot');
+                if (!plotDiv) return;
+                
+                if (isEnumerated) {
+                    // Enumerated outcome space: single histogram of outcomes
+                    const outcomeFreq = {};
+                    
+                    neg.offers.forEach(offer => {
+                        const offerData = offer.offer;
+                        const key = Array.isArray(offerData) 
+                            ? offerData.join(', ')
+                            : typeof offerData === 'object' 
+                                ? JSON.stringify(offerData)
+                                : String(offerData);
+                        
+                        if (!outcomeFreq[key]) {
+                            outcomeFreq[key] = new Array(numAgents).fill(0);
+                        }
+                        outcomeFreq[key][offer.proposer_index]++;
+                    });
+                    
+                    // Sort outcomes by total frequency
+                    const outcomes = Object.keys(outcomeFreq).sort((a, b) => {
+                        const totalA = outcomeFreq[a].reduce((s, v) => s + v, 0);
+                        const totalB = outcomeFreq[b].reduce((s, v) => s + v, 0);
+                        return totalB - totalA;
+                    });
+                    
+                    // Limit to top 15 outcomes
+                    const displayOutcomes = outcomes.slice(0, 15);
+                    
+                    // Create grouped bar traces per negotiator
+                    const traces = [];
+                    for (let agentIdx = 0; agentIdx < numAgents; agentIdx++) {
+                        traces.push({
+                            x: displayOutcomes,
+                            y: displayOutcomes.map(o => outcomeFreq[o][agentIdx]),
+                            type: 'bar',
+                            name: neg.negotiator_names?.[agentIdx] || `Agent ${agentIdx + 1}`,
+                            marker: { 
+                                color: negColors[agentIdx % negColors.length],
+                                opacity: 0.85
+                            }
+                        });
+                    }
+                    
+                    const layout = {
+                        barmode: 'group',
+                        bargap: 0.15,
+                        bargroupgap: 0.1,
+                        margin: { t: 10, r: 10, b: 60, l: 35 },
+                        paper_bgcolor: 'transparent',
+                        plot_bgcolor: 'transparent',
+                        font: { 
+                            family: '-apple-system, BlinkMacSystemFont, sans-serif', 
+                            size: 9, 
+                            color: colors.textColor 
+                        },
+                        legend: { 
+                            orientation: 'h', 
+                            y: 1.02,
+                            x: 0.5,
+                            xanchor: 'center',
+                            font: { color: colors.textColor, size: 8 } 
+                        },
+                        xaxis: {
+                            tickfont: { color: colors.textColor, size: 7 },
+                            tickangle: -45,
+                            gridcolor: colors.gridColor
+                        },
+                        yaxis: {
+                            title: { text: 'Count', font: { size: 9, color: colors.textColor } },
+                            tickfont: { color: colors.textColor, size: 8 },
+                            gridcolor: colors.gridColor
+                        }
+                    };
+                    
+                    await Plotly.newPlot(plotDiv, traces, layout, {
+                        responsive: true,
+                        displayModeBar: 'hover',
+                        modeBarButtonsToRemove: ['lasso2d', 'select2d']
+                    });
+                } else {
+                    // Issue-based outcome space: subplots per issue
+                    const numIssues = issueNames.length;
+                    const cols = Math.min(numIssues, 2);
+                    const rows = Math.ceil(numIssues / cols);
+                    
+                    // Calculate subplot domains
+                    const hGap = 0.12;
+                    const vGap = 0.15;
+                    const plotWidth = (1 - hGap * (cols - 1)) / cols;
+                    const plotHeight = (1 - vGap * (rows - 1)) / rows;
+                    
+                    const traces = [];
+                    const layout = {
+                        barmode: 'group',
+                        bargap: 0.1,
+                        bargroupgap: 0.05,
+                        margin: { t: 20, r: 10, b: 20, l: 30 },
+                        paper_bgcolor: 'transparent',
+                        plot_bgcolor: 'transparent',
+                        font: { 
+                            family: '-apple-system, BlinkMacSystemFont, sans-serif', 
+                            size: 8, 
+                            color: colors.textColor 
+                        },
+                        legend: { 
+                            orientation: 'h', 
+                            y: 1.02,
+                            x: 0.5,
+                            xanchor: 'center',
+                            font: { color: colors.textColor, size: 8 } 
+                        },
+                        annotations: []
+                    };
+                    
+                    issueNames.forEach((issue, issueIdx) => {
+                        const row = Math.floor(issueIdx / cols);
+                        const col = issueIdx % cols;
+                        
+                        // Calculate domain for this subplot
+                        const xStart = col * (plotWidth + hGap);
+                        const xEnd = xStart + plotWidth;
+                        const yEnd = 1 - row * (plotHeight + vGap);
+                        const yStart = yEnd - plotHeight;
+                        
+                        // Axis names
+                        const xAxisName = issueIdx === 0 ? 'x' : `x${issueIdx + 1}`;
+                        const yAxisName = issueIdx === 0 ? 'y' : `y${issueIdx + 1}`;
+                        const xAxisKey = issueIdx === 0 ? 'xaxis' : `xaxis${issueIdx + 1}`;
+                        const yAxisKey = issueIdx === 0 ? 'yaxis' : `yaxis${issueIdx + 1}`;
+                        
+                        // Count frequencies for this issue per negotiator
+                        const valueFreq = {};
+                        neg.offers.forEach(offer => {
+                            const offerData = offer.offer;
+                            const value = typeof offerData === 'object' && offerData !== null
+                                ? offerData[issue]
+                                : undefined;
+                            
+                            if (value !== undefined) {
+                                const key = String(value);
+                                if (!valueFreq[key]) {
+                                    valueFreq[key] = new Array(numAgents).fill(0);
+                                }
+                                valueFreq[key][offer.proposer_index]++;
+                            }
+                        });
+                        
+                        // Sort values
+                        const values = Object.keys(valueFreq).sort((a, b) => {
+                            const numA = parseFloat(a);
+                            const numB = parseFloat(b);
+                            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                            return a.localeCompare(b);
+                        });
+                        
+                        // Create grouped bar traces per negotiator for this issue
+                        for (let agentIdx = 0; agentIdx < numAgents; agentIdx++) {
+                            traces.push({
+                                x: values,
+                                y: values.map(v => valueFreq[v][agentIdx]),
+                                type: 'bar',
+                                name: neg.negotiator_names?.[agentIdx] || `Agent ${agentIdx + 1}`,
+                                marker: { 
+                                    color: negColors[agentIdx % negColors.length],
+                                    opacity: 0.85
+                                },
+                                xaxis: xAxisName,
+                                yaxis: yAxisName,
+                                showlegend: issueIdx === 0,
+                                legendgroup: `agent${agentIdx}`
+                            });
+                        }
+                        
+                        // Configure axes for this subplot
+                        layout[xAxisKey] = {
+                            domain: [xStart, xEnd],
+                            tickfont: { color: colors.textColor, size: 7 },
+                            tickangle: values.some(v => v.length > 4) ? -45 : 0,
+                            gridcolor: colors.gridColor,
+                            anchor: yAxisName
+                        };
+                        
+                        layout[yAxisKey] = {
+                            domain: [yStart, yEnd],
+                            tickfont: { color: colors.textColor, size: 7 },
+                            gridcolor: colors.gridColor,
+                            anchor: xAxisName
+                        };
+                        
+                        // Add subplot title as annotation
+                        layout.annotations.push({
+                            text: `<b>${issue}</b>`,
+                            x: (xStart + xEnd) / 2,
+                            y: yEnd + 0.02,
+                            xref: 'paper',
+                            yref: 'paper',
+                            xanchor: 'center',
+                            yanchor: 'bottom',
+                            showarrow: false,
+                            font: { size: 9, color: colors.textColor }
+                        });
+                    });
+                    
+                    await Plotly.newPlot(plotDiv, traces, layout, {
+                        responsive: true,
+                        displayModeBar: 'hover',
+                        modeBarButtonsToRemove: ['lasso2d', 'select2d']
+                    });
+                }
+                
+                window.histogramPlotInitialized = true;
+            } catch (e) {
+                console.warn('Failed to initialize histogram plot:', e);
+                window.histogramPlotInitialized = false;
             }
         },
         
@@ -1986,6 +2388,8 @@ app = function() {
                             this.initOutcomeSpacePlotToElement(zoomedContainerId);
                         } else if (plotId === 'utility-timeline-container') {
                             this.initUtilityTimelinePlotsToElement(zoomedContainerId);
+                        } else if (plotId === 'issue-frequency-container') {
+                            this.initHistogramPlotToElement(zoomedContainerId);
                         }
                     }
                 });
@@ -2307,13 +2711,16 @@ app = function() {
                     });
                 }
                 
+                // Only show legend on the last plot to avoid overlap
+                const isLastPlot = agentIdx === numAgents - 1;
+                
                 const layout = {
                     title: { 
                         text: `${neg.negotiator_names?.[agentIdx] || 'Agent ' + (agentIdx + 1)}'s Utility`,
                         font: { size: 14, color: colors.textColor }
                     },
                     xaxis: { 
-                        title: { text: xAxisTitle, font: { color: colors.textColor, size: 12 } },
+                        title: { text: isLastPlot ? xAxisTitle : '', font: { color: colors.textColor, size: 12 } },
                         tickfont: { color: colors.textColor, size: 11 },
                         gridcolor: colors.gridColor,
                         linecolor: colors.gridColor
@@ -2324,8 +2731,9 @@ app = function() {
                         gridcolor: colors.gridColor,
                         linecolor: colors.gridColor
                     },
-                    margin: { t: 45, r: 30, b: 45, l: 50 },
-                    legend: { orientation: 'h', y: -0.25, font: { color: colors.textColor, size: 11 } },
+                    margin: { t: 45, r: 30, b: isLastPlot ? 60 : 35, l: 50 },
+                    showlegend: isLastPlot,
+                    legend: { orientation: 'h', y: -0.2, x: 0.5, xanchor: 'center', font: { color: colors.textColor, size: 11 } },
                     paper_bgcolor: colors.bgColor,
                     plot_bgcolor: colors.bgColor,
                     font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 12, color: colors.textColor }
@@ -2339,6 +2747,214 @@ app = function() {
                 };
                 
                 await Plotly.newPlot(plotId, traces, layout, config);
+            }
+        },
+        
+        // Initialize histogram plot to a specific element (for zoom)
+        async initHistogramPlotToElement(elementId) {
+            const container = document.getElementById(elementId);
+            if (!container) return;
+            
+            const neg = this.currentNegotiation;
+            if (!neg || !neg.offers || neg.offers.length === 0) {
+                container.innerHTML = '<div class="empty-state-mini"><span class="text-muted">No offers yet</span></div>';
+                return;
+            }
+            
+            const colors = this.getPlotColors();
+            const negColors = this.getNegotiatorColors();
+            const numAgents = neg.negotiator_names?.length || 2;
+            
+            // Determine if we have issue-based or enumerated outcome space
+            const firstOffer = neg.offers[0]?.offer;
+            const issueNames = neg.issue_names || (typeof firstOffer === 'object' && firstOffer !== null && !Array.isArray(firstOffer) 
+                ? Object.keys(firstOffer) 
+                : []);
+            
+            const isEnumerated = issueNames.length === 0;
+            
+            // Clear container and create plot div
+            container.innerHTML = '<div id="histogram-plot-zoomed" style="width: 100%; height: 100%;"></div>';
+            const plotDiv = document.getElementById('histogram-plot-zoomed');
+            if (!plotDiv) return;
+            
+            if (isEnumerated) {
+                // Same as main histogram but with larger fonts
+                const outcomeFreq = {};
+                
+                neg.offers.forEach(offer => {
+                    const offerData = offer.offer;
+                    const key = Array.isArray(offerData) 
+                        ? offerData.join(', ')
+                        : typeof offerData === 'object' 
+                            ? JSON.stringify(offerData)
+                            : String(offerData);
+                    
+                    if (!outcomeFreq[key]) {
+                        outcomeFreq[key] = new Array(numAgents).fill(0);
+                    }
+                    outcomeFreq[key][offer.proposer_index]++;
+                });
+                
+                const outcomes = Object.keys(outcomeFreq).sort((a, b) => {
+                    const totalA = outcomeFreq[a].reduce((s, v) => s + v, 0);
+                    const totalB = outcomeFreq[b].reduce((s, v) => s + v, 0);
+                    return totalB - totalA;
+                });
+                
+                const displayOutcomes = outcomes.slice(0, 20);
+                
+                const traces = [];
+                for (let agentIdx = 0; agentIdx < numAgents; agentIdx++) {
+                    traces.push({
+                        x: displayOutcomes,
+                        y: displayOutcomes.map(o => outcomeFreq[o][agentIdx]),
+                        type: 'bar',
+                        name: neg.negotiator_names?.[agentIdx] || `Agent ${agentIdx + 1}`,
+                        marker: { 
+                            color: negColors[agentIdx % negColors.length],
+                            opacity: 0.85
+                        }
+                    });
+                }
+                
+                const layout = {
+                    title: { text: 'Outcome Frequency', font: { size: 16, color: colors.textColor } },
+                    barmode: 'group',
+                    bargap: 0.15,
+                    bargroupgap: 0.1,
+                    margin: { t: 50, r: 30, b: 80, l: 50 },
+                    paper_bgcolor: colors.bgColor,
+                    plot_bgcolor: colors.bgColor,
+                    font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 12, color: colors.textColor },
+                    legend: { orientation: 'h', y: 1.02, x: 0.5, xanchor: 'center', font: { color: colors.textColor, size: 11 } },
+                    xaxis: {
+                        title: { text: 'Outcome', font: { size: 12, color: colors.textColor } },
+                        tickfont: { color: colors.textColor, size: 10 },
+                        tickangle: -45,
+                        gridcolor: colors.gridColor
+                    },
+                    yaxis: {
+                        title: { text: 'Count', font: { size: 12, color: colors.textColor } },
+                        tickfont: { color: colors.textColor, size: 10 },
+                        gridcolor: colors.gridColor
+                    }
+                };
+                
+                await Plotly.newPlot(plotDiv, traces, layout, {
+                    responsive: true,
+                    displayModeBar: 'hover',
+                    modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                    toImageButtonOptions: { format: 'png', filename: 'issue-frequency-zoomed', scale: 2 }
+                });
+            } else {
+                // Issue-based with larger fonts
+                const numIssues = issueNames.length;
+                const cols = Math.min(numIssues, 3);
+                const rows = Math.ceil(numIssues / cols);
+                
+                const hGap = 0.1;
+                const vGap = 0.12;
+                const plotWidth = (1 - hGap * (cols - 1)) / cols;
+                const plotHeight = (1 - vGap * (rows - 1)) / rows;
+                
+                const traces = [];
+                const layout = {
+                    title: { text: 'Issue Value Frequency', font: { size: 16, color: colors.textColor } },
+                    barmode: 'group',
+                    bargap: 0.1,
+                    bargroupgap: 0.05,
+                    margin: { t: 50, r: 30, b: 30, l: 40 },
+                    paper_bgcolor: colors.bgColor,
+                    plot_bgcolor: colors.bgColor,
+                    font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 11, color: colors.textColor },
+                    legend: { orientation: 'h', y: 1.02, x: 0.5, xanchor: 'center', font: { color: colors.textColor, size: 11 } },
+                    annotations: []
+                };
+                
+                issueNames.forEach((issue, issueIdx) => {
+                    const row = Math.floor(issueIdx / cols);
+                    const col = issueIdx % cols;
+                    
+                    const xStart = col * (plotWidth + hGap);
+                    const xEnd = xStart + plotWidth;
+                    const yEnd = 1 - row * (plotHeight + vGap) - 0.05;
+                    const yStart = yEnd - plotHeight;
+                    
+                    const xAxisName = issueIdx === 0 ? 'x' : `x${issueIdx + 1}`;
+                    const yAxisName = issueIdx === 0 ? 'y' : `y${issueIdx + 1}`;
+                    const xAxisKey = issueIdx === 0 ? 'xaxis' : `xaxis${issueIdx + 1}`;
+                    const yAxisKey = issueIdx === 0 ? 'yaxis' : `yaxis${issueIdx + 1}`;
+                    
+                    const valueFreq = {};
+                    neg.offers.forEach(offer => {
+                        const offerData = offer.offer;
+                        const value = typeof offerData === 'object' && offerData !== null ? offerData[issue] : undefined;
+                        
+                        if (value !== undefined) {
+                            const key = String(value);
+                            if (!valueFreq[key]) {
+                                valueFreq[key] = new Array(numAgents).fill(0);
+                            }
+                            valueFreq[key][offer.proposer_index]++;
+                        }
+                    });
+                    
+                    const values = Object.keys(valueFreq).sort((a, b) => {
+                        const numA = parseFloat(a);
+                        const numB = parseFloat(b);
+                        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                        return a.localeCompare(b);
+                    });
+                    
+                    for (let agentIdx = 0; agentIdx < numAgents; agentIdx++) {
+                        traces.push({
+                            x: values,
+                            y: values.map(v => valueFreq[v][agentIdx]),
+                            type: 'bar',
+                            name: neg.negotiator_names?.[agentIdx] || `Agent ${agentIdx + 1}`,
+                            marker: { color: negColors[agentIdx % negColors.length], opacity: 0.85 },
+                            xaxis: xAxisName,
+                            yaxis: yAxisName,
+                            showlegend: issueIdx === 0,
+                            legendgroup: `agent${agentIdx}`
+                        });
+                    }
+                    
+                    layout[xAxisKey] = {
+                        domain: [xStart, xEnd],
+                        tickfont: { color: colors.textColor, size: 9 },
+                        tickangle: values.some(v => v.length > 4) ? -45 : 0,
+                        gridcolor: colors.gridColor,
+                        anchor: yAxisName
+                    };
+                    
+                    layout[yAxisKey] = {
+                        domain: [yStart, yEnd],
+                        tickfont: { color: colors.textColor, size: 9 },
+                        gridcolor: colors.gridColor,
+                        anchor: xAxisName
+                    };
+                    
+                    layout.annotations.push({
+                        text: `<b>${issue}</b>`,
+                        x: (xStart + xEnd) / 2,
+                        y: yEnd + 0.02,
+                        xref: 'paper',
+                        yref: 'paper',
+                        xanchor: 'center',
+                        yanchor: 'bottom',
+                        showarrow: false,
+                        font: { size: 12, color: colors.textColor }
+                    });
+                });
+                
+                await Plotly.newPlot(plotDiv, traces, layout, {
+                    responsive: true,
+                    displayModeBar: 'hover',
+                    modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                    toImageButtonOptions: { format: 'png', filename: 'issue-frequency-zoomed', scale: 2 }
+                });
             }
         },
         
@@ -2493,6 +3109,7 @@ app = function() {
                         this.$nextTick(() => {
                             this.initOutcomeSpacePlot();
                             this.initUtilityTimelinePlots();
+                            this.initHistogramPlot();
                         });
                     }
                 }
@@ -2531,26 +3148,27 @@ app = function() {
         selectNegotiation(neg) {
             // If neg is from Tabulator (plain object copy), find the actual object by ID
             // to preserve the offers array and other properties
+            let actualNeg = neg;
             if (neg && neg.id) {
-                const actualNeg = this.runningNegotiations.find(n => n.id === neg.id) 
+                actualNeg = this.runningNegotiations.find(n => n.id === neg.id) 
                     || this.completedNegotiations.find(n => n.id === neg.id)
                     || neg;
-                this.currentNegotiation = actualNeg;
-            } else {
-                this.currentNegotiation = neg;
             }
+            this.currentNegotiation = actualNeg;
             
-            // Update panel state from negotiation settings
-            const numAgents = neg.negotiator_names?.length || 2;
-            this.panelState.utilityView.xAxis = neg.panelSettings?.utilityView?.xAxis ?? 0;
-            this.panelState.utilityView.yAxis = neg.panelSettings?.utilityView?.yAxis ?? Math.min(1, numAgents - 1);
-            this.panelState.timeline.xAxis = neg.panelSettings?.timeline?.xAxis ?? 'step';
+            // Update panel state from negotiation settings (use actualNeg, not neg)
+            const numAgents = actualNeg?.negotiator_names?.length || 2;
+            this.panelState.utilityView.xAxis = actualNeg?.panelSettings?.utilityView?.xAxis ?? 0;
+            this.panelState.utilityView.yAxis = actualNeg?.panelSettings?.utilityView?.yAxis ?? Math.min(1, numAgents - 1);
+            this.panelState.timeline.xAxis = actualNeg?.panelSettings?.timeline?.xAxis ?? 'step';
             
             window.outcomeSpacePlotInitialized = false;
             window.timelinePlotsInitialized = false;
+            window.histogramPlotInitialized = false;
             this.$nextTick(() => {
                 this.initOutcomeSpacePlot();
                 this.initUtilityTimelinePlots();
+                this.initHistogramPlot();
             });
         },
         

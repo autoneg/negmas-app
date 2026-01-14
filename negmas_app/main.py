@@ -82,7 +82,7 @@ def run(
     host: Annotated[str, typer.Option(help="Host to bind the server to")] = "127.0.0.1",
     reload: Annotated[
         bool, typer.Option(help="Enable auto-reload on file changes")
-    ] = True,
+    ] = False,
     log_level: Annotated[
         str, typer.Option(help="Log level (debug, info, warning, error, critical)")
     ] = "info",
@@ -190,7 +190,7 @@ def restart(
     host: Annotated[str, typer.Option(help="Host to bind the server to")] = "127.0.0.1",
     reload: Annotated[
         bool, typer.Option(help="Enable auto-reload on file changes")
-    ] = True,
+    ] = False,
     log_level: Annotated[
         str, typer.Option(help="Log level (debug, info, warning, error, critical)")
     ] = "info",

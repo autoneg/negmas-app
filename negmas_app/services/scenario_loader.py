@@ -109,6 +109,12 @@ class ScenarioLoader:
             if scenario.info and "rational_fraction" in scenario.info:
                 rational_fraction = float(scenario.info["rational_fraction"])
 
+            # Get opposition from cached stats if available
+            opposition = None
+            if scenario.stats is not None and hasattr(scenario.stats, "opposition"):
+                if scenario.stats.opposition is not None:
+                    opposition = float(scenario.stats.opposition)
+
             return ScenarioInfo(
                 path=str(path),
                 name=path.name,
@@ -116,6 +122,7 @@ class ScenarioLoader:
                 issues=issues,
                 n_outcomes=n_outcomes,
                 rational_fraction=rational_fraction,
+                opposition=opposition,
                 source=source,
                 has_stats=scenario.stats is not None,
                 has_info=scenario.info is not None
@@ -193,7 +200,20 @@ class ScenarioLoader:
         if scenario is None:
             return ScenarioStatsInfo(has_stats=False)
 
-        # Calculate stats if needed
+        # Load performance settings to check limits
+        perf_settings = SettingsService.load_performance()
+        max_stats = perf_settings.max_outcomes_stats
+        max_info = perf_settings.max_outcomes_info
+
+        # Get n_outcomes early (always calculate this)
+        n_outcomes = scenario.outcome_space.cardinality
+
+        # Determine what can be calculated based on limits
+        # 0 or None means no limit
+        can_calc_stats = max_stats is None or max_stats == 0 or n_outcomes <= max_stats
+        can_calc_info = max_info is None or max_info == 0 or n_outcomes <= max_info
+
+        # Calculate stats if needed and allowed
         needs_stats = scenario.stats is None or force
         needs_info = (
             scenario.info is None
@@ -202,22 +222,28 @@ class ScenarioLoader:
             or force
         )
 
-        if needs_stats:
+        if needs_stats and can_calc_stats:
             scenario.calc_stats()
+        elif needs_stats and not can_calc_stats:
+            # Skip stats calculation due to limit
+            pass
 
         if needs_info:
             # Calculate and store n_outcomes and rational_fraction in info
             if scenario.info is None:
                 scenario.info = {}
 
-            n_outcomes = scenario.outcome_space.cardinality
-            rational_fraction = calculate_rational_fraction(scenario)
-
+            # Always set n_outcomes (this is cheap)
             scenario.info["n_outcomes"] = n_outcomes
-            scenario.info["rational_fraction"] = rational_fraction
+
+            # Only calculate rational_fraction if within info limits
+            if can_calc_info:
+                rational_fraction = calculate_rational_fraction(scenario)
+                scenario.info["rational_fraction"] = rational_fraction
 
         # Save if caching is enabled and something was calculated
-        if needs_stats or needs_info:
+        something_calculated = (needs_stats and can_calc_stats) or needs_info
+        if something_calculated:
             settings = SettingsService.load_general()
             if settings.cache_scenario_stats:
                 try:

@@ -18,6 +18,7 @@ from ..models.settings import (
     NegotiationSettings,
     NegotiatorSourcesSettings,
     PathSettings,
+    PerformanceSettings,
     # Presets
     NegotiatorPreset,
     ScenarioPreset,
@@ -25,6 +26,7 @@ from ..models.settings import (
     ParametersPreset,
     DisplayPreset,
     FullSessionPreset,
+    TournamentPreset,
     # Layout state
     LayoutState,
     LayoutConfig,
@@ -90,11 +92,18 @@ async def update_all_settings(settings: dict[str, Any]) -> dict[str, Any]:
     paths_keys = {"scenario_paths"}
     paths_filtered = {k: v for k, v in paths_data.items() if k in paths_keys}
 
+    performance_data = settings.get("performance", {})
+    performance_keys = {"max_outcomes_run", "max_outcomes_stats", "max_outcomes_info"}
+    performance_filtered = {
+        k: v for k, v in performance_data.items() if k in performance_keys
+    }
+
     app_settings = AppSettings(
         general=GeneralSettings(**general_filtered),
         negotiation=NegotiationSettings(**negotiation_filtered),
         genius_bridge=GeniusBridgeSettings(**genius_bridge_filtered),
         paths=PathSettings(**paths_filtered),
+        performance=PerformanceSettings(**performance_filtered),
     )
     await asyncio.to_thread(SettingsService.save_all, app_settings)
     return asdict(app_settings)
@@ -161,6 +170,25 @@ async def update_path_settings(settings: dict[str, Any]) -> dict[str, Any]:
     paths = PathSettings(**settings)
     await asyncio.to_thread(SettingsService.save_paths, paths)
     return asdict(paths)
+
+
+@router.get("/performance")
+async def get_performance_settings() -> dict[str, Any]:
+    """Get performance settings."""
+    settings = await asyncio.to_thread(SettingsService.load_performance)
+    return asdict(settings)
+
+
+@router.put("/performance")
+async def update_performance_settings(settings: dict[str, Any]) -> dict[str, Any]:
+    """Update performance settings."""
+    # Convert 0 to None for "no limit" semantics
+    for key in ["max_outcomes_run", "max_outcomes_stats", "max_outcomes_info"]:
+        if key in settings and settings[key] == 0:
+            settings[key] = None
+    performance = PerformanceSettings(**settings)
+    await asyncio.to_thread(SettingsService.save_performance, performance)
+    return asdict(performance)
 
 
 @router.get("/negotiator_sources")
@@ -386,6 +414,62 @@ async def clear_recent_sessions() -> dict[str, Any]:
     """Clear all recent sessions."""
     await asyncio.to_thread(SettingsService.clear_recent_sessions)
     return {"success": True}
+
+
+# --- Tournament Presets ---
+
+
+@router.get("/presets/tournaments")
+async def get_tournament_presets() -> dict[str, Any]:
+    """Get all tournament presets."""
+    presets = await asyncio.to_thread(SettingsService.load_tournament_presets)
+    return {"presets": [asdict(p) for p in presets]}
+
+
+@router.post("/presets/tournaments")
+async def save_tournament_preset(data: dict[str, Any]) -> dict[str, Any]:
+    """Save a tournament preset."""
+    preset = TournamentPreset(
+        name=data["name"],
+        scenario_paths=data.get("scenario_paths", []),
+        competitor_types=data.get("competitor_types", []),
+        competitor_configs=data.get("competitor_configs", {}),
+        n_repetitions=data.get("n_repetitions", 1),
+        rotate_ufuns=data.get("rotate_ufuns", True),
+        self_play=data.get("self_play", True),
+        mechanism_type=data.get("mechanism_type", "SAOMechanism"),
+        n_steps=data.get("n_steps"),
+        n_steps_min=data.get("n_steps_min"),
+        n_steps_max=data.get("n_steps_max"),
+        time_limit=data.get("time_limit"),
+        time_limit_min=data.get("time_limit_min"),
+        time_limit_max=data.get("time_limit_max"),
+        step_time_limit=data.get("step_time_limit"),
+        negotiator_time_limit=data.get("negotiator_time_limit"),
+        hidden_time_limit=data.get("hidden_time_limit"),
+        pend=data.get("pend"),
+        pend_per_second=data.get("pend_per_second"),
+        final_score_metric=data.get("final_score_metric", "advantage"),
+        final_score_stat=data.get("final_score_stat", "mean"),
+        randomize_runs=data.get("randomize_runs", False),
+        sort_runs=data.get("sort_runs", True),
+        id_reveals_type=data.get("id_reveals_type", False),
+        name_reveals_type=data.get("name_reveals_type", True),
+        mask_scenario_names=data.get("mask_scenario_names", False),
+        only_failures_on_self_play=data.get("only_failures_on_self_play", False),
+        save_stats=data.get("save_stats", True),
+        save_scenario_figs=data.get("save_scenario_figs", False),
+        save_every=data.get("save_every", 0),
+    )
+    await asyncio.to_thread(SettingsService.save_tournament_preset, preset)
+    return asdict(preset)
+
+
+@router.delete("/presets/tournaments/{name}")
+async def delete_tournament_preset(name: str) -> dict[str, Any]:
+    """Delete a tournament preset."""
+    success = await asyncio.to_thread(SettingsService.delete_tournament_preset, name)
+    return {"success": success}
 
 
 # =============================================================================

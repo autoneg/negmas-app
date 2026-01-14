@@ -33,7 +33,9 @@ class SessionManager:
         self._configs: dict[str, list[NegotiatorConfig]] = {}
         self._mechanism_params: dict[str, dict] = {}
         self._mechanism_types: dict[str, str] = {}
-        self._scenario_options: dict[str, dict] = {}  # ignore_discount, ignore_reserved
+        self._scenario_options: dict[
+            str, dict
+        ] = {}  # ignore_discount, ignore_reserved, normalize
         self._auto_save: dict[str, bool] = {}  # Whether to auto-save on completion
         self._cancel_flags: dict[str, bool] = {}
         self._pause_flags: dict[str, bool] = {}
@@ -47,6 +49,7 @@ class SessionManager:
         mechanism_params: dict | None = None,
         ignore_discount: bool = False,
         ignore_reserved: bool = False,
+        normalize: bool = False,
         auto_save: bool = True,
     ) -> NegotiationSession:
         """Create a new negotiation session.
@@ -58,6 +61,7 @@ class SessionManager:
             mechanism_params: Dictionary of mechanism parameters.
             ignore_discount: If True, ignore discount factors in utility functions.
             ignore_reserved: If True, ignore reserved values in utility functions.
+            normalize: If True, normalize utility functions to [0, 1] range.
             auto_save: If True, save negotiation to disk on completion.
 
         Returns:
@@ -80,6 +84,7 @@ class SessionManager:
         self._scenario_options[session_id] = {
             "ignore_discount": ignore_discount,
             "ignore_reserved": ignore_reserved,
+            "normalize": normalize,
         }
         self._auto_save[session_id] = auto_save
         self._cancel_flags[session_id] = False
@@ -166,6 +171,11 @@ class SessionManager:
                 for ufun in scenario.ufuns:
                     if hasattr(ufun, "reserved_value"):
                         ufun.reserved_value = float("-inf")
+
+            # Apply normalization if requested
+            normalize = scenario_options.get("normalize", False)
+            if normalize:
+                scenario.normalize()
 
             # Get mechanism type and params stored during create_session
             mechanism_type = self._mechanism_types.get(session_id, "SAOMechanism")

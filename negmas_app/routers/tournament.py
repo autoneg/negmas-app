@@ -35,6 +35,7 @@ class TournamentConfigRequest(BaseModel):
 
     competitor_types: list[str]
     scenario_paths: list[str]
+    opponent_types: list[str] | None = None  # If None, competitors play each other
     competitor_params: list[dict] | None = None
     n_repetitions: int = 1
     rotate_ufuns: bool = True
@@ -73,6 +74,11 @@ class TournamentConfigRequest(BaseModel):
     save_stats: bool = True
     save_scenario_figs: bool = False
     save_every: int = 0
+
+    # Scenario options
+    normalize: bool = (
+        True  # Normalize utility functions (recommended for fair aggregation)
+    )
 
     # Execution
     njobs: int = -1
@@ -113,6 +119,7 @@ async def start_tournament(request: TournamentConfigRequest):
     config = TournamentConfig(
         competitor_types=request.competitor_types,
         scenario_paths=request.scenario_paths,
+        opponent_types=request.opponent_types,
         competitor_params=request.competitor_params,
         n_repetitions=request.n_repetitions,
         rotate_ufuns=request.rotate_ufuns,
@@ -136,6 +143,7 @@ async def start_tournament(request: TournamentConfigRequest):
         save_stats=request.save_stats,
         save_scenario_figs=request.save_scenario_figs,
         save_every=request.save_every,
+        normalize=request.normalize,
         njobs=request.njobs,
         save_path=request.save_path,
         verbosity=request.verbosity,
@@ -185,25 +193,46 @@ async def stream_tournament(session_id: str):
                         ),
                     }
                 elif isinstance(event, CellUpdate):
+                    # Build the event data
+                    cell_data = {
+                        "competitor_idx": event.competitor_idx,
+                        "opponent_idx": event.opponent_idx,
+                        "scenario_idx": event.scenario_idx,
+                        "repetition": event.repetition,
+                        "rotated": event.rotated,
+                        "status": event.status.value,
+                        "end_reason": event.end_reason.value
+                        if event.end_reason
+                        else None,
+                        "utilities": event.utilities,
+                        "error": event.error,
+                    }
+                    # Include detailed negotiation data for completed cells
+                    if event.status.value == "complete":
+                        cell_data["issue_names"] = event.issue_names
+                        cell_data["scenario_path"] = event.scenario_path
+                        cell_data["n_steps"] = event.n_steps
+                        cell_data["agreement"] = (
+                            list(event.agreement) if event.agreement else None
+                        )
+                        # Include offers if available
+                        if event.offers:
+                            cell_data["offers"] = [
+                                {
+                                    "step": o.step,
+                                    "proposer": o.proposer,
+                                    "proposer_index": o.proposer_index,
+                                    "offer": list(o.offer) if o.offer else None,
+                                    "offer_dict": o.offer_dict,
+                                    "utilities": o.utilities,
+                                }
+                                for o in event.offers
+                            ]
                     yield {
                         "event": "cell_start"
                         if event.status.value == "running"
                         else "cell_complete",
-                        "data": json.dumps(
-                            {
-                                "competitor_idx": event.competitor_idx,
-                                "opponent_idx": event.opponent_idx,
-                                "scenario_idx": event.scenario_idx,
-                                "repetition": event.repetition,
-                                "rotated": event.rotated,
-                                "status": event.status.value,
-                                "end_reason": event.end_reason.value
-                                if event.end_reason
-                                else None,
-                                "utilities": event.utilities,
-                                "error": event.error,
-                            }
-                        ),
+                        "data": json.dumps(cell_data),
                     }
                 elif (
                     isinstance(event, list)

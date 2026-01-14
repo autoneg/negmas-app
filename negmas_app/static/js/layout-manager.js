@@ -406,16 +406,17 @@ const LayoutManager = {
      * Get the active layout
      */
     getActiveLayout() {
-        if (!this._state) {
-            this.init();
+        if (!this._state || !this._state.layouts) {
+            return BuiltInLayouts.default;
         }
-        return this._state.layouts[this._state.activeLayoutId] || this._state.layouts.default;
+        return this._state.layouts[this._state.activeLayoutId] || this._state.layouts.default || BuiltInLayouts.default;
     },
     
     /**
      * Get a specific layout by ID
      */
     getLayout(layoutId) {
+        if (!this._state || !this._state.layouts) return null;
         return this._state.layouts[layoutId];
     },
     
@@ -423,8 +424,8 @@ const LayoutManager = {
      * Get all layouts
      */
     getAllLayouts() {
-        if (!this._state) {
-            this.init();
+        if (!this._state || !this._state.layouts) {
+            return Object.values(BuiltInLayouts);
         }
         return Object.values(this._state.layouts);
     },

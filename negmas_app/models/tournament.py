@@ -56,8 +56,12 @@ class TournamentConfig:
     """Configuration for running a tournament."""
 
     # Required
-    competitor_types: list[str]  # Negotiator type names
+    competitor_types: list[str]  # Negotiator type names (scored)
     scenario_paths: list[str]  # Paths to scenario directories
+
+    # Optional opponents (if None, competitors play against each other)
+    # If specified, competitors play against opponents but only competitors are scored
+    opponent_types: list[str] | None = None
 
     # Optional negotiator parameters (one dict per competitor or None for defaults)
     competitor_params: list[dict] | None = None
@@ -103,8 +107,16 @@ class TournamentConfig:
 
     # Save options
     save_stats: bool = True  # Save statistics
-    save_scenario_figs: bool = False  # Save scenario figures
-    save_every: int = 0  # Save results every N negotiations (0 = only at end)
+    save_scenario_figs: bool = True  # Save scenario figures
+    save_every: int = 1  # Save results every N negotiations (0 = only at end)
+    capture_offers: bool = (
+        True  # Capture offer trace for each negotiation (for viewing)
+    )
+
+    # Scenario options
+    normalize: bool = (
+        True  # Normalize utility functions (recommended for fair aggregation)
+    )
 
     # Execution
     njobs: int = -1  # -1 = serial (safer for web app), 0 = all cores
@@ -132,6 +144,18 @@ class CompetitorScore:
 
 
 @dataclass
+class TournamentOffer:
+    """A single offer in a tournament negotiation."""
+
+    step: int
+    proposer: str
+    proposer_index: int
+    offer: tuple  # The actual offer
+    offer_dict: dict  # Offer as {issue: value}
+    utilities: list[float]  # Utility for each negotiator
+
+
+@dataclass
 class NegotiationResult:
     """Result of a single negotiation in the tournament."""
 
@@ -144,6 +168,11 @@ class NegotiationResult:
     error_details: str | None = None
     execution_time: float | None = None
     end_reason: NegotiationEndReason | None = None
+    # Optional detailed trace data (populated when capture_offers=True)
+    offers: list[TournamentOffer] | None = None
+    issue_names: list[str] | None = None
+    scenario_path: str | None = None
+    n_steps: int | None = None
 
 
 @dataclass
@@ -163,6 +192,12 @@ class CellUpdate:
     end_reason: NegotiationEndReason | None = None  # Only set when complete
     utilities: list[float] | None = None  # Utilities achieved
     error: str | None = None  # Error message if end_reason is ERROR or BROKEN
+    # Optional detailed negotiation data for viewing
+    offers: list[TournamentOffer] | None = None
+    issue_names: list[str] | None = None
+    scenario_path: str | None = None
+    n_steps: int | None = None
+    agreement: tuple | None = None
 
 
 @dataclass

@@ -24,6 +24,7 @@ from ..models.tournament import (
     CellUpdate,
     LeaderboardEntry,
     TournamentGridInit,
+    TournamentOffer,
 )
 from .scenario_loader import ScenarioLoader
 from .negotiator_factory import _get_class_for_type
@@ -179,15 +180,20 @@ class TournamentManager:
             # Load scenarios (run in thread pool to avoid blocking)
             scenarios: list[Scenario] = []  # type: ignore[type-arg]
             scenario_names: list[str] = []
+            scenario_paths: list[str] = []  # Track paths for each loaded scenario
             for path in config.scenario_paths:
                 scenario = await asyncio.to_thread(
                     self.scenario_loader.load_scenario, path
                 )
                 if scenario is not None:
+                    # Apply normalization if requested
+                    if config.normalize:
+                        scenario.normalize()
                     scenarios.append(scenario)
                     scenario_names.append(
                         Path(scenario.outcome_space.name or "unknown").name
                     )
+                    scenario_paths.append(path)
 
             if not scenarios:
                 session.status = TournamentStatus.FAILED
@@ -204,20 +210,59 @@ class TournamentManager:
                     competitor_classes.append(cls)  # type: ignore[arg-type]
                     competitor_names.append(cls.__name__)
 
-            if len(competitor_classes) < 2:
+            if len(competitor_classes) < 1:
                 session.status = TournamentStatus.FAILED
-                session.error = "At least 2 valid competitors required"
+                session.error = "At least 1 valid competitor required"
+                yield session
+                return
+
+            # Get opponent classes if specified, otherwise use competitors
+            opponent_classes: list[type[SAONegotiator]]
+            opponent_names: list[str]
+            if config.opponent_types is not None:
+                opponent_classes = []
+                opponent_names = []
+                for type_name in config.opponent_types:
+                    cls = await asyncio.to_thread(_get_class_for_type, type_name)
+                    if cls is not None:
+                        opponent_classes.append(cls)  # type: ignore[arg-type]
+                        opponent_names.append(cls.__name__)
+                if len(opponent_classes) < 1:
+                    session.status = TournamentStatus.FAILED
+                    session.error = "At least 1 valid opponent required"
+                    yield session
+                    return
+            else:
+                # Same as competitors - they play against each other
+                opponent_classes = competitor_classes
+                opponent_names = competitor_names
+
+            # Check if we need at least 2 total participants
+            if config.opponent_types is None and len(competitor_classes) < 2:
+                session.status = TournamentStatus.FAILED
+                session.error = (
+                    "At least 2 valid competitors required when opponents not specified"
+                )
                 yield session
                 return
 
             # Calculate total negotiations
             n_competitors = len(competitor_classes)
+            n_opponents = len(opponent_classes)
             n_scenarios = len(scenarios)
-            n_pairings_per_scenario = (
-                n_competitors * n_competitors
-                if config.self_play
-                else n_competitors * (n_competitors - 1)
-            )
+
+            # When opponents are separate, we iterate competitor x opponent
+            # When opponents are same as competitors, check self_play
+            if config.opponent_types is not None:
+                # Competitor vs opponent mode - all combinations
+                n_pairings_per_scenario = n_competitors * n_opponents
+            else:
+                # Competitor vs competitor mode - respect self_play
+                n_pairings_per_scenario = (
+                    n_competitors * n_opponents
+                    if config.self_play
+                    else n_competitors * (n_opponents - 1)
+                )
             if config.rotate_ufuns:
                 n_pairings_per_scenario *= 2  # Each pairing in both positions
             total_negotiations = (
@@ -227,7 +272,7 @@ class TournamentManager:
             # Yield initial grid structure
             grid_init = TournamentGridInit(
                 competitors=competitor_names,
-                opponents=competitor_names,  # Same as competitors for now
+                opponents=opponent_names,
                 scenarios=scenario_names,
                 n_repetitions=config.n_repetitions,
                 rotate_ufuns=config.rotate_ufuns,
@@ -266,9 +311,14 @@ class TournamentManager:
 
                 for rep in range(config.n_repetitions):
                     for i, cls_i in enumerate(competitor_classes):
-                        for j, cls_j in enumerate(competitor_classes):
-                            # Skip self-play if disabled
-                            if not config.self_play and i == j:
+                        for j, cls_j in enumerate(opponent_classes):
+                            # Skip self-play if disabled and same agent
+                            # (only applies when opponents == competitors)
+                            if (
+                                config.opponent_types is None
+                                and not config.self_play
+                                and competitor_names[i] == opponent_names[j]
+                            ):
                                 continue
 
                             # Emit cell_start
@@ -291,16 +341,29 @@ class TournamentManager:
                                 competitor_classes=[cls_i, cls_j],
                                 mechanism_class=mechanism_class,
                                 mechanism_params=mechanism_params,
+                                capture_offers=config.capture_offers,
+                                scenario_path=scenario_paths[scenario_idx],
                             )
                             negotiation_results.append(result)
+                            # Only update stats for competitor (first position)
+                            # If opponent is also a competitor, update their stats too
                             self._update_competitor_stats(
                                 competitor_stats,
-                                [cls_i.__name__, cls_j.__name__],
+                                [cls_i.__name__],  # Only competitor gets scored
                                 result,
+                                positions=[0],  # Competitor is at position 0
                             )
+                            # If opponent is also in competitor_stats, update them too
+                            if cls_j.__name__ in competitor_stats:
+                                self._update_competitor_stats(
+                                    competitor_stats,
+                                    [cls_j.__name__],
+                                    result,
+                                    positions=[1],  # Opponent is at position 1
+                                )
                             completed += 1
 
-                            # Emit cell_complete
+                            # Emit cell_complete with full negotiation data
                             cell_complete = CellUpdate(
                                 competitor_idx=i,
                                 opponent_idx=j,
@@ -311,6 +374,11 @@ class TournamentManager:
                                 end_reason=result.end_reason,
                                 utilities=result.utilities,
                                 error=result.error_details,
+                                offers=result.offers,
+                                issue_names=result.issue_names,
+                                scenario_path=result.scenario_path,
+                                n_steps=result.n_steps,
+                                agreement=result.agreement,
                             )
                             yield cell_complete
 
@@ -366,17 +434,33 @@ class TournamentManager:
                                     mechanism_class=mechanism_class,
                                     mechanism_params=mechanism_params_rot,
                                     rotate_ufuns=True,
+                                    capture_offers=config.capture_offers,
+                                    scenario_path=scenario_paths[scenario_idx],
                                 )
                                 negotiation_results.append(result)
                                 # Note: When rotated, cls_i gets ufun[1], cls_j gets ufun[0]
+                                # So competitor (cls_i) is now at position 1 (second utility)
                                 self._update_competitor_stats(
                                     competitor_stats,
-                                    [cls_i.__name__, cls_j.__name__],
+                                    [cls_i.__name__],
                                     result,
+                                    positions=[
+                                        1
+                                    ],  # Competitor at position 1 when rotated
                                 )
+                                # If opponent is also a competitor, update them too
+                                if cls_j.__name__ in competitor_stats:
+                                    self._update_competitor_stats(
+                                        competitor_stats,
+                                        [cls_j.__name__],
+                                        result,
+                                        positions=[
+                                            0
+                                        ],  # Opponent at position 0 when rotated
+                                    )
                                 completed += 1
 
-                                # Emit cell_complete for rotated
+                                # Emit cell_complete for rotated with full negotiation data
                                 cell_complete_rot = CellUpdate(
                                     competitor_idx=i,
                                     opponent_idx=j,
@@ -387,6 +471,11 @@ class TournamentManager:
                                     end_reason=result.end_reason,
                                     utilities=result.utilities,
                                     error=result.error_details,
+                                    offers=result.offers,
+                                    issue_names=result.issue_names,
+                                    scenario_path=result.scenario_path,
+                                    n_steps=result.n_steps,
+                                    agreement=result.agreement,
                                 )
                                 yield cell_complete_rot
 
@@ -456,8 +545,20 @@ class TournamentManager:
         mechanism_class: type[SAOMechanism],
         mechanism_params: dict[str, Any],
         rotate_ufuns: bool = False,
+        capture_offers: bool = True,
+        scenario_path: str | None = None,
     ) -> NegotiationResult:
-        """Run a single negotiation and return the result."""
+        """Run a single negotiation and return the result.
+
+        Args:
+            scenario: The negotiation scenario.
+            competitor_classes: List of negotiator classes to compete.
+            mechanism_class: The mechanism class to use.
+            mechanism_params: Parameters for the mechanism.
+            rotate_ufuns: Whether to rotate utility functions.
+            capture_offers: Whether to capture the full offer trace.
+            scenario_path: Path to the scenario directory.
+        """
         scenario_name = scenario.outcome_space.name or "unknown"
         partners = [cls.__name__ for cls in competitor_classes]
 
@@ -474,9 +575,15 @@ class TournamentManager:
                 ufuns = [ufuns[1], ufuns[0]]
 
             # Create negotiators and add to mechanism
-            for cls, ufun in zip(competitor_classes, ufuns):
+            negotiator_id_to_idx: dict[str, int] = {}
+            for idx, (cls, ufun) in enumerate(zip(competitor_classes, ufuns)):
                 negotiator = cls()
                 mechanism.add(negotiator, ufun=ufun)
+                negotiator_id_to_idx[negotiator.id] = idx
+
+            # Get issue names for offer dicts
+            issue_names = [i.name for i in scenario.outcome_space.issues]
+            n_steps = mechanism_params.get("n_steps")
 
             # Run the negotiation (run in thread pool to avoid blocking)
             start = datetime.now()
@@ -523,6 +630,34 @@ class TournamentManager:
                         utilities[1] - utilities[0],
                     ]
 
+            # Capture offer trace if requested
+            offers: list[TournamentOffer] | None = None
+            if capture_offers:
+                offers = []
+                # The mechanism's extended_trace contains all offers
+                # Format: list of (step, negotiator_id, offer) tuples
+                if hasattr(mechanism, "extended_trace") and mechanism.extended_trace:
+                    for step, neg_id, offer in mechanism.extended_trace:
+                        if offer is None:
+                            continue
+                        proposer_idx = negotiator_id_to_idx.get(neg_id, 0)
+                        # Calculate utilities for this offer
+                        # Use the ufuns in current order (may be rotated)
+                        offer_utils = []
+                        for ufun in ufuns:
+                            u = ufun(offer)
+                            offer_utils.append(float(u) if u is not None else 0.0)
+                        offers.append(
+                            TournamentOffer(
+                                step=step,
+                                proposer=partners[proposer_idx],
+                                proposer_index=proposer_idx,
+                                offer=offer,
+                                offer_dict=dict(zip(issue_names, offer)),
+                                utilities=offer_utils,
+                            )
+                        )
+
             return NegotiationResult(
                 scenario=scenario_name,
                 partners=partners,
@@ -532,6 +667,10 @@ class TournamentManager:
                 has_error=False,
                 execution_time=execution_time,
                 end_reason=end_reason,
+                offers=offers,
+                issue_names=issue_names,
+                scenario_path=scenario_path,
+                n_steps=n_steps,
             )
 
         except Exception as e:
@@ -551,9 +690,21 @@ class TournamentManager:
         stats: dict[str, dict[str, Any]],
         names: list[str],
         result: NegotiationResult,
+        positions: list[int] | None = None,
     ) -> None:
-        """Update competitor statistics with negotiation result."""
-        for i, name in enumerate(names):
+        """Update competitor statistics with negotiation result.
+
+        Args:
+            stats: Dictionary mapping competitor names to their stats
+            names: List of competitor names to update
+            result: The negotiation result
+            positions: List of positions in the result for each name.
+                       If None, uses [0, 1, 2, ...] (original behavior)
+        """
+        if positions is None:
+            positions = list(range(len(names)))
+
+        for name, pos in zip(names, positions):
             if name not in stats:
                 continue
 
@@ -562,11 +713,11 @@ class TournamentManager:
             if result.agreement is not None:
                 stats[name]["n_agreements"] += 1
 
-            if result.utilities is not None and i < len(result.utilities):
-                stats[name]["utilities"].append(result.utilities[i])
+            if result.utilities is not None and pos < len(result.utilities):
+                stats[name]["utilities"].append(result.utilities[pos])
 
-            if result.advantages is not None and i < len(result.advantages):
-                stats[name]["advantages"].append(result.advantages[i])
+            if result.advantages is not None and pos < len(result.advantages):
+                stats[name]["advantages"].append(result.advantages[pos])
 
     def _build_leaderboard(
         self,
@@ -725,6 +876,9 @@ class TournamentManager:
                     self.scenario_loader.load_scenario, path
                 )
                 if scenario is not None:
+                    # Apply normalization if requested
+                    if config.normalize:
+                        scenario.normalize()
                     scenarios.append(scenario)
 
             if not scenarios:
@@ -739,10 +893,29 @@ class TournamentManager:
                 if cls is not None:
                     competitors.append(cls)  # type: ignore[arg-type]
 
-            if len(competitors) < 2:
+            if len(competitors) < 1:
                 session.status = TournamentStatus.FAILED
-                session.error = "At least 2 valid competitors required"
+                session.error = "At least 1 valid competitor required"
                 return session
+
+            # Get opponent classes if specified
+            opponents: list[type[SAONegotiator]] | None = None
+            if config.opponent_types is not None:
+                opponents = []
+                for type_name in config.opponent_types:
+                    cls = await asyncio.to_thread(_get_class_for_type, type_name)
+                    if cls is not None:
+                        opponents.append(cls)  # type: ignore[arg-type]
+                if len(opponents) < 1:
+                    session.status = TournamentStatus.FAILED
+                    session.error = "At least 1 valid opponent required"
+                    return session
+            else:
+                # When no opponents specified, need at least 2 competitors
+                if len(competitors) < 2:
+                    session.status = TournamentStatus.FAILED
+                    session.error = "At least 2 valid competitors required when opponents not specified"
+                    return session
 
             # Get mechanism class
             mechanism_class = self._get_mechanism_class(config.mechanism_type)
@@ -772,6 +945,10 @@ class TournamentManager:
                 "verbosity": config.verbosity,
                 "path": Path(config.save_path) if config.save_path else None,
             }
+
+            # Add opponents if specified
+            if opponents is not None:
+                tournament_kwargs["opponents"] = opponents
 
             # Add optional time limits if set
             if config.step_time_limit is not None:
