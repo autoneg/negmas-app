@@ -83,6 +83,8 @@
 
     {% include 'components/modals/save_session_modal.html' %}
 
+    {% include 'components/modals/scenario_creator_modal.html' %}
+
     <script>
     function app() {
         return {
@@ -117,6 +119,17 @@
             
             // Tournament state
             showNewTournament: false,
+            
+            // Scenario Creator state
+            showScenarioCreator: false,
+            scenarioCreator: {
+                name: '',
+                issues: [],
+                ufuns: [],
+                error: null,
+                creating: false,
+            },
+            
             tournamentSessions: [],
             savedTournaments: [],
             savedTournamentsLoading: false,
@@ -887,6 +900,204 @@
             
             filterExplorerScenarios() {
                 // Reactivity handles filtering via computed property
+            },
+            
+            // ==========================================
+            // Scenario Creator Functions
+            // ==========================================
+            
+            openScenarioCreator() {
+                this.showScenarioCreator = true;
+                // Reset state
+                this.scenarioCreator = {
+                    name: '',
+                    issues: [],
+                    ufuns: [],
+                    error: null,
+                    creating: false,
+                };
+                // Add default 2 issues and 2 negotiators
+                this.addIssue();
+                this.addIssue();
+                this.addUfun();
+                this.addUfun();
+            },
+            
+            addIssue() {
+                this.scenarioCreator.issues.push({
+                    name: '',
+                    type: 'categorical',
+                    values: [],
+                    valuesText: '',
+                    min_value: 0,
+                    max_value: 10,
+                });
+                // Update ufun weights to match new issue count
+                this.updateUfunWeights();
+            },
+            
+            removeIssue(idx) {
+                this.scenarioCreator.issues.splice(idx, 1);
+                // Update ufun weights
+                this.updateUfunWeights();
+            },
+            
+            onIssueTypeChange(idx) {
+                const issue = this.scenarioCreator.issues[idx];
+                if (issue.type === 'categorical') {
+                    issue.values = [];
+                    issue.valuesText = '';
+                } else {
+                    issue.min_value = 0;
+                    issue.max_value = 10;
+                }
+            },
+            
+            addUfun() {
+                const n = this.scenarioCreator.ufuns.length;
+                const issueCount = this.scenarioCreator.issues.length || 1;
+                this.scenarioCreator.ufuns.push({
+                    name: n === 0 ? 'Buyer' : n === 1 ? 'Seller' : `Negotiator ${n + 1}`,
+                    type: 'linear_additive',
+                    reserved_value: 0.0,
+                    mode: 'weights',
+                    weights: Array(issueCount).fill(1.0 / issueCount),
+                    values: [],  // For detailed mode
+                });
+            },
+            
+            removeUfun(idx) {
+                this.scenarioCreator.ufuns.splice(idx, 1);
+            },
+            
+            updateUfunWeights() {
+                const issueCount = this.scenarioCreator.issues.length || 1;
+                for (const ufun of this.scenarioCreator.ufuns) {
+                    // Resize weights array
+                    while (ufun.weights.length < issueCount) {
+                        ufun.weights.push(1.0 / issueCount);
+                    }
+                    while (ufun.weights.length > issueCount) {
+                        ufun.weights.pop();
+                    }
+                }
+            },
+            
+            setUfunWeight(ufunIdx, issueIdx, value) {
+                if (!this.scenarioCreator.ufuns[ufunIdx].weights) {
+                    this.scenarioCreator.ufuns[ufunIdx].weights = [];
+                }
+                this.scenarioCreator.ufuns[ufunIdx].weights[issueIdx] = parseFloat(value) || 0;
+            },
+            
+            setUfunValueMapping(ufunIdx, issueIdx, value, utility) {
+                const ufun = this.scenarioCreator.ufuns[ufunIdx];
+                if (!ufun.valueMappings) {
+                    ufun.valueMappings = {};
+                }
+                if (!ufun.valueMappings[issueIdx]) {
+                    ufun.valueMappings[issueIdx] = {};
+                }
+                ufun.valueMappings[issueIdx][value] = parseFloat(utility) || 0;
+            },
+            
+            async createScenario() {
+                // Validation
+                if (!this.scenarioCreator.name.trim()) {
+                    this.scenarioCreator.error = 'Scenario name is required';
+                    return;
+                }
+                if (this.scenarioCreator.issues.length === 0) {
+                    this.scenarioCreator.error = 'At least one issue is required';
+                    return;
+                }
+                if (this.scenarioCreator.ufuns.length < 2) {
+                    this.scenarioCreator.error = 'At least two negotiators are required';
+                    return;
+                }
+                
+                // Validate issues
+                for (let i = 0; i < this.scenarioCreator.issues.length; i++) {
+                    const issue = this.scenarioCreator.issues[i];
+                    if (!issue.name.trim()) {
+                        this.scenarioCreator.error = `Issue ${i + 1} needs a name`;
+                        return;
+                    }
+                    if (issue.type === 'categorical' && (!issue.values || issue.values.length === 0)) {
+                        this.scenarioCreator.error = `Issue "${issue.name}" needs at least one value`;
+                        return;
+                    }
+                }
+                
+                // Validate ufuns
+                for (let i = 0; i < this.scenarioCreator.ufuns.length; i++) {
+                    const ufun = this.scenarioCreator.ufuns[i];
+                    if (!ufun.name.trim()) {
+                        this.scenarioCreator.error = `Negotiator ${i + 1} needs a name`;
+                        return;
+                    }
+                }
+                
+                this.scenarioCreator.error = null;
+                this.scenarioCreator.creating = true;
+                
+                try {
+                    // Build request payload
+                    const payload = {
+                        name: this.scenarioCreator.name.trim(),
+                        issues: this.scenarioCreator.issues.map(i => ({
+                            name: i.name.trim(),
+                            type: i.type,
+                            values: i.type === 'categorical' ? i.values : null,
+                            min_value: i.type !== 'categorical' ? i.min_value : null,
+                            max_value: i.type !== 'categorical' ? i.max_value : null,
+                        })),
+                        ufuns: this.scenarioCreator.ufuns.map(u => ({
+                            name: u.name.trim(),
+                            type: u.type,
+                            reserved_value: u.reserved_value,
+                            weights: u.weights,
+                            values: u.mode === 'detailed' && u.valueMappings ? 
+                                Object.entries(u.valueMappings).map(([issueIdx, mapping]) => ({
+                                    issue_index: parseInt(issueIdx),
+                                    type: 'table',
+                                    mapping: mapping,
+                                })) : null,
+                        })),
+                    };
+                    
+                    const res = await fetch('/api/scenarios/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    
+                    const data = await res.json();
+                    
+                    if (!res.ok) {
+                        throw new Error(data.detail || 'Failed to create scenario');
+                    }
+                    
+                    // Success!
+                    this.showToast(`Scenario "${this.scenarioCreator.name}" created successfully!`, 'success');
+                    this.showScenarioCreator = false;
+                    
+                    // Refresh scenario lists
+                    this.scenarios = [];  // Clear cache to force reload
+                    this.explorerScenarios = [];
+                    await this.loadAllScenarios();
+                    
+                    // If on scenarios page, reload explorer
+                    if (this.currentPage === 'scenarios') {
+                        await this.loadScenariosForExplorer();
+                    }
+                    
+                } catch (e) {
+                    console.error('Failed to create scenario:', e);
+                    this.scenarioCreator.error = e.message || 'Failed to create scenario';
+                } finally {
+                    this.scenarioCreator.creating = false;
+                }
             },
             
             // Negotiator Explorer functions

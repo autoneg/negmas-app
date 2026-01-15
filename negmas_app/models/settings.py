@@ -88,6 +88,8 @@ class PathSettings:
     """Custom paths for scenarios."""
 
     scenario_paths: list[str] = field(default_factory=list)
+    # User scenarios directory for custom/created scenarios
+    user_scenarios: str = "~/negmas/app/scenarios"
 
 
 @dataclass

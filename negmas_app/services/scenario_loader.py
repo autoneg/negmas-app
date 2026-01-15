@@ -74,38 +74,96 @@ class ScenarioLoader:
         self.scenarios_root = Path(scenarios_root)
 
     def list_sources(self) -> list[str]:
-        """List available scenario sources (e.g., anac2019, anac2020)."""
-        if not self.scenarios_root.exists():
-            return []
-        return sorted(
-            [
+        """List available scenario sources (e.g., anac2019, anac2020, user)."""
+        sources = []
+        if self.scenarios_root.exists():
+            sources.extend(
                 d.name
                 for d in self.scenarios_root.iterdir()
                 if d.is_dir() and not d.name.startswith(".")
-            ]
-        )
+            )
+
+        # Also check user scenarios directory
+        settings = SettingsService.load_paths()
+        user_scenarios = Path(settings.user_scenarios).expanduser()
+        if user_scenarios.exists():
+            # Add "user" as a source if there are any scenarios
+            has_user_scenarios = any(
+                d.is_dir() and not d.name.startswith(".")
+                for d in user_scenarios.iterdir()
+            )
+            if has_user_scenarios and "user" not in sources:
+                sources.append("user")
+
+        return sorted(sources)
 
     def list_scenarios(self, source: str | None = None) -> list[ScenarioInfo]:
         """List all scenarios, optionally filtered by source.
 
         Args:
-            source: Filter by source (e.g., "anac2019"). None returns all.
+            source: Filter by source (e.g., "anac2019", "user"). None returns all.
         """
         scenarios = []
 
-        if source:
-            sources = [source] if (self.scenarios_root / source).exists() else []
-        else:
-            sources = self.list_sources()
+        # Get user scenarios directory
+        settings = SettingsService.load_paths()
+        user_scenarios = Path(settings.user_scenarios).expanduser()
 
-        for src in sources:
-            src_path = self.scenarios_root / src
-            for scenario_dir in sorted(src_path.iterdir()):
-                if scenario_dir.is_dir() and not scenario_dir.name.startswith("."):
-                    # Use lightweight loading for list (no full Scenario.load)
-                    info = self._load_scenario_info_lightweight(scenario_dir, src)
-                    if info:
-                        scenarios.append(info)
+        if source:
+            if source == "user":
+                # Only user scenarios
+                if user_scenarios.exists():
+                    for scenario_dir in sorted(user_scenarios.iterdir()):
+                        if scenario_dir.is_dir() and not scenario_dir.name.startswith(
+                            "."
+                        ):
+                            info = self._load_scenario_info_lightweight(
+                                scenario_dir, "user"
+                            )
+                            if info:
+                                scenarios.append(info)
+            else:
+                # Built-in source
+                if (self.scenarios_root / source).exists():
+                    src_path = self.scenarios_root / source
+                    for scenario_dir in sorted(src_path.iterdir()):
+                        if scenario_dir.is_dir() and not scenario_dir.name.startswith(
+                            "."
+                        ):
+                            info = self._load_scenario_info_lightweight(
+                                scenario_dir, source
+                            )
+                            if info:
+                                scenarios.append(info)
+        else:
+            # All sources
+            sources = self.list_sources()
+            for src in sources:
+                if src == "user":
+                    # User scenarios
+                    if user_scenarios.exists():
+                        for scenario_dir in sorted(user_scenarios.iterdir()):
+                            if (
+                                scenario_dir.is_dir()
+                                and not scenario_dir.name.startswith(".")
+                            ):
+                                info = self._load_scenario_info_lightweight(
+                                    scenario_dir, "user"
+                                )
+                                if info:
+                                    scenarios.append(info)
+                else:
+                    # Built-in source
+                    src_path = self.scenarios_root / src
+                    for scenario_dir in sorted(src_path.iterdir()):
+                        if scenario_dir.is_dir() and not scenario_dir.name.startswith(
+                            "."
+                        ):
+                            info = self._load_scenario_info_lightweight(
+                                scenario_dir, src
+                            )
+                            if info:
+                                scenarios.append(info)
 
         return scenarios
 
@@ -458,3 +516,161 @@ class ScenarioLoader:
             negotiator_names=negotiator_names,
             issue_names=issue_names,
         )
+
+    def create_scenario(
+        self,
+        definition: "ScenarioDefinition",
+        save_path: Path | None = None,
+    ) -> tuple[Scenario | None, Path | None, str | None]:
+        """Create a new scenario from a definition.
+
+        Args:
+            definition: The scenario definition.
+            save_path: Where to save the scenario. If None, uses user scenarios directory.
+
+        Returns:
+            Tuple of (created Scenario, saved path, error message if failed).
+        """
+        from negmas.outcomes import make_issue, make_os
+        from negmas.preferences import (
+            LinearAdditiveUtilityFunction,
+            AffineUtilityFunction,
+            TableFun,
+            LinearFun,
+            IdentityFun,
+        )
+
+        from ..models.scenario import ScenarioDefinition
+
+        try:
+            # 1. Create issues
+            issues = []
+            for issue_def in definition.issues:
+                if issue_def.type == "categorical":
+                    if not issue_def.values:
+                        return (
+                            None,
+                            None,
+                            f"Categorical issue '{issue_def.name}' requires values",
+                        )
+                    issue = make_issue(name=issue_def.name, values=issue_def.values)
+                elif issue_def.type == "integer":
+                    if issue_def.min_value is None or issue_def.max_value is None:
+                        return (
+                            None,
+                            None,
+                            f"Integer issue '{issue_def.name}' requires min/max values",
+                        )
+                    # Integer range as list of values
+                    issue = make_issue(
+                        name=issue_def.name,
+                        values=list(
+                            range(
+                                int(issue_def.min_value), int(issue_def.max_value) + 1
+                            )
+                        ),
+                    )
+                elif issue_def.type == "continuous":
+                    if issue_def.min_value is None or issue_def.max_value is None:
+                        return (
+                            None,
+                            None,
+                            f"Continuous issue '{issue_def.name}' requires min/max values",
+                        )
+                    issue = make_issue(
+                        name=issue_def.name,
+                        values=(issue_def.min_value, issue_def.max_value),
+                    )
+                else:
+                    return None, None, f"Unknown issue type: {issue_def.type}"
+                issues.append(issue)
+
+            # 2. Create outcome space
+            outcome_space = make_os(issues, name=f"{definition.name}_domain")
+
+            # 3. Create utility functions
+            ufuns = []
+            for ufun_def in definition.ufuns:
+                if ufun_def.type == "linear_additive":
+                    # Build value functions for each issue
+                    values = []
+                    if ufun_def.values:
+                        for vf_def in ufun_def.values:
+                            if vf_def.type == "table" and vf_def.mapping:
+                                values.append(TableFun(vf_def.mapping))
+                            elif vf_def.type == "linear":
+                                slope = (
+                                    vf_def.slope if vf_def.slope is not None else 1.0
+                                )
+                                intercept = (
+                                    vf_def.intercept
+                                    if vf_def.intercept is not None
+                                    else 0.0
+                                )
+                                values.append(LinearFun(slope, intercept))
+                            elif vf_def.type == "identity":
+                                values.append(IdentityFun())
+                            else:
+                                # Default to identity
+                                values.append(IdentityFun())
+                    else:
+                        # Auto-generate identity functions for each issue
+                        values = [IdentityFun() for _ in issues]
+
+                    # Use provided weights or equal weights
+                    weights = ufun_def.weights or [1.0 / len(issues)] * len(issues)
+
+                    ufun = LinearAdditiveUtilityFunction(
+                        values=values,
+                        weights=weights,
+                        outcome_space=outcome_space,
+                        reserved_value=ufun_def.reserved_value,
+                        name=ufun_def.name,
+                    )
+                elif ufun_def.type == "affine":
+                    weights = ufun_def.weights or [1.0 / len(issues)] * len(issues)
+                    bias = ufun_def.bias if ufun_def.bias is not None else 0.0
+                    ufun = AffineUtilityFunction(
+                        weights=weights,
+                        bias=bias,
+                        outcome_space=outcome_space,
+                        reserved_value=ufun_def.reserved_value,
+                        name=ufun_def.name,
+                    )
+                else:
+                    return None, None, f"Unknown ufun type: {ufun_def.type}"
+
+                ufuns.append(ufun)
+
+            # 4. Create scenario
+            scenario = Scenario(outcome_space=outcome_space, ufuns=ufuns)
+
+            # 5. Save to disk if path provided
+            if save_path is None:
+                # Default to user scenarios directory
+                settings = SettingsService.load_paths()
+                user_scenarios = Path(settings.user_scenarios).expanduser()
+                user_scenarios.mkdir(parents=True, exist_ok=True)
+                save_path = user_scenarios / definition.name
+
+            # Ensure unique name
+            original_path = save_path
+            counter = 1
+            while save_path.exists():
+                save_path = original_path.parent / f"{original_path.name}_{counter}"
+                counter += 1
+
+            # Save scenario (dumpas only takes folder and type)
+            scenario.dumpas(save_path)
+
+            # Invalidate caches so the new scenario appears in lists
+            path_str = str(save_path)
+            if path_str in _SCENARIO_INFO_CACHE:
+                del _SCENARIO_INFO_CACHE[path_str]
+            if path_str in _SCENARIO_DETAIL_CACHE:
+                del _SCENARIO_DETAIL_CACHE[path_str]
+
+            return scenario, save_path, None
+
+        except Exception as e:
+            return None, None, str(e)

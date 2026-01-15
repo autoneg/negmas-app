@@ -5,6 +5,13 @@
                     <div class="scenario-explorer-list">
                         <div class="scenario-explorer-header">
                             <h2>Scenario Explorer <span class="text-muted" style="font-weight: normal; font-size: 14px;" x-text="'(' + filteredExplorerScenarios.length + (explorerScenarios.length !== filteredExplorerScenarios.length ? ' / ' + explorerScenarios.length : '') + ')'"></span></h2>
+                            <button class="btn btn-primary btn-sm" @click="openScenarioCreator()" title="Create a new scenario">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                Create
+                            </button>
                         </div>
                         
                         <div class="scenario-explorer-filters">

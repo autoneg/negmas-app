@@ -23,7 +23,16 @@ from .negotiator import (
     BOANegotiatorConfig,
     MAPNegotiatorConfig,
 )
-from .scenario import ScenarioInfo, IssueInfo, ScenarioStatsInfo
+from .scenario import (
+    ScenarioInfo,
+    IssueInfo,
+    ScenarioStatsInfo,
+    ScenarioSource,
+    IssueDefinition,
+    ValueFunctionDefinition,
+    UtilityFunctionDefinition,
+    ScenarioDefinition,
+)
 from .session import (
     NegotiationSession,
     SessionStatus,
@@ -96,6 +105,11 @@ __all__ = [
     "ScenarioInfo",
     "IssueInfo",
     "ScenarioStatsInfo",
+    "ScenarioSource",
+    "IssueDefinition",
+    "ValueFunctionDefinition",
+    "UtilityFunctionDefinition",
+    "ScenarioDefinition",
     # Session
     "NegotiationSession",
     "SessionStatus",

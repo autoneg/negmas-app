@@ -115,3 +115,52 @@ class ScenarioSource:
     name: str
     path: Path
     is_builtin: bool = False
+
+
+# --- Scenario Creation Models ---
+
+
+@dataclass
+class IssueDefinition:
+    """Definition for creating a new issue."""
+
+    name: str
+    type: str  # "categorical", "integer", "continuous"
+    values: list[str] | None = None  # For categorical issues
+    min_value: float | None = None  # For integer/continuous
+    max_value: float | None = None  # For integer/continuous
+
+
+@dataclass
+class ValueFunctionDefinition:
+    """Definition for a value function (maps issue values to utilities)."""
+
+    issue_index: int  # Index of the issue this applies to
+    type: str = "table"  # "table", "linear", "identity"
+    mapping: dict[str, float] | None = None  # For table type: {"value": utility}
+    slope: float | None = None  # For linear type
+    intercept: float | None = None  # For linear type
+
+
+@dataclass
+class UtilityFunctionDefinition:
+    """Definition for creating a utility function."""
+
+    name: str
+    type: str = "linear_additive"  # "linear_additive", "affine"
+    reserved_value: float = 0.0
+    weights: list[float] | None = None  # Weights per issue (for linear_additive)
+    values: list[ValueFunctionDefinition] | None = None  # Value functions per issue
+    # For affine ufun (continuous domains)
+    bias: float | None = None
+
+
+@dataclass
+class ScenarioDefinition:
+    """Full definition for creating a new scenario."""
+
+    name: str
+    issues: list[IssueDefinition]
+    ufuns: list[UtilityFunctionDefinition]
+    description: str = ""
+    tags: list[str] = field(default_factory=list)

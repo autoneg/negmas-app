@@ -3,12 +3,20 @@
 import asyncio
 import json
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from ..services import ScenarioLoader, compute_outcome_utilities
+from ..models.scenario import (
+    IssueDefinition,
+    ValueFunctionDefinition,
+    UtilityFunctionDefinition,
+    ScenarioDefinition,
+)
 
 router = APIRouter(prefix="/api/scenarios", tags=["scenarios"])
 
@@ -214,3 +222,131 @@ async def bulk_calculate_stats(data: dict[str, Any]):
         yield {"event": "complete", "data": json.dumps(completion_data)}
 
     return EventSourceResponse(generate())
+
+
+# --- Pydantic models for scenario creation API ---
+
+
+class ValueFunctionInput(BaseModel):
+    """Input model for value function definition."""
+
+    issue_index: int
+    type: str = "table"  # "table", "linear", "identity"
+    mapping: dict[str, float] | None = None
+    slope: float | None = None
+    intercept: float | None = None
+
+
+class UtilityFunctionInput(BaseModel):
+    """Input model for utility function definition."""
+
+    name: str
+    type: str = "linear_additive"
+    reserved_value: float = 0.0
+    weights: list[float] | None = None
+    values: list[ValueFunctionInput] | None = None
+    bias: float | None = None
+
+
+class IssueInput(BaseModel):
+    """Input model for issue definition."""
+
+    name: str
+    type: str  # "categorical", "integer", "continuous"
+    values: list[str] | None = None
+    min_value: float | None = None
+    max_value: float | None = None
+
+
+class ScenarioCreateInput(BaseModel):
+    """Input model for creating a new scenario."""
+
+    name: str
+    issues: list[IssueInput]
+    ufuns: list[UtilityFunctionInput]
+    description: str = ""
+    tags: list[str] = []
+    save_path: str | None = None  # Optional custom save path
+
+
+@router.post("/create")
+async def create_scenario(data: ScenarioCreateInput):
+    """Create a new scenario from definition.
+
+    Args:
+        data: Scenario definition with issues and utility functions.
+
+    Returns:
+        Created scenario info.
+    """
+
+    def _create():
+        # Convert Pydantic models to dataclasses
+        issues = [
+            IssueDefinition(
+                name=i.name,
+                type=i.type,
+                values=i.values,
+                min_value=i.min_value,
+                max_value=i.max_value,
+            )
+            for i in data.issues
+        ]
+
+        ufuns = []
+        for u in data.ufuns:
+            values = None
+            if u.values:
+                values = [
+                    ValueFunctionDefinition(
+                        issue_index=v.issue_index,
+                        type=v.type,
+                        mapping=v.mapping,
+                        slope=v.slope,
+                        intercept=v.intercept,
+                    )
+                    for v in u.values
+                ]
+            ufuns.append(
+                UtilityFunctionDefinition(
+                    name=u.name,
+                    type=u.type,
+                    reserved_value=u.reserved_value,
+                    weights=u.weights,
+                    values=values,
+                    bias=u.bias,
+                )
+            )
+
+        definition = ScenarioDefinition(
+            name=data.name,
+            issues=issues,
+            ufuns=ufuns,
+            description=data.description,
+            tags=data.tags,
+        )
+
+        save_path = Path(data.save_path) if data.save_path else None
+        scenario, created_path, error = _loader.create_scenario(definition, save_path)
+
+        if error:
+            return {"success": False, "error": error}
+
+        # Get info for the created scenario
+        if scenario is not None and created_path is not None:
+            info = _loader.get_scenario_info(str(created_path))
+            if info:
+                return {
+                    "success": True,
+                    "scenario": _scenario_to_dict(info),
+                    "path": str(created_path),
+                }
+
+        return {"success": True, "path": str(created_path) if created_path else None}
+
+    result = await asyncio.to_thread(_create)
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400, detail=result.get("error", "Unknown error")
+        )
+    return result
