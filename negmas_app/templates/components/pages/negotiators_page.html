@@ -1,0 +1,234 @@
+            <!-- Content Area - Negotiator Explorer -->
+            <div class="content-area scenario-explorer" x-show="currentPage === 'negotiators'" x-cloak>
+                <div class="scenario-explorer-layout">
+                    <!-- Left Panel: Filters & List -->
+                    <div class="scenario-explorer-list">
+                        <div class="scenario-explorer-header">
+                            <h2>Negotiator Explorer <span class="text-muted" style="font-weight: normal; font-size: 14px;" x-text="'(' + filteredExplorerNegotiators.length + (explorerNegotiators.length !== filteredExplorerNegotiators.length ? ' / ' + explorerNegotiators.length : '') + ')'"></span></h2>
+                        </div>
+                        
+                        <div class="scenario-explorer-filters">
+                            <div class="form-group">
+                                <input type="text" class="form-input" placeholder="Search negotiators..." 
+                                       x-model="negotiatorExplorerSearch" @input.debounce.300ms="filterExplorerNegotiators()">
+                            </div>
+                            <div class="form-group">
+                                <select class="form-select" x-model="negotiatorExplorerSourceFilter" @change="filterExplorerNegotiators()">
+                                    <option value="">All Sources</option>
+                                    <option value="native">Native</option>
+                                    <option value="genius">Genius</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <select class="form-select" x-model="negotiatorExplorerGroupFilter" @change="filterExplorerNegotiators()">
+                                    <option value="">All Groups</option>
+                                    <option value="core">Core</option>
+                                    <option value="anac2010">ANAC 2010</option>
+                                    <option value="anac2011">ANAC 2011</option>
+                                    <option value="anac2012">ANAC 2012</option>
+                                    <option value="anac2013">ANAC 2013</option>
+                                    <option value="anac2015">ANAC 2015</option>
+                                    <option value="anac2016">ANAC 2016</option>
+                                    <option value="anac2017">ANAC 2017</option>
+                                    <option value="anac2018">ANAC 2018</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="scenario-explorer-results">
+                            <div class="text-muted" style="padding: 12px; font-size: 13px;" x-show="negotiatorExplorerLoading">
+                                Loading negotiators...
+                            </div>
+                            <div class="text-muted" style="padding: 12px; font-size: 13px;" x-show="!negotiatorExplorerLoading && filteredExplorerNegotiators.length === 0">
+                                No negotiators found
+                            </div>
+                            <template x-for="negotiator in filteredExplorerNegotiators" :key="negotiator.type_name">
+                                <div class="scenario-explorer-item" 
+                                     :class="{ selected: selectedExplorerNegotiator?.type_name === negotiator.type_name }"
+                                     @click="selectNegotiatorForExplorer(negotiator)">
+                                    <div class="scenario-explorer-item-name" x-text="negotiator.name"></div>
+                                    <div class="scenario-explorer-item-meta">
+                                        <span class="badge badge-secondary" x-text="negotiator.source"></span>
+                                        <template x-if="negotiator.group">
+                                            <span class="badge badge-neutral" x-text="negotiator.group"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- Right Panel: Negotiator Details -->
+                    <div class="scenario-explorer-details">
+                        <template x-if="!selectedExplorerNegotiator">
+                            <div class="scenario-explorer-empty">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="64" height="64" style="opacity: 0.3;">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                                <p>Select a negotiator to view details</p>
+                            </div>
+                        </template>
+                        <template x-if="selectedExplorerNegotiator">
+                            <div class="scenario-detail-view">
+                                <div class="scenario-detail-header">
+                                    <h2 x-text="selectedExplorerNegotiator.name"></h2>
+                                    <div class="scenario-detail-actions">
+                                        <button class="btn btn-primary btn-sm" @click="createVirtualNegotiator()" :disabled="creatingVirtualNegotiator">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                                <polyline points="7 3 7 8 15 8"></polyline>
+                                            </svg>
+                                            <span x-text="creatingVirtualNegotiator ? 'Saving...' : 'Save as Virtual'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="scenario-detail-content">
+                                    <div class="scenario-detail-section">
+                                        <h3>Overview</h3>
+                                        <div class="scenario-detail-grid">
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Source</span>
+                                                <span class="stat-value" x-text="selectedExplorerNegotiator.source"></span>
+                                            </div>
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Group</span>
+                                                <span class="stat-value" x-text="selectedExplorerNegotiator.group || 'N/A'"></span>
+                                            </div>
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Type</span>
+                                                <span class="stat-value" style="font-size: 11px; word-break: break-all;" x-text="selectedExplorerNegotiator.type_name"></span>
+                                            </div>
+                                        </div>
+                                        <template x-if="selectedExplorerNegotiator.description">
+                                            <div style="margin-top: 12px;">
+                                                <p class="text-muted" style="font-size: 13px;" x-text="selectedExplorerNegotiator.description"></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    
+                                    <div class="scenario-detail-section">
+                                        <h3>Tags</h3>
+                                        <template x-if="selectedExplorerNegotiator.tags && selectedExplorerNegotiator.tags.length > 0">
+                                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                                <template x-for="tag in selectedExplorerNegotiator.tags" :key="tag">
+                                                    <span class="badge badge-neutral" x-text="tag"></span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!selectedExplorerNegotiator.tags || selectedExplorerNegotiator.tags.length === 0">
+                                            <p class="text-muted" style="font-size: 13px;">No tags</p>
+                                        </template>
+                                    </div>
+                                    
+                                    <div class="scenario-detail-section">
+                                        <h3>Mechanisms</h3>
+                                        <template x-if="selectedExplorerNegotiator.mechanisms && selectedExplorerNegotiator.mechanisms.length > 0">
+                                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                                <template x-for="mechanism in selectedExplorerNegotiator.mechanisms" :key="mechanism">
+                                                    <span class="badge badge-secondary" x-text="mechanism"></span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!selectedExplorerNegotiator.mechanisms || selectedExplorerNegotiator.mechanisms.length === 0">
+                                            <p class="text-muted" style="font-size: 13px;">No mechanisms specified</p>
+                                        </template>
+                                    </div>
+                                    
+                                    <div class="scenario-detail-section" x-show="negotiatorExplorerParams && negotiatorExplorerParams.length > 0">
+                                        <h3>Parameters</h3>
+                                        <div class="form-group" x-show="negotiatorExplorerParamsLoading">
+                                            <p class="text-muted" style="font-size: 13px;">Loading parameters...</p>
+                                        </div>
+                                        <template x-if="!negotiatorExplorerParamsLoading && negotiatorExplorerParams && negotiatorExplorerParams.length > 0">
+                                            <div>
+                                                <template x-for="param in negotiatorExplorerParams" :key="param.name">
+                                                    <div class="form-group">
+                                                        <label class="form-label">
+                                                            <span x-text="param.name"></span>
+                                                            <template x-if="param.required">
+                                                                <span style="color: var(--danger);">*</span>
+                                                            </template>
+                                                        </label>
+                                                        <template x-if="param.description">
+                                                            <div class="text-muted" style="font-size: 11px; margin-bottom: 4px;" x-text="param.description"></div>
+                                                        </template>
+                                                        
+                                                        <!-- Boolean parameter -->
+                                                        <template x-if="param.type === 'bool'">
+                                                            <select class="form-select" x-model="virtualNegotiatorParams[param.name]">
+                                                                <option value="">Default</option>
+                                                                <option value="true">True</option>
+                                                                <option value="false">False</option>
+                                                            </select>
+                                                        </template>
+                                                        
+                                                        <!-- Enum parameter -->
+                                                        <template x-if="param.type === 'Literal' && param.values">
+                                                            <select class="form-select" x-model="virtualNegotiatorParams[param.name]">
+                                                                <option value="">Default</option>
+                                                                <template x-for="value in param.values" :key="value">
+                                                                    <option :value="value" x-text="value"></option>
+                                                                </template>
+                                                            </select>
+                                                        </template>
+                                                        
+                                                        <!-- Number parameter -->
+                                                        <template x-if="['int', 'float'].includes(param.type)">
+                                                            <input type="number" 
+                                                                   class="form-input" 
+                                                                   x-model="virtualNegotiatorParams[param.name]"
+                                                                   :step="param.type === 'float' ? '0.01' : '1'"
+                                                                   :placeholder="'Default: ' + (param.default ?? 'None')">
+                                                        </template>
+                                                        
+                                                        <!-- String parameter -->
+                                                        <template x-if="param.type === 'str'">
+                                                            <input type="text" 
+                                                                   class="form-input" 
+                                                                   x-model="virtualNegotiatorParams[param.name]"
+                                                                   :placeholder="'Default: ' + (param.default ?? 'None')">
+                                                        </template>
+                                                        
+                                                        <!-- Other types -->
+                                                        <template x-if="!['bool', 'Literal', 'int', 'float', 'str'].includes(param.type) && !param.values">
+                                                            <input type="text" 
+                                                                   class="form-input" 
+                                                                   x-model="virtualNegotiatorParams[param.name]"
+                                                                   :placeholder="'Type: ' + param.type">
+                                                        </template>
+                                                        
+                                                        <div class="text-muted" style="font-size: 11px; margin-top: 4px;">
+                                                            <span>Type: </span><span x-text="param.type"></span>
+                                                            <template x-if="param.default !== undefined && param.default !== null">
+                                                                <span> | Default: <span x-text="param.default"></span></span>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!negotiatorExplorerParamsLoading && (!negotiatorExplorerParams || negotiatorExplorerParams.length === 0)">
+                                            <p class="text-muted" style="font-size: 13px;">No configurable parameters</p>
+                                        </template>
+                                    </div>
+                                    
+                                    <div class="scenario-detail-section">
+                                        <h3>Virtual Negotiator Name</h3>
+                                        <div class="form-group">
+                                            <input type="text" 
+                                                   class="form-input" 
+                                                   x-model="virtualNegotiatorName"
+                                                   placeholder="Enter a name for this virtual negotiator">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+            

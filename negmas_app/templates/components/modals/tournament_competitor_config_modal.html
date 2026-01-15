@@ -1,0 +1,169 @@
+<!-- Tournament Competitor Configuration Modal -->
+    <div class="modal-overlay" :class="{ active: showCompetitorConfig }" @click.self="closeCompetitorConfig()">
+        <div class="modal medium">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    Configure Competitor
+                    <span class="text-muted" style="font-size: 14px; font-weight: normal;" 
+                          x-text="competitorConfigTypeName ? (' - ' + (negotiatorTypes.find(n => n.type_name === competitorConfigTypeName)?.name || getVirtualNegotiator(competitorConfigTypeName)?.name || 'Agent')) : ''"></span>
+                </h2>
+                <button class="modal-close" @click="closeCompetitorConfig()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Loading state -->
+                <div x-show="competitorConfigLoading" class="text-center" style="padding: 40px;">
+                    <div class="spinner"></div>
+                    <div class="text-muted" style="margin-top: 12px;">Loading parameters...</div>
+                </div>
+                
+                <!-- No parameters -->
+                <div x-show="!competitorConfigLoading && competitorConfigParams.length === 0" class="text-center" style="padding: 40px;">
+                    <div class="text-muted">No configurable parameters found for this negotiator type.</div>
+                </div>
+                
+                <!-- Parameters form -->
+                <div x-show="!competitorConfigLoading && competitorConfigParams.length > 0">
+                    <div class="form-hint" style="margin-bottom: 16px;">
+                        Configure parameters for <strong x-text="competitorConfigTypeName ? (negotiatorTypes.find(n => n.type_name === competitorConfigTypeName)?.name || getVirtualNegotiator(competitorConfigTypeName)?.name || competitorConfigTypeName) : ''"></strong>
+                    </div>
+                    
+                    <div style="max-height: 350px; overflow-y: auto;">
+                        <template x-for="param in competitorConfigParams" :key="param.name">
+                            <div class="form-group" x-show="!param.is_complex" style="margin-bottom: 16px;">
+                                <!-- Boolean parameters -->
+                                <template x-if="param.ui_type === 'bool'">
+                                    <div>
+                                        <label class="form-checkbox">
+                                            <input type="checkbox" 
+                                                   :checked="competitorConfigValues[param.name] ?? param.default"
+                                                   @change="competitorConfigValues[param.name] = $event.target.checked">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                        </label>
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                                
+                                <!-- Integer parameters -->
+                                <template x-if="param.ui_type === 'int' || param.ui_type === 'optional_int'">
+                                    <div>
+                                        <label class="form-label">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                            <span class="text-muted" x-show="param.ui_type === 'optional_int'">(optional)</span>
+                                        </label>
+                                        <input type="number" class="form-input" style="max-width: 200px;"
+                                               :value="competitorConfigValues[param.name] ?? param.default"
+                                               @input="competitorConfigValues[param.name] = $event.target.value ? parseInt($event.target.value) : null"
+                                               :placeholder="param.default !== null ? param.default : 'None'">
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                                
+                                <!-- Float parameters -->
+                                <template x-if="param.ui_type === 'float' || param.ui_type === 'optional_float'">
+                                    <div>
+                                        <label class="form-label">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                            <span class="text-muted" x-show="param.ui_type === 'optional_float'">(optional)</span>
+                                        </label>
+                                        <input type="number" class="form-input" style="max-width: 200px;" step="0.01"
+                                               :value="competitorConfigValues[param.name] ?? param.default"
+                                               @input="competitorConfigValues[param.name] = $event.target.value ? parseFloat($event.target.value) : null"
+                                               :placeholder="param.default !== null ? param.default : 'None'">
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                                
+                                <!-- String parameters -->
+                                <template x-if="param.ui_type === 'string' || param.ui_type === 'optional_string'">
+                                    <div>
+                                        <label class="form-label">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                            <span class="text-muted" x-show="param.ui_type === 'optional_string'">(optional)</span>
+                                        </label>
+                                        <input type="text" class="form-input" style="max-width: 300px;"
+                                               :value="competitorConfigValues[param.name] ?? param.default ?? ''"
+                                               @input="competitorConfigValues[param.name] = $event.target.value || null"
+                                               :placeholder="param.default !== null ? param.default : 'None'">
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                                
+                                <!-- Choice parameters -->
+                                <template x-if="param.ui_type === 'choice'">
+                                    <div>
+                                        <label class="form-label">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                        </label>
+                                        <select class="form-select" style="max-width: 200px;"
+                                                :value="competitorConfigValues[param.name] ?? param.default"
+                                                @change="competitorConfigValues[param.name] = $event.target.value">
+                                            <template x-for="choice in param.choices" :key="choice">
+                                                <option :value="choice" x-text="choice"></option>
+                                            </template>
+                                        </select>
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <!-- Save as Virtual Negotiator option -->
+                    <div style="margin-top: 20px; padding: 16px; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color);">
+                        <label class="form-checkbox">
+                            <input type="checkbox" x-model="competitorConfigSaveAsVirtual">
+                            <span style="font-weight: 500;">Save as Virtual Negotiator</span>
+                        </label>
+                        <div class="form-hint" style="margin-top: 4px;">
+                            Create a reusable negotiator variant with these parameters
+                        </div>
+                        
+                        <div x-show="competitorConfigSaveAsVirtual" style="margin-top: 12px;">
+                            <label class="form-label">Virtual Negotiator Name</label>
+                            <input type="text" class="form-input" 
+                                   x-model="competitorConfigVirtualName"
+                                   placeholder="e.g., Aggressive Aspiration Agent">
+                        </div>
+                    </div>
+                    
+                    <!-- Show complex parameters as info -->
+                    <template x-if="competitorConfigParams.some(p => p.is_complex)">
+                        <details style="margin-top: 16px;">
+                            <summary class="text-muted" style="cursor: pointer; font-size: 13px;">
+                                Advanced parameters (not editable in UI)
+                            </summary>
+                            <div style="padding: 12px; background: var(--bg-tertiary); border-radius: 6px; margin-top: 8px;">
+                                <template x-for="param in competitorConfigParams.filter(p => p.is_complex)" :key="param.name">
+                                    <div style="margin-bottom: 8px; font-size: 13px;">
+                                        <code x-text="param.name" style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px;"></code>
+                                        <span class="text-muted" x-text="': ' + param.type"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </details>
+                    </template>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="closeCompetitorConfig()">Cancel</button>
+                <button class="btn btn-primary" @click="saveCompetitorConfig()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span x-text="competitorConfigSaveAsVirtual ? 'Create Virtual Negotiator' : 'Close'"></span>
+                </button>
+            </div>
+        </div>
+    </div>

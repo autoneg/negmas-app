@@ -182,6 +182,7 @@ async def stream_negotiation(
                                 "end_reason": event.end_reason,
                                 "n_steps": event.current_step,
                                 "error": event.error,
+                                "optimality_stats": event.optimality_stats,
                             }
                         ),
                     }
@@ -293,6 +294,7 @@ async def get_session(session_id: str):
         "final_utilities": session.final_utilities,
         "end_reason": session.end_reason,
         "error": session.error,
+        "optimality_stats": session.optimality_stats,
         "offers": [
             {
                 "step": o.step,
@@ -385,6 +387,7 @@ async def get_saved_negotiation(session_id: str):
         "final_utilities": session.final_utilities,
         "end_reason": session.end_reason,
         "error": session.error,
+        "optimality_stats": session.optimality_stats,
         "offers": [
             {
                 "step": o.step,

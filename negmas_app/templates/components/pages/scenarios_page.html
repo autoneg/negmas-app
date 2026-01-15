@@ -1,0 +1,314 @@
+            <!-- Content Area - Scenario Explorer -->
+            <div class="content-area scenario-explorer" x-show="currentPage === 'scenarios'" x-cloak>
+                <div class="scenario-explorer-layout">
+                    <!-- Left Panel: Filters & List -->
+                    <div class="scenario-explorer-list">
+                        <div class="scenario-explorer-header">
+                            <h2>Scenario Explorer <span class="text-muted" style="font-weight: normal; font-size: 14px;" x-text="'(' + filteredExplorerScenarios.length + (explorerScenarios.length !== filteredExplorerScenarios.length ? ' / ' + explorerScenarios.length : '') + ')'"></span></h2>
+                        </div>
+                        
+                        <div class="scenario-explorer-filters">
+                            <div class="form-group">
+                                <input type="text" class="form-input" placeholder="Search scenarios..." 
+                                       x-model="explorerSearch" @input.debounce.300ms="filterExplorerScenarios()">
+                            </div>
+                            <div class="form-group">
+                                <select class="form-select" x-model="explorerSourceFilter" @change="filterExplorerScenarios()">
+                                    <option value="">All Sources</option>
+                                    <template x-for="(source, idx) in (sources || [])" :key="source?.id || idx">
+                                        <option :value="source.id" x-text="source.name + ' (' + source.count + ')'"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            
+                            <!-- Advanced Filters Toggle -->
+                            <div class="form-group">
+                                <button type="button" class="btn btn-link" style="padding: 0; font-size: 12px;" 
+                                        @click="explorerFilters.showAdvanced = !explorerFilters.showAdvanced">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"
+                                         :style="{ transform: explorerFilters.showAdvanced ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                        <polyline points="9 18 15 12 9 6"></polyline>
+                                    </svg>
+                                    Advanced Filters
+                                </button>
+                            </div>
+                            
+                            <!-- Advanced Filters Panel -->
+                            <div class="form-group" x-show="explorerFilters.showAdvanced" x-collapse style="margin-top: 0;">
+                                <div style="background: var(--bg-secondary); padding: 10px; border-radius: 6px; font-size: 12px;">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                                        <div>
+                                            <label style="font-size: 11px; color: var(--text-muted);">Min Outcomes</label>
+                                            <input type="number" class="form-input form-input-sm" 
+                                                   placeholder="10" 
+                                                   x-model="explorerFilters.minOutcomes"
+                                                   min="1" style="font-size: 12px;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 11px; color: var(--text-muted);">Max Outcomes</label>
+                                            <input type="number" class="form-input form-input-sm" 
+                                                   placeholder="1000"
+                                                   x-model="explorerFilters.maxOutcomes"
+                                                   min="1" style="font-size: 12px;">
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                        <div>
+                                            <label style="font-size: 11px; color: var(--text-muted);">Min Rational %</label>
+                                            <input type="number" class="form-input form-input-sm" 
+                                                   placeholder="0.5" 
+                                                   x-model="explorerFilters.minRationalFraction"
+                                                   min="0" max="1" step="0.1" style="font-size: 12px;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 11px; color: var(--text-muted);">Max Rational %</label>
+                                            <input type="number" class="form-input form-input-sm" 
+                                                   placeholder="1.0"
+                                                   x-model="explorerFilters.maxRationalFraction"
+                                                   min="0" max="1" step="0.1" style="font-size: 12px;">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Calculate Stats Button -->
+                            <div class="form-group" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color);">
+                                <button type="button" class="btn btn-secondary btn-sm" style="width: 100%;"
+                                        @click="bulkCalculateStats(false)"
+                                        :disabled="bulkStatsRunning">
+                                    <template x-if="!bulkStatsRunning">
+                                        <span>Calculate Missing Stats</span>
+                                    </template>
+                                    <template x-if="bulkStatsRunning">
+                                        <span>Calculating... <span x-text="bulkStatsProgress?.completed || 0"></span>/<span x-text="bulkStatsProgress?.total || 0"></span></span>
+                                    </template>
+                                </button>
+                                <button type="button" class="btn btn-link btn-sm" style="width: 100%; margin-top: 4px; font-size: 11px;"
+                                        @click="bulkCalculateStats(true)"
+                                        :disabled="bulkStatsRunning">
+                                    Recalculate All Stats
+                                </button>
+                                <template x-if="bulkStatsProgress">
+                                    <div style="margin-top: 8px;">
+                                        <div class="progress-bar-container" style="height: 4px; background: var(--bg-tertiary); border-radius: 2px; overflow: hidden;">
+                                            <div class="progress-bar" 
+                                                 :style="'width: ' + (bulkStatsProgress.total > 0 ? (bulkStatsProgress.completed / bulkStatsProgress.total * 100) : 0) + '%'">
+                                            </div>
+                                        </div>
+                                        <div class="text-muted" style="font-size: 10px; margin-top: 4px;" x-text="bulkStatsProgress.current_path?.split('/').pop() || ''"></div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        
+                        <div class="scenario-explorer-results">
+                            <div class="text-muted" style="padding: 12px; font-size: 13px;" x-show="explorerLoading">
+                                Loading scenarios...
+                            </div>
+                            <div class="text-muted" style="padding: 12px; font-size: 13px;" x-show="!explorerLoading && filteredExplorerScenarios.length === 0">
+                                No scenarios found
+                            </div>
+                            <template x-for="scenario in filteredExplorerScenarios" :key="scenario.path">
+                                <div class="scenario-explorer-item" 
+                                     :class="{ selected: selectedScenario?.path === scenario.path }"
+                                     @click="selectScenarioForExplorer(scenario)">
+                                    <div class="scenario-explorer-item-name" x-text="scenario.name"></div>
+                                    <div class="scenario-explorer-item-meta">
+                                        <span class="badge badge-secondary" x-text="scenario.source"></span>
+                                        <span x-text="scenario.n_negotiators + ' parties'"></span>
+                                        <span x-text="(scenario.issues?.length || scenario.n_issues || '?') + ' issues'"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- Right Panel: Scenario Details -->
+                    <div class="scenario-explorer-details">
+                        <template x-if="!selectedScenario">
+                            <div class="scenario-explorer-empty">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="64" height="64" style="opacity: 0.3;">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                                <p>Select a scenario to view details</p>
+                            </div>
+                        </template>
+                        <template x-if="selectedScenario">
+                            <div class="scenario-detail-view">
+                                <div class="scenario-detail-header">
+                                    <h2 x-text="selectedScenario.name"></h2>
+                                    <div class="scenario-detail-actions">
+                                        <button class="btn btn-primary btn-sm" @click="useScenarioInNegotiation(selectedScenario)">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                            </svg>
+                                            Use in Negotiation
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="scenario-detail-content">
+                                    <div class="scenario-detail-section">
+                                        <h3>Overview</h3>
+                                        <div class="scenario-detail-grid">
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Source</span>
+                                                <span class="stat-value" x-text="selectedScenario.source"></span>
+                                            </div>
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Parties</span>
+                                                <span class="stat-value" x-text="selectedScenario.n_negotiators"></span>
+                                            </div>
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Issues</span>
+                                                <span class="stat-value" x-text="selectedScenario.issues?.length || selectedScenario.n_issues || '?'"></span>
+                                            </div>
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Outcomes</span>
+                                                <span class="stat-value" x-text="selectedScenario.n_outcomes || '?'"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="scenario-detail-section">
+                                        <h3>Issues</h3>
+                                        <div class="scenario-issues-list">
+                                            <template x-for="issue in (selectedScenario.issues || [])" :key="issue.name">
+                                                <div class="scenario-issue-item">
+                                                    <div class="issue-name" x-text="issue.name"></div>
+                                                    <div class="issue-type">
+                                                        <span class="badge badge-neutral" x-text="issue.type"></span>
+                                                    </div>
+                                                    <div class="issue-values" x-show="issue.values">
+                                                        <template x-if="issue.values && issue.values.length <= 10">
+                                                            <span class="text-muted" x-text="issue.values.join(', ')"></span>
+                                                        </template>
+                                                        <template x-if="issue.values && issue.values.length > 10">
+                                                            <span class="text-muted" x-text="issue.values.slice(0, 10).join(', ') + '... (' + issue.values.length + ' total)'"></span>
+                                                        </template>
+                                                    </div>
+                                                    <div class="issue-range" x-show="issue.min !== undefined">
+                                                        <span class="text-muted" x-text="'Range: ' + issue.min + ' - ' + issue.max"></span>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <div class="text-muted" x-show="!selectedScenario.issues || selectedScenario.issues.length === 0" style="padding: 8px 0;">
+                                                Issue details not available
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Statistics Section -->
+                                    <div class="scenario-detail-section">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <h3>Statistics</h3>
+                                            <div style="display: flex; gap: 8px;">
+                                                <button class="btn btn-secondary btn-xs" 
+                                                        @click="calculateScenarioStats(selectedScenario.path, false)"
+                                                        :disabled="scenarioStatsLoading"
+                                                        x-show="!selectedScenario.has_stats && !scenarioStats">
+                                                    <span x-text="scenarioStatsLoading ? 'Calculating...' : 'Calculate Stats'"></span>
+                                                </button>
+                                                <button class="btn btn-secondary btn-xs" 
+                                                        @click="calculateScenarioStats(selectedScenario.path, true)"
+                                                        :disabled="scenarioStatsLoading"
+                                                        x-show="scenarioStats"
+                                                        title="Recalculate statistics">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                                        <path d="M23 4v6h-6"></path>
+                                                        <path d="M1 20v-6h6"></path>
+                                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+                                                        <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Loading state -->
+                                        <div x-show="scenarioStatsLoading" class="text-muted" style="padding: 12px 0;">
+                                            Loading statistics...
+                                        </div>
+                                        
+                                        <!-- Error state -->
+                                        <div x-show="scenarioStatsError" class="text-muted" style="padding: 12px 0; color: var(--danger);">
+                                            <span x-text="scenarioStatsError"></span>
+                                        </div>
+                                        
+                                        <!-- No stats available -->
+                                        <div x-show="!scenarioStatsLoading && !scenarioStats && !scenarioStatsError" class="text-muted" style="padding: 12px 0;">
+                                            <span x-show="selectedScenario.has_stats">Stats cached but not loaded</span>
+                                            <span x-show="!selectedScenario.has_stats">Click "Calculate Stats" to compute scenario statistics</span>
+                                        </div>
+                                        
+                                        <!-- Stats display -->
+                                        <div x-show="scenarioStats && scenarioStats.has_stats" class="scenario-stats-content">
+                                            <!-- Opposition -->
+                                            <div class="scenario-detail-grid" style="margin-bottom: 12px;">
+                                                <div class="scenario-detail-stat">
+                                                    <span class="stat-label">Opposition</span>
+                                                    <span class="stat-value" x-text="scenarioStats?.opposition?.toFixed(3) ?? 'N/A'"></span>
+                                                </div>
+                                                <div class="scenario-detail-stat">
+                                                    <span class="stat-label">Pareto Outcomes</span>
+                                                    <span class="stat-value" x-text="scenarioStats?.n_pareto_outcomes ?? 'N/A'"></span>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Utility Ranges -->
+                                            <template x-if="scenarioStats?.utility_ranges && scenarioStats.utility_ranges.length > 0">
+                                                <div style="margin-bottom: 12px;">
+                                                    <div class="text-muted" style="font-size: 11px; margin-bottom: 4px;">Utility Ranges</div>
+                                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                                        <template x-for="(range, idx) in scenarioStats.utility_ranges" :key="idx">
+                                                            <span class="badge badge-neutral" 
+                                                                  x-text="(scenarioStats.negotiator_names?.[idx] || ('Party ' + (idx+1))) + ': [' + range[0].toFixed(2) + ', ' + range[1].toFixed(2) + ']'">
+                                                            </span>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            
+                                            <!-- Special Points -->
+                                            <div class="text-muted" style="font-size: 11px; margin-bottom: 4px;">Special Points</div>
+                                            <div class="scenario-special-points" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                                                <!-- Nash Point -->
+                                                <div class="special-point-item" x-show="scenarioStats?.nash_utils?.length > 0">
+                                                    <span class="point-label">Nash:</span>
+                                                    <span class="point-value" x-text="scenarioStats?.nash_utils?.[0]?.map(u => u.toFixed(3)).join(', ') ?? 'N/A'"></span>
+                                                </div>
+                                                <!-- Kalai Point -->
+                                                <div class="special-point-item" x-show="scenarioStats?.kalai_utils?.length > 0">
+                                                    <span class="point-label">Kalai:</span>
+                                                    <span class="point-value" x-text="scenarioStats?.kalai_utils?.[0]?.map(u => u.toFixed(3)).join(', ') ?? 'N/A'"></span>
+                                                </div>
+                                                <!-- Kalai-Smorodinsky Point -->
+                                                <div class="special-point-item" x-show="scenarioStats?.ks_utils?.length > 0">
+                                                    <span class="point-label">KS:</span>
+                                                    <span class="point-value" x-text="scenarioStats?.ks_utils?.[0]?.map(u => u.toFixed(3)).join(', ') ?? 'N/A'"></span>
+                                                </div>
+                                                <!-- Max Welfare Point -->
+                                                <div class="special-point-item" x-show="scenarioStats?.max_welfare_utils?.length > 0">
+                                                    <span class="point-label">Max Welfare:</span>
+                                                    <span class="point-value" x-text="scenarioStats?.max_welfare_utils?.[0]?.map(u => u.toFixed(3)).join(', ') ?? 'N/A'"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="scenario-detail-section">
+                                        <h3>Path</h3>
+                                        <div class="scenario-path">
+                                            <code x-text="selectedScenario.path"></code>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+            

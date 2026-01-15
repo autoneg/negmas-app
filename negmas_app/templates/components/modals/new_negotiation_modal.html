@@ -1,0 +1,909 @@
+<!-- Start Negotiation Modal -->
+    <div class="modal-overlay" :class="{ active: showNewNegotiation }" @click.self="showNewNegotiation = false">
+        <div class="modal large">
+            <div class="modal-header">
+                <h2 class="modal-title">Start New Negotiation</h2>
+                <div class="modal-header-actions">
+                    <!-- Recent Sessions Dropdown -->
+                    <div class="dropdown" x-data="{ open: false }">
+                        <button class="btn btn-sm btn-secondary" @click="open = !open; loadRecentSessions()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            Recent
+                        </button>
+                        <div class="dropdown-menu" x-show="open" @click.away="open = false" style="right: 0; min-width: 280px;">
+                            <template x-if="recentSessions.length === 0">
+                                <div class="dropdown-item text-muted">No recent sessions</div>
+                            </template>
+                            <template x-for="session in recentSessions" :key="session.name + session.last_used_at">
+                                <div class="dropdown-item" @click="loadFullSession(session); open = false">
+                                    <div class="font-medium" x-text="session.scenario_name"></div>
+                                    <div class="text-muted" style="font-size: 11px;" x-text="session.negotiators.map(n => n.name).join(' vs ')"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <!-- Saved Sessions Dropdown -->
+                    <div class="dropdown" x-data="{ open: false }">
+                        <button class="btn btn-sm btn-secondary" @click="open = !open; loadSessionPresets()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                <polyline points="7 3 7 8 15 8"></polyline>
+                            </svg>
+                            Load
+                        </button>
+                        <div class="dropdown-menu" x-show="open" @click.away="open = false" style="right: 0; min-width: 280px;">
+                            <template x-if="sessionPresets.length === 0">
+                                <div class="dropdown-item text-muted">No saved sessions</div>
+                            </template>
+                            <template x-for="preset in sessionPresets" :key="preset.name">
+                                <div class="dropdown-item" style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div @click="loadFullSession(preset); open = false" style="flex: 1; cursor: pointer;">
+                                        <div class="font-medium" x-text="preset.name"></div>
+                                        <div class="text-muted" style="font-size: 11px;" x-text="preset.scenario_name"></div>
+                                    </div>
+                                    <button class="btn-icon-sm" @click.stop="deleteSessionPreset(preset.name)" title="Delete">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <!-- Save Session Button -->
+                    <button class="btn btn-sm btn-primary" @click="showSaveSessionModal = true" :disabled="!newNeg.scenario">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                            <polyline points="7 3 7 8 15 8"></polyline>
+                        </svg>
+                        Save
+                    </button>
+                </div>
+                <button class="modal-close" @click="showNewNegotiation = false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body" style="padding: 0;">
+                <!-- Wizard Layout with Vertical Tabs -->
+                <div class="wizard-layout">
+                    <!-- Vertical Sidebar Tabs -->
+                    <div class="wizard-sidebar">
+                        <button class="wizard-tab" :class="{ active: negotiationTab === 'scenario', completed: newNeg.scenario }" @click="negotiationTab = 'scenario'" title="Scenario">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                            </svg>
+                            <span class="wizard-tab-label">Scenario</span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: negotiationTab === 'negotiators', completed: newNeg.negotiators.length >= (newNeg.scenario?.n_negotiators || 2) }" @click="negotiationTab = 'negotiators'" title="Negotiators">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                            <span class="wizard-tab-label">Negotiators</span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: negotiationTab === 'parameters' }" @click="negotiationTab = 'parameters'" title="Parameters">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                            </svg>
+                            <span class="wizard-tab-label">Params</span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: negotiationTab === 'panels' }" @click="negotiationTab = 'panels'" title="Panels">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="14" width="7" height="7"></rect>
+                                <rect x="3" y="14" width="7" height="7"></rect>
+                            </svg>
+                            <span class="wizard-tab-label">Panels</span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: negotiationTab === 'display' }" @click="negotiationTab = 'display'" title="Display & Run">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            <span class="wizard-tab-label">Run</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Tab Content -->
+                    <div class="wizard-content">
+                
+                <!-- Tab: Scenario Selection -->
+                <div x-show="negotiationTab === 'scenario'">
+                    <div class="form-group">
+                        <label class="form-label">Search Scenarios</label>
+                        <input type="text" class="form-input" placeholder="Type to search all scenarios..." x-model="scenarioSearch" @input="searchScenarios()">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Filter by Source <span class="text-muted">(optional)</span></label>
+                        <select class="form-select" x-model="newNeg.source" @change="filterBySource()">
+                            <option value="">All sources</option>
+                            <template x-for="(source, idx) in (sources || [])" :key="source?.id || idx">
+                                <option :value="source.id" x-text="source.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                    
+                    <!-- Advanced Filters Toggle -->
+                    <div class="form-group">
+                        <button type="button" class="btn btn-link" style="padding: 0; font-size: 13px;" 
+                                @click="scenarioFilters.showAdvanced = !scenarioFilters.showAdvanced">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"
+                                 :style="{ transform: scenarioFilters.showAdvanced ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                            Advanced Filters
+                        </button>
+                    </div>
+                    
+                    <!-- Advanced Filters Panel -->
+                    <div class="form-group" x-show="scenarioFilters.showAdvanced" x-collapse>
+                        <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 12px;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div>
+                                    <label class="form-label" style="font-size: 12px;">Min Outcomes</label>
+                                    <input type="number" class="form-input form-input-sm" 
+                                           placeholder="e.g. 10" 
+                                           x-model="scenarioFilters.minOutcomes"
+                                           min="1">
+                                </div>
+                                <div>
+                                    <label class="form-label" style="font-size: 12px;">Max Outcomes</label>
+                                    <input type="number" class="form-input form-input-sm" 
+                                           placeholder="e.g. 1000"
+                                           x-model="scenarioFilters.maxOutcomes"
+                                           min="1">
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div>
+                                    <label class="form-label" style="font-size: 12px;">Min Rational Fraction</label>
+                                    <input type="number" class="form-input form-input-sm" 
+                                           placeholder="e.g. 0.5" 
+                                           x-model="scenarioFilters.minRationalFraction"
+                                           min="0" max="1" step="0.1">
+                                </div>
+                                <div>
+                                    <label class="form-label" style="font-size: 12px;">Max Rational Fraction</label>
+                                    <input type="number" class="form-input form-input-sm" 
+                                           placeholder="e.g. 1.0"
+                                           x-model="scenarioFilters.maxRationalFraction"
+                                           min="0" max="1" step="0.1">
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div>
+                                    <label class="form-label" style="font-size: 12px;">Min Opposition</label>
+                                    <input type="number" class="form-input form-input-sm" 
+                                           placeholder="e.g. 0.0" 
+                                           x-model="scenarioFilters.minOpposition"
+                                           min="0" max="1" step="0.1">
+                                </div>
+                                <div>
+                                    <label class="form-label" style="font-size: 12px;">Max Opposition</label>
+                                    <input type="number" class="form-input form-input-sm" 
+                                           placeholder="e.g. 1.0"
+                                           x-model="scenarioFilters.maxOpposition"
+                                           min="0" max="1" step="0.1">
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div class="text-muted" style="font-size: 11px;">
+                                    Note: Scenarios without calculated stats will be hidden when using advanced filters.
+                                </div>
+                                <button type="button" class="btn btn-sm btn-secondary" style="font-size: 11px; padding: 4px 8px;"
+                                        @click="scenarioFilters = {minOutcomes: null, maxOutcomes: null, minRationalFraction: null, maxRationalFraction: null, minOpposition: null, maxOpposition: null, showAdvanced: true}">
+                                    Clear Filters
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" x-show="filteredScenarios.length > 0 || scenarioSearch || newNeg.source">
+                        <label class="form-label">
+                            Select Scenario 
+                            <span class="text-muted" x-text="'(' + filteredScenarios.length + ' found)'"></span>
+                        </label>
+                        <div class="scenario-grid" style="max-height: 300px; overflow-y: auto;">
+                            <template x-for="scenario in filteredScenarios" :key="scenario.path">
+                                <div class="scenario-card" 
+                                     :class="{ selected: newNeg.scenario?.path === scenario.path }"
+                                     @click="selectScenario(scenario)">
+                                    <div class="scenario-card-title" x-text="scenario.name"></div>
+                                    <div class="scenario-card-meta">
+                                        <span class="badge badge-neutral" x-text="scenario.source"></span>
+                                        <span x-text="scenario.n_negotiators + ' parties'"></span>
+                                        <span x-text="scenario.issues?.length + ' issues'"></span>
+                                        <span x-show="scenario.n_outcomes" x-text="scenario.n_outcomes + ' outcomes'"></span>
+                                        <span x-show="scenario.opposition !== null && scenario.opposition !== undefined" 
+                                              x-text="'opp: ' + (scenario.opposition?.toFixed(2) ?? '')"
+                                              :title="'Opposition: ' + scenario.opposition"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <template x-if="filteredScenarios.length === 0 && (scenarioSearch || newNeg.source)">
+                            <p class="text-muted" style="padding: 16px; text-align: center;">No scenarios found</p>
+                        </template>
+                    </div>
+                    
+                    <div class="form-group" x-show="!scenarioSearch && !newNeg.source && filteredScenarios.length === 0">
+                        <p class="text-muted" style="padding: 16px; text-align: center;">Start typing to search scenarios, or select a source to browse</p>
+                    </div>
+                    
+                    <!-- Selected Scenario Details -->
+                    <div class="form-group" x-show="newNeg.scenario">
+                        <label class="form-label">Scenario Details</label>
+                        <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px;">
+                            <div class="font-semibold mb-2" x-text="newNeg.scenario?.name"></div>
+                            <div class="text-secondary" style="font-size: 13px;">
+                                <div><strong>Issues:</strong></div>
+                                <template x-for="issue in newNeg.scenario?.issues || []" :key="issue.name">
+                                    <div style="margin-left: 12px; margin-top: 4px;">
+                                        <span x-text="issue.name"></span>
+                                        <span class="text-muted" x-text="'(' + issue.type + ')'"></span>
+                                        <template x-if="issue.values">
+                                            <span class="text-muted" x-text="': ' + issue.values.slice(0, 5).join(', ') + (issue.values.length > 5 ? '...' : '')"></span>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Scenario Loading Options -->
+                    <div class="form-group" x-show="newNeg.scenario">
+                        <label class="form-label">Utility Function Options</label>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <label class="checkbox-label">
+                                <input type="checkbox" x-model="newNeg.ignore_discount">
+                                <span>Ignore discount factors</span>
+                                <span class="text-muted" style="font-size: 12px; margin-left: 4px;">(use stationary utilities)</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" x-model="newNeg.ignore_reserved">
+                                <span>Ignore reserved values</span>
+                                <span class="text-muted" style="font-size: 12px; margin-left: 4px;">(set to -infinity)</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" x-model="newNeg.normalize">
+                                <span>Normalize utilities</span>
+                                <span class="text-muted" style="font-size: 12px; margin-left: 4px;">(scale to [0, 1] range)</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab: Negotiators -->
+                <div x-show="negotiationTab === 'negotiators'">
+                    <!-- Sub-tabs for negotiator selection mode -->
+                    <div class="tabs" style="margin-bottom: 16px;">
+                        <button class="tab" :class="{ active: negotiatorSubTab === 'preset' }" @click="negotiatorSubTab = 'preset'">Preset Agents</button>
+                        <button class="tab" :class="{ active: negotiatorSubTab === 'boa' }" @click="negotiatorSubTab = 'boa'; loadBOAComponents()">Build Custom (BOA)</button>
+                        <button class="tab" :class="{ active: negotiatorSubTab === 'map' }" @click="negotiatorSubTab = 'map'; loadBOAComponents()">Build Custom (MAP)</button>
+                    </div>
+                    
+                    <!-- Assigned Negotiators (shown in both modes) -->
+                    <div class="form-group">
+                        <label class="form-label">
+                            Assigned Negotiators 
+                            <span class="text-muted" x-text="'(' + newNeg.negotiators.length + '/' + (newNeg.scenario?.n_negotiators || 2) + ' required)'"></span>
+                        </label>
+                        
+                        <div class="negotiator-list" x-ref="negotiatorList">
+                            <template x-for="(neg, index) in newNeg.negotiators" :key="index">
+                                <div class="negotiator-item" 
+                                     :data-index="index"
+                                     :class="{ 'selected': selectedNegotiatorSlot === index }"
+                                     @click="selectedNegotiatorSlot = index"
+                                     :style="selectedNegotiatorSlot === index ? 'border-color: var(--primary); background: var(--bg-tertiary);' : ''">
+                                    <div class="drag-handle">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                            <circle cx="9" cy="6" r="1.5"/>
+                                            <circle cx="15" cy="6" r="1.5"/>
+                                            <circle cx="9" cy="12" r="1.5"/>
+                                            <circle cx="15" cy="12" r="1.5"/>
+                                            <circle cx="9" cy="18" r="1.5"/>
+                                            <circle cx="15" cy="18" r="1.5"/>
+                                        </svg>
+                                    </div>
+                                    <div class="negotiator-item-content">
+                                        <input type="text" class="negotiator-name-input" x-model="neg.name" @click.stop placeholder="Agent name">
+                                        <div class="negotiator-type" x-text="getNegotiatorDisplayName(neg.type_name)"></div>
+                                        <span class="badge" :class="getSourceBadgeClass(neg.source)" x-text="neg.source" style="font-size: 10px;"></span>
+                                    </div>
+                                    <button class="btn btn-icon btn-sm" @click.stop="openNegotiatorConfig(index)" title="Configure parameters" style="margin-right: 4px;" :class="{ 'has-config': neg.params && Object.keys(neg.params).length > 0 }">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                                        </svg>
+                                    </button>
+                                    <button class="btn btn-icon btn-sm" @click.stop="removeNegotiator(index)" :disabled="newNeg.negotiators.length <= 2" title="Remove">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="text-muted" style="font-size: 12px; margin-top: 8px;">
+                            Click a slot to select it, then choose a negotiator below
+                        </div>
+                    </div>
+                    
+                    <!-- Sub-tab: Preset Negotiators -->
+                    <div x-show="negotiatorSubTab === 'preset'">
+                        <div class="form-group">
+                            <label class="form-label">Search Negotiators</label>
+                            <input type="text" class="form-input" placeholder="Type to search all negotiators..." x-model="negotiatorSearch" @input="searchNegotiators()">
+                        </div>
+                        
+                        <div class="form-row" style="gap: 12px;">
+                            <div class="form-group" style="flex: 1;">
+                                <label class="form-label">Filter by Source <span class="text-muted">(optional)</span></label>
+                                <select class="form-select" x-model="negotiatorSourceFilter" @change="filterNegotiators()">
+                                    <option value="">All sources</option>
+                                    <template x-for="source in negotiatorSources" :key="source.id">
+                                        <option :value="source.id" x-text="source.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1;" x-show="negotiatorSourceFilter === 'genius'">
+                                <label class="form-label">Filter by Year <span class="text-muted">(optional)</span></label>
+                                <select class="form-select" x-model="negotiatorGroupFilter" @change="filterNegotiators()">
+                                    <option value="">All years</option>
+                                    <option value="y2019">ANAC 2019</option>
+                                    <option value="y2018">ANAC 2018</option>
+                                    <option value="y2017">ANAC 2017</option>
+                                    <option value="y2016">ANAC 2016</option>
+                                    <option value="y2015">ANAC 2015</option>
+                                    <option value="y2014">ANAC 2014</option>
+                                    <option value="y2013">ANAC 2013</option>
+                                    <option value="y2012">ANAC 2012</option>
+                                    <option value="y2011">ANAC 2011</option>
+                                    <option value="y2010">ANAC 2010</option>
+                                    <option value="basic">Basic</option>
+                                    <option value="others">Others</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label class="form-label">Filter by Tag <span class="text-muted">(optional)</span></label>
+                                <select class="form-select" x-model="negotiatorTagFilter" @change="filterNegotiators()">
+                                    <option value="">All tags</option>
+                                    <template x-for="tag in allNegotiatorTags" :key="tag">
+                                        <option :value="tag" x-text="tag"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Available Negotiators <span class="text-muted" x-text="'(' + filteredNegotiators.length + ' found)'"></span></label>
+                            <div class="negotiator-grid" style="max-height: 250px; overflow-y: auto;">
+                                <template x-for="neg in filteredNegotiators" :key="neg.type_name">
+                                    <div class="negotiator-card" @click="selectNegotiatorForSlot(neg)">
+                                        <div class="negotiator-card-name" x-text="neg.name"></div>
+                                        <div class="negotiator-card-meta">
+                                            <span class="badge" :class="getSourceBadgeClass(neg.source)" x-text="neg.source"></span>
+                                        </div>
+                                        <div class="negotiator-card-desc" x-text="neg.description" x-show="neg.description"></div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sub-tab: BOA (Build Custom) Negotiators -->
+                    <div x-show="negotiatorSubTab === 'boa'">
+                        <div class="boa-builder" style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px;">
+                            <div class="form-group">
+                                <label class="form-label">Acceptance Policy <span class="text-danger">*</span></label>
+                                <select class="form-select" x-model="boaConfig.acceptance_policy">
+                                    <option value="">Select acceptance policy...</option>
+                                    <template x-for="c in boaComponents.acceptance" :key="c.name">
+                                        <option :value="c.name" x-text="c.name"></option>
+                                    </template>
+                                </select>
+                                <div class="form-hint" x-text="getBoaComponentDescription('acceptance', boaConfig.acceptance_policy)"></div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Offering Policy <span class="text-danger">*</span></label>
+                                <select class="form-select" x-model="boaConfig.offering_policy">
+                                    <option value="">Select offering policy...</option>
+                                    <template x-for="c in boaComponents.offering" :key="c.name">
+                                        <option :value="c.name" x-text="c.name"></option>
+                                    </template>
+                                </select>
+                                <div class="form-hint" x-text="getBoaComponentDescription('offering', boaConfig.offering_policy)"></div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Opponent Model <span class="text-muted">(optional)</span></label>
+                                <select class="form-select" x-model="boaConfig.opponent_model">
+                                    <option value="">None (no opponent modeling)</option>
+                                    <template x-for="c in boaComponents.model" :key="c.name">
+                                        <option :value="c.name" x-text="c.name"></option>
+                                    </template>
+                                </select>
+                                <div class="form-hint" x-text="getBoaComponentDescription('model', boaConfig.opponent_model)"></div>
+                            </div>
+                            
+                            <button class="btn btn-primary" 
+                                    @click="applyBOAToSlot()" 
+                                    :disabled="!boaConfig.acceptance_policy || !boaConfig.offering_policy">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                                Apply to Selected Slot
+                            </button>
+                        </div>
+                        
+                        <div class="text-muted" style="font-size: 12px; margin-top: 12px;">
+                            <strong>BOA Architecture:</strong> Build modular negotiators by combining acceptance, offering, and opponent modeling components.
+                        </div>
+                    </div>
+                    
+                    <!-- Sub-tab: MAP (Build Custom Advanced) Negotiators -->
+                    <div x-show="negotiatorSubTab === 'map'">
+                        <div class="map-builder" style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px;">
+                            <div class="form-group">
+                                <label class="form-label">Acceptance Policy <span class="text-danger">*</span></label>
+                                <select class="form-select" x-model="mapConfig.acceptance_policy">
+                                    <option value="">Select acceptance policy...</option>
+                                    <template x-for="c in boaComponents.acceptance" :key="c.name">
+                                        <option :value="c.name" x-text="c.name"></option>
+                                    </template>
+                                </select>
+                                <div class="form-hint" x-text="getBoaComponentDescription('acceptance', mapConfig.acceptance_policy)"></div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Offering Policy <span class="text-danger">*</span></label>
+                                <select class="form-select" x-model="mapConfig.offering_policy">
+                                    <option value="">Select offering policy...</option>
+                                    <template x-for="c in boaComponents.offering" :key="c.name">
+                                        <option :value="c.name" x-text="c.name"></option>
+                                    </template>
+                                </select>
+                                <div class="form-hint" x-text="getBoaComponentDescription('offering', mapConfig.offering_policy)"></div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Models <span class="text-muted">(multiple allowed)</span></label>
+                                <div class="model-selector" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+                                    <template x-for="(model, index) in mapConfig.models" :key="index">
+                                        <span class="badge" style="display: inline-flex; align-items: center; gap: 4px; background: var(--primary); color: white; padding: 4px 8px; border-radius: 4px;">
+                                            <span x-text="model"></span>
+                                            <button type="button" @click="mapConfig.models.splice(index, 1)" style="background: none; border: none; color: inherit; cursor: pointer; padding: 0; line-height: 1;">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                </svg>
+                                            </button>
+                                        </span>
+                                    </template>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <select class="form-select" x-ref="mapModelSelect" style="flex: 1;">
+                                        <option value="">Add a model...</option>
+                                        <template x-for="c in boaComponents.model" :key="c.name">
+                                            <option :value="c.name" x-text="c.name" :disabled="mapConfig.models.includes(c.name)"></option>
+                                        </template>
+                                    </select>
+                                    <button type="button" class="btn btn-secondary" @click="addMapModel()">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        </svg>
+                                        Add
+                                    </button>
+                                </div>
+                                <div class="form-hint">Unlike BOA, MAP supports multiple opponent models that run in sequence.</div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">
+                                    <input type="checkbox" x-model="mapConfig.acceptance_first" style="margin-right: 8px;">
+                                    Evaluate Acceptance First
+                                </label>
+                                <div class="form-hint">If checked, acceptance is evaluated before offering. If unchecked, offering is evaluated first.</div>
+                            </div>
+                            
+                            <button class="btn btn-primary" 
+                                    @click="applyMAPToSlot()" 
+                                    :disabled="!mapConfig.acceptance_policy || !mapConfig.offering_policy">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                                Apply to Selected Slot
+                            </button>
+                        </div>
+                        
+                        <div class="text-muted" style="font-size: 12px; margin-top: 12px;">
+                            <strong>MAP Architecture:</strong> Advanced modular negotiators with multiple models and flexible component ordering. Use BOA for simpler configurations.
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab: Parameters -->
+                <div x-show="negotiationTab === 'parameters'">
+                    <!-- Mechanism Type Selector -->
+                    <div class="form-group" style="margin-bottom: 24px;">
+                        <label class="form-label">Mechanism Protocol</label>
+                        <div class="card-selector">
+                            <!-- Built-in mechanisms -->
+                            <template x-for="mech in (mechanisms || [])" :key="mech?.class_name || Math.random()">
+                                <button type="button" class="card-selector-option" 
+                                        :class="{ selected: newNeg.mechanism_type === mech?.class_name }"
+                                        @click="selectMechanism(mech?.class_name)">
+                                    <div class="card-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <g x-show="mech?.class_name === 'SAOMechanism'">
+                                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                                <circle cx="9" cy="7" r="4"></circle>
+                                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                            </g>
+                                            <g x-show="mech?.class_name === 'TAUMechanism'">
+                                                <line x1="8" y1="6" x2="21" y2="6"></line>
+                                                <line x1="8" y1="12" x2="21" y2="12"></line>
+                                                <line x1="8" y1="18" x2="21" y2="18"></line>
+                                                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                                                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                                                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                                            </g>
+                                            <g x-show="mech?.class_name === 'GBMechanism'">
+                                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                                <line x1="3" y1="9" x2="21" y2="9"></line>
+                                                <line x1="9" y1="21" x2="9" y2="9"></line>
+                                            </g>
+                                            <g x-show="mech?.class_name?.includes('ST')">
+                                                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                                                <path d="M2 17l10 5 10-5"></path>
+                                                <path d="M2 12l10 5 10-5"></path>
+                                            </g>
+                                            <!-- Default icon for unknown mechanisms -->
+                                            <g x-show="!['SAOMechanism', 'TAUMechanism', 'GBMechanism'].includes(mech?.class_name) && !mech?.class_name?.includes('ST')">
+                                                <circle cx="12" cy="12" r="10"></circle>
+                                                <path d="M12 16v-4"></path>
+                                                <path d="M12 8h.01"></path>
+                                            </g>
+                                        </svg>
+                                    </div>
+                                    <span class="card-title" x-text="mech?.class_name?.replace('Mechanism', '') || ''"></span>
+                                    <span class="card-desc" x-text="(mech?.name || '').split('(')[0].trim()"></span>
+                                </button>
+                            </template>
+                            <!-- Virtual mechanisms (saved configurations) -->
+                            <template x-for="vm in virtualMechanisms" :key="vm.id">
+                                <button type="button" class="card-selector-option" 
+                                        :class="{ selected: newNeg.mechanism_type === 'virtual:' + vm.id }"
+                                        @click="selectMechanism('virtual:' + vm.id)"
+                                        style="position: relative;">
+                                    <div class="card-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <!-- Star icon for virtual/custom -->
+                                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                        </svg>
+                                    </div>
+                                    <span class="card-title" x-text="vm.name"></span>
+                                    <span class="card-desc" x-text="vm.base_type.toUpperCase() + ' preset'"></span>
+                                    <span class="badge badge-xs badge-primary" style="position: absolute; top: 4px; right: 4px;">Virtual</span>
+                                    <!-- Delete button -->
+                                    <button type="button" class="btn-icon-sm" 
+                                            style="position: absolute; bottom: 4px; right: 4px;"
+                                            @click.stop="deleteVirtualMechanism(vm.id)"
+                                            title="Delete virtual mechanism">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                    </button>
+                                </button>
+                            </template>
+                        </div>
+                        <div class="form-hint mt-2">
+                            <span x-text="selectedMechanism?.description || ''"></span>
+                            <span x-show="isVirtualMechanism(newNeg.mechanism_type)" class="text-muted">
+                                (Custom configuration based on <span x-text="getBaseTypeFromVirtualMechanism(newNeg.mechanism_type)?.replace('Mechanism', '')"></span>)
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- Information Sharing -->
+                    <div class="form-group">
+                        <label class="form-checkbox"><input type="checkbox" x-model="newNeg.share_ufuns"><span>Share utility functions</span></label>
+                        <div class="form-inline-hint">Give each negotiator access to opponent's utility function</div>
+                    </div>
+                    
+                    <!-- Dynamic Parameter Groups -->
+                    <template x-if="selectedMechanism">
+                        <div>
+                            <template x-for="group in selectedMechanism.param_groups" :key="group.id">
+                                <div class="param-group" x-data="{ collapsed: group.order > 2 }">
+                                    <div class="param-group-header" @click="collapsed = !collapsed">
+                                        <span class="param-group-title" x-text="group.label"></span>
+                                        <svg class="param-group-chevron" :class="{ collapsed }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                    </div>
+                                    <div class="param-group-content" x-show="!collapsed" x-collapse>
+                                        <template x-for="param in group.params" :key="param.name">
+                                            <div class="form-group">
+                                                <!-- Boolean parameters -->
+                                                <template x-if="param.type === 'bool'">
+                                                    <div>
+                                                        <label class="form-checkbox">
+                                                            <input type="checkbox" 
+                                                                   :checked="newNeg.mechanism_params[param.name]"
+                                                                   @change="newNeg.mechanism_params[param.name] = $event.target.checked">
+                                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                                        </label>
+                                                        <div class="form-inline-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                                
+                                                <!-- Integer parameters -->
+                                                <template x-if="param.type === 'int'">
+                                                    <div>
+                                                        <label class="form-label" x-text="param.name.replace(/_/g, ' ')"></label>
+                                                        <input type="number" class="form-input" style="max-width: 150px;"
+                                                               :value="newNeg.mechanism_params[param.name]"
+                                                               @input="newNeg.mechanism_params[param.name] = $event.target.value ? parseInt($event.target.value) : null"
+                                                               :min="param.min_value"
+                                                               :max="param.max_value"
+                                                               :placeholder="param.default ?? 'None'">
+                                                        <div class="form-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                                
+                                                <!-- Optional integer parameters -->
+                                                <template x-if="param.type === 'optional_int'">
+                                                    <div>
+                                                        <label class="form-label" x-text="param.name.replace(/_/g, ' ')"></label>
+                                                        <input type="number" class="form-input" style="max-width: 150px;"
+                                                               :value="newNeg.mechanism_params[param.name]"
+                                                               @input="newNeg.mechanism_params[param.name] = $event.target.value ? parseInt($event.target.value) : null"
+                                                               :min="param.min_value"
+                                                               :max="param.max_value"
+                                                               placeholder="None">
+                                                        <div class="form-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                                
+                                                <!-- Float parameters -->
+                                                <template x-if="param.type === 'float'">
+                                                    <div>
+                                                        <label class="form-label" x-text="param.name.replace(/_/g, ' ')"></label>
+                                                        <input type="number" class="form-input" style="max-width: 150px;" step="0.01"
+                                                               :value="newNeg.mechanism_params[param.name]"
+                                                               @input="newNeg.mechanism_params[param.name] = $event.target.value ? parseFloat($event.target.value) : null"
+                                                               :min="param.min_value"
+                                                               :max="param.max_value"
+                                                               :placeholder="param.default ?? 'None'">
+                                                        <div class="form-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                                
+                                                <!-- Optional float parameters -->
+                                                <template x-if="param.type === 'optional_float'">
+                                                    <div>
+                                                        <label class="form-label" x-text="param.name.replace(/_/g, ' ')"></label>
+                                                        <input type="number" class="form-input" style="max-width: 150px;" step="0.1"
+                                                               :value="newNeg.mechanism_params[param.name]"
+                                                               @input="newNeg.mechanism_params[param.name] = $event.target.value ? parseFloat($event.target.value) : null"
+                                                               :min="param.min_value"
+                                                               :max="param.max_value"
+                                                               placeholder="None">
+                                                        <div class="form-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                                
+                                                <!-- String parameters -->
+                                                <template x-if="param.type === 'string' || param.type === 'optional_string'">
+                                                    <div>
+                                                        <label class="form-label" x-text="param.name.replace(/_/g, ' ')"></label>
+                                                        <input type="text" class="form-input" style="max-width: 300px;"
+                                                               :value="newNeg.mechanism_params[param.name]"
+                                                               @input="newNeg.mechanism_params[param.name] = $event.target.value || null"
+                                                               placeholder="None">
+                                                        <div class="form-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                                
+                                                <!-- Choice parameters -->
+                                                <template x-if="param.type === 'choice'">
+                                                    <div>
+                                                        <label class="form-label" x-text="param.name.replace(/_/g, ' ')"></label>
+                                                        <select class="form-select" style="max-width: 200px;"
+                                                                :value="newNeg.mechanism_params[param.name]"
+                                                                @change="newNeg.mechanism_params[param.name] = $event.target.value">
+                                                            <template x-for="choice in param.choices" :key="choice">
+                                                                <option :value="choice" x-text="choice"></option>
+                                                            </template>
+                                                        </select>
+                                                        <div class="form-hint" x-text="param.description"></div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    
+                    <!-- Save as Virtual Mechanism button -->
+                    <div class="form-group" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                        <button type="button" class="btn btn-secondary" @click="openSaveVirtualMechanism()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                            </svg>
+                            Save as Virtual Mechanism
+                        </button>
+                        <div class="form-hint">Save current mechanism configuration as a reusable preset</div>
+                    </div>
+                </div>
+                
+                <!-- Tab: Panels -->
+                <div x-show="negotiationTab === 'panels'">
+                    <div class="form-group">
+                        <label class="form-label">Panel Configuration</label>
+                        <div class="form-hint">Configure which panels to display during the negotiation</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-checkbox">
+                            <input type="checkbox" x-model="newNeg.panels.adjustable">
+                            <span>Adjustable panels</span>
+                        </label>
+                        <div class="form-inline-hint">Allow resizing panels during negotiation</div>
+                    </div>
+                    
+                    <div class="param-group">
+                        <div class="param-group-header">
+                            <span class="param-group-title">Utility Space View</span>
+                        </div>
+                        <div class="param-group-content">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">X-Axis (Negotiator)</label>
+                                    <select class="form-select" x-model.number="newNeg.panels.utilityView.xAxis">
+                                        <template x-for="(neg, idx) in newNeg.negotiators" :key="idx">
+                                            <option :value="idx" x-text="neg.name || ('Agent ' + (idx + 1))"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Y-Axis (Negotiator)</label>
+                                    <select class="form-select" x-model.number="newNeg.panels.utilityView.yAxis">
+                                        <template x-for="(neg, idx) in newNeg.negotiators" :key="idx">
+                                            <option :value="idx" x-text="neg.name || ('Agent ' + (idx + 1))"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="param-group">
+                        <div class="param-group-header">
+                            <span class="param-group-title">Timeline View</span>
+                        </div>
+                        <div class="param-group-content">
+                            <div class="form-group">
+                                <label class="form-label">X-Axis</label>
+                                <select class="form-select" x-model="newNeg.panels.timeline.xAxis" style="max-width: 200px;">
+                                    <option value="step">Step</option>
+                                    <option value="time">Time</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab: Display & Run -->
+                <div x-show="negotiationTab === 'display'">
+                    <div class="form-group">
+                        <label class="form-label">Summary</label>
+                        <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px;">
+                            <div><strong>Scenario:</strong> <span x-text="newNeg.scenario?.name || 'Not selected'"></span></div>
+                            <div><strong>Negotiators:</strong> <span x-text="newNeg.negotiators.map(n => getNegotiatorDisplayName(n.type_name)).join(' vs ')"></span></div>
+                            <div><strong>Mechanism:</strong> <span x-text="newNeg.mechanism_type.replace('Mechanism', '')"></span></div>
+                            <div><strong>Deadline:</strong> <span x-text="getDeadlineSummary()"></span></div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Run Mode</label>
+                        <div class="card-selector compact">
+                            <button type="button" class="card-selector-option" :class="{ selected: newNeg.mode === 'realtime' }" @click="newNeg.mode = 'realtime'">
+                                <div class="card-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                    </svg>
+                                </div>
+                                <div class="card-content">
+                                    <span class="card-title">Real-time</span>
+                                    <span class="card-desc">Watch step-by-step with live updates</span>
+                                </div>
+                            </button>
+                            <button type="button" class="card-selector-option" :class="{ selected: newNeg.mode === 'batch' }" @click="newNeg.mode = 'batch'">
+                                <div class="card-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="13 17 18 12 13 7"></polyline>
+                                        <polyline points="6 17 11 12 6 7"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="card-content">
+                                    <span class="card-title">Batch</span>
+                                    <span class="card-desc">Run instantly and show results</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" x-show="newNeg.mode === 'realtime'">
+                        <label class="form-label">Step Delay: <span x-text="newNeg.step_delay + 'ms'"></span></label>
+                        <input type="range" class="form-range" x-model.number="newNeg.step_delay" min="0" max="1000" step="50">
+                        <div class="form-hint">Delay between steps for visualization</div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-checkbox"><input type="checkbox" x-model="newNeg.show_plot"><span>Show live utility plot</span></label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-checkbox"><input type="checkbox" x-model="newNeg.show_offers"><span>Show offer history</span></label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                        <label class="form-checkbox">
+                            <input type="checkbox" x-model="newNeg.auto_save">
+                            <span>Auto-save negotiation</span>
+                        </label>
+                        <div class="form-inline-hint">Save results to disk when negotiation completes</div>
+                    </div>
+                </div>
+                    </div><!-- end wizard-content -->
+                </div><!-- end wizard-layout -->
+            </div><!-- end modal-body -->
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="showNewNegotiation = false">Cancel</button>
+                <template x-if="negotiationTab !== 'scenario'">
+                    <button class="btn btn-secondary" @click="prevNegotiationTab()">Back</button>
+                </template>
+                <template x-if="negotiationTab !== 'display'">
+                    <button class="btn btn-primary" @click="nextNegotiationTab()" :disabled="!canProceed">
+                        Next
+                    </button>
+                </template>
+                <template x-if="negotiationTab === 'display'">
+                    <button class="btn btn-primary" @click="startNegotiation()" :disabled="!canStart">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        <span x-text="newNeg.auto_start ? 'Start Negotiation' : 'Open Negotiation'"></span>
+                    </button>
+                </template>
+            </div>
+        </div>
+    </div>

@@ -1,0 +1,1012 @@
+<!-- New Tournament Modal -->
+    <div class="modal-overlay" :class="{ active: showNewTournament }" @click.self="showNewTournament = false">
+        <div class="modal large">
+            <div class="modal-header">
+                <h2 class="modal-title">New Tournament</h2>
+                <button class="modal-close" @click="showNewTournament = false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body" style="padding: 0;">
+                <div class="wizard-layout">
+                    <div class="wizard-sidebar">
+                        <!-- Preset selector at top -->
+                        <div class="wizard-preset-selector" style="padding: 12px; border-bottom: 1px solid var(--border-color);">
+                            <label class="form-label" style="font-size: 11px; margin-bottom: 4px;">Load Preset</label>
+                            <select class="form-select" style="font-size: 12px;" 
+                                    x-model="selectedTournamentPreset"
+                                    @change="loadTournamentPreset()">
+                                <option value="">-- Select preset --</option>
+                                <template x-for="preset in tournamentPresets" :key="preset.name">
+                                    <option :value="preset.name" x-text="preset.name"></option>
+                                </template>
+                            </select>
+                        </div>
+                        
+                        <button class="wizard-tab" :class="{ active: tournamentTab === 'scenarios', completed: newTournament.scenario_paths.length > 0 }" @click="tournamentTab = 'scenarios'">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                            <span class="wizard-tab-label">1. Scenarios</span>
+                            <span class="wizard-badge" x-show="newTournament.scenario_paths.length > 0" x-text="newTournament.scenario_paths.length"></span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: tournamentTab === 'competitors', completed: newTournament.competitor_types.length >= 1 }" @click="tournamentTab = 'competitors'">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                            <span class="wizard-tab-label">2. Competitors</span>
+                            <span class="wizard-badge" x-show="newTournament.competitor_types.length > 0" x-text="newTournament.competitor_types.length"></span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: tournamentTab === 'opponents', completed: newTournament.opponents_same_as_competitors || newTournament.opponent_types.length >= 1 }" @click="tournamentTab = 'opponents'">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                            <span class="wizard-tab-label">3. Opponents</span>
+                            <span class="wizard-badge" x-show="!newTournament.opponents_same_as_competitors && newTournament.opponent_types.length > 0" x-text="newTournament.opponent_types.length"></span>
+                            <span class="wizard-badge badge-info" x-show="newTournament.opponents_same_as_competitors">=</span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: tournamentTab === 'settings' }" @click="tournamentTab = 'settings'">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                            </svg>
+                            <span class="wizard-tab-label">4. Settings</span>
+                        </button>
+                        <button class="wizard-tab" :class="{ active: tournamentTab === 'review', completed: canStartTournament() }" @click="tournamentTab = 'review'">
+                            <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 11l3 3L22 4"></path>
+                                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                            </svg>
+                            <span class="wizard-tab-label">5. Review</span>
+                        </button>
+                    </div>
+                    
+                    <div class="wizard-content">
+                        <!-- Scenarios Tab -->
+                        <div x-show="tournamentTab === 'scenarios'" class="wizard-panel">
+                            <div class="panel-header">
+                                <h3>Select Scenarios</h3>
+                            </div>
+                            
+                            <!-- Dual-list layout -->
+                            <div class="dual-list-container" style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; height: 450px;">
+                                <!-- Available scenarios (left) -->
+                                <div class="dual-list-panel" style="display: flex; flex-direction: column; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+                                    <div class="dual-list-header" style="padding: 12px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);">
+                                        <div style="font-weight: 600; font-size: 13px; margin-bottom: 8px;">
+                                            Available
+                                            <span class="text-muted" style="font-weight: normal;" x-text="'(' + filteredTournamentScenarios.filter(s => !isTournamentScenarioSelected(s.path)).length + ')'"></span>
+                                        </div>
+                                        <input type="text" class="form-input" placeholder="Search scenarios..." 
+                                               style="font-size: 13px; padding: 6px 10px;"
+                                               x-model="tournamentScenarioSearch">
+                                        <!-- Source filter -->
+                                        <select class="form-select" style="margin-top: 8px; font-size: 12px; padding: 4px 8px;"
+                                                x-model="tournamentScenarioSourceFilter">
+                                            <option value="">All sources</option>
+                                            <template x-for="src in [...new Set(scenarios.map(s => s.source))]" :key="src">
+                                                <option :value="src" x-text="src"></option>
+                                            </template>
+                                        </select>
+                                        <!-- Advanced filters toggle -->
+                                        <button class="btn btn-sm" style="margin-top: 8px; width: 100%; font-size: 11px; padding: 4px 8px;"
+                                                @click="tournamentScenarioFilters.showAdvanced = !tournamentScenarioFilters.showAdvanced">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="margin-right: 4px;">
+                                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                                            </svg>
+                                            Advanced Filters
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="margin-left: 4px;"
+                                                 :style="tournamentScenarioFilters.showAdvanced ? 'transform: rotate(180deg)' : ''">
+                                                <polyline points="6 9 12 15 18 9"></polyline>
+                                            </svg>
+                                        </button>
+                                        <!-- Advanced filters panel -->
+                                        <div x-show="tournamentScenarioFilters.showAdvanced" x-collapse
+                                             style="margin-top: 8px; padding: 8px; background: var(--bg-tertiary); border-radius: 6px; font-size: 11px;">
+                                            <div style="display: grid; gap: 6px;">
+                                                <div>
+                                                    <label class="form-label" style="font-size: 10px; margin-bottom: 2px;">Outcomes</label>
+                                                    <div style="display: flex; gap: 4px; align-items: center;">
+                                                        <input type="number" class="form-input" placeholder="Min" style="width: 70px; font-size: 11px; padding: 3px 6px;"
+                                                               x-model.number="tournamentScenarioFilters.minOutcomes" min="1">
+                                                        <span>-</span>
+                                                        <input type="number" class="form-input" placeholder="Max" style="width: 70px; font-size: 11px; padding: 3px 6px;"
+                                                               x-model.number="tournamentScenarioFilters.maxOutcomes" min="1">
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label class="form-label" style="font-size: 10px; margin-bottom: 2px;">Rational Fraction</label>
+                                                    <div style="display: flex; gap: 4px; align-items: center;">
+                                                        <input type="number" class="form-input" placeholder="Min" style="width: 70px; font-size: 11px; padding: 3px 6px;"
+                                                               x-model.number="tournamentScenarioFilters.minRationalFraction" min="0" max="1" step="0.01">
+                                                        <span>-</span>
+                                                        <input type="number" class="form-input" placeholder="Max" style="width: 70px; font-size: 11px; padding: 3px 6px;"
+                                                               x-model.number="tournamentScenarioFilters.maxRationalFraction" min="0" max="1" step="0.01">
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label class="form-label" style="font-size: 10px; margin-bottom: 2px;">Opposition</label>
+                                                    <div style="display: flex; gap: 4px; align-items: center;">
+                                                        <input type="number" class="form-input" placeholder="Min" style="width: 70px; font-size: 11px; padding: 3px 6px;"
+                                                               x-model.number="tournamentScenarioFilters.minOpposition" min="0" max="1" step="0.01">
+                                                        <span>-</span>
+                                                        <input type="number" class="form-input" placeholder="Max" style="width: 70px; font-size: 11px; padding: 3px 6px;"
+                                                               x-model.number="tournamentScenarioFilters.maxOpposition" min="0" max="1" step="0.01">
+                                                    </div>
+                                                </div>
+                                                <button class="btn btn-sm btn-secondary" style="font-size: 10px; padding: 3px 6px; margin-top: 4px;"
+                                                        @click="tournamentScenarioFilters = {minOutcomes: null, maxOutcomes: null, minRationalFraction: null, maxRationalFraction: null, minOpposition: null, maxOpposition: null, showAdvanced: true}">
+                                                    Clear Filters
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="dual-list-items" style="flex: 1; overflow-y: auto; padding: 8px;">
+                                        <template x-for="scenario in filteredTournamentScenarios.filter(s => !isTournamentScenarioSelected(s.path))" :key="scenario.path">
+                                            <div class="dual-list-item" 
+                                                 style="padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; background: var(--bg-tertiary);"
+                                                 @click="addTournamentScenario(scenario.path)"
+                                                 @mouseenter="$el.style.background = 'var(--bg-hover)'"
+                                                 @mouseleave="$el.style.background = 'var(--bg-tertiary)'">
+                                                <div style="font-size: 13px; font-weight: 500;" x-text="scenario.name"></div>
+                                                <div style="font-size: 11px; color: var(--text-muted); display: flex; gap: 8px; margin-top: 2px; flex-wrap: wrap;">
+                                                    <span class="badge badge-secondary" style="font-size: 10px;" x-text="scenario.source"></span>
+                                                    <span x-text="scenario.n_negotiators + 'p'"></span>
+                                                    <span x-show="scenario.n_outcomes" x-text="scenario.n_outcomes + ' outcomes'"></span>
+                                                    <span x-show="scenario.opposition !== null && scenario.opposition !== undefined"
+                                                          x-text="'opp: ' + (scenario.opposition?.toFixed(2) ?? '')"
+                                                          :title="'Opposition: ' + scenario.opposition"></span>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <div x-show="filteredTournamentScenarios.filter(s => !isTournamentScenarioSelected(s.path)).length === 0" 
+                                             class="text-muted" style="text-align: center; padding: 20px; font-size: 13px;">
+                                            No available scenarios
+                                        </div>
+                                    </div>
+                                    <div class="dual-list-footer" style="padding: 8px; border-top: 1px solid var(--border-color); background: var(--bg-secondary);">
+                                        <button class="btn btn-sm btn-secondary" style="width: 100%;" 
+                                                @click="addAllFilteredTournamentScenarios()"
+                                                :disabled="filteredTournamentScenarios.filter(s => !isTournamentScenarioSelected(s.path)).length === 0">
+                                            Add All Filtered
+                                            <span x-text="'(' + filteredTournamentScenarios.filter(s => !isTournamentScenarioSelected(s.path)).length + ')'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Transfer buttons (center) -->
+                                <div style="display: flex; flex-direction: column; justify-content: center; gap: 8px;">
+                                    <button class="btn btn-sm btn-secondary" style="padding: 8px;" title="Add all filtered"
+                                            @click="addAllFilteredTournamentScenarios()"
+                                            :disabled="filteredTournamentScenarios.filter(s => !isTournamentScenarioSelected(s.path)).length === 0">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <polyline points="13 17 18 12 13 7"></polyline>
+                                            <polyline points="6 17 11 12 6 7"></polyline>
+                                        </svg>
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" style="padding: 8px;" title="Remove all"
+                                            @click="newTournament.scenario_paths = []"
+                                            :disabled="newTournament.scenario_paths.length === 0">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <polyline points="11 17 6 12 11 7"></polyline>
+                                            <polyline points="18 17 13 12 18 7"></polyline>
+                                        </svg>
+                                    </button>
+                                </div>
+                                
+                                <!-- Selected scenarios (right) -->
+                                <div class="dual-list-panel" style="display: flex; flex-direction: column; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+                                    <div class="dual-list-header" style="padding: 12px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);">
+                                        <div style="font-weight: 600; font-size: 13px;">
+                                            Selected
+                                            <span class="badge badge-primary" style="margin-left: 6px;" x-text="newTournament.scenario_paths.length"></span>
+                                        </div>
+                                    </div>
+                                    <div class="dual-list-items" style="flex: 1; overflow-y: auto; padding: 8px;">
+                                        <template x-for="path in newTournament.scenario_paths" :key="path">
+                                            <div class="dual-list-item selected" 
+                                                 style="padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; background: var(--primary-bg); display: flex; align-items: center; justify-content: space-between;"
+                                                 @mouseenter="$el.style.background = 'var(--bg-hover)'"
+                                                 @mouseleave="$el.style.background = 'var(--primary-bg)'">
+                                                <div style="flex: 1; min-width: 0;">
+                                                    <div style="font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" 
+                                                         x-text="scenarios.find(s => s.path === path)?.name || path.split('/').pop()"></div>
+                                                    <div style="font-size: 11px; color: var(--text-muted); display: flex; gap: 6px;" 
+                                                         x-data="{ sc: scenarios.find(s => s.path === path) }">
+                                                        <span x-text="sc?.source || ''"></span>
+                                                        <span x-show="sc?.n_outcomes" x-text="sc?.n_outcomes + ' out'"></span>
+                                                        <span x-show="sc?.opposition !== null && sc?.opposition !== undefined"
+                                                              x-text="'opp: ' + (sc?.opposition?.toFixed(2) ?? '')"></span>
+                                                    </div>
+                                                </div>
+                                                <button class="btn btn-sm" style="padding: 4px; margin-left: 8px; background: transparent; color: var(--text-muted);"
+                                                        @click.stop="removeTournamentScenario(path)"
+                                                        title="Remove">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </template>
+                                        <div x-show="newTournament.scenario_paths.length === 0" 
+                                             class="text-muted" style="text-align: center; padding: 20px; font-size: 13px;">
+                                            No scenarios selected<br>
+                                            <span style="font-size: 11px;">Click items on the left or use "Add All Filtered"</span>
+                                        </div>
+                                    </div>
+                                    <div class="dual-list-footer" style="padding: 8px; border-top: 1px solid var(--border-color); background: var(--bg-secondary);">
+                                        <button class="btn btn-sm btn-secondary" style="width: 100%;" 
+                                                @click="newTournament.scenario_paths = []"
+                                                :disabled="newTournament.scenario_paths.length === 0">
+                                            Clear All
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Competitors Tab -->
+                        <div x-show="tournamentTab === 'competitors'" class="wizard-panel">
+                            <div class="panel-header">
+                                <h3>Select Competitors</h3>
+                                <span class="text-muted">(these agents will be scored)</span>
+                            </div>
+                            
+                            <!-- Dual-list layout -->
+                            <div class="dual-list-container" style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; height: 450px;">
+                                <!-- Available competitors (left) -->
+                                <div class="dual-list-panel" style="display: flex; flex-direction: column; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+                                    <div class="dual-list-header" style="padding: 12px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);">
+                                        <div style="font-weight: 600; font-size: 13px; margin-bottom: 8px;">
+                                            Available
+                                            <span class="text-muted" style="font-weight: normal;" x-text="'(' + filteredTournamentCompetitors.filter(n => !isTournamentCompetitorSelected(n.type_name)).length + ')'"></span>
+                                        </div>
+                                        <input type="text" class="form-input" placeholder="Search negotiators..." 
+                                               style="font-size: 13px; padding: 6px 10px;"
+                                               x-model="tournamentCompetitorSearch">
+                                        <!-- Source filter -->
+                                        <select class="form-select" style="margin-top: 8px; font-size: 12px; padding: 4px 8px;"
+                                                x-model="tournamentCompetitorSourceFilter">
+                                            <option value="">All sources</option>
+                                            <option value="virtual" x-show="virtualNegotiators.length > 0">Virtual (saved configs)</option>
+                                            <template x-for="src in [...new Set(negotiatorTypes.map(n => n.source))]" :key="src">
+                                                <option :value="src" x-text="src"></option>
+                                            </template>
+                                        </select>
+                                        <!-- Tag filter -->
+                                        <select class="form-select" style="margin-top: 8px; font-size: 12px; padding: 4px 8px;"
+                                                x-model="tournamentCompetitorTagFilter">
+                                            <option value="">All tags</option>
+                                            <template x-for="tag in allNegotiatorTags" :key="tag">
+                                                <option :value="tag" x-text="tag"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                    <div class="dual-list-items" style="flex: 1; overflow-y: auto; padding: 8px;">
+                                        <template x-for="neg in filteredTournamentCompetitors.filter(n => !isTournamentCompetitorSelected(n.type_name))" :key="neg.type_name">
+                                            <div class="dual-list-item" 
+                                                 style="padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; background: var(--bg-tertiary);"
+                                                 @click="addTournamentCompetitor(neg.type_name)"
+                                                 @mouseenter="$el.style.background = 'var(--bg-hover)'"
+                                                 @mouseleave="$el.style.background = 'var(--bg-tertiary)'">
+                                                <div style="font-size: 13px; font-weight: 500;" x-text="neg.name"></div>
+                                                <div style="font-size: 11px; color: var(--text-muted); display: flex; gap: 8px; margin-top: 2px;">
+                                                    <span class="badge badge-secondary" style="font-size: 10px;" x-text="neg.source"></span>
+                                                    <span x-show="neg.description" x-text="neg.description" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <div x-show="filteredTournamentCompetitors.filter(n => !isTournamentCompetitorSelected(n.type_name)).length === 0" 
+                                             class="text-muted" style="text-align: center; padding: 20px; font-size: 13px;">
+                                            No available competitors
+                                        </div>
+                                    </div>
+                                    <div class="dual-list-footer" style="padding: 8px; border-top: 1px solid var(--border-color); background: var(--bg-secondary);">
+                                        <button class="btn btn-sm btn-secondary" style="width: 100%;" 
+                                                @click="addAllFilteredTournamentCompetitors()"
+                                                :disabled="filteredTournamentCompetitors.filter(n => !isTournamentCompetitorSelected(n.type_name)).length === 0">
+                                            Add All Filtered
+                                            <span x-text="'(' + filteredTournamentCompetitors.filter(n => !isTournamentCompetitorSelected(n.type_name)).length + ')'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Transfer buttons (center) -->
+                                <div style="display: flex; flex-direction: column; justify-content: center; gap: 8px;">
+                                    <button class="btn btn-sm btn-secondary" style="padding: 8px;" title="Add all filtered"
+                                            @click="addAllFilteredTournamentCompetitors()"
+                                            :disabled="filteredTournamentCompetitors.filter(n => !isTournamentCompetitorSelected(n.type_name)).length === 0">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <polyline points="13 17 18 12 13 7"></polyline>
+                                            <polyline points="6 17 11 12 6 7"></polyline>
+                                        </svg>
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" style="padding: 8px;" title="Remove all"
+                                            @click="newTournament.competitor_types = []"
+                                            :disabled="newTournament.competitor_types.length === 0">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <polyline points="11 17 6 12 11 7"></polyline>
+                                            <polyline points="18 17 13 12 18 7"></polyline>
+                                        </svg>
+                                    </button>
+                                </div>
+                                
+                                <!-- Selected competitors (right) -->
+                                <div class="dual-list-panel" style="display: flex; flex-direction: column; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+                                    <div class="dual-list-header" style="padding: 12px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);">
+                                        <div style="font-weight: 600; font-size: 13px;">
+                                            Selected
+                                            <span class="badge" :class="newTournament.competitor_types.length >= 1 ? 'badge-primary' : 'badge-warning'" 
+                                                  style="margin-left: 6px;" x-text="newTournament.competitor_types.length"></span>
+                                            <span x-show="newTournament.competitor_types.length < 1" class="text-warning" style="font-size: 11px; margin-left: 6px;">(need 1+)</span>
+                                        </div>
+                                    </div>
+                                    <div class="dual-list-items" style="flex: 1; overflow-y: auto; padding: 8px;">
+                                        <template x-for="typeName in newTournament.competitor_types" :key="typeName">
+                                            <div class="dual-list-item selected" 
+                                                 style="padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; background: var(--primary-bg); display: flex; align-items: center; justify-content: space-between;"
+                                                 @mouseenter="$el.style.background = 'var(--bg-hover)'"
+                                                 @mouseleave="$el.style.background = 'var(--primary-bg)'">
+                                                <div style="flex: 1; min-width: 0;">
+                                                    <div style="font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" 
+                                                         x-text="negotiatorTypes.find(n => n.type_name === typeName)?.name || typeName"></div>
+                                                    <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+                                                        <span x-text="negotiatorTypes.find(n => n.type_name === typeName)?.source || ''"></span>
+                                                        <span x-show="isVirtualNegotiator(typeName)" class="badge badge-info" style="font-size: 9px; padding: 1px 4px;">Virtual</span>
+                                                    </div>
+                                                </div>
+                                                <div style="display: flex; gap: 4px; align-items: center;">
+                                                    <!-- Configure button - opens parameter editor modal -->
+                                                    <button class="btn btn-sm" style="padding: 4px; background: transparent; color: var(--text-muted);"
+                                                            @click.stop="openCompetitorConfig(typeName)"
+                                                            title="Configure parameters">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                            <circle cx="12" cy="12" r="3"></circle>
+                                                            <path d="M12 1v4m0 14v4m-7.07-15.07l2.83 2.83m8.48 8.48l2.83 2.83M1 12h4m14 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"></path>
+                                                        </svg>
+                                                    </button>
+                                                    <!-- Remove button -->
+                                                    <button class="btn btn-sm" style="padding: 4px; background: transparent; color: var(--text-muted);"
+                                                            @click.stop="removeTournamentCompetitor(typeName)"
+                                                            title="Remove">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <div x-show="newTournament.competitor_types.length === 0" 
+                                             class="text-muted" style="text-align: center; padding: 20px; font-size: 13px;">
+                                            No competitors selected<br>
+                                            <span style="font-size: 11px;">Click items on the left or use "Add All Filtered"</span>
+                                        </div>
+                                    </div>
+                                    <div class="dual-list-footer" style="padding: 8px; border-top: 1px solid var(--border-color); background: var(--bg-secondary);">
+                                        <button class="btn btn-sm btn-secondary" style="width: 100%;" 
+                                                @click="newTournament.competitor_types = []"
+                                                :disabled="newTournament.competitor_types.length === 0">
+                                            Clear All
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Opponents Tab -->
+                        <div x-show="tournamentTab === 'opponents'" class="wizard-panel">
+                            <div class="panel-header">
+                                <h3>Select Opponents</h3>
+                                <span class="text-muted">(agents that competitors play against)</span>
+                            </div>
+                            
+                            <!-- Same as competitors checkbox -->
+                            <div class="form-group" style="margin-bottom: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+                                <label class="form-checkbox" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                    <input type="checkbox" x-model="newTournament.opponents_same_as_competitors">
+                                    <span style="font-weight: 500;">Same as competitors</span>
+                                </label>
+                                <div class="text-muted" style="font-size: 12px; margin-top: 6px; margin-left: 26px;">
+                                    When checked, competitors play against each other (standard tournament mode).
+                                    Uncheck to specify separate opponents - competitors will play against opponents but only competitors are scored.
+                                </div>
+                            </div>
+                            
+                            <!-- Dual-list layout (only shown when not same as competitors) -->
+                            <div class="dual-list-container" x-show="!newTournament.opponents_same_as_competitors" x-transition
+                                 style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; height: 380px;">
+                                <!-- Available opponents (left) -->
+                                <div class="dual-list-panel" style="display: flex; flex-direction: column; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+                                    <div class="dual-list-header" style="padding: 12px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);">
+                                        <div style="font-weight: 600; font-size: 13px; margin-bottom: 8px;">
+                                            Available
+                                            <span class="text-muted" style="font-weight: normal;" x-text="'(' + filteredTournamentOpponents.filter(n => !isTournamentOpponentSelected(n.type_name)).length + ')'"></span>
+                                        </div>
+                                        <input type="text" class="form-input" placeholder="Search negotiators..." 
+                                               style="font-size: 13px; padding: 6px 10px;"
+                                               x-model="tournamentOpponentSearch">
+                                        <!-- Source filter -->
+                                        <select class="form-select" style="margin-top: 8px; font-size: 12px; padding: 4px 8px;"
+                                                x-model="tournamentOpponentSourceFilter">
+                                            <option value="">All sources</option>
+                                            <option value="virtual" x-show="virtualNegotiators.length > 0">Virtual (saved configs)</option>
+                                            <template x-for="src in [...new Set(negotiatorTypes.map(n => n.source))]" :key="src">
+                                                <option :value="src" x-text="src"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                    <div class="dual-list-items" style="flex: 1; overflow-y: auto; padding: 8px;">
+                                        <template x-for="neg in filteredTournamentOpponents.filter(n => !isTournamentOpponentSelected(n.type_name))" :key="neg.type_name">
+                                            <div class="dual-list-item" 
+                                                 style="padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; background: var(--bg-tertiary);"
+                                                 @click="addTournamentOpponent(neg.type_name)"
+                                                 @mouseenter="$el.style.background = 'var(--bg-hover)'"
+                                                 @mouseleave="$el.style.background = 'var(--bg-tertiary)'">
+                                                <div style="font-size: 13px; font-weight: 500;" x-text="neg.name"></div>
+                                                <div style="font-size: 11px; color: var(--text-muted); display: flex; gap: 8px; margin-top: 2px;">
+                                                    <span class="badge badge-secondary" style="font-size: 10px;" x-text="neg.source"></span>
+                                                    <span x-show="neg.description" x-text="neg.description" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <div x-show="filteredTournamentOpponents.filter(n => !isTournamentOpponentSelected(n.type_name)).length === 0" 
+                                             class="text-muted" style="text-align: center; padding: 20px; font-size: 13px;">
+                                            No available opponents
+                                        </div>
+                                    </div>
+                                    <div class="dual-list-footer" style="padding: 8px; border-top: 1px solid var(--border-color); background: var(--bg-secondary);">
+                                        <button class="btn btn-sm btn-secondary" style="width: 100%;" 
+                                                @click="addAllFilteredTournamentOpponents()"
+                                                :disabled="filteredTournamentOpponents.filter(n => !isTournamentOpponentSelected(n.type_name)).length === 0">
+                                            Add All Filtered
+                                            <span x-text="'(' + filteredTournamentOpponents.filter(n => !isTournamentOpponentSelected(n.type_name)).length + ')'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Transfer buttons (center) -->
+                                <div style="display: flex; flex-direction: column; justify-content: center; gap: 8px;">
+                                    <button class="btn btn-sm btn-secondary" style="padding: 8px;" title="Add all filtered"
+                                            @click="addAllFilteredTournamentOpponents()"
+                                            :disabled="filteredTournamentOpponents.filter(n => !isTournamentOpponentSelected(n.type_name)).length === 0">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <polyline points="13 17 18 12 13 7"></polyline>
+                                            <polyline points="6 17 11 12 6 7"></polyline>
+                                        </svg>
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" style="padding: 8px;" title="Copy from competitors"
+                                            @click="newTournament.opponent_types = [...newTournament.competitor_types]"
+                                            :disabled="newTournament.competitor_types.length === 0">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                        </svg>
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" style="padding: 8px;" title="Remove all"
+                                            @click="newTournament.opponent_types = []"
+                                            :disabled="newTournament.opponent_types.length === 0">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <polyline points="11 17 6 12 11 7"></polyline>
+                                            <polyline points="18 17 13 12 18 7"></polyline>
+                                        </svg>
+                                    </button>
+                                </div>
+                                
+                                <!-- Selected opponents (right) -->
+                                <div class="dual-list-panel" style="display: flex; flex-direction: column; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+                                    <div class="dual-list-header" style="padding: 12px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);">
+                                        <div style="font-weight: 600; font-size: 13px;">
+                                            Selected Opponents
+                                            <span class="badge" :class="newTournament.opponent_types.length >= 1 ? 'badge-primary' : 'badge-warning'" 
+                                                  style="margin-left: 6px;" x-text="newTournament.opponent_types.length"></span>
+                                            <span x-show="newTournament.opponent_types.length < 1" class="text-warning" style="font-size: 11px; margin-left: 6px;">(need 1+)</span>
+                                        </div>
+                                    </div>
+                                    <div class="dual-list-items" style="flex: 1; overflow-y: auto; padding: 8px;">
+                                        <template x-for="typeName in newTournament.opponent_types" :key="typeName">
+                                            <div class="dual-list-item selected" 
+                                                 style="padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; background: var(--primary-bg); display: flex; align-items: center; justify-content: space-between;"
+                                                 @mouseenter="$el.style.background = 'var(--bg-hover)'"
+                                                 @mouseleave="$el.style.background = 'var(--primary-bg)'">
+                                                <div style="flex: 1; min-width: 0;">
+                                                    <div style="font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" 
+                                                         x-text="negotiatorTypes.find(n => n.type_name === typeName)?.name || typeName"></div>
+                                                    <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+                                                        <span x-text="negotiatorTypes.find(n => n.type_name === typeName)?.source || ''"></span>
+                                                        <span x-show="isVirtualNegotiator(typeName)" class="badge badge-info" style="font-size: 9px; padding: 1px 4px;">Virtual</span>
+                                                        <span x-show="newTournament.competitor_types.includes(typeName)" class="badge badge-success" style="font-size: 9px; padding: 1px 4px;">Also competitor</span>
+                                                    </div>
+                                                </div>
+                                                <div style="display: flex; gap: 4px; align-items: center;">
+                                                    <!-- Remove button -->
+                                                    <button class="btn btn-sm" style="padding: 4px; background: transparent; color: var(--text-muted);"
+                                                            @click.stop="removeTournamentOpponent(typeName)"
+                                                            title="Remove">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <div x-show="newTournament.opponent_types.length === 0" 
+                                             class="text-muted" style="text-align: center; padding: 20px; font-size: 13px;">
+                                            No opponents selected<br>
+                                            <span style="font-size: 11px;">Click items on the left or use "Add All Filtered"</span>
+                                        </div>
+                                    </div>
+                                    <div class="dual-list-footer" style="padding: 8px; border-top: 1px solid var(--border-color); background: var(--bg-secondary);">
+                                        <button class="btn btn-sm btn-secondary" style="width: 100%;" 
+                                                @click="newTournament.opponent_types = []"
+                                                :disabled="newTournament.opponent_types.length === 0">
+                                            Clear All
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Info when same as competitors -->
+                            <div x-show="newTournament.opponents_same_as_competitors" x-transition
+                                 style="padding: 40px; text-align: center; background: var(--bg-secondary); border-radius: 8px; border: 2px dashed var(--border-color);">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="48" height="48" style="color: var(--text-muted); margin-bottom: 12px;">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                                <div style="font-size: 15px; font-weight: 500; margin-bottom: 8px;">Standard Tournament Mode</div>
+                                <div class="text-muted" style="font-size: 13px; max-width: 400px; margin: 0 auto;">
+                                    All <span x-text="newTournament.competitor_types.length"></span> competitors will play against each other.
+                                    <template x-if="newTournament.self_play">
+                                        <span>Self-play is enabled, so each competitor also plays against itself.</span>
+                                    </template>
+                                    <template x-if="!newTournament.self_play">
+                                        <span>Self-play is disabled.</span>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Settings Tab -->
+                        <div x-show="tournamentTab === 'settings'" class="wizard-panel">
+                            <div class="panel-header">
+                                <h3>Tournament Settings</h3>
+                            </div>
+                            
+                            <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                <div class="form-group">
+                                    <label class="form-label">Repetitions</label>
+                                    <input type="number" class="form-input" x-model.number="newTournament.n_repetitions" min="1" max="100">
+                                    <div class="form-hint">Run each pairing multiple times</div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">
+                                        Max Steps
+                                        <label class="form-checkbox" style="display: inline-flex; margin-left: 8px; font-weight: normal;">
+                                            <input type="checkbox" x-model="newTournament.n_steps_range_enabled">
+                                            <span style="font-size: 11px;">Range</span>
+                                        </label>
+                                    </label>
+                                    <div x-show="!newTournament.n_steps_range_enabled">
+                                        <input type="number" class="form-input" x-model.number="newTournament.n_steps" min="1">
+                                    </div>
+                                    <div x-show="newTournament.n_steps_range_enabled" style="display: flex; gap: 8px; align-items: center;">
+                                        <input type="number" class="form-input" x-model.number="newTournament.n_steps_min" min="1" placeholder="Min" style="width: 80px;">
+                                        <span>-</span>
+                                        <input type="number" class="form-input" x-model.number="newTournament.n_steps_max" min="1" placeholder="Max" style="width: 80px;">
+                                    </div>
+                                    <div class="form-hint" x-show="newTournament.n_steps_range_enabled">Random sample per negotiation</div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">
+                                        Time Limit (seconds)
+                                        <label class="form-checkbox" style="display: inline-flex; margin-left: 8px; font-weight: normal;">
+                                            <input type="checkbox" x-model="newTournament.time_limit_range_enabled">
+                                            <span style="font-size: 11px;">Range</span>
+                                        </label>
+                                    </label>
+                                    <div x-show="!newTournament.time_limit_range_enabled">
+                                        <input type="number" class="form-input" x-model.number="newTournament.time_limit" min="0" step="0.1" placeholder="No limit">
+                                    </div>
+                                    <div x-show="newTournament.time_limit_range_enabled" style="display: flex; gap: 8px; align-items: center;">
+                                        <input type="number" class="form-input" x-model.number="newTournament.time_limit_min" min="0" step="0.1" placeholder="Min" style="width: 80px;">
+                                        <span>-</span>
+                                        <input type="number" class="form-input" x-model.number="newTournament.time_limit_max" min="0" step="0.1" placeholder="Max" style="width: 80px;">
+                                    </div>
+                                    <div class="form-hint" x-show="!newTournament.time_limit_range_enabled">Max time per negotiation</div>
+                                    <div class="form-hint" x-show="newTournament.time_limit_range_enabled">Random sample per negotiation</div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Mechanism</label>
+                                    <select class="form-select" x-model="newTournament.mechanism_type">
+                                        <option value="SAOMechanism">SAO Mechanism</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Score Metric</label>
+                                    <select class="form-select" x-model="newTournament.final_score_metric">
+                                        <option value="advantage">Advantage</option>
+                                        <option value="utility">Utility</option>
+                                        <option value="welfare">Welfare</option>
+                                        <option value="partner_welfare">Partner Welfare</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Score Statistic</label>
+                                    <select class="form-select" x-model="newTournament.final_score_stat">
+                                        <option value="mean">Mean</option>
+                                        <option value="median">Median</option>
+                                        <option value="min">Min</option>
+                                        <option value="max">Max</option>
+                                        <option value="std">Std Dev</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group" style="margin-top: 16px;">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" x-model="newTournament.rotate_ufuns">
+                                    <span>Rotate Utility Functions</span>
+                                </label>
+                                <div class="form-hint">Each pair plays both positions</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" x-model="newTournament.self_play">
+                                    <span>Allow Self-Play</span>
+                                </label>
+                                <div class="form-hint">Allow competitors to play against themselves</div>
+                            </div>
+                            
+                            <!-- Normalize scenarios -->
+                            <div class="form-group" style="margin-top: 16px;">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" x-model="newTournament.normalize">
+                                    <span>Normalize Utility Functions</span>
+                                </label>
+                                <div class="form-hint">Scale utilities to [0, 1] for fair cross-scenario comparison</div>
+                                <!-- Warning when normalization is disabled -->
+                                <div x-show="!newTournament.normalize" 
+                                     style="margin-top: 8px; padding: 8px 12px; background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.5); border-radius: 6px; font-size: 12px; color: var(--text-warning);">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align: -2px; margin-right: 4px;">
+                                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                    </svg>
+                                    <strong>Warning:</strong> Aggregating results without normalization may give disproportionate influence to scenarios with different utility scales.
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" x-model="newTournament.ignore_discount">
+                                    <span>Ignore Discounting</span>
+                                </label>
+                                <div class="form-hint">Use base utility functions, ignoring time-based discounting</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" x-model="newTournament.ignore_reserved">
+                                    <span>Ignore Reserved Values</span>
+                                </label>
+                                <div class="form-hint">Ignore reserved/disagreement values in utility functions</div>
+                            </div>
+                            
+                            <!-- Advanced Settings (Collapsible) -->
+                            <details class="advanced-settings" style="margin-top: 24px; border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+                                <summary style="cursor: pointer; font-weight: 600; color: var(--text-secondary);">Advanced Settings</summary>
+                                
+                                <div style="margin-top: 16px;">
+                                    <h4 style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">Time Limits</h4>
+                                    <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                                        <div class="form-group">
+                                            <label class="form-label">Step Time Limit</label>
+                                            <input type="number" class="form-input" x-model.number="newTournament.step_time_limit" min="0" step="0.1" placeholder="None">
+                                            <div class="form-hint">Per-step limit (s)</div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Negotiator Time</label>
+                                            <input type="number" class="form-input" x-model.number="newTournament.negotiator_time_limit" min="0" step="0.1" placeholder="None">
+                                            <div class="form-hint">Total per negotiator (s)</div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Hidden Time Limit</label>
+                                            <input type="number" class="form-input" x-model.number="newTournament.hidden_time_limit" min="0" step="0.1" placeholder="None">
+                                            <div class="form-hint">Not revealed to agents</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <h4 style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 12px;">Probabilistic Ending</h4>
+                                    <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                        <div class="form-group">
+                                            <label class="form-label">End Probability (per step)</label>
+                                            <input type="number" class="form-input" x-model.number="newTournament.pend" min="0" max="1" step="0.01" placeholder="0">
+                                            <div class="form-hint">Prob. of ending each step</div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">End Prob. (per second)</label>
+                                            <input type="number" class="form-input" x-model.number="newTournament.pend_per_second" min="0" max="1" step="0.01" placeholder="0">
+                                            <div class="form-hint">Prob. of ending per second</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <h4 style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 12px;">Information Hiding</h4>
+                                    <div class="form-group">
+                                        <label class="form-checkbox">
+                                            <input type="checkbox" x-model="newTournament.id_reveals_type">
+                                            <span>ID Reveals Type</span>
+                                        </label>
+                                        <div class="form-hint">Negotiator ID reveals its type to opponents</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox">
+                                            <input type="checkbox" x-model="newTournament.name_reveals_type">
+                                            <span>Name Reveals Type</span>
+                                        </label>
+                                        <div class="form-hint">Negotiator name reveals its type to opponents</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox">
+                                            <input type="checkbox" x-model="newTournament.mask_scenario_names">
+                                            <span>Mask Scenario Names</span>
+                                        </label>
+                                        <div class="form-hint">Hide scenario names from negotiators</div>
+                                    </div>
+                                    
+                                    <h4 style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 12px;">Run Ordering</h4>
+                                    <div class="form-group">
+                                        <label class="form-checkbox">
+                                            <input type="checkbox" x-model="newTournament.randomize_runs">
+                                            <span>Randomize Runs</span>
+                                        </label>
+                                        <div class="form-hint">Randomize order of negotiations</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox">
+                                            <input type="checkbox" x-model="newTournament.sort_runs">
+                                            <span>Sort Runs</span>
+                                        </label>
+                                        <div class="form-hint">Sort runs by scenario/competitors</div>
+                                    </div>
+                                    
+                                    <h4 style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 12px;">Self-Play Options</h4>
+                                    <div class="form-group">
+                                        <label class="form-checkbox">
+                                            <input type="checkbox" x-model="newTournament.only_failures_on_self_play">
+                                            <span>Only Failures on Self-Play</span>
+                                        </label>
+                                        <div class="form-hint">Only record failures for self-play negotiations</div>
+                                    </div>
+                                    
+                                    <h4 style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 12px;">Save Options</h4>
+                                    <div class="form-group">
+                                        <label class="form-checkbox">
+                                            <input type="checkbox" x-model="newTournament.save_stats">
+                                            <span>Save Statistics</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-checkbox">
+                                            <input type="checkbox" x-model="newTournament.save_scenario_figs">
+                                            <span>Save Scenario Figures</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Save Every N Negotiations</label>
+                                        <input type="number" class="form-input" x-model.number="newTournament.save_every" min="0" placeholder="0 (only at end)">
+                                        <div class="form-hint">0 = save only at end</div>
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                        
+                        <!-- Review Tab -->
+                        <div x-show="tournamentTab === 'review'" class="wizard-panel">
+                            <div class="panel-header">
+                                <h3>Review Tournament Configuration</h3>
+                            </div>
+                            
+                            <div class="review-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                                <!-- Left column: Scenarios and Competitors -->
+                                <div>
+                                    <!-- Scenarios Summary -->
+                                    <div class="review-section" style="margin-bottom: 24px;">
+                                        <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                            </svg>
+                                            Scenarios
+                                            <span class="badge badge-primary" x-text="newTournament.scenario_paths.length"></span>
+                                        </h4>
+                                        <div class="review-list" style="background: var(--bg-tertiary); border-radius: 8px; padding: 12px; max-height: 150px; overflow-y: auto;">
+                                            <template x-for="path in newTournament.scenario_paths" :key="path">
+                                                <div style="font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border-color);" 
+                                                     x-text="scenarios.find(s => s.path === path)?.name || path.split('/').pop()"></div>
+                                            </template>
+                                            <div x-show="newTournament.scenario_paths.length === 0" class="text-warning" style="font-size: 12px;">
+                                                No scenarios selected
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Competitors Summary -->
+                                    <div class="review-section" style="margin-bottom: 24px;">
+                                        <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                                <circle cx="9" cy="7" r="4"></circle>
+                                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                            </svg>
+                                            Competitors
+                                            <span class="badge" :class="newTournament.competitor_types.length >= 1 ? 'badge-primary' : 'badge-warning'" 
+                                                  x-text="newTournament.competitor_types.length"></span>
+                                            <span class="text-muted" style="font-size: 11px; font-weight: normal;">(scored)</span>
+                                        </h4>
+                                        <div class="review-list" style="background: var(--bg-tertiary); border-radius: 8px; padding: 12px; max-height: 120px; overflow-y: auto;">
+                                            <template x-for="typeName in newTournament.competitor_types" :key="typeName">
+                                                <div style="font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border-color);" 
+                                                     x-text="negotiatorTypes.find(n => n.type_name === typeName)?.name || typeName"></div>
+                                            </template>
+                                            <div x-show="newTournament.competitor_types.length < 1" class="text-warning" style="font-size: 12px;">
+                                                Need at least 1 competitor
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Opponents Summary -->
+                                    <div class="review-section">
+                                        <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                                <circle cx="9" cy="7" r="4"></circle>
+                                                <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                                            </svg>
+                                            Opponents
+                                            <template x-if="newTournament.opponents_same_as_competitors">
+                                                <span class="badge badge-info">=Competitors</span>
+                                            </template>
+                                            <template x-if="!newTournament.opponents_same_as_competitors">
+                                                <span class="badge" :class="newTournament.opponent_types.length >= 1 ? 'badge-primary' : 'badge-warning'" 
+                                                      x-text="newTournament.opponent_types.length"></span>
+                                            </template>
+                                        </h4>
+                                        <div class="review-list" style="background: var(--bg-tertiary); border-radius: 8px; padding: 12px; max-height: 120px; overflow-y: auto;">
+                                            <template x-if="newTournament.opponents_same_as_competitors">
+                                                <div style="font-size: 12px; color: var(--text-muted);">
+                                                    Same as competitors (standard tournament mode)
+                                                </div>
+                                            </template>
+                                            <template x-if="!newTournament.opponents_same_as_competitors">
+                                                <div>
+                                                    <template x-for="typeName in newTournament.opponent_types" :key="typeName">
+                                                        <div style="font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border-color);" 
+                                                             x-text="negotiatorTypes.find(n => n.type_name === typeName)?.name || typeName"></div>
+                                                    </template>
+                                                    <div x-show="newTournament.opponent_types.length < 1" class="text-warning" style="font-size: 12px;">
+                                                        Need at least 1 opponent
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Right column: Settings Summary -->
+                                <div>
+                                    <div class="review-section">
+                                        <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                <circle cx="12" cy="12" r="3"></circle>
+                                                <path d="M12 1v4m0 14v4m-7.07-15.07l2.83 2.83m8.48 8.48l2.83 2.83M1 12h4m14 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"></path>
+                                            </svg>
+                                            Settings
+                                        </h4>
+                                        <div class="review-settings" style="background: var(--bg-tertiary); border-radius: 8px; padding: 12px;">
+                                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: 12px;">
+                                                <div><span class="text-muted">Repetitions:</span> <span x-text="newTournament.n_repetitions"></span></div>
+                                                <div><span class="text-muted">Mechanism:</span> <span x-text="newTournament.mechanism_type"></span></div>
+                                                <div>
+                                                    <span class="text-muted">Max Steps:</span> 
+                                                    <span x-text="newTournament.n_steps_range_enabled ? newTournament.n_steps_min + '-' + newTournament.n_steps_max : (newTournament.n_steps || 'None')"></span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-muted">Time Limit:</span> 
+                                                    <span x-text="newTournament.time_limit_range_enabled ? newTournament.time_limit_min + '-' + newTournament.time_limit_max + 's' : (newTournament.time_limit ? newTournament.time_limit + 's' : 'None')"></span>
+                                                </div>
+                                                <div><span class="text-muted">Score Metric:</span> <span x-text="newTournament.final_score_metric"></span></div>
+                                                <div><span class="text-muted">Score Stat:</span> <span x-text="newTournament.final_score_stat"></span></div>
+                                                <div><span class="text-muted">Rotate Ufuns:</span> <span x-text="newTournament.rotate_ufuns ? 'Yes' : 'No'"></span></div>
+                                                <div><span class="text-muted">Self-play:</span> <span x-text="newTournament.self_play ? 'Yes' : 'No'"></span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Estimated Negotiations -->
+                                    <div class="review-section" style="margin-top: 24px;">
+                                        <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Estimated Total Negotiations</h4>
+                                        <div style="background: var(--primary-bg); border-radius: 8px; padding: 16px; text-align: center;">
+                                            <div style="font-size: 24px; font-weight: 700; color: var(--primary);" x-text="estimateTournamentNegotiations()"></div>
+                                            <div class="text-muted" style="font-size: 11px; margin-top: 4px;">
+                                                <span x-text="newTournament.scenario_paths.length"></span> scenarios &times;
+                                                <span x-text="estimateTournamentPairings()"></span> pairings &times;
+                                                <span x-text="newTournament.n_repetitions"></span> repetitions
+                                                <span x-show="newTournament.rotate_ufuns"> &times; 2 (rotated)</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Save Preset Section -->
+                                    <div class="review-section" style="margin-top: 24px;">
+                                        <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Save Configuration</h4>
+                                        <div style="display: flex; gap: 8px;">
+                                            <input type="text" class="form-input" placeholder="Preset name..." 
+                                                   x-model="tournamentPresetName" style="flex: 1;">
+                                            <button class="btn btn-secondary" @click="saveTournamentPreset()" 
+                                                    :disabled="!tournamentPresetName.trim() || !canStartTournament()">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                                    <polyline points="7 3 7 8 15 8"></polyline>
+                                                </svg>
+                                                Save
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer" style="display: flex; justify-content: space-between;">
+                <div>
+                    <button class="btn btn-secondary" @click="showNewTournament = false">Cancel</button>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <!-- Back button -->
+                    <button class="btn btn-secondary" 
+                            x-show="tournamentTab !== 'scenarios'"
+                            @click="tournamentWizardBack()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polyline points="15 18 9 12 15 6"></polyline>
+                        </svg>
+                        Back
+                    </button>
+                    <!-- Next button -->
+                    <button class="btn btn-secondary" 
+                            x-show="tournamentTab !== 'review'"
+                            @click="tournamentWizardNext()">
+                        Next
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </button>
+                    <!-- Start Tournament button (only on review tab) -->
+                    <button class="btn btn-primary" 
+                            x-show="tournamentTab === 'review'"
+                            @click="startTournament()"
+                            :disabled="!canStartTournament()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        Start Tournament
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>

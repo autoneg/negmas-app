@@ -1,0 +1,144 @@
+<!-- Sidebar -->
+<aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+    <button class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed" :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <polyline :points="sidebarCollapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6'"></polyline>
+        </svg>
+    </button>
+    <div class="sidebar-section">
+        <div class="sidebar-section-title" x-show="!sidebarCollapsed">Quick Actions</div>
+        <button class="sidebar-btn primary" @click="openNewNegotiation()" :title="sidebarCollapsed ? 'Start Negotiation' : ''">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span x-show="!sidebarCollapsed">Start Negotiation</span>
+        </button>
+        <button class="sidebar-btn" @click="showNewTournament = true; currentPage = 'tournaments'; loadTournamentSessions()" :title="sidebarCollapsed ? 'Start Tournament' : ''">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="8" r="5"></circle>
+                <path d="M12 13v7"></path>
+                <path d="M9 20h6"></path>
+            </svg>
+            <span x-show="!sidebarCollapsed">Start Tournament</span>
+        </button>
+    </div>
+    
+    <div class="sidebar-section">
+        <div class="sidebar-section-title" x-show="!sidebarCollapsed">
+            Running
+            <span class="sidebar-badge" x-show="runningNegotiations.length > 0" x-text="runningNegotiations.length"></span>
+        </div>
+        <div class="negotiation-list" x-show="!sidebarCollapsed">
+            <template x-if="runningNegotiations.length === 0">
+                <p class="text-muted" style="font-size: 12px; padding: 8px;">No active negotiations</p>
+            </template>
+            <template x-for="neg in runningNegotiations" :key="neg.id">
+                <div class="negotiation-item" :class="{ active: currentNegotiation?.id === neg.id }" @click="selectNegotiation(neg)">
+                    <div class="negotiation-item-title" x-text="neg.scenario"></div>
+                    <div class="negotiation-item-meta">
+                        <span class="badge badge-primary">Running</span>
+                        <span x-text="'Step ' + neg.step"></span>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+    
+    <div class="sidebar-section">
+        <div class="sidebar-section-title" x-show="!sidebarCollapsed">
+            Completed
+            <span class="sidebar-badge" x-show="completedNegotiations.length > 0" x-text="completedNegotiations.length"></span>
+        </div>
+        <div class="negotiation-list" x-show="!sidebarCollapsed">
+            <template x-if="completedNegotiations.length === 0">
+                <p class="text-muted" style="font-size: 12px; padding: 8px;">No completed negotiations</p>
+            </template>
+            <template x-for="neg in completedNegotiations" :key="neg.id">
+                <div class="negotiation-item" :class="{ active: currentNegotiation?.id === neg.id }" @click="selectNegotiation(neg)">
+                    <div class="negotiation-item-title" x-text="neg.scenario"></div>
+                    <div class="negotiation-item-meta">
+                        <span class="badge" :class="neg.agreement ? 'badge-success' : 'badge-warning'" x-text="neg.agreement ? 'Agreement' : 'No Agreement'"></span>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+    
+    <!-- Tournament Sections -->
+    <div class="sidebar-section" x-show="tournamentSessions.some(t => t.status === 'running')">
+        <div class="sidebar-section-title" x-show="!sidebarCollapsed">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="margin-right: 4px;">
+                <circle cx="12" cy="8" r="5"></circle>
+                <path d="M12 13v7"></path>
+                <path d="M9 20h6"></path>
+            </svg>
+            Running Tournaments
+            <span class="sidebar-badge" x-text="tournamentSessions.filter(t => t.status === 'running').length"></span>
+        </div>
+        <div class="negotiation-list" x-show="!sidebarCollapsed">
+            <template x-for="session in tournamentSessions.filter(t => t.status === 'running')" :key="session.id">
+                <div class="negotiation-item" :class="{ active: selectedTournament?.id === session.id && currentPage === 'tournaments' }" 
+                     @click="currentPage = 'tournaments'; selectTournament(session)">
+                    <div class="negotiation-item-title" x-text="'Tournament #' + session.id"></div>
+                    <div class="negotiation-item-meta">
+                        <span class="badge badge-primary">Running</span>
+                        <span x-text="Math.round(session.progress?.percent || 0) + '%'"></span>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+    
+    <div class="sidebar-section" x-show="tournamentSessions.some(t => t.status !== 'running')">
+        <div class="sidebar-section-title" x-show="!sidebarCollapsed">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="margin-right: 4px;">
+                <circle cx="12" cy="8" r="5"></circle>
+                <path d="M12 13v7"></path>
+                <path d="M9 20h6"></path>
+            </svg>
+            Past Tournaments
+            <span class="sidebar-badge" x-text="tournamentSessions.filter(t => t.status !== 'running').length"></span>
+        </div>
+        <div class="negotiation-list" x-show="!sidebarCollapsed">
+            <template x-for="session in tournamentSessions.filter(t => t.status !== 'running').slice(0, 5)" :key="session.id">
+                <div class="negotiation-item" :class="{ active: selectedTournament?.id === session.id && currentPage === 'tournaments' }" 
+                     @click="currentPage = 'tournaments'; selectTournament(session)">
+                    <div class="negotiation-item-title" x-text="'Tournament #' + session.id"></div>
+                    <div class="negotiation-item-meta">
+                        <span class="badge" 
+                              :class="{
+                                  'badge-success': session.status === 'completed',
+                                  'badge-danger': session.status === 'failed',
+                                  'badge-warning': session.status === 'cancelled'
+                              }" 
+                              x-text="session.status"></span>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+    
+    <!-- Saved Tournaments Section -->
+    <div class="sidebar-section" x-show="savedTournaments.length > 0">
+        <div class="sidebar-section-title" x-show="!sidebarCollapsed">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="margin-right: 4px;">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            Saved Tournaments
+            <span class="sidebar-badge" x-text="savedTournaments.length"></span>
+        </div>
+        <div class="negotiation-list" x-show="!sidebarCollapsed">
+            <template x-for="t in savedTournaments.slice(0, 5)" :key="t.id">
+                <div class="negotiation-item" :class="{ active: selectedTournament?.id === t.id && currentPage === 'tournaments' }" 
+                     @click="currentPage = 'tournaments'; loadAndSelectSavedTournament(t.id)">
+                    <div class="negotiation-item-title" x-text="t.name || t.id"></div>
+                    <div class="negotiation-item-meta">
+                        <span x-text="t.n_negotiations + ' negs'"></span>
+                        <span x-text="Math.round((t.agreement_rate || 0) * 100) + '%'"></span>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</aside>

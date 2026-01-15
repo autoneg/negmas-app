@@ -13,6 +13,13 @@ from negmas import (
 )
 from negmas.outcomes import Outcome
 from negmas.preferences import UtilityFunction
+from negmas.preferences.ops import (
+    OutcomeOptimality,
+    calc_outcome_optimality,
+    calc_outcome_distances,
+    calc_scenario_stats,
+    estimate_max_dist,
+)
 
 from ..models import AnalysisPoint, OutcomeSpaceData
 
@@ -232,3 +239,71 @@ def _compute_from_scratch(scenario: Scenario, max_samples: int) -> OutcomeSpaceD
         pass
 
     return data
+
+
+def compute_optimality_stats(
+    scenario: Scenario,
+    agreement: Outcome,
+    max_samples: int = 50000,
+) -> dict | None:
+    """Compute OutcomeOptimality for an agreement.
+
+    Args:
+        scenario: Loaded scenario with ufuns and outcome_space.
+        agreement: The agreed-upon outcome.
+        max_samples: Maximum outcomes to consider for stats computation.
+
+    Returns:
+        Dictionary with optimality statistics, or None if computation fails.
+    """
+    if agreement is None:
+        return None
+
+    try:
+        ufuns = scenario.ufuns
+        outcome_space = scenario.outcome_space
+
+        # Get agreement utilities
+        agreement_utils = tuple(
+            float(ufun(agreement)) if ufun(agreement) is not None else 0.0
+            for ufun in ufuns
+        )
+
+        # Use cached stats if available, otherwise compute
+        if scenario.stats is not None:
+            stats = scenario.stats
+        else:
+            # Compute scenario stats from scratch
+            outcomes = list(
+                outcome_space.enumerate_or_sample(max_cardinality=max_samples)
+            )
+            stats = calc_scenario_stats(ufuns, outcomes)
+
+        # Calculate distances from agreement to special points
+        dists = calc_outcome_distances(agreement_utils, stats)
+
+        # Estimate max distance for normalization
+        max_dist = estimate_max_dist(ufuns)
+
+        # Calculate optimality
+        optimality: OutcomeOptimality = calc_outcome_optimality(dists, stats, max_dist)
+
+        # Convert to dictionary
+        return {
+            "pareto_optimality": float(optimality.pareto_optimality),
+            "nash_optimality": float(optimality.nash_optimality),
+            "kalai_optimality": float(optimality.kalai_optimality),
+            "modified_kalai_optimality": float(optimality.modified_kalai_optimality),
+            "max_welfare_optimality": float(optimality.max_welfare_optimality),
+            "ks_optimality": float(optimality.ks_optimality)
+            if not (optimality.ks_optimality != optimality.ks_optimality)
+            else None,  # NaN check
+            "modified_ks_optimality": float(optimality.modified_ks_optimality)
+            if not (
+                optimality.modified_ks_optimality != optimality.modified_ks_optimality
+            )
+            else None,  # NaN check
+        }
+    except Exception as e:
+        print(f"Failed to compute optimality stats: {e}")
+        return None

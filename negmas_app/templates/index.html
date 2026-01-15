@@ -498,6 +498,32 @@
                         </template>
                     </div>
                 </template>
+                <!-- Optimality Statistics Row (shown when stats are available) -->
+                <template x-if="currentNegotiation?.optimality_stats">
+                    <div class="result-row result-optimality-stats" style="font-size: 10px; gap: 6px; flex-wrap: wrap; padding: 2px 6px; background: var(--bg-tertiary); border-top: 1px solid var(--border-color);">
+                        <span class="optimality-stat" title="Pareto Optimality - how close to the Pareto frontier (1.0 = on frontier)">
+                            <span class="text-muted">Pareto:</span>
+                            <strong :class="{'text-success': currentNegotiation.optimality_stats.pareto_optimality >= 0.95, 'text-warning': currentNegotiation.optimality_stats.pareto_optimality >= 0.8 && currentNegotiation.optimality_stats.pareto_optimality < 0.95}"
+                                    x-text="(currentNegotiation.optimality_stats.pareto_optimality * 100).toFixed(1) + '%'"></strong>
+                        </span>
+                        <span class="optimality-stat" title="Nash Optimality - closeness to Nash bargaining solution">
+                            <span class="text-muted">Nash:</span>
+                            <strong x-text="(currentNegotiation.optimality_stats.nash_optimality * 100).toFixed(1) + '%'"></strong>
+                        </span>
+                        <span class="optimality-stat" title="Kalai Optimality - closeness to egalitarian solution">
+                            <span class="text-muted">Kalai:</span>
+                            <strong x-text="(currentNegotiation.optimality_stats.kalai_optimality * 100).toFixed(1) + '%'"></strong>
+                        </span>
+                        <span class="optimality-stat" title="Max Welfare Optimality - closeness to social welfare maximum">
+                            <span class="text-muted">Welfare:</span>
+                            <strong x-text="(currentNegotiation.optimality_stats.max_welfare_optimality * 100).toFixed(1) + '%'"></strong>
+                        </span>
+                        <span class="optimality-stat" title="Kalai-Smorodinsky Optimality - closeness to proportional solution">
+                            <span class="text-muted">KS:</span>
+                            <strong x-text="(currentNegotiation.optimality_stats.ks_optimality * 100).toFixed(1) + '%'"></strong>
+                        </span>
+                    </div>
+                </template>
                 <template x-if="currentNegotiation?.end_reason && !currentNegotiation?.agreement">
                     <div class="result-row result-final-state">
                         <span class="result-state-badge" 
@@ -3129,6 +3155,7 @@ app = function() {
                     neg.error = result.error;
                     neg.step = result.n_steps;
                     neg.pendingStart = false;
+                    neg.optimality_stats = result.optimality_stats;
                     this.completedNegotiations.unshift(neg);
                     
                     if (this.currentNegotiation?.id === sessionId) {

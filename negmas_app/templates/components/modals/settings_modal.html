@@ -1,0 +1,441 @@
+<!-- Settings Modal -->
+    <div class="modal-overlay" :class="{ active: showSettings }" @click.self="showSettings = false">
+        <div class="modal large">
+            <div class="modal-header">
+                <h2 class="modal-title">Settings</h2>
+                <button class="modal-close" @click="showSettings = false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body" style="padding: 0;">
+                <div class="settings-layout">
+                    <div class="settings-sidebar">
+                        <div class="settings-nav">
+                            <button class="settings-nav-item" :class="{ active: settingsTab === 'general' }" @click="settingsTab = 'general'">General</button>
+                            <button class="settings-nav-item" :class="{ active: settingsTab === 'negotiation' }" @click="settingsTab = 'negotiation'">Negotiation</button>
+                            <button class="settings-nav-item" :class="{ active: settingsTab === 'performance' }" @click="settingsTab = 'performance'">Performance</button>
+                            <button class="settings-nav-item" :class="{ active: settingsTab === 'sources' }" @click="settingsTab = 'sources'; loadSourceSettings()">Negotiator Sources</button>
+                            <button class="settings-nav-item" :class="{ active: settingsTab === 'genius' }" @click="settingsTab = 'genius'">Genius Bridge</button>
+                            <button class="settings-nav-item" :class="{ active: settingsTab === 'paths' }" @click="settingsTab = 'paths'">Custom Paths</button>
+                            <button class="settings-nav-item" :class="{ active: settingsTab === 'data' }" @click="settingsTab = 'data'">Export / Import</button>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-content">
+                        <div x-show="settingsTab === 'general'">
+                            <h3 class="font-semibold mb-4">General Settings</h3>
+                            
+                            <!-- Theme Section -->
+                            <div class="settings-section">
+                                <h4 class="settings-section-title">Theme</h4>
+                                <div class="form-group">
+                                    <label class="form-checkbox">
+                                        <input type="checkbox" x-model="settings.darkMode" @change="toggleDarkMode()">
+                                        <span>Dark Mode</span>
+                                    </label>
+                                    <div class="form-hint">Use dark color scheme</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Accessibility Section -->
+                            <div class="settings-section">
+                                <h4 class="settings-section-title">Accessibility</h4>
+                                <div class="form-group">
+                                    <label class="form-checkbox">
+                                        <input type="checkbox" x-model="settings.colorBlindMode" @change="toggleColorBlindMode()">
+                                        <span>Color Blind Mode</span>
+                                    </label>
+                                    <div class="form-hint">Use color-blind friendly palette with distinct line styles and markers</div>
+                                </div>
+                                <div class="color-palette-preview" x-show="settings.colorBlindMode">
+                                    <div class="palette-label">Color-blind friendly palette:</div>
+                                    <div class="palette-colors">
+                                        <span class="color-swatch" style="background: #0072B2;" title="Blue"></span>
+                                        <span class="color-swatch" style="background: #E69F00;" title="Orange"></span>
+                                        <span class="color-swatch" style="background: #009E73;" title="Bluish Green"></span>
+                                        <span class="color-swatch" style="background: #CC79A7;" title="Reddish Purple"></span>
+                                        <span class="color-swatch" style="background: #F0E442;" title="Yellow"></span>
+                                        <span class="color-swatch" style="background: #56B4E9;" title="Sky Blue"></span>
+                                        <span class="color-swatch" style="background: #D55E00;" title="Vermillion"></span>
+                                        <span class="color-swatch" style="background: #000000;" title="Black"></span>
+                                    </div>
+                                    <div class="palette-note">Charts will also use different line styles and markers</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Storage Section -->
+                            <div class="settings-section">
+                                <h4 class="settings-section-title">Storage</h4>
+                                <div class="form-group">
+                                    <label class="form-checkbox">
+                                        <input type="checkbox" x-model="settings.saveNegotiations" @change="saveSettings()">
+                                        <span>Save Negotiations</span>
+                                    </label>
+                                    <div class="form-hint">Persist completed negotiations to disk for later review</div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-checkbox">
+                                        <input type="checkbox" x-model="settings.cacheScenarioStats" @change="saveSettings()">
+                                        <span>Cache Scenario Statistics</span>
+                                    </label>
+                                    <div class="form-hint">Auto-save computed Pareto, Nash, Kalai, and other statistics to scenario folders</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div x-show="settingsTab === 'negotiation'">
+                            <h3 class="font-semibold mb-4">Default Negotiation Settings</h3>
+                            <div class="form-group">
+                                <label class="form-label">Default Max Steps</label>
+                                <input type="number" class="form-input" x-model.number="settings.defaultSteps">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Default Step Delay (ms)</label>
+                                <input type="number" class="form-input" x-model.number="settings.defaultDelay">
+                            </div>
+                        </div>
+                        
+                        <div x-show="settingsTab === 'performance'">
+                            <h3 class="font-semibold mb-4">Performance Settings</h3>
+                            <p class="text-secondary mb-4" style="font-size: 13px;">
+                                Set limits on resource-intensive operations based on scenario size (number of outcomes).
+                                Use 0 or leave empty for no limit.
+                            </p>
+                            
+                            <!-- Run Limit Section -->
+                            <div class="settings-section">
+                                <h4 class="settings-section-title">Negotiation/Tournament Limits</h4>
+                                <div class="form-group">
+                                    <label class="form-label">Max Outcomes for Running</label>
+                                    <input type="number" class="form-input" 
+                                           x-model.number="settings.maxOutcomesRun"
+                                           placeholder="No limit"
+                                           min="0">
+                                    <div class="form-hint">
+                                        Scenarios with more outcomes will be blocked from running negotiations or included in tournaments.
+                                        Leave empty or set to 0 for no limit.
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Stats Calculation Limits Section -->
+                            <div class="settings-section">
+                                <h4 class="settings-section-title">Statistics Calculation Limits</h4>
+                                <div class="form-group">
+                                    <label class="form-label">Max Outcomes for Stats Calculation</label>
+                                    <input type="number" class="form-input" 
+                                           x-model.number="settings.maxOutcomesStats"
+                                           placeholder="1,000,000"
+                                           min="0">
+                                    <div class="form-hint">
+                                        Scenarios exceeding this limit will skip Pareto, Nash, Kalai, KS, and welfare calculations.
+                                        Basic info (n_outcomes, issues) will still be calculated. Default: 1,000,000
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Max Outcomes for Info Calculation</label>
+                                    <input type="number" class="form-input" 
+                                           x-model.number="settings.maxOutcomesInfo"
+                                           placeholder="10,000,000"
+                                           min="0">
+                                    <div class="form-hint">
+                                        Scenarios exceeding this limit will skip all info calculations except n_outcomes.
+                                        Default: 10,000,000
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="settings-section" style="margin-top: 16px; padding: 12px; background: var(--bg-tertiary); border-radius: 8px;">
+                                <div class="text-muted" style="font-size: 12px;">
+                                    <strong>Current defaults:</strong>
+                                    <ul style="margin: 8px 0 0 16px; padding: 0;">
+                                        <li>Run limit: No limit (all scenarios can run)</li>
+                                        <li>Stats calculation: 1,000,000 outcomes</li>
+                                        <li>Info calculation: 10,000,000 outcomes</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div x-show="settingsTab === 'sources'">
+                            <h3 class="font-semibold mb-4">Negotiator Sources</h3>
+                            <p class="text-secondary mb-4" style="font-size: 13px;">
+                                Enable or disable negotiator sources. Disabled sources won't appear in the negotiator selection.
+                            </p>
+                            
+                            <div class="source-toggle-list">
+                                <template x-for="source in sourceSettingsList" :key="source.id">
+                                    <div class="source-toggle-item">
+                                        <div class="source-toggle-info">
+                                            <div class="source-toggle-name" x-text="source.name"></div>
+                                            <div class="source-toggle-desc" x-text="source.description"></div>
+                                            <div class="source-toggle-status">
+                                                <template x-if="source.available">
+                                                    <span class="text-success" x-text="source.count + ' negotiators available'"></span>
+                                                </template>
+                                                <template x-if="!source.available">
+                                                    <span class="text-muted" x-text="source.unavailable_reason || 'Not installed'"></span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   :checked="!sourceSettings.disabled_sources.includes(source.id)" 
+                                                   :disabled="!source.available"
+                                                   @change="toggleSource(source.id)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </template>
+                            </div>
+                            
+                            <div class="mt-4">
+                                <button class="btn btn-secondary" @click="refreshNegotiators()" :disabled="refreshingNegotiators">
+                                    <template x-if="refreshingNegotiators">
+                                        <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                    </template>
+                                    <template x-if="!refreshingNegotiators">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <path d="M23 4v6h-6"></path>
+                                            <path d="M1 20v-6h6"></path>
+                                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                        </svg>
+                                    </template>
+                                    Refresh Sources
+                                </button>
+                                <span class="text-muted" style="margin-left: 12px; font-size: 12px;">Re-scan for available negotiators</span>
+                            </div>
+                            
+                            <div class="mt-4" style="padding-top: 16px; border-top: 1px solid var(--border-color);">
+                                <h4 class="font-semibold mb-2" style="font-size: 14px;">Parameter Cache</h4>
+                                <p class="text-muted" style="font-size: 12px; margin-bottom: 12px;">
+                                    Negotiator parameters are cached to improve performance. Clear the cache if parameters seem outdated.
+                                </p>
+                                <button class="btn btn-secondary" @click="clearParameterCache()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    </svg>
+                                    Clear Parameter Cache
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div x-show="settingsTab === 'genius'">
+                            <h3 class="font-semibold mb-4">Genius Bridge</h3>
+                            <div class="form-group">
+                                <label class="form-label">Status</label>
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <span class="badge" :class="geniusBridge.running ? 'badge-success' : 'badge-neutral'" x-text="geniusBridge.running ? 'Running' : 'Stopped'"></span>
+                                    <button class="btn btn-secondary" @click="toggleGeniusBridge()" x-text="geniusBridge.running ? 'Stop' : 'Start'"></button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" x-model="settings.autoStartGenius">
+                                    <span>Auto-start when needed</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div x-show="settingsTab === 'paths'">
+                            <h3 class="font-semibold mb-4">Custom Sources</h3>
+                            
+                            <!-- Scenario Sources Section -->
+                            <div class="settings-section">
+                                <h4 class="settings-section-title">Scenario Sources</h4>
+                                <p class="text-muted mb-3" style="font-size: 12px;">
+                                    Add custom scenario files or folders. Serialized scenarios (.pkl, .json, .yaml) or directories with domain/ufun files.
+                                </p>
+                                
+                                <!-- List of current scenario paths -->
+                                <div class="source-list" style="margin-bottom: 12px;">
+                                    <template x-for="(path, idx) in (settings.scenarioPaths || '').split('\\n').filter(p => p.trim())" :key="idx">
+                                        <div class="source-item" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--bg-secondary); border-radius: 6px; margin-bottom: 6px;">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink: 0;">
+                                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                                            </svg>
+                                            <span style="flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" x-text="path"></span>
+                                            <button type="button" class="btn-icon-sm" @click="removeScenarioPath(idx)" title="Remove">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <div x-show="!(settings.scenarioPaths || '').trim()" class="text-muted" style="font-size: 12px; padding: 8px;">
+                                        No custom scenario sources added.
+                                    </div>
+                                </div>
+                                
+                                <!-- Add buttons -->
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <input type="file" 
+                                           accept=".pkl,.pickle,.json,.yaml,.yml"
+                                           @change="handleScenarioFileSelect($event)"
+                                           x-ref="scenarioFileInput"
+                                           style="display: none;">
+                                    <button type="button" class="btn btn-secondary btn-sm" @click="$refs.scenarioFileInput.click()">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                        </svg>
+                                        Add Scenario File
+                                    </button>
+                                    <button type="button" class="btn btn-secondary btn-sm" @click="openFolderBrowser('scenario')">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                                        </svg>
+                                        Add Scenario Folder
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Negotiator/Mechanism Module Sources Section -->
+                            <div class="settings-section" style="margin-top: 24px;">
+                                <h4 class="settings-section-title">Custom Negotiator/Mechanism Modules</h4>
+                                <p class="text-muted mb-3" style="font-size: 12px;">
+                                    Add Python modules (.py files) containing custom negotiator or mechanism classes.
+                                </p>
+                                
+                                <!-- List of current module paths -->
+                                <div class="source-list" style="margin-bottom: 12px;">
+                                    <template x-for="(path, idx) in (settings.negotiatorPaths || '').split('\\n').filter(p => p.trim())" :key="idx">
+                                        <div class="source-item" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--bg-secondary); border-radius: 6px; margin-bottom: 6px;">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink: 0;">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                            </svg>
+                                            <span style="flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" x-text="path"></span>
+                                            <button type="button" class="btn-icon-sm" @click="removeNegotiatorPath(idx)" title="Remove">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <div x-show="!(settings.negotiatorPaths || '').trim()" class="text-muted" style="font-size: 12px; padding: 8px;">
+                                        No custom module sources added.
+                                    </div>
+                                </div>
+                                
+                                <!-- Add button -->
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <input type="file" 
+                                           accept=".py"
+                                           @change="handleModuleFileSelect($event)"
+                                           x-ref="moduleFileInput"
+                                           style="display: none;">
+                                    <button type="button" class="btn btn-secondary btn-sm" @click="$refs.moduleFileInput.click()">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                        </svg>
+                                        Add Python Module
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Manual path entry (advanced) -->
+                            <details style="margin-top: 24px;">
+                                <summary class="text-muted" style="cursor: pointer; font-size: 13px;">
+                                    Advanced: Manual path entry
+                                </summary>
+                                <div style="padding: 12px; background: var(--bg-tertiary); border-radius: 6px; margin-top: 8px;">
+                                    <div class="form-group">
+                                        <label class="form-label">Scenario Paths (one per line)</label>
+                                        <textarea class="form-textarea" placeholder="One path per line..." x-model="settings.scenarioPaths" rows="3" style="font-size: 12px;"></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Module Paths (one per line)</label>
+                                        <textarea class="form-textarea" placeholder="One path per line..." x-model="settings.negotiatorPaths" rows="3" style="font-size: 12px;"></textarea>
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                        
+                        <div x-show="settingsTab === 'data'">
+                            <h3 class="font-semibold mb-4">Export / Import Settings</h3>
+                            <p class="text-secondary mb-4" style="font-size: 13px;">
+                                Export your settings and presets to a ZIP file for backup or to migrate to another machine.
+                            </p>
+                            
+                            <!-- Export Section -->
+                            <div class="settings-section">
+                                <h4 class="settings-section-title">Export</h4>
+                                <p class="text-muted mb-3" style="font-size: 12px;">
+                                    Download all your settings, presets, and layout configuration as a ZIP file.
+                                </p>
+                                <button class="btn btn-primary" @click="exportSettings()" :disabled="exportingSettings">
+                                    <template x-if="exportingSettings">
+                                        <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                    </template>
+                                    <template x-if="!exportingSettings">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                            <polyline points="7 10 12 15 17 10"/>
+                                            <line x1="12" y1="15" x2="12" y2="3"/>
+                                        </svg>
+                                    </template>
+                                    Export Settings
+                                </button>
+                            </div>
+                            
+                            <!-- Import Section -->
+                            <div class="settings-section" style="margin-top: 24px;">
+                                <h4 class="settings-section-title">Import</h4>
+                                <p class="text-muted mb-3" style="font-size: 12px;">
+                                    Import settings from a previously exported ZIP file. This will overwrite your current settings.
+                                </p>
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <input type="file" 
+                                           accept=".zip" 
+                                           @change="handleSettingsImport($event)" 
+                                           x-ref="settingsImportInput"
+                                           style="display: none;">
+                                    <button class="btn btn-secondary" @click="$refs.settingsImportInput.click()" :disabled="importingSettings">
+                                        <template x-if="importingSettings">
+                                            <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                        </template>
+                                        <template x-if="!importingSettings">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                                <polyline points="17 8 12 3 7 8"/>
+                                                <line x1="12" y1="3" x2="12" y2="15"/>
+                                            </svg>
+                                        </template>
+                                        Import Settings
+                                    </button>
+                                    <span class="text-muted" style="font-size: 12px;" x-text="importStatus"></span>
+                                </div>
+                            </div>
+                            
+                            <!-- What's Included -->
+                            <div class="settings-section" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                                <h4 class="settings-section-title">What's Included</h4>
+                                <ul style="font-size: 12px; color: var(--text-secondary); margin: 0; padding-left: 20px;">
+                                    <li>General, negotiation, and path settings</li>
+                                    <li>Genius bridge configuration</li>
+                                    <li>Negotiator source preferences</li>
+                                    <li>All saved presets (scenarios, negotiators, parameters, sessions)</li>
+                                    <li>Layout and panel configuration</li>
+                                    <li>Recent session history</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="showSettings = false">Close</button>
+                <button class="btn btn-primary" @click="saveSettings()">Save Settings</button>
+            </div>
+        </div>
+    </div>

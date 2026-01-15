@@ -930,3 +930,228 @@ class TournamentStorageService:
             files["plots_count"] = len(list((path / "plots").glob("*")))
 
         return files
+
+    @classmethod
+    def get_outcome_space_data(
+        cls, tournament_id: str, scenario_name: str, max_samples: int = 50000
+    ) -> dict | None:
+        """Compute outcome space data for a saved scenario.
+
+        This loads the scenario using negmas.Scenario.load() and computes
+        the outcome_space_data including Pareto frontier and special points.
+
+        Args:
+            tournament_id: Tournament ID.
+            scenario_name: Name of the scenario.
+            max_samples: Maximum outcomes to sample for display.
+
+        Returns:
+            Dict with outcome_space_data in the format expected by the UI, or None.
+        """
+        from negmas import Scenario
+
+        from .outcome_analysis import compute_outcome_space_data
+
+        path = cls.TOURNAMENTS_DIR / tournament_id
+        scenario_dir = path / "scenarios" / scenario_name
+
+        if not scenario_dir.exists():
+            return None
+
+        try:
+            # Load the scenario using negmas - this gives us ufuns and outcome_space
+            scenario = Scenario.load(scenario_dir, load_stats=True, load_info=True)
+
+            # Compute outcome space data
+            osd = compute_outcome_space_data(
+                scenario, max_samples=max_samples, use_cached_stats=True
+            )
+
+            # Convert to JSON-serializable format
+            return {
+                "outcome_utilities": osd.outcome_utilities,
+                "pareto_utilities": osd.pareto_utilities,
+                "nash_point": osd.nash_point.utilities if osd.nash_point else None,
+                "kalai_point": osd.kalai_point.utilities if osd.kalai_point else None,
+                "kalai_smorodinsky_point": osd.kalai_smorodinsky_point.utilities
+                if osd.kalai_smorodinsky_point
+                else None,
+                "max_welfare_point": osd.max_welfare_point.utilities
+                if osd.max_welfare_point
+                else None,
+                "total_outcomes": osd.total_outcomes,
+                "sampled": osd.sampled,
+                "sample_size": osd.sample_size,
+            }
+
+        except Exception as e:
+            print(f"Error computing outcome_space_data for {scenario_name}: {e}")
+            return None
+
+    @classmethod
+    def get_score_analysis(
+        cls,
+        tournament_id: str,
+        metric: str = "utility",
+        statistic: str = "mean",
+        filter_scenario: str | None = None,
+        filter_partner: str | None = None,
+    ) -> dict | None:
+        """Compute aggregated scores by strategy for a given metric and statistic.
+
+        Args:
+            tournament_id: Tournament ID.
+            metric: The score metric to analyze (utility, advantage, welfare,
+                   nash_optimality, kalai_optimality, ks_optimality,
+                   max_welfare_optimality, pareto_optimality, partner_welfare, time).
+            statistic: The aggregation statistic (mean, median, min, max, std,
+                      truncated_mean, count, sum).
+            filter_scenario: Optional scenario name to filter by.
+            filter_partner: Optional partner strategy to filter by.
+
+        Returns:
+            Dict with leaderboard data and metadata.
+        """
+        import statistics
+        from collections import defaultdict
+
+        scores_data = cls.get_all_scores_csv(tournament_id)
+        if not scores_data:
+            return None
+
+        # Numeric metrics that can be aggregated
+        numeric_metrics = [
+            "utility",
+            "reserved_value",
+            "advantage",
+            "partner_welfare",
+            "welfare",
+            "time",
+            "nash_optimality",
+            "kalai_optimality",
+            "ks_optimality",
+            "max_welfare_optimality",
+            "pareto_optimality",
+        ]
+
+        if metric not in numeric_metrics:
+            return {"error": f"Invalid metric: {metric}. Valid: {numeric_metrics}"}
+
+        # Group scores by strategy
+        strategy_scores: dict[str, list[float]] = defaultdict(list)
+        scenarios_seen: set[str] = set()
+        partners_seen: set[str] = set()
+
+        for row in scores_data:
+            strategy = row.get("strategy", "Unknown")
+            scenario = row.get("scenario", "")
+            partners = row.get("partners", "")
+
+            scenarios_seen.add(scenario)
+            partners_seen.add(partners)
+
+            # Apply filters
+            if filter_scenario and scenario != filter_scenario:
+                continue
+            if filter_partner and partners != filter_partner:
+                continue
+
+            # Get the metric value
+            value_str = row.get(metric, "")
+            if not value_str:
+                continue
+
+            try:
+                value = float(value_str)
+                strategy_scores[strategy].append(value)
+            except (ValueError, TypeError):
+                continue
+
+        if not strategy_scores:
+            return {
+                "leaderboard": [],
+                "metric": metric,
+                "statistic": statistic,
+                "scenarios": sorted(scenarios_seen),
+                "partners": sorted(partners_seen),
+            }
+
+        # Compute the requested statistic for each strategy
+        def compute_stat(values: list[float], stat: str) -> float | None:
+            if not values:
+                return None
+            try:
+                if stat == "mean":
+                    return statistics.mean(values)
+                elif stat == "median":
+                    return statistics.median(values)
+                elif stat == "min":
+                    return min(values)
+                elif stat == "max":
+                    return max(values)
+                elif stat == "std":
+                    return statistics.stdev(values) if len(values) > 1 else 0.0
+                elif stat == "sum":
+                    return sum(values)
+                elif stat == "count":
+                    return float(len(values))
+                elif stat == "truncated_mean":
+                    # Remove top and bottom 10%
+                    if len(values) < 5:
+                        return statistics.mean(values)
+                    sorted_vals = sorted(values)
+                    trim = max(1, len(sorted_vals) // 10)
+                    trimmed = sorted_vals[trim:-trim] if trim > 0 else sorted_vals
+                    return (
+                        statistics.mean(trimmed) if trimmed else statistics.mean(values)
+                    )
+                else:
+                    return statistics.mean(values)
+            except Exception:
+                return None
+
+        # Build leaderboard
+        leaderboard = []
+        for strategy, values in strategy_scores.items():
+            score = compute_stat(values, statistic)
+            if score is not None:
+                leaderboard.append(
+                    {
+                        "strategy": strategy,
+                        "score": score,
+                        "count": len(values),
+                        "min": min(values),
+                        "max": max(values),
+                        "mean": statistics.mean(values),
+                        "std": statistics.stdev(values) if len(values) > 1 else 0.0,
+                    }
+                )
+
+        # Sort by score (descending for most metrics, ascending for time)
+        reverse = metric != "time"
+        leaderboard.sort(key=lambda x: x["score"], reverse=reverse)
+
+        # Add rank
+        for i, entry in enumerate(leaderboard):
+            entry["rank"] = i + 1
+
+        return {
+            "leaderboard": leaderboard,
+            "metric": metric,
+            "statistic": statistic,
+            "available_metrics": numeric_metrics,
+            "available_statistics": [
+                "mean",
+                "median",
+                "min",
+                "max",
+                "std",
+                "truncated_mean",
+                "count",
+                "sum",
+            ],
+            "scenarios": sorted(scenarios_seen),
+            "partners": sorted(partners_seen),
+            "filter_scenario": filter_scenario,
+            "filter_partner": filter_partner,
+        }

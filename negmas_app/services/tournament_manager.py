@@ -580,7 +580,9 @@ class TournamentManager:
                             },
                         )
                     )
-                scenario = self.scenario_loader.load_scenario(path)
+                scenario = self.scenario_loader.load_scenario(
+                    path, load_stats=False, load_info=False
+                )  # Skip stats for tournament - not needed for execution
                 if scenario is not None:
                     if config.normalize:
                         scenario.normalize()

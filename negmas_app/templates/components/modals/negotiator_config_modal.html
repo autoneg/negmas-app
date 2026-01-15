@@ -1,0 +1,151 @@
+<!-- Negotiator Configuration Modal -->
+    <div class="modal-overlay" :class="{ active: showNegotiatorConfig }" @click.self="showNegotiatorConfig = false">
+        <div class="modal medium">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    Configure Negotiator
+                    <span class="text-muted" style="font-size: 14px; font-weight: normal;" x-text="configNegotiatorIndex !== null ? (' - ' + (newNeg.negotiators[configNegotiatorIndex]?.name || 'Agent')) : ''"></span>
+                </h2>
+                <button class="modal-close" @click="showNegotiatorConfig = false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Loading state -->
+                <div x-show="configNegotiatorLoading" class="text-center" style="padding: 40px;">
+                    <div class="spinner"></div>
+                    <div class="text-muted" style="margin-top: 12px;">Loading parameters...</div>
+                </div>
+                
+                <!-- No parameters -->
+                <div x-show="!configNegotiatorLoading && configNegotiatorParams.length === 0" class="text-center" style="padding: 40px;">
+                    <div class="text-muted">No configurable parameters found for this negotiator type.</div>
+                </div>
+                
+                <!-- Parameters form -->
+                <div x-show="!configNegotiatorLoading && configNegotiatorParams.length > 0">
+                    <div class="form-hint" style="margin-bottom: 16px;">
+                        Configure parameters for <strong x-text="configNegotiatorIndex !== null ? getNegotiatorDisplayName(newNeg.negotiators[configNegotiatorIndex]?.type_name) : ''"></strong>
+                    </div>
+                    
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <template x-for="param in configNegotiatorParams" :key="param.name">
+                            <div class="form-group" x-show="!param.is_complex" style="margin-bottom: 16px;">
+                                <!-- Boolean parameters -->
+                                <template x-if="param.ui_type === 'bool'">
+                                    <div>
+                                        <label class="form-checkbox">
+                                            <input type="checkbox" 
+                                                   :checked="configNegotiatorValues[param.name] ?? param.default"
+                                                   @change="configNegotiatorValues[param.name] = $event.target.checked">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                        </label>
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                                
+                                <!-- Integer parameters -->
+                                <template x-if="param.ui_type === 'int' || param.ui_type === 'optional_int'">
+                                    <div>
+                                        <label class="form-label">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                            <span class="text-muted" x-show="param.ui_type === 'optional_int'">(optional)</span>
+                                        </label>
+                                        <input type="number" class="form-input" style="max-width: 200px;"
+                                               :value="configNegotiatorValues[param.name] ?? param.default"
+                                               @input="configNegotiatorValues[param.name] = $event.target.value ? parseInt($event.target.value) : null"
+                                               :placeholder="param.default !== null ? param.default : 'None'">
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                                
+                                <!-- Float parameters -->
+                                <template x-if="param.ui_type === 'float' || param.ui_type === 'optional_float'">
+                                    <div>
+                                        <label class="form-label">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                            <span class="text-muted" x-show="param.ui_type === 'optional_float'">(optional)</span>
+                                        </label>
+                                        <input type="number" class="form-input" style="max-width: 200px;" step="0.01"
+                                               :value="configNegotiatorValues[param.name] ?? param.default"
+                                               @input="configNegotiatorValues[param.name] = $event.target.value ? parseFloat($event.target.value) : null"
+                                               :placeholder="param.default !== null ? param.default : 'None'">
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                                
+                                <!-- String parameters -->
+                                <template x-if="param.ui_type === 'string' || param.ui_type === 'optional_string'">
+                                    <div>
+                                        <label class="form-label">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                            <span class="text-muted" x-show="param.ui_type === 'optional_string'">(optional)</span>
+                                        </label>
+                                        <input type="text" class="form-input" style="max-width: 300px;"
+                                               :value="configNegotiatorValues[param.name] ?? param.default ?? ''"
+                                               @input="configNegotiatorValues[param.name] = $event.target.value || null"
+                                               :placeholder="param.default !== null ? param.default : 'None'">
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                                
+                                <!-- Choice parameters -->
+                                <template x-if="param.ui_type === 'choice'">
+                                    <div>
+                                        <label class="form-label">
+                                            <span x-text="param.name.replace(/_/g, ' ')"></span>
+                                            <span class="text-danger" x-show="param.required">*</span>
+                                        </label>
+                                        <select class="form-select" style="max-width: 200px;"
+                                                :value="configNegotiatorValues[param.name] ?? param.default"
+                                                @change="configNegotiatorValues[param.name] = $event.target.value">
+                                            <template x-for="choice in param.choices" :key="choice">
+                                                <option :value="choice" x-text="choice"></option>
+                                            </template>
+                                        </select>
+                                        <div class="form-hint" x-text="param.description" x-show="param.description"></div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <!-- Show complex parameters as info -->
+                    <template x-if="configNegotiatorParams.some(p => p.is_complex)">
+                        <details style="margin-top: 16px;">
+                            <summary class="text-muted" style="cursor: pointer; font-size: 13px;">
+                                Advanced parameters (not editable in UI)
+                            </summary>
+                            <div style="padding: 12px; background: var(--bg-tertiary); border-radius: 6px; margin-top: 8px;">
+                                <template x-for="param in configNegotiatorParams.filter(p => p.is_complex)" :key="param.name">
+                                    <div style="margin-bottom: 8px; font-size: 13px;">
+                                        <code x-text="param.name" style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px;"></code>
+                                        <span class="text-muted" x-text="': ' + param.type"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </details>
+                    </template>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="showNegotiatorConfig = false">Cancel</button>
+                <button class="btn btn-secondary" @click="resetNegotiatorConfig()">Reset to Defaults</button>
+                <button class="btn btn-primary" @click="applyNegotiatorConfig()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Apply
+                </button>
+            </div>
+        </div>
+    </div>

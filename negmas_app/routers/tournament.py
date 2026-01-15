@@ -682,22 +682,61 @@ async def list_negotiation_files(tournament_id: str):
 
 
 @router.get("/saved/{tournament_id}/scenario/{scenario_name}")
-async def get_scenario_info(tournament_id: str, scenario_name: str):
+async def get_scenario_info(
+    tournament_id: str, scenario_name: str, include_outcome_space: bool = True
+):
     """Get scenario information from a saved tournament.
 
     Args:
         tournament_id: Tournament ID.
         scenario_name: Name of the scenario.
+        include_outcome_space: If True, also compute outcome_space_data for visualization.
 
     Returns:
-        Scenario info including outcome_space, issue_names, stats, etc.
+        Scenario info including outcome_space, issue_names, stats, and outcome_space_data.
     """
     scenario = await asyncio.to_thread(
         TournamentStorageService.get_scenario_info, tournament_id, scenario_name
     )
     if scenario is None:
         raise HTTPException(status_code=404, detail="Scenario not found")
+
+    # Include outcome_space_data for visualization (Pareto frontier, special points, etc.)
+    if include_outcome_space:
+        outcome_space_data = await asyncio.to_thread(
+            TournamentStorageService.get_outcome_space_data,
+            tournament_id,
+            scenario_name,
+        )
+        scenario["outcome_space_data"] = outcome_space_data
+
     return scenario
+
+
+@router.get("/saved/{tournament_id}/scenario/{scenario_name}/outcome_space")
+async def get_scenario_outcome_space(tournament_id: str, scenario_name: str):
+    """Get outcome space data for a scenario from a saved tournament.
+
+    This computes/loads the outcome_space_data needed for 2D utility visualization,
+    including all sampled outcomes, Pareto frontier, and special solution points
+    (Nash, Kalai, Kalai-Smorodinsky, Max Welfare).
+
+    Args:
+        tournament_id: Tournament ID.
+        scenario_name: Name of the scenario.
+
+    Returns:
+        OutcomeSpaceData dict with outcome_utilities, pareto_utilities, special points.
+    """
+    outcome_space_data = await asyncio.to_thread(
+        TournamentStorageService.get_outcome_space_data, tournament_id, scenario_name
+    )
+    if outcome_space_data is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Scenario not found or failed to compute outcome space",
+        )
+    return outcome_space_data
 
 
 @router.get("/saved/{tournament_id}/files")
@@ -806,3 +845,43 @@ async def get_tournament_details(tournament_id: str):
     if details is None:
         raise HTTPException(status_code=404, detail="Details not found")
     return {"details": details}
+
+
+@router.get("/saved/{tournament_id}/score_analysis")
+async def get_score_analysis(
+    tournament_id: str,
+    metric: str = "utility",
+    statistic: str = "mean",
+    scenario: str | None = None,
+    partner: str | None = None,
+):
+    """Get aggregated score analysis by strategy.
+
+    Computes a leaderboard of strategies based on the selected metric and statistic.
+
+    Args:
+        tournament_id: Tournament ID.
+        metric: Score metric to analyze (utility, advantage, welfare, nash_optimality,
+               kalai_optimality, ks_optimality, max_welfare_optimality, pareto_optimality,
+               partner_welfare, time).
+        statistic: Aggregation statistic (mean, median, min, max, std, truncated_mean,
+                  count, sum).
+        scenario: Optional scenario name to filter by.
+        partner: Optional partner strategy to filter by.
+
+    Returns:
+        Leaderboard with strategy rankings and statistics.
+    """
+    analysis = await asyncio.to_thread(
+        TournamentStorageService.get_score_analysis,
+        tournament_id,
+        metric,
+        statistic,
+        scenario,
+        partner,
+    )
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="Score data not found")
+    if "error" in analysis:
+        raise HTTPException(status_code=400, detail=analysis["error"])
+    return analysis

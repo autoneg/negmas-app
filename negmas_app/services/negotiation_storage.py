@@ -116,6 +116,7 @@ class NegotiationStorageService:
             "total_steps": session.current_step,
             "n_offers": len(session.offers),
             "duration_seconds": session.duration_seconds(),
+            "optimality_stats": session.optimality_stats,
         }
 
         with open(session_dir / "result.json", "w") as f:
@@ -277,6 +278,7 @@ class NegotiationStorageService:
                 session.agreement_dict = result.get("agreement_dict")
                 session.final_utilities = result.get("final_utilities")
                 session.end_reason = result.get("end_reason")
+                session.optimality_stats = result.get("optimality_stats")
 
             # Load offers from JSON (full fidelity)
             offers_json_path = session_dir / "offers.json"

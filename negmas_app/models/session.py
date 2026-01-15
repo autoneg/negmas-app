@@ -181,6 +181,7 @@ class NegotiationSession:
     agreement_dict: dict | None = None
     final_utilities: list[float] | None = None
     end_reason: str | None = None
+    optimality_stats: dict | None = None  # OutcomeOptimality as dict
 
     # Error
     error: str | None = None

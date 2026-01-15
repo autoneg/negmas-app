@@ -1,0 +1,869 @@
+            <!-- Content Area - Tournaments -->
+            <div class="content-area tournament-page" x-show="currentPage === 'tournaments'" x-cloak>
+                <!-- Tournament Table View - Similar to Negotiations -->
+                <div class="negotiations-table-view" :class="{'compact-mode': selectedTournament}" x-init="initTournamentsTables()">
+                    <!-- Header with actions -->
+                    <div class="table-header">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <h2>Tournaments <span class="text-muted" style="font-weight: normal; font-size: 14px;" x-show="!selectedTournament" x-text="'(' + (runningTournaments.length + completedTournaments.length + savedTournaments.length) + ')'"></span></h2>
+                            <template x-if="selectedTournament">
+                                <span class="badge badge-primary" style="font-size: 12px;">
+                                    <span x-text="selectedTournament._fromSaved ? selectedTournament.id : 'Tournament #' + selectedTournament.id"></span>
+                                </span>
+                            </template>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <!-- Deselect button when viewing a tournament -->
+                            <button class="btn btn-ghost btn-sm" x-show="selectedTournament" @click="selectedTournament = null" title="Close tournament view">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                                <span>Close</span>
+                            </button>
+                            <button class="btn btn-secondary btn-sm" @click="loadSavedTournaments()" :disabled="savedTournamentsLoading" x-show="!selectedTournament">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="17 8 12 3 7 8"/>
+                                    <line x1="12" y1="3" x2="12" y2="15"/>
+                                </svg>
+                                <span x-text="savedTournamentsLoading ? 'Loading...' : 'Load Saved'"></span>
+                            </button>
+                            <button class="btn btn-primary" @click="showNewTournament = true; loadAllScenarios(); loadNegotiatorTypes()" :class="{'btn-sm': selectedTournament}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                <span x-show="!selectedTournament">Start Tournament</span>
+                                <span x-show="selectedTournament">New</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Running Tournaments Section - only show in list view -->
+                    <div class="table-section" x-show="runningTournaments.length > 0 && !selectedTournament" style="margin-bottom: 24px;">
+                        <h3>
+                            <span class="status-dot running"></span>
+                            Running (<span x-text="runningTournaments.length"></span>)
+                        </h3>
+                        <div id="running-tournaments-table"></div>
+                    </div>
+                    
+                    <!-- Completed Tournaments Section (current session) - only show in list view -->
+                    <div class="table-section" x-show="!selectedTournament" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                        <h3>
+                            <span class="status-dot" style="background: var(--success);"></span>
+                            Completed This Session (<span x-text="completedTournaments.length"></span>)
+                        </h3>
+                        
+                        <template x-if="completedTournaments.length === 0 && runningTournaments.length === 0 && savedTournaments.length === 0">
+                            <div class="empty-state" style="flex: 1;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <circle cx="12" cy="8" r="5"></circle>
+                                    <path d="M12 13v7"></path>
+                                    <path d="M9 20h6"></path>
+                                </svg>
+                                <div class="empty-state-title">No Tournaments Yet</div>
+                                <div class="empty-state-text">
+                                    Start a new tournament or load saved ones.
+                                </div>
+                            </div>
+                        </template>
+                        
+                        <div id="completed-tournaments-table" x-show="completedTournaments.length > 0"></div>
+                    </div>
+                    
+                    <!-- Saved Tournaments Section - only show in list view -->
+                    <div class="table-section saved-tournaments-section" x-show="(savedTournaments.length > 0 || showArchivedTournaments || tournamentTagFilter) && !selectedTournament" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                        <h3 style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                            <span style="display: flex; align-items: center; gap: 8px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                                </svg>
+                                Saved (<span x-text="savedTournaments.length"></span>)
+                            </span>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <!-- Tag filter -->
+                                <select class="form-control form-control-sm" style="width: auto; min-width: 100px;" x-model="tournamentTagFilter" @change="loadSavedTournaments()">
+                                    <option value="">All tags</option>
+                                    <template x-for="tag in availableTournamentTags" :key="tag">
+                                        <option :value="tag" x-text="tag"></option>
+                                    </template>
+                                </select>
+                                <!-- Show archived toggle -->
+                                <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: normal; cursor: pointer;">
+                                    <input type="checkbox" x-model="showArchivedTournaments" @change="loadSavedTournaments()">
+                                    <span>Show archived</span>
+                                </label>
+                                <!-- Clear all button -->
+                                <button class="btn btn-ghost btn-xs" @click="clearSavedTournaments()" title="Clear all saved">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </h3>
+                        <div id="saved-tournaments-table" x-show="savedTournaments.length > 0"></div>
+                    </div>
+                </div>
+                
+                <!-- Single Tournament View (when tournament selected) -->
+                <div class="tournament-single-view" x-show="selectedTournament">
+                    <!-- Compact Header -->
+                    <div class="table-header" style="margin-bottom: 8px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <h2 style="font-size: 16px;" x-text="selectedTournament?._fromSaved ? selectedTournament?.id : 'Tournament #' + selectedTournament?.id"></h2>
+                        </div>
+                        <div class="tournament-actions" style="display: flex; gap: 8px;">
+                            <button class="btn btn-sm btn-ghost" @click="selectedTournament = null">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                                Close
+                            </button>
+                            <button class="btn btn-sm btn-danger" 
+                                    x-show="selectedTournament?.status === 'running'"
+                                    @click="cancelTournament(selectedTournament.id)">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Tournament View Container -->
+                    <div class="tournament-view-container" x-show="selectedTournament?.status === 'running' || selectedTournament?.status === 'completed'" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                                    <!-- Stats Bar (single line) -->
+                                    <div class="tournament-stats-bar">
+                                        <div class="tournament-stats-inline">
+                                            <span class="stat-inline">
+                                                <span class="stat-label">Negotiations:</span>
+                                                <span class="stat-value" x-text="selectedTournament?.status === 'completed' ? (selectedTournament?.results?.total_negotiations || 0) : ((selectedTournament?.progress?.completed || 0) + '/' + (selectedTournament?.progress?.total || 0))"></span>
+                                            </span>
+                                            <span class="stat-inline" x-show="selectedTournament?.status === 'completed'">
+                                                <span class="stat-label">Agreements:</span>
+                                                <span class="stat-value" x-text="(selectedTournament?.results?.total_agreements || 0) + ' (' + Math.round((selectedTournament?.results?.overall_agreement_rate || 0) * 100) + '%)'"></span>
+                                            </span>
+                                            <span class="stat-inline" x-show="selectedTournament?.status === 'running'">
+                                                <span class="stat-label">Progress:</span>
+                                                <span class="stat-value" x-text="Math.round(selectedTournament?.progress?.percent || 0) + '%'"></span>
+                                            </span>
+                                            <span class="stat-inline" x-show="selectedTournament?.results?.execution_time">
+                                                <span class="stat-label">Duration:</span>
+                                                <span class="stat-value" x-text="(selectedTournament?.results?.execution_time || 0).toFixed(1) + 's'"></span>
+                                            </span>
+                                        </div>
+                                        <!-- Progress bar for running tournaments -->
+                                        <div class="tournament-progress-bar-inline" x-show="selectedTournament?.status === 'running'">
+                                            <div class="tournament-progress-fill" :style="'width: ' + (selectedTournament?.progress?.percent || 0) + '%'"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Main content: Grid + Scores panels -->
+                                    <div class="tournament-main-panels">
+                                        <!-- Grid Pane (collapsible) -->
+                                        <div class="tournament-grid-pane" :class="{ collapsed: tournamentPanelCollapsed.grid }">
+                                            <div class="tournament-panel-header" @click="tournamentPanelCollapsed.grid = !tournamentPanelCollapsed.grid">
+                                                <h3>
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                                         :style="{ transform: tournamentPanelCollapsed.grid ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                                    </svg>
+                                                    Competition Grid
+                                                </h3>
+                                            </div>
+                                            
+                                            <div class="tournament-panel-content" x-show="!tournamentPanelCollapsed.grid" x-collapse>
+                                                <!-- Tabs: Summary + Scenarios -->
+                                                <div class="tournament-scenario-tabs">
+                                                    <button class="tournament-scenario-tab" 
+                                                            :class="{ active: tournamentGrid.currentTab === 'summary' }"
+                                                            @click="tournamentGrid.currentTab = 'summary'">Summary</button>
+                                                    <template x-for="(scenario, idx) in tournamentGrid.scenarios" :key="idx">
+                                                        <button class="tournament-scenario-tab" 
+                                                                :class="{ active: tournamentGrid.currentTab === idx }"
+                                                                @click="tournamentGrid.currentTab = idx"
+                                                                x-text="scenario"></button>
+                                                    </template>
+                                                </div>
+                                                
+                                                <div class="tournament-grid-wrapper">
+                                                    <!-- Empty state when grid not initialized -->
+                                                    <div class="tournament-grid-empty" x-show="tournamentGrid.competitors.length === 0">
+                                                        <div class="spinner"></div>
+                                                        <p x-text="tournamentSetupProgress?.message || 'Initializing tournament...'"></p>
+                                                        <template x-if="tournamentSetupProgress">
+                                                            <div class="setup-progress-bar" style="width: 200px; height: 4px; background: var(--color-bg-tertiary); border-radius: 2px; margin-top: 8px;">
+                                                                <div style="height: 100%; background: var(--color-primary); border-radius: 2px; transition: width 0.3s ease;" 
+                                                                     :style="'width: ' + (tournamentSetupProgress.current / tournamentSetupProgress.total * 100) + '%'"></div>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                    
+                                                    <!-- Summary Grid (aggregated across all scenarios) -->
+                                                    <template x-if="tournamentGrid.competitors.length > 0 && tournamentGrid.currentTab === 'summary'">
+                                                        <div class="tournament-grid"
+                                                             :style="'grid-template-columns: auto repeat(' + tournamentGrid.opponents.length + ', 1fr)'">
+                                                            <!-- Header Row -->
+                                                            <div class="tournament-grid-header-cell"></div>
+                                                            <template x-for="(opponent, j) in tournamentGrid.opponents" :key="'sh-'+j">
+                                                                <div class="tournament-grid-header-cell" :title="opponent" x-text="opponent.slice(0, 12)"></div>
+                                                            </template>
+                                                            
+                                                            <!-- Data Rows -->
+                                                            <template x-for="(competitor, i) in tournamentGrid.competitors" :key="'sr-'+i">
+                                                                <div class="tournament-grid-row" style="display: contents;">
+                                                                    <div class="tournament-grid-row-header" :title="competitor" x-text="competitor.slice(0, 12)"></div>
+                                                                    <template x-for="(opponent, j) in tournamentGrid.opponents" :key="'sc-'+i+'-'+j">
+                                                                        <div class="tournament-cell summary-cell" 
+                                                                             :class="{ 'self-play': i === j && !newTournament.self_play }"
+                                                                             :style="getSummaryCellStyle(i, j)">
+                                                                            <span class="summary-percent" x-text="getSummaryCellPercent(i, j)"></span>
+                                                                        </div>
+                                                                    </template>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                    
+                                                    <!-- Scenario-specific Grid -->
+                                                    <template x-if="tournamentGrid.competitors.length > 0 && tournamentGrid.currentTab !== 'summary'">
+                                                        <div class="tournament-grid"
+                                                             :style="'grid-template-columns: auto repeat(' + tournamentGrid.opponents.length + ', 1fr)'">
+                                                            <!-- Header Row -->
+                                                            <div class="tournament-grid-header-cell"></div>
+                                                            <template x-for="(opponent, j) in tournamentGrid.opponents" :key="'h-'+j">
+                                                                <div class="tournament-grid-header-cell" :title="opponent" x-text="opponent.slice(0, 12)"></div>
+                                                            </template>
+                                                            
+                                                            <!-- Data Rows -->
+                                                            <template x-for="(competitor, i) in tournamentGrid.competitors" :key="'r-'+i">
+                                                                <div class="tournament-grid-row" style="display: contents;">
+                                                                    <div class="tournament-grid-row-header" :title="competitor" x-text="competitor.slice(0, 12)"></div>
+                                                                    <template x-for="(opponent, j) in tournamentGrid.opponents" :key="'c-'+i+'-'+j">
+                                                                        <div class="tournament-cell" :class="getScenarioCellClass(i, j)">
+                                                                            <!-- Icon based on state -->
+                                                                            <template x-if="getScenarioCellStatus(i, j) === 'running'">
+                                                                                <div class="spinner spinner-xs"></div>
+                                                                            </template>
+                                                                            <template x-if="getScenarioCellStatus(i, j) === 'agreement'">
+                                                                                <svg class="tournament-cell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                                                                </svg>
+                                                                            </template>
+                                                                            <template x-if="getScenarioCellStatus(i, j) === 'timeout'">
+                                                                                <svg class="tournament-cell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                                                    <circle cx="12" cy="12" r="10"></circle>
+                                                                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                                                                </svg>
+                                                                            </template>
+                                                                            <template x-if="getScenarioCellStatus(i, j) === 'error' || getScenarioCellStatus(i, j) === 'broken'">
+                                                                                <svg class="tournament-cell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                                                    <circle cx="12" cy="12" r="10"></circle>
+                                                                                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                                                                                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                                                                                </svg>
+                                                                            </template>
+                                                                        </div>
+                                                                    </template>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Scores Pane (collapsible) -->
+                                        <div class="tournament-scores-pane" :class="{ collapsed: tournamentPanelCollapsed.scores }">
+                                            <div class="tournament-panel-header" @click="tournamentPanelCollapsed.scores = !tournamentPanelCollapsed.scores">
+                                                <h3>
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                                         :style="{ transform: tournamentPanelCollapsed.scores ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                                    </svg>
+                                                    <span x-text="selectedTournament?.status === 'completed' ? 'Final Rankings' : 'Live Leaderboard'"></span>
+                                                </h3>
+                                            </div>
+                                            
+                                            <div class="tournament-panel-content" x-show="!tournamentPanelCollapsed.scores" x-collapse>
+                                                <!-- Live Leaderboard (running) -->
+                                                <div class="tournament-leaderboard-content" x-show="selectedTournament?.status === 'running'">
+                                                    <template x-if="tournamentLeaderboard.length === 0">
+                                                        <div class="empty-state-mini">
+                                                            <p>Waiting for results...</p>
+                                                        </div>
+                                                    </template>
+                                                    <template x-for="entry in tournamentLeaderboard" :key="entry.name">
+                                                        <div class="leaderboard-entry" :class="'rank-' + entry.rank">
+                                                            <div class="leaderboard-rank" x-text="entry.rank"></div>
+                                                            <div class="leaderboard-info">
+                                                                <div class="leaderboard-name" x-text="entry.name"></div>
+                                                                <div class="leaderboard-stats">
+                                                                    <span x-text="entry.n_negotiations + ' games'"></span>
+                                                                    <span x-text="entry.n_agreements + ' agr'"></span>
+                                                                </div>
+                                                            </div>
+                                                            <div class="leaderboard-score" x-text="entry.score.toFixed(3)"></div>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                                
+                                                <!-- Final Rankings (completed) -->
+                                                <div class="tournament-final-rankings" x-show="selectedTournament?.status === 'completed'">
+                                                    <template x-for="score in (selectedTournament?.results?.final_scores || [])" :key="score.name">
+                                                        <div class="leaderboard-entry" :class="'rank-' + score.rank">
+                                                            <div class="leaderboard-rank" x-text="score.rank"></div>
+                                                            <div class="leaderboard-info">
+                                                                <div class="leaderboard-name" x-text="score.name"></div>
+                                                                <div class="leaderboard-stats">
+                                                                    <span x-text="(score.n_agreements || 0) + '/' + (score.n_negotiations || 0) + ' agr'"></span>
+                                                                    <span x-text="'u:' + (score.mean_utility?.toFixed(2) || '-')"></span>
+                                                                </div>
+                                                            </div>
+                                                            <div class="leaderboard-score" x-text="score.score?.toFixed(3) || '-'"></div>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Negotiations Panel (collapsible, for running and completed) -->
+                                    <div class="tournament-negotiations-panel" 
+                                         x-show="(selectedTournament?.status === 'running' && tournamentLiveNegotiations.length > 0) || (selectedTournament?.status === 'completed' && selectedTournament?.results?.negotiations?.length > 0)" 
+                                         :class="{ collapsed: tournamentPanelCollapsed.negotiations }">
+                                        <div class="tournament-panel-header" @click="tournamentPanelCollapsed.negotiations = !tournamentPanelCollapsed.negotiations">
+                                            <h3>
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                                     :style="{ transform: tournamentPanelCollapsed.negotiations ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                                </svg>
+                                                <span x-text="selectedTournament?.status === 'running' ? 'Live Negotiations' : 'Negotiations'"></span>
+                                                (<span x-text="selectedTournament?.status === 'running' ? tournamentLiveNegotiations.length : (selectedTournament?.results?.negotiations?.length || 0)"></span>)
+                                            </h3>
+                                        </div>
+                                        
+                                        <div class="tournament-panel-content negotiations-list" x-show="!tournamentPanelCollapsed.negotiations" x-collapse>
+                                            <table class="tournament-table tournament-negotiations-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>#</th>
+                                                        <th>Scenario</th>
+                                                        <th>Partners</th>
+                                                        <th>Result</th>
+                                                        <th>Utilities</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <!-- Live negotiations (running tournament) - show in reverse order (newest first) -->
+                                                    <template x-if="selectedTournament?.status === 'running'">
+                                                        <template x-for="neg in [...tournamentLiveNegotiations].reverse()" :key="'live-' + neg.index">
+                                                            <tr class="negotiation-row" @click="viewTournamentNegotiation(neg)" style="cursor: pointer;" title="Click to view details">
+                                                                <td x-text="neg.index + 1"></td>
+                                                                <td x-text="neg.scenario"></td>
+                                                                <td x-text="(neg.partners || []).join(' vs ')"></td>
+                                                                <td>
+                                                                    <span class="badge badge-sm" :class="neg.has_agreement ? 'badge-success' : (neg.has_error ? 'badge-danger' : 'badge-warning')"
+                                                                          x-text="neg.has_agreement ? 'Agr' : (neg.has_error ? 'Err' : 'No')"></span>
+                                                                </td>
+                                                                <td x-text="neg.utilities ? neg.utilities.map(u => u.toFixed(2)).join(', ') : '-'"></td>
+                                                            </tr>
+                                                        </template>
+                                                    </template>
+                                                    <!-- Final negotiations (completed tournament) -->
+                                                    <template x-if="selectedTournament?.status === 'completed'">
+                                                        <template x-for="neg in (selectedTournament?.results?.negotiations || [])" :key="'final-' + neg.index">
+                                                            <tr class="negotiation-row" @click="viewTournamentNegotiation(neg)" style="cursor: pointer;" title="Click to view details">
+                                                                <td x-text="neg.index + 1"></td>
+                                                                <td x-text="neg.scenario"></td>
+                                                                <td x-text="(neg.partners || []).join(' vs ')"></td>
+                                                                <td>
+                                                                    <span class="badge badge-sm" :class="neg.has_agreement ? 'badge-success' : (neg.has_error ? 'badge-danger' : 'badge-warning')"
+                                                                          x-text="neg.has_agreement ? 'Agr' : (neg.has_error ? 'Err' : 'No')"></span>
+                                                                </td>
+                                                                <td x-text="neg.utilities ? neg.utilities.map(u => u.toFixed(2)).join(', ') : '-'"></td>
+                                                            </tr>
+                                                        </template>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Saved Tournament Additional Panels (only for saved tournaments) -->
+                                    <template x-if="selectedTournament?._fromSaved">
+                                        <div class="tournament-saved-details">
+                                            <!-- Configuration Panel -->
+                                            <div class="tournament-detail-panel" :class="{ collapsed: tournamentPanelCollapsed.savedConfig }">
+                                                <div class="tournament-panel-header" @click="tournamentPanelCollapsed.savedConfig = !tournamentPanelCollapsed.savedConfig">
+                                                    <h3>
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                                             :style="{ transform: tournamentPanelCollapsed.savedConfig ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                        Tournament Configuration
+                                                    </h3>
+                                                </div>
+                                                <div class="tournament-panel-content" x-show="!tournamentPanelCollapsed.savedConfig" x-collapse>
+                                                    <div class="config-grid">
+                                                        <div class="config-item">
+                                                            <span class="config-label">Competitors:</span>
+                                                            <span x-text="(selectedTournament?.n_competitors || 0) + ' negotiators'"></span>
+                                                        </div>
+                                                        <div class="config-item">
+                                                            <span class="config-label">Scenarios:</span>
+                                                            <span x-text="(selectedTournament?.n_scenarios || 0) + ' domains'"></span>
+                                                        </div>
+                                                        <div class="config-item">
+                                                            <span class="config-label">Total Negotiations:</span>
+                                                            <span x-text="selectedTournament?.n_negotiations || 0"></span>
+                                                        </div>
+                                                        <div class="config-item">
+                                                            <span class="config-label">Agreements:</span>
+                                                            <span x-text="(selectedTournament?.n_agreements || 0) + ' (' + Math.round((selectedTournament?.agreement_rate || 0) * 100) + '%)'"></span>
+                                                        </div>
+                                                        <div class="config-item">
+                                                            <span class="config-label">Created:</span>
+                                                            <span x-text="selectedTournament?.created_at ? new Date(selectedTournament.created_at).toLocaleString() : '-'"></span>
+                                                        </div>
+                                                        <div class="config-item" style="grid-column: 1 / -1;">
+                                                            <span class="config-label">Path:</span>
+                                                            <code style="font-size: 11px; word-break: break-all;" x-text="selectedTournament?.path || '-'"></code>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Scores Breakdown Panel -->
+                                            <div class="tournament-detail-panel" :class="{ collapsed: tournamentPanelCollapsed.savedScores }" x-show="selectedTournament?.scores?.length > 0">
+                                                <div class="tournament-panel-header" @click="tournamentPanelCollapsed.savedScores = !tournamentPanelCollapsed.savedScores">
+                                                    <h3>
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                                             :style="{ transform: tournamentPanelCollapsed.savedScores ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                        Final Scores (<span x-text="selectedTournament?.scores?.length || 0"></span>)
+                                                    </h3>
+                                                </div>
+                                                <div class="tournament-panel-content" x-show="!tournamentPanelCollapsed.savedScores" x-collapse>
+                                                    <div class="tournament-final-rankings">
+                                                        <template x-for="score in (selectedTournament?.scores || [])" :key="score.name">
+                                                            <div class="leaderboard-entry" :class="'rank-' + score.rank">
+                                                                <div class="leaderboard-rank" x-text="score.rank"></div>
+                                                                <div class="leaderboard-info">
+                                                                    <div class="leaderboard-name" x-text="score.name"></div>
+                                                                    <div class="leaderboard-stats">
+                                                                        <span x-text="'Score: ' + (score.score?.toFixed(3) || '-')"></span>
+                                                                    </div>
+                                                                </div>
+                                                                <button class="btn btn-xs btn-ghost" @click="console.log('View details for', score.name)" title="View details">
+                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                                        <circle cx="12" cy="12" r="3"></circle>
+                                                                    </svg>
+                                                                </button>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Score Analysis Panel -->
+                                            <div class="tournament-detail-panel" :class="{ collapsed: tournamentPanelCollapsed.scoreAnalysis }">
+                                                <div class="tournament-panel-header" @click="tournamentPanelCollapsed.scoreAnalysis = !tournamentPanelCollapsed.scoreAnalysis">
+                                                    <h3>
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                                             :style="{ transform: tournamentPanelCollapsed.scoreAnalysis ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                        Score Analysis
+                                                        <template x-if="scoreAnalysis.loading">
+                                                            <span class="loading loading-spinner loading-xs ml-2"></span>
+                                                        </template>
+                                                    </h3>
+                                                </div>
+                                                <div class="tournament-panel-content" x-show="!tournamentPanelCollapsed.scoreAnalysis" x-collapse>
+                                                    <!-- Controls Row -->
+                                                    <div class="score-analysis-controls" style="display: flex; gap: 8px; flex-wrap: wrap; padding: 8px; background: var(--color-bg-secondary); border-bottom: 1px solid var(--color-border);">
+                                                        <div class="form-group form-group-inline" style="margin: 0;">
+                                                            <label class="form-label" style="font-size: 11px; margin-right: 4px;">Metric:</label>
+                                                            <select class="form-control form-control-sm" style="font-size: 11px; min-width: 120px;"
+                                                                    x-model="scoreAnalysis.metric"
+                                                                    @change="loadScoreAnalysis()">
+                                                                <template x-for="m in (scoreAnalysis.data?.available_metrics || ['utility', 'advantage', 'welfare', 'nash_optimality', 'kalai_optimality', 'ks_optimality', 'max_welfare_optimality', 'pareto_optimality'])" :key="m">
+                                                                    <option :value="m" x-text="m.replace(/_/g, ' ')"></option>
+                                                                </template>
+                                                            </select>
+                                                        </div>
+                                                        <div class="form-group form-group-inline" style="margin: 0;">
+                                                            <label class="form-label" style="font-size: 11px; margin-right: 4px;">Stat:</label>
+                                                            <select class="form-control form-control-sm" style="font-size: 11px; min-width: 90px;"
+                                                                    x-model="scoreAnalysis.statistic"
+                                                                    @change="loadScoreAnalysis()">
+                                                                <template x-for="s in (scoreAnalysis.data?.available_statistics || ['mean', 'median', 'min', 'max', 'std', 'truncated_mean', 'count', 'sum'])" :key="s">
+                                                                    <option :value="s" x-text="s.replace(/_/g, ' ')"></option>
+                                                                </template>
+                                                            </select>
+                                                        </div>
+                                                        <div class="form-group form-group-inline" style="margin: 0;">
+                                                            <label class="form-label" style="font-size: 11px; margin-right: 4px;">Scenario:</label>
+                                                            <select class="form-control form-control-sm" style="font-size: 11px; min-width: 100px;"
+                                                                    x-model="scoreAnalysis.scenario"
+                                                                    @change="loadScoreAnalysis()">
+                                                                <option value="">All</option>
+                                                                <template x-for="sc in (scoreAnalysis.data?.scenarios || [])" :key="sc">
+                                                                    <option :value="sc" x-text="sc"></option>
+                                                                </template>
+                                                            </select>
+                                                        </div>
+                                                        <div class="form-group form-group-inline" style="margin: 0;">
+                                                            <label class="form-label" style="font-size: 11px; margin-right: 4px;">Partner:</label>
+                                                            <select class="form-control form-control-sm" style="font-size: 11px; min-width: 100px;"
+                                                                    x-model="scoreAnalysis.partner"
+                                                                    @change="loadScoreAnalysis()">
+                                                                <option value="">All</option>
+                                                                <template x-for="p in (scoreAnalysis.data?.partners || [])" :key="p">
+                                                                    <option :value="p" x-text="p"></option>
+                                                                </template>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <!-- Leaderboard Table -->
+                                                    <div class="score-analysis-leaderboard" style="max-height: 300px; overflow-y: auto;">
+                                                        <template x-if="scoreAnalysis.data?.leaderboard?.length > 0">
+                                                            <table class="tournament-table" style="font-size: 11px;">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th style="width: 30px;">#</th>
+                                                                        <th>Strategy</th>
+                                                                        <th style="text-align: right;">Score</th>
+                                                                        <th style="text-align: right;">Count</th>
+                                                                        <th style="text-align: right;">Min</th>
+                                                                        <th style="text-align: right;">Max</th>
+                                                                        <th style="text-align: right;">Mean</th>
+                                                                        <th style="text-align: right;">Std</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <template x-for="entry in scoreAnalysis.data.leaderboard" :key="entry.strategy">
+                                                                        <tr :class="{ 'rank-1': entry.rank === 1, 'rank-2': entry.rank === 2, 'rank-3': entry.rank === 3 }">
+                                                                            <td style="font-weight: bold;" x-text="entry.rank"></td>
+                                                                            <td style="font-weight: 500;" x-text="entry.strategy"></td>
+                                                                            <td style="text-align: right; font-weight: bold; color: var(--color-primary);" x-text="entry.score?.toFixed(4) || '-'"></td>
+                                                                            <td style="text-align: right; color: var(--color-text-secondary);" x-text="entry.count || '-'"></td>
+                                                                            <td style="text-align: right; color: var(--color-text-secondary);" x-text="entry.min?.toFixed(3) || '-'"></td>
+                                                                            <td style="text-align: right; color: var(--color-text-secondary);" x-text="entry.max?.toFixed(3) || '-'"></td>
+                                                                            <td style="text-align: right; color: var(--color-text-secondary);" x-text="entry.mean?.toFixed(3) || '-'"></td>
+                                                                            <td style="text-align: right; color: var(--color-text-secondary);" x-text="entry.std?.toFixed(3) || '-'"></td>
+                                                                        </tr>
+                                                                    </template>
+                                                                </tbody>
+                                                            </table>
+                                                        </template>
+                                                        <template x-if="!scoreAnalysis.data?.leaderboard?.length && !scoreAnalysis.loading">
+                                                            <div class="empty-state" style="padding: 16px; text-align: center; color: var(--color-text-secondary);">
+                                                                No score data available
+                                                            </div>
+                                                        </template>
+                                                        <template x-if="scoreAnalysis.loading">
+                                                            <div class="empty-state" style="padding: 16px; text-align: center;">
+                                                                <div class="spinner"></div>
+                                                                <p style="margin-top: 8px; color: var(--color-text-secondary);">Loading score analysis...</p>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Negotiations List with View Button -->
+                                            <div class="tournament-detail-panel" :class="{ collapsed: tournamentPanelCollapsed.savedNegotiations }" x-show="selectedTournament?.negotiations?.length > 0">
+                                                <div class="tournament-panel-header" @click="tournamentPanelCollapsed.savedNegotiations = !tournamentPanelCollapsed.savedNegotiations">
+                                                    <h3>
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                                             :style="{ transform: tournamentPanelCollapsed.savedNegotiations ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                        All Negotiations (<span x-text="selectedTournament?.negotiations?.length || 0"></span>)
+                                                    </h3>
+                                                </div>
+                                                <div class="tournament-panel-content negotiations-list" x-show="!tournamentPanelCollapsed.savedNegotiations" x-collapse>
+                                                    <table class="tournament-table tournament-negotiations-table">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>#</th>
+                                                                <th>Scenario</th>
+                                                                <th>Partners</th>
+                                                                <th>Result</th>
+                                                                <th>Utilities</th>
+                                                                <th>Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <template x-for="(neg, idx) in (selectedTournament?.negotiations || [])" :key="'saved-neg-' + idx">
+                                                                <tr class="negotiation-row">
+                                                                    <td x-text="idx + 1"></td>
+                                                                    <td x-text="neg.scenario || '-'"></td>
+                                                                    <td x-text="(neg.partners || []).join(' vs ')"></td>
+                                                                    <td>
+                                                                        <span class="badge badge-sm" :class="neg.has_agreement ? 'badge-success' : 'badge-warning'"
+                                                                              x-text="neg.has_agreement ? 'Agreement' : 'No Agreement'"></span>
+                                                                    </td>
+                                                                    <td x-text="neg.utilities ? neg.utilities.map(u => u.toFixed(2)).join(', ') : '-'"></td>
+                                                                    <td>
+                                                                        <button class="btn btn-xs btn-primary" 
+                                                                                @click="loadSavedNegotiationTrace(selectedTournament.id, idx)" 
+                                                                                :disabled="loadingTraceIndex !== null"
+                                                                                title="View in negotiation viewer">
+                                                                            <template x-if="loadingTraceIndex === idx">
+                                                                                <span class="loading loading-spinner loading-xs"></span>
+                                                                            </template>
+                                                                            <template x-if="loadingTraceIndex !== idx">
+                                                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                                                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                                                                                </svg>
+                                                                            </template>
+                                                                            <span x-text="loadingTraceIndex === idx ? 'Loading...' : 'View'"></span>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            </template>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Raw Data Panel -->
+                                        <div class="tournament-detail-panel" :class="{ collapsed: tournamentPanelCollapsed.rawData }">
+                                            <div class="tournament-panel-header" @click="tournamentPanelCollapsed.rawData = !tournamentPanelCollapsed.rawData">
+                                                <h3>
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                                         :style="{ transform: tournamentPanelCollapsed.rawData ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                                    </svg>
+                                                    Raw Data
+                                                    <template x-if="tournamentRawData.loading">
+                                                        <span class="loading loading-spinner loading-xs ml-2"></span>
+                                                    </template>
+                                                </h3>
+                                            </div>
+                                            <div class="tournament-panel-content" x-show="!tournamentPanelCollapsed.rawData" x-collapse>
+                                                <!-- Tab Navigation -->
+                                                <div class="raw-data-tabs">
+                                                    <button class="raw-data-tab" 
+                                                            :class="{ active: tournamentRawData.activeTab === 'config' }"
+                                                            @click="tournamentRawData.activeTab = 'config'">
+                                                        Config
+                                                    </button>
+                                                    <button class="raw-data-tab" 
+                                                            :class="{ active: tournamentRawData.activeTab === 'type_scores' }"
+                                                            @click="tournamentRawData.activeTab = 'type_scores'">
+                                                        Type Scores
+                                                    </button>
+                                                    <button class="raw-data-tab" 
+                                                            :class="{ active: tournamentRawData.activeTab === 'all_scores' }"
+                                                            @click="tournamentRawData.activeTab = 'all_scores'">
+                                                        All Scores
+                                                    </button>
+                                                    <button class="raw-data-tab" 
+                                                            :class="{ active: tournamentRawData.activeTab === 'files' }"
+                                                            @click="tournamentRawData.activeTab = 'files'">
+                                                        Files
+                                                    </button>
+                                                </div>
+                                                
+                                                <!-- Config Tab Content -->
+                                                <div class="raw-data-content" x-show="tournamentRawData.activeTab === 'config'">
+                                                    <template x-if="tournamentRawData.config">
+                                                        <div class="raw-data-json">
+                                                            <pre x-text="JSON.stringify(tournamentRawData.config, null, 2)"></pre>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="!tournamentRawData.config && !tournamentRawData.loading">
+                                                        <div class="empty-state">No config.json available</div>
+                                                    </template>
+                                                </div>
+                                                
+                                                <!-- Type Scores Tab Content -->
+                                                <div class="raw-data-content" x-show="tournamentRawData.activeTab === 'type_scores'">
+                                                    <template x-if="tournamentRawData.typeScores?.strategies?.length > 0">
+                                                        <div class="raw-data-table-container">
+                                                            <table class="raw-data-table">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th>Strategy</th>
+                                                                        <th>Utility (mean)</th>
+                                                                        <th>Advantage (mean)</th>
+                                                                        <th>Welfare (mean)</th>
+                                                                        <th>Nash Opt. (mean)</th>
+                                                                        <th>Pareto Opt. (mean)</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <template x-for="row in tournamentRawData.typeScores.strategies.filter(s => s.strategy !== 'index')" :key="row.strategy">
+                                                                        <tr>
+                                                                            <td x-text="row.strategy"></td>
+                                                                            <td x-text="row.values[1] ? parseFloat(row.values[1]).toFixed(4) : '-'"></td>
+                                                                            <td x-text="row.values[17] ? parseFloat(row.values[17]).toFixed(4) : '-'"></td>
+                                                                            <td x-text="row.values[33] ? parseFloat(row.values[33]).toFixed(4) : '-'"></td>
+                                                                            <td x-text="row.values[49] ? parseFloat(row.values[49]).toFixed(4) : '-'"></td>
+                                                                            <td x-text="row.values[81] ? parseFloat(row.values[81]).toFixed(4) : '-'"></td>
+                                                                        </tr>
+                                                                    </template>
+                                                                </tbody>
+                                                            </table>
+                                                            <div class="raw-data-table-info" style="margin-top: 8px;">
+                                                                Available metrics: <span x-text="tournamentRawData.typeScores.metrics?.join(', ') || '-'"></span>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="!tournamentRawData.typeScores?.strategies?.length && !tournamentRawData.loading">
+                                                        <div class="empty-state">No type_scores.csv available</div>
+                                                    </template>
+                                                </div>
+                                                
+                                                <!-- All Scores Tab Content -->
+                                                <div class="raw-data-content" x-show="tournamentRawData.activeTab === 'all_scores'">
+                                                    <template x-if="tournamentRawData.allScores?.length > 0">
+                                                        <div class="raw-data-table-container">
+                                                            <div class="raw-data-table-info">
+                                                                Showing <span x-text="Math.min(100, tournamentRawData.allScores.length)"></span> 
+                                                                of <span x-text="tournamentRawData.allScores.length"></span> rows
+                                                            </div>
+                                                            <table class="raw-data-table">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th>Strategy</th>
+                                                                        <th>Partner</th>
+                                                                        <th>Scenario</th>
+                                                                        <th>Utility</th>
+                                                                        <th>Advantage</th>
+                                                                        <th>Welfare</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <template x-for="(row, idx) in tournamentRawData.allScores.slice(0, 100)" :key="idx">
+                                                                        <tr>
+                                                                            <td x-text="row.strategy || '-'"></td>
+                                                                            <td x-text="row.partners || '-'"></td>
+                                                                            <td x-text="row.scenario || '-'" class="truncate-cell" :title="row.scenario"></td>
+                                                                            <td x-text="row.utility ? parseFloat(row.utility).toFixed(4) : '-'"></td>
+                                                                            <td x-text="row.advantage ? parseFloat(row.advantage).toFixed(4) : '-'"></td>
+                                                                            <td x-text="row.welfare ? parseFloat(row.welfare).toFixed(4) : '-'"></td>
+                                                                        </tr>
+                                                                    </template>
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="!tournamentRawData.allScores?.length && !tournamentRawData.loading">
+                                                        <div class="empty-state">No all_scores.csv available</div>
+                                                    </template>
+                                                </div>
+                                                
+                                                <!-- Files Tab Content -->
+                                                <div class="raw-data-content" x-show="tournamentRawData.activeTab === 'files'">
+                                                    <template x-if="tournamentRawData.files">
+                                                        <div class="raw-data-files">
+                                                            <div class="file-list">
+                                                                <div class="file-item" x-show="tournamentRawData.files.config">
+                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                                                    </svg>
+                                                                    config.json
+                                                                </div>
+                                                                <div class="file-item" x-show="tournamentRawData.files.scores">
+                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                                                    </svg>
+                                                                    scores.csv
+                                                                </div>
+                                                                <div class="file-item" x-show="tournamentRawData.files.type_scores">
+                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                                                    </svg>
+                                                                    type_scores.csv
+                                                                </div>
+                                                                <div class="file-item" x-show="tournamentRawData.files.all_scores">
+                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                                                    </svg>
+                                                                    all_scores.csv
+                                                                </div>
+                                                                <div class="file-item" x-show="tournamentRawData.files.details">
+                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                                                    </svg>
+                                                                    details.csv
+                                                                </div>
+                                                                <div class="file-item" x-show="tournamentRawData.files.negotiations_count > 0">
+                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                                                                    </svg>
+                                                                    negotiations/ (<span x-text="tournamentRawData.files.negotiations_count"></span> files)
+                                                                </div>
+                                                                <div class="file-item" x-show="tournamentRawData.files.scenarios_count > 0">
+                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                                                                    </svg>
+                                                                    scenarios/ (<span x-text="tournamentRawData.files.scenarios_count"></span> scenarios)
+                                                                </div>
+                                                            </div>
+                                                            <div class="file-path">
+                                                                <span class="config-label">Path:</span>
+                                                                <code x-text="selectedTournament?.path || '-'"></code>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="!tournamentRawData.files && !tournamentRawData.loading">
+                                                        <div class="empty-state">Unable to load file information</div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                    </div>
+                    
+                    <!-- Error Section (for failed tournaments) -->
+                    <div class="tournament-error-section" x-show="selectedTournament?.status === 'failed'">
+                        <div class="error-message">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                            <span x-text="selectedTournament?.error || 'Unknown error'"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Config Section -->
+                    <div class="tournament-config-section" x-show="selectedTournament?.config && selectedTournament?.config.competitor_types?.length > 0">
+                        <h4>Configuration</h4>
+                        <div class="config-grid">
+                            <div class="config-item">
+                                <span class="config-label">Competitors:</span>
+                                <span x-text="selectedTournament?.config?.competitor_types?.join(', ') || '-'"></span>
+                            </div>
+                            <div class="config-item">
+                                <span class="config-label">Scenarios:</span>
+                                <span x-text="(selectedTournament?.config?.scenario_paths?.length || 0) + ' selected'"></span>
+                            </div>
+                            <div class="config-item">
+                                <span class="config-label">Repetitions:</span>
+                                <span x-text="selectedTournament?.config?.n_repetitions || 1"></span>
+                            </div>
+                            <div class="config-item">
+                                <span class="config-label">Mechanism:</span>
+                                <span x-text="selectedTournament?.config?.mechanism_type || 'SAOMechanism'"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>

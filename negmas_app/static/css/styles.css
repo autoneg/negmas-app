@@ -3287,6 +3287,30 @@ body {
     word-break: break-word;
 }
 
+/* Optimality statistics row */
+.result-optimality-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+}
+
+.optimality-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+}
+
+.optimality-stat .text-muted {
+    font-weight: 500;
+}
+
+.optimality-stat strong {
+    color: var(--text-primary);
+}
+
 /* Spinner variants */
 .spinner-sm {
     width: 14px;

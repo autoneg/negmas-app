@@ -21,7 +21,7 @@ from ..models import (
 from .scenario_loader import ScenarioLoader
 from .negotiator_factory import NegotiatorFactory
 from .mechanism_factory import MechanismFactory
-from .outcome_analysis import compute_outcome_space_data
+from .outcome_analysis import compute_outcome_space_data, compute_optimality_stats
 from .negotiation_storage import NegotiationStorageService
 
 
@@ -371,6 +371,15 @@ class SessionManager:
                     u = ufun(mechanism.agreement)
                     session.final_utilities.append(float(u) if u is not None else 0.0)
                 session.end_reason = "agreement"
+
+                # Compute optimality stats for the agreement
+                try:
+                    session.optimality_stats = await asyncio.to_thread(
+                        compute_optimality_stats, scenario, mechanism.agreement
+                    )
+                except Exception as e:
+                    print(f"Failed to compute optimality stats: {e}")
+                    session.optimality_stats = None
             elif session.end_reason is None:
                 # Determine end reason from final state
                 if final_state.timedout:
