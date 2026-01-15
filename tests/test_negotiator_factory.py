@@ -22,9 +22,9 @@ class TestNegotiatorDiscovery:
         """Native negmas negotiators should be in registry."""
         # Check for some common native negotiators
         native_types = [
-            "negmas.sao.AspirationNegotiator",
-            "negmas.sao.NaiveTitForTatNegotiator",
-            "negmas.sao.RandomNegotiator",
+            "negmas.gb.negotiators.timebased.AspirationNegotiator",
+            "negmas.gb.negotiators.titfortat.NaiveTitForTatNegotiator",
+            "negmas.gb.negotiators.randneg.RandomNegotiator",
         ]
         for type_name in native_types:
             assert type_name in NEGOTIATOR_REGISTRY, (
@@ -61,9 +61,11 @@ class TestNegotiatorDiscovery:
 
     def test_get_info_existing(self):
         """get_info should return info for existing negotiator."""
-        info = NegotiatorFactory.get_info("negmas.sao.AspirationNegotiator")
+        info = NegotiatorFactory.get_info(
+            "negmas.gb.negotiators.timebased.AspirationNegotiator"
+        )
         assert info is not None
-        assert info.type_name == "negmas.sao.AspirationNegotiator"
+        assert info.type_name == "negmas.gb.negotiators.timebased.AspirationNegotiator"
         assert info.source == "native"
 
     def test_get_info_nonexistent(self):
@@ -78,7 +80,7 @@ class TestNegotiatorCreation:
     def test_create_native_negotiator(self):
         """Should create native negotiator with defaults."""
         config = NegotiatorConfig(
-            type_name="negmas.sao.AspirationNegotiator",
+            type_name="negmas.gb.negotiators.timebased.AspirationNegotiator",
             name="TestNeg",
         )
         negotiator = NegotiatorFactory.create(config)
@@ -89,7 +91,7 @@ class TestNegotiatorCreation:
     def test_create_with_params(self):
         """Should create negotiator with custom parameters."""
         config = NegotiatorConfig(
-            type_name="negmas.sao.AspirationNegotiator",
+            type_name="negmas.gb.negotiators.timebased.AspirationNegotiator",
             name="CustomNeg",
             params={"aspiration_type": "linear"},
         )
@@ -120,8 +122,13 @@ class TestNegotiatorCreation:
             pytest.skip("Could not load scenario")
 
         configs = [
-            NegotiatorConfig(type_name="negmas.sao.AspirationNegotiator", name="Neg1"),
-            NegotiatorConfig(type_name="negmas.sao.RandomNegotiator", name="Neg2"),
+            NegotiatorConfig(
+                type_name="negmas.gb.negotiators.timebased.AspirationNegotiator",
+                name="Neg1",
+            ),
+            NegotiatorConfig(
+                type_name="negmas.gb.negotiators.randneg.RandomNegotiator", name="Neg2"
+            ),
         ]
 
         # Adjust configs to match number of ufuns
@@ -138,7 +145,9 @@ class TestGetClassForType:
 
     def test_get_registered_class(self):
         """Should return class for registered type."""
-        cls = _get_class_for_type("negmas.sao.AspirationNegotiator")
+        cls = _get_class_for_type(
+            "negmas.gb.negotiators.timebased.AspirationNegotiator"
+        )
         assert cls is not None
         assert issubclass(cls, Negotiator)
 

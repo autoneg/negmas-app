@@ -8,6 +8,19 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+# Parameters from base Negotiator class that should be ignored
+# These are set by the app, not configured by users
+IGNORED_BASE_PARAMS = frozenset(
+    {
+        "preferences",
+        "ufun",
+        "id",
+        "name",
+        "parent",
+        "owner",
+    }
+)
+
 
 @dataclass
 class ClassInfo:
@@ -223,6 +236,9 @@ def inspect_module_dynamic(file_path: str) -> ModuleInspectionResult:
                     sig = inspect.signature(obj.__init__)
                     for param_name, param in sig.parameters.items():
                         if param_name in ("self", "args", "kwargs"):
+                            continue
+                        # Skip base Negotiator class parameters
+                        if param_name in IGNORED_BASE_PARAMS:
                             continue
                         params.append(
                             {

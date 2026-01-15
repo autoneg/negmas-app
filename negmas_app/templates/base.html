@@ -61,6 +61,7 @@
                 <button class="header-nav-btn" :class="{ active: currentPage === 'negotiations' }" @click="currentPage = 'negotiations'">Negotiations</button>
                 <button class="header-nav-btn" :class="{ active: currentPage === 'tournaments' }" @click="currentPage = 'tournaments'; loadTournamentSessions()">Tournaments</button>
                 <button class="header-nav-btn" :class="{ active: currentPage === 'scenarios' }" @click="currentPage = 'scenarios'; loadScenariosForExplorer()">Scenarios</button>
+                <button class="header-nav-btn" :class="{ active: currentPage === 'negotiators' }" @click="currentPage = 'negotiators'; loadNegotiatorsForExplorer()">Negotiators</button>
                 <button class="header-nav-btn" @click="showSettings = true">Settings</button>
             </nav>
             
@@ -294,7 +295,7 @@
                     <!-- Left Panel: Filters & List -->
                     <div class="scenario-explorer-list">
                         <div class="scenario-explorer-header">
-                            <h2>Scenario Explorer</h2>
+                            <h2>Scenario Explorer <span class="text-muted" style="font-weight: normal; font-size: 14px;" x-text="'(' + filteredExplorerScenarios.length + (explorerScenarios.length !== filteredExplorerScenarios.length ? ' / ' + explorerScenarios.length : '') + ')'"></span></h2>
                         </div>
                         
                         <div class="scenario-explorer-filters">
@@ -602,15 +603,264 @@
                 </div>
             </div>
             
+            <!-- Content Area - Negotiator Explorer -->
+            <div class="content-area scenario-explorer" x-show="currentPage === 'negotiators'" x-cloak>
+                <div class="scenario-explorer-layout">
+                    <!-- Left Panel: Filters & List -->
+                    <div class="scenario-explorer-list">
+                        <div class="scenario-explorer-header">
+                            <h2>Negotiator Explorer <span class="text-muted" style="font-weight: normal; font-size: 14px;" x-text="'(' + filteredExplorerNegotiators.length + (explorerNegotiators.length !== filteredExplorerNegotiators.length ? ' / ' + explorerNegotiators.length : '') + ')'"></span></h2>
+                        </div>
+                        
+                        <div class="scenario-explorer-filters">
+                            <div class="form-group">
+                                <input type="text" class="form-input" placeholder="Search negotiators..." 
+                                       x-model="negotiatorExplorerSearch" @input.debounce.300ms="filterExplorerNegotiators()">
+                            </div>
+                            <div class="form-group">
+                                <select class="form-select" x-model="negotiatorExplorerSourceFilter" @change="filterExplorerNegotiators()">
+                                    <option value="">All Sources</option>
+                                    <option value="native">Native</option>
+                                    <option value="genius">Genius</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <select class="form-select" x-model="negotiatorExplorerGroupFilter" @change="filterExplorerNegotiators()">
+                                    <option value="">All Groups</option>
+                                    <option value="core">Core</option>
+                                    <option value="anac2010">ANAC 2010</option>
+                                    <option value="anac2011">ANAC 2011</option>
+                                    <option value="anac2012">ANAC 2012</option>
+                                    <option value="anac2013">ANAC 2013</option>
+                                    <option value="anac2015">ANAC 2015</option>
+                                    <option value="anac2016">ANAC 2016</option>
+                                    <option value="anac2017">ANAC 2017</option>
+                                    <option value="anac2018">ANAC 2018</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="scenario-explorer-results">
+                            <div class="text-muted" style="padding: 12px; font-size: 13px;" x-show="negotiatorExplorerLoading">
+                                Loading negotiators...
+                            </div>
+                            <div class="text-muted" style="padding: 12px; font-size: 13px;" x-show="!negotiatorExplorerLoading && filteredExplorerNegotiators.length === 0">
+                                No negotiators found
+                            </div>
+                            <template x-for="negotiator in filteredExplorerNegotiators" :key="negotiator.type_name">
+                                <div class="scenario-explorer-item" 
+                                     :class="{ selected: selectedExplorerNegotiator?.type_name === negotiator.type_name }"
+                                     @click="selectNegotiatorForExplorer(negotiator)">
+                                    <div class="scenario-explorer-item-name" x-text="negotiator.name"></div>
+                                    <div class="scenario-explorer-item-meta">
+                                        <span class="badge badge-secondary" x-text="negotiator.source"></span>
+                                        <template x-if="negotiator.group">
+                                            <span class="badge badge-neutral" x-text="negotiator.group"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- Right Panel: Negotiator Details -->
+                    <div class="scenario-explorer-details">
+                        <template x-if="!selectedExplorerNegotiator">
+                            <div class="scenario-explorer-empty">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="64" height="64" style="opacity: 0.3;">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                                <p>Select a negotiator to view details</p>
+                            </div>
+                        </template>
+                        <template x-if="selectedExplorerNegotiator">
+                            <div class="scenario-detail-view">
+                                <div class="scenario-detail-header">
+                                    <h2 x-text="selectedExplorerNegotiator.name"></h2>
+                                    <div class="scenario-detail-actions">
+                                        <button class="btn btn-primary btn-sm" @click="createVirtualNegotiator()" :disabled="creatingVirtualNegotiator">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                                <polyline points="7 3 7 8 15 8"></polyline>
+                                            </svg>
+                                            <span x-text="creatingVirtualNegotiator ? 'Saving...' : 'Save as Virtual'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="scenario-detail-content">
+                                    <div class="scenario-detail-section">
+                                        <h3>Overview</h3>
+                                        <div class="scenario-detail-grid">
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Source</span>
+                                                <span class="stat-value" x-text="selectedExplorerNegotiator.source"></span>
+                                            </div>
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Group</span>
+                                                <span class="stat-value" x-text="selectedExplorerNegotiator.group || 'N/A'"></span>
+                                            </div>
+                                            <div class="scenario-detail-stat">
+                                                <span class="stat-label">Type</span>
+                                                <span class="stat-value" style="font-size: 11px; word-break: break-all;" x-text="selectedExplorerNegotiator.type_name"></span>
+                                            </div>
+                                        </div>
+                                        <template x-if="selectedExplorerNegotiator.description">
+                                            <div style="margin-top: 12px;">
+                                                <p class="text-muted" style="font-size: 13px;" x-text="selectedExplorerNegotiator.description"></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    
+                                    <div class="scenario-detail-section">
+                                        <h3>Tags</h3>
+                                        <template x-if="selectedExplorerNegotiator.tags && selectedExplorerNegotiator.tags.length > 0">
+                                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                                <template x-for="tag in selectedExplorerNegotiator.tags" :key="tag">
+                                                    <span class="badge badge-neutral" x-text="tag"></span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!selectedExplorerNegotiator.tags || selectedExplorerNegotiator.tags.length === 0">
+                                            <p class="text-muted" style="font-size: 13px;">No tags</p>
+                                        </template>
+                                    </div>
+                                    
+                                    <div class="scenario-detail-section">
+                                        <h3>Mechanisms</h3>
+                                        <template x-if="selectedExplorerNegotiator.mechanisms && selectedExplorerNegotiator.mechanisms.length > 0">
+                                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                                <template x-for="mechanism in selectedExplorerNegotiator.mechanisms" :key="mechanism">
+                                                    <span class="badge badge-secondary" x-text="mechanism"></span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!selectedExplorerNegotiator.mechanisms || selectedExplorerNegotiator.mechanisms.length === 0">
+                                            <p class="text-muted" style="font-size: 13px;">No mechanisms specified</p>
+                                        </template>
+                                    </div>
+                                    
+                                    <div class="scenario-detail-section" x-show="negotiatorExplorerParams && negotiatorExplorerParams.length > 0">
+                                        <h3>Parameters</h3>
+                                        <div class="form-group" x-show="negotiatorExplorerParamsLoading">
+                                            <p class="text-muted" style="font-size: 13px;">Loading parameters...</p>
+                                        </div>
+                                        <template x-if="!negotiatorExplorerParamsLoading && negotiatorExplorerParams && negotiatorExplorerParams.length > 0">
+                                            <div>
+                                                <template x-for="param in negotiatorExplorerParams" :key="param.name">
+                                                    <div class="form-group">
+                                                        <label class="form-label">
+                                                            <span x-text="param.name"></span>
+                                                            <template x-if="param.required">
+                                                                <span style="color: var(--danger);">*</span>
+                                                            </template>
+                                                        </label>
+                                                        <template x-if="param.description">
+                                                            <div class="text-muted" style="font-size: 11px; margin-bottom: 4px;" x-text="param.description"></div>
+                                                        </template>
+                                                        
+                                                        <!-- Boolean parameter -->
+                                                        <template x-if="param.type === 'bool'">
+                                                            <select class="form-select" x-model="virtualNegotiatorParams[param.name]">
+                                                                <option value="">Default</option>
+                                                                <option value="true">True</option>
+                                                                <option value="false">False</option>
+                                                            </select>
+                                                        </template>
+                                                        
+                                                        <!-- Enum parameter -->
+                                                        <template x-if="param.type === 'Literal' && param.values">
+                                                            <select class="form-select" x-model="virtualNegotiatorParams[param.name]">
+                                                                <option value="">Default</option>
+                                                                <template x-for="value in param.values" :key="value">
+                                                                    <option :value="value" x-text="value"></option>
+                                                                </template>
+                                                            </select>
+                                                        </template>
+                                                        
+                                                        <!-- Number parameter -->
+                                                        <template x-if="['int', 'float'].includes(param.type)">
+                                                            <input type="number" 
+                                                                   class="form-input" 
+                                                                   x-model="virtualNegotiatorParams[param.name]"
+                                                                   :step="param.type === 'float' ? '0.01' : '1'"
+                                                                   :placeholder="'Default: ' + (param.default ?? 'None')">
+                                                        </template>
+                                                        
+                                                        <!-- String parameter -->
+                                                        <template x-if="param.type === 'str'">
+                                                            <input type="text" 
+                                                                   class="form-input" 
+                                                                   x-model="virtualNegotiatorParams[param.name]"
+                                                                   :placeholder="'Default: ' + (param.default ?? 'None')">
+                                                        </template>
+                                                        
+                                                        <!-- Other types -->
+                                                        <template x-if="!['bool', 'Literal', 'int', 'float', 'str'].includes(param.type) && !param.values">
+                                                            <input type="text" 
+                                                                   class="form-input" 
+                                                                   x-model="virtualNegotiatorParams[param.name]"
+                                                                   :placeholder="'Type: ' + param.type">
+                                                        </template>
+                                                        
+                                                        <div class="text-muted" style="font-size: 11px; margin-top: 4px;">
+                                                            <span>Type: </span><span x-text="param.type"></span>
+                                                            <template x-if="param.default !== undefined && param.default !== null">
+                                                                <span> | Default: <span x-text="param.default"></span></span>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!negotiatorExplorerParamsLoading && (!negotiatorExplorerParams || negotiatorExplorerParams.length === 0)">
+                                            <p class="text-muted" style="font-size: 13px;">No configurable parameters</p>
+                                        </template>
+                                    </div>
+                                    
+                                    <div class="scenario-detail-section">
+                                        <h3>Virtual Negotiator Name</h3>
+                                        <div class="form-group">
+                                            <input type="text" 
+                                                   class="form-input" 
+                                                   x-model="virtualNegotiatorName"
+                                                   placeholder="Enter a name for this virtual negotiator">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Content Area - Tournaments -->
             <div class="content-area tournament-page" x-show="currentPage === 'tournaments'" x-cloak>
-                <!-- Tournament List View (when no tournament selected) -->
-                <div class="tournament-list-view" x-show="!selectedTournament">
+                <!-- Tournament Table View - Similar to Negotiations -->
+                <div class="negotiations-table-view" :class="{'compact-mode': selectedTournament}" x-init="initTournamentsTables()">
                     <!-- Header with actions -->
-                    <div class="table-header" style="margin-bottom: 16px;">
-                        <h2>Tournaments</h2>
+                    <div class="table-header">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <h2>Tournaments <span class="text-muted" style="font-weight: normal; font-size: 14px;" x-show="!selectedTournament" x-text="'(' + (runningTournaments.length + completedTournaments.length + savedTournaments.length) + ')'"></span></h2>
+                            <template x-if="selectedTournament">
+                                <span class="badge badge-primary" style="font-size: 12px;">
+                                    <span x-text="selectedTournament._fromSaved ? selectedTournament.id : 'Tournament #' + selectedTournament.id"></span>
+                                </span>
+                            </template>
+                        </div>
                         <div style="display: flex; gap: 8px; align-items: center;">
-                            <button class="btn btn-secondary btn-sm" @click="loadSavedTournaments()" :disabled="savedTournamentsLoading">
+                            <!-- Deselect button when viewing a tournament -->
+                            <button class="btn btn-ghost btn-sm" x-show="selectedTournament" @click="selectedTournament = null" title="Close tournament view">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                                <span>Close</span>
+                            </button>
+                            <button class="btn btn-secondary btn-sm" @click="loadSavedTournaments()" :disabled="savedTournamentsLoading" x-show="!selectedTournament">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                                     <polyline points="17 8 12 3 7 8"/>
@@ -618,111 +868,82 @@
                                 </svg>
                                 <span x-text="savedTournamentsLoading ? 'Loading...' : 'Load Saved'"></span>
                             </button>
-                            <button class="btn btn-primary" @click="showNewTournament = true; loadScenarios(); loadNegotiatorTypes()">
+                            <button class="btn btn-primary" @click="showNewTournament = true; loadScenarios(); loadNegotiatorTypes()" :class="{'btn-sm': selectedTournament}">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                                     <line x1="12" y1="5" x2="12" y2="19"></line>
                                     <line x1="5" y1="12" x2="19" y2="12"></line>
                                 </svg>
-                                Start Tournament
+                                <span x-show="!selectedTournament">Start Tournament</span>
+                                <span x-show="selectedTournament">New</span>
                             </button>
                         </div>
                     </div>
                     
-                    <div class="tournament-tables-layout" style="display: flex; flex-direction: column; gap: 16px; height: calc(100% - 60px); overflow: auto;">
-                        <!-- Running Tournaments -->
-                        <div class="table-section" x-show="tournamentSessions.some(t => t.status === 'running')">
-                            <h3>
-                                <span class="status-dot running"></span>
-                                Running (<span x-text="tournamentSessions.filter(t => t.status === 'running').length"></span>)
-                            </h3>
-                            <div class="tournament-list-grid">
-                                <template x-for="session in tournamentSessions.filter(t => t.status === 'running')" :key="session.id">
-                                    <div class="tournament-list-item" @click="selectTournament(session)">
-                                        <div class="tournament-list-item-header">
-                                            <span class="tournament-id">Tournament #<span x-text="session.id"></span></span>
-                                            <span class="badge badge-primary">Running</span>
-                                        </div>
-                                        <div class="progress" style="height: 4px; margin-top: 4px;">
-                                            <div class="progress-bar" :style="'width: ' + (session.progress?.percent || 0) + '%'"></div>
-                                        </div>
-                                        <div class="text-muted" style="font-size: 11px; margin-top: 4px;" x-text="Math.round(session.progress?.percent || 0) + '% complete'"></div>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
+                    <!-- Running Tournaments Section - only show in list view -->
+                    <div class="table-section" x-show="runningTournaments.length > 0 && !selectedTournament" style="margin-bottom: 24px;">
+                        <h3>
+                            <span class="status-dot running"></span>
+                            Running (<span x-text="runningTournaments.length"></span>)
+                        </h3>
+                        <div id="running-tournaments-table"></div>
+                    </div>
+                    
+                    <!-- Completed Tournaments Section (current session) - only show in list view -->
+                    <div class="table-section" x-show="!selectedTournament" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                        <h3>
+                            <span class="status-dot" style="background: var(--success);"></span>
+                            Completed This Session (<span x-text="completedTournaments.length"></span>)
+                        </h3>
                         
-                        <!-- Completed Tournaments (this session) -->
-                        <div class="table-section" x-show="tournamentSessions.some(t => t.status !== 'running')">
-                            <h3>
-                                <span class="status-dot" style="background: var(--success);"></span>
-                                This Session (<span x-text="tournamentSessions.filter(t => t.status !== 'running').length"></span>)
-                            </h3>
-                            <div class="tournament-list-grid">
-                                <template x-for="session in tournamentSessions.filter(t => t.status !== 'running')" :key="session.id">
-                                    <div class="tournament-list-item" @click="selectTournament(session)">
-                                        <div class="tournament-list-item-header">
-                                            <span class="tournament-id">Tournament #<span x-text="session.id"></span></span>
-                                            <span class="badge" 
-                                                  :class="{'badge-success': session.status === 'completed', 'badge-danger': session.status === 'failed', 'badge-warning': session.status === 'cancelled'}"
-                                                  x-text="session.status"></span>
-                                        </div>
-                                        <div class="text-muted" style="font-size: 11px; margin-top: 4px;">
-                                            <span x-text="(session.results?.total_negotiations || 0) + ' negotiations'"></span>
-                                            <span x-show="session.results?.overall_agreement_rate !== undefined" x-text="' • ' + Math.round((session.results?.overall_agreement_rate || 0) * 100) + '% agreements'"></span>
-                                        </div>
-                                    </div>
-                                </template>
+                        <template x-if="completedTournaments.length === 0 && runningTournaments.length === 0 && savedTournaments.length === 0">
+                            <div class="empty-state" style="flex: 1;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <circle cx="12" cy="8" r="5"></circle>
+                                    <path d="M12 13v7"></path>
+                                    <path d="M9 20h6"></path>
+                                </svg>
+                                <div class="empty-state-title">No Tournaments Yet</div>
+                                <div class="empty-state-text">
+                                    Start a new tournament or load saved ones.
+                                </div>
                             </div>
-                        </div>
+                        </template>
                         
-                        <!-- Saved Tournaments -->
-                        <div class="table-section saved-tournaments-section" x-show="savedTournaments.length > 0">
-                            <h3 style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="display: flex; align-items: center; gap: 8px;">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                                    </svg>
-                                    Saved (<span x-text="savedTournaments.length"></span>)
-                                </span>
+                        <div id="completed-tournaments-table" x-show="completedTournaments.length > 0"></div>
+                    </div>
+                    
+                    <!-- Saved Tournaments Section - only show in list view -->
+                    <div class="table-section saved-tournaments-section" x-show="(savedTournaments.length > 0 || showArchivedTournaments || tournamentTagFilter) && !selectedTournament" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                        <h3 style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                            <span style="display: flex; align-items: center; gap: 8px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                                </svg>
+                                Saved (<span x-text="savedTournaments.length"></span>)
+                            </span>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <!-- Tag filter -->
+                                <select class="form-control form-control-sm" style="width: auto; min-width: 100px;" x-model="tournamentTagFilter" @change="loadSavedTournaments()">
+                                    <option value="">All tags</option>
+                                    <template x-for="tag in availableTournamentTags" :key="tag">
+                                        <option :value="tag" x-text="tag"></option>
+                                    </template>
+                                </select>
+                                <!-- Show archived toggle -->
+                                <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: normal; cursor: pointer;">
+                                    <input type="checkbox" x-model="showArchivedTournaments" @change="loadSavedTournaments()">
+                                    <span>Show archived</span>
+                                </label>
+                                <!-- Clear all button -->
                                 <button class="btn btn-ghost btn-xs" @click="clearSavedTournaments()" title="Clear all saved">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                                         <polyline points="3 6 5 6 21 6"></polyline>
                                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                                     </svg>
                                 </button>
-                            </h3>
-                            <div class="tournament-list-grid">
-                                <template x-for="t in savedTournaments" :key="t.id">
-                                    <div class="tournament-list-item" @click="loadAndSelectSavedTournament(t.id)">
-                                        <div class="tournament-list-item-header">
-                                            <span class="tournament-id" x-text="t.name || t.id"></span>
-                                            <button class="btn btn-ghost btn-xs delete-btn" @click.stop="deleteSavedTournament(t.id)" title="Delete">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-                                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                        <div class="text-muted" style="font-size: 11px; margin-top: 4px;">
-                                            <span x-text="t.n_negotiations + ' negotiations'"></span>
-                                            <span x-text="' • ' + Math.round((t.agreement_rate || 0) * 100) + '% agreements'"></span>
-                                        </div>
-                                        <div class="text-muted" style="font-size: 10px; margin-top: 2px;" x-text="t.created_at ? new Date(t.created_at).toLocaleString() : ''"></div>
-                                    </div>
-                                </template>
                             </div>
-                        </div>
-                        
-                        <!-- Empty state when no tournaments -->
-                        <div class="empty-state" x-show="tournamentSessions.length === 0 && savedTournaments.length === 0" style="flex: 1;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48" style="opacity: 0.3;">
-                                <circle cx="12" cy="8" r="5"></circle>
-                                <path d="M12 13v7"></path>
-                                <path d="M9 20h6"></path>
-                            </svg>
-                            <div class="empty-state-title">No Tournaments</div>
-                            <div class="empty-state-text">Start a new tournament or load saved ones.</div>
-                        </div>
+                        </h3>
+                        <div id="saved-tournaments-table" x-show="savedTournaments.length > 0"></div>
                     </div>
                 </div>
                 
@@ -998,6 +1219,143 @@
                                             </table>
                                         </div>
                                     </div>
+                                    
+                                    <!-- Saved Tournament Additional Panels (only for saved tournaments) -->
+                                    <template x-if="selectedTournament?._fromSaved">
+                                        <div class="tournament-saved-details">
+                                            <!-- Configuration Panel -->
+                                            <div class="tournament-detail-panel" :class="{ collapsed: tournamentPanelCollapsed.savedConfig }">
+                                                <div class="tournament-panel-header" @click="tournamentPanelCollapsed.savedConfig = !tournamentPanelCollapsed.savedConfig">
+                                                    <h3>
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                                             :style="{ transform: tournamentPanelCollapsed.savedConfig ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                        Tournament Configuration
+                                                    </h3>
+                                                </div>
+                                                <div class="tournament-panel-content" x-show="!tournamentPanelCollapsed.savedConfig" x-collapse>
+                                                    <div class="config-grid">
+                                                        <div class="config-item">
+                                                            <span class="config-label">Competitors:</span>
+                                                            <span x-text="(selectedTournament?.n_competitors || 0) + ' negotiators'"></span>
+                                                        </div>
+                                                        <div class="config-item">
+                                                            <span class="config-label">Scenarios:</span>
+                                                            <span x-text="(selectedTournament?.n_scenarios || 0) + ' domains'"></span>
+                                                        </div>
+                                                        <div class="config-item">
+                                                            <span class="config-label">Total Negotiations:</span>
+                                                            <span x-text="selectedTournament?.n_negotiations || 0"></span>
+                                                        </div>
+                                                        <div class="config-item">
+                                                            <span class="config-label">Agreements:</span>
+                                                            <span x-text="(selectedTournament?.n_agreements || 0) + ' (' + Math.round((selectedTournament?.agreement_rate || 0) * 100) + '%)'"></span>
+                                                        </div>
+                                                        <div class="config-item">
+                                                            <span class="config-label">Created:</span>
+                                                            <span x-text="selectedTournament?.created_at ? new Date(selectedTournament.created_at).toLocaleString() : '-'"></span>
+                                                        </div>
+                                                        <div class="config-item" style="grid-column: 1 / -1;">
+                                                            <span class="config-label">Path:</span>
+                                                            <code style="font-size: 11px; word-break: break-all;" x-text="selectedTournament?.path || '-'"></code>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Scores Breakdown Panel -->
+                                            <div class="tournament-detail-panel" :class="{ collapsed: tournamentPanelCollapsed.savedScores }" x-show="selectedTournament?.scores?.length > 0">
+                                                <div class="tournament-panel-header" @click="tournamentPanelCollapsed.savedScores = !tournamentPanelCollapsed.savedScores">
+                                                    <h3>
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                                             :style="{ transform: tournamentPanelCollapsed.savedScores ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                        Final Scores (<span x-text="selectedTournament?.scores?.length || 0"></span>)
+                                                    </h3>
+                                                </div>
+                                                <div class="tournament-panel-content" x-show="!tournamentPanelCollapsed.savedScores" x-collapse>
+                                                    <div class="tournament-final-rankings">
+                                                        <template x-for="score in (selectedTournament?.scores || [])" :key="score.name">
+                                                            <div class="leaderboard-entry" :class="'rank-' + score.rank">
+                                                                <div class="leaderboard-rank" x-text="score.rank"></div>
+                                                                <div class="leaderboard-info">
+                                                                    <div class="leaderboard-name" x-text="score.name"></div>
+                                                                    <div class="leaderboard-stats">
+                                                                        <span x-text="'Score: ' + (score.score?.toFixed(3) || '-')"></span>
+                                                                    </div>
+                                                                </div>
+                                                                <button class="btn btn-xs btn-ghost" @click="console.log('View details for', score.name)" title="View details">
+                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                                        <circle cx="12" cy="12" r="3"></circle>
+                                                                    </svg>
+                                                                </button>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Negotiations List with View Button -->
+                                            <div class="tournament-detail-panel" :class="{ collapsed: tournamentPanelCollapsed.savedNegotiations }" x-show="selectedTournament?.negotiations?.length > 0">
+                                                <div class="tournament-panel-header" @click="tournamentPanelCollapsed.savedNegotiations = !tournamentPanelCollapsed.savedNegotiations">
+                                                    <h3>
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                                             :style="{ transform: tournamentPanelCollapsed.savedNegotiations ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                        All Negotiations (<span x-text="selectedTournament?.negotiations?.length || 0"></span>)
+                                                    </h3>
+                                                </div>
+                                                <div class="tournament-panel-content negotiations-list" x-show="!tournamentPanelCollapsed.savedNegotiations" x-collapse>
+                                                    <table class="tournament-table tournament-negotiations-table">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>#</th>
+                                                                <th>Scenario</th>
+                                                                <th>Partners</th>
+                                                                <th>Result</th>
+                                                                <th>Utilities</th>
+                                                                <th>Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <template x-for="(neg, idx) in (selectedTournament?.negotiations || [])" :key="'saved-neg-' + idx">
+                                                                <tr class="negotiation-row">
+                                                                    <td x-text="idx + 1"></td>
+                                                                    <td x-text="neg.scenario || '-'"></td>
+                                                                    <td x-text="(neg.partners || []).join(' vs ')"></td>
+                                                                    <td>
+                                                                        <span class="badge badge-sm" :class="neg.has_agreement ? 'badge-success' : 'badge-warning'"
+                                                                              x-text="neg.has_agreement ? 'Agreement' : 'No Agreement'"></span>
+                                                                    </td>
+                                                                    <td x-text="neg.utilities ? neg.utilities.map(u => u.toFixed(2)).join(', ') : '-'"></td>
+                                                                    <td>
+                                                                        <button class="btn btn-xs btn-primary" 
+                                                                                @click="loadSavedNegotiationTrace(selectedTournament.id, idx)" 
+                                                                                :disabled="loadingTraceIndex !== null"
+                                                                                title="View in negotiation viewer">
+                                                                            <template x-if="loadingTraceIndex === idx">
+                                                                                <span class="loading loading-spinner loading-xs"></span>
+                                                                            </template>
+                                                                            <template x-if="loadingTraceIndex !== idx">
+                                                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                                                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                                                                                </svg>
+                                                                            </template>
+                                                                            <span x-text="loadingTraceIndex === idx ? 'Loading...' : 'View'"></span>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            </template>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
                     </div>
                     
                     <!-- Error Section (for failed tournaments) -->
@@ -3856,11 +4214,22 @@
             savedTournamentsLoading: false,
             selectedTournament: null,
             tournamentEventSource: null,
+            // Tournament list state (for Tabulator tables)
+            runningTournaments: [],
+            completedTournaments: [],
+            showArchivedTournaments: false,
+            tournamentTagFilter: '',
+            availableTournamentTags: [],
+            // Loading states
+            loadingTraceIndex: null,  // Index of negotiation being loaded, null if not loading
             // Tournament panel collapse state
             tournamentPanelCollapsed: {
                 grid: false,
                 scores: false,
                 negotiations: true,  // Start collapsed
+                savedConfig: false,  // For saved tournament config panel
+                savedScores: false,  // For saved tournament scores panel
+                savedNegotiations: true,  // Start collapsed
             },
             // Tournament grid visualization state
             tournamentGrid: {
@@ -4052,6 +4421,20 @@
             scenarioStats: null,  // Stats for the selected scenario
             scenarioStatsLoading: false,
             scenarioStatsError: null,
+            
+            // Negotiator Explorer state
+            explorerNegotiators: [],
+            filteredExplorerNegotiators: [],
+            negotiatorExplorerSearch: '',
+            negotiatorExplorerSourceFilter: '',
+            negotiatorExplorerGroupFilter: '',
+            selectedExplorerNegotiator: null,
+            negotiatorExplorerLoading: false,
+            negotiatorExplorerParams: [],
+            negotiatorExplorerParamsLoading: false,
+            virtualNegotiatorParams: {},
+            virtualNegotiatorName: '',
+            creatingVirtualNegotiator: false,
             
             // Running/completed negotiations
             runningNegotiations: [],
@@ -4559,6 +4942,127 @@
             
             filterExplorerScenarios() {
                 // Reactivity handles filtering via computed property
+            },
+            
+            // Negotiator Explorer functions
+            async loadNegotiatorsForExplorer() {
+                if (this.explorerNegotiators.length > 0) return; // Already loaded
+                this.negotiatorExplorerLoading = true;
+                try {
+                    const res = await fetch('/api/negotiators');
+                    const data = await res.json();
+                    this.explorerNegotiators = data.negotiators;
+                    this.filterExplorerNegotiators();
+                } catch (e) {
+                    console.error('Failed to load negotiators for explorer:', e);
+                } finally {
+                    this.negotiatorExplorerLoading = false;
+                }
+            },
+            
+            filterExplorerNegotiators() {
+                let filtered = this.explorerNegotiators;
+                
+                // Filter by search
+                if (this.negotiatorExplorerSearch) {
+                    const search = this.negotiatorExplorerSearch.toLowerCase();
+                    filtered = filtered.filter(n => 
+                        n.name.toLowerCase().includes(search) ||
+                        n.type_name.toLowerCase().includes(search) ||
+                        (n.description && n.description.toLowerCase().includes(search)) ||
+                        (n.tags && n.tags.some(t => t.toLowerCase().includes(search)))
+                    );
+                }
+                
+                // Filter by source
+                if (this.negotiatorExplorerSourceFilter) {
+                    filtered = filtered.filter(n => n.source === this.negotiatorExplorerSourceFilter);
+                }
+                
+                // Filter by group
+                if (this.negotiatorExplorerGroupFilter) {
+                    filtered = filtered.filter(n => n.group === this.negotiatorExplorerGroupFilter);
+                }
+                
+                this.filteredExplorerNegotiators = filtered;
+            },
+            
+            async selectNegotiatorForExplorer(negotiator) {
+                this.selectedExplorerNegotiator = negotiator;
+                this.virtualNegotiatorParams = {};
+                this.virtualNegotiatorName = negotiator.name;
+                
+                // Load parameters for this negotiator
+                await this.loadNegotiatorExplorerParams(negotiator.type_name);
+            },
+            
+            async loadNegotiatorExplorerParams(typeName) {
+                this.negotiatorExplorerParamsLoading = true;
+                this.negotiatorExplorerParams = [];
+                try {
+                    const res = await fetch(`/api/negotiators/${encodeURIComponent(typeName)}/parameters`);
+                    if (!res.ok) throw new Error('Failed to load parameters');
+                    const data = await res.json();
+                    this.negotiatorExplorerParams = data.parameters || [];
+                } catch (e) {
+                    console.error('Failed to load negotiator parameters:', e);
+                } finally {
+                    this.negotiatorExplorerParamsLoading = false;
+                }
+            },
+            
+            async createVirtualNegotiator() {
+                if (!this.selectedExplorerNegotiator) return;
+                if (!this.virtualNegotiatorName.trim()) {
+                    alert('Please enter a name for the virtual negotiator');
+                    return;
+                }
+                
+                this.creatingVirtualNegotiator = true;
+                try {
+                    // Convert empty string params to null/undefined
+                    const cleanParams = {};
+                    for (const [key, value] of Object.entries(this.virtualNegotiatorParams)) {
+                        if (value !== '' && value !== null && value !== undefined) {
+                            // Convert string booleans to actual booleans
+                            if (value === 'true') cleanParams[key] = true;
+                            else if (value === 'false') cleanParams[key] = false;
+                            else cleanParams[key] = value;
+                        }
+                    }
+                    
+                    const res = await fetch('/api/negotiators/virtual', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            base_type_name: this.selectedExplorerNegotiator.type_name,
+                            name: this.virtualNegotiatorName,
+                            params: cleanParams
+                        })
+                    });
+                    
+                    if (!res.ok) {
+                        const error = await res.json();
+                        throw new Error(error.detail || 'Failed to create virtual negotiator');
+                    }
+                    
+                    const data = await res.json();
+                    alert(`Virtual negotiator "${this.virtualNegotiatorName}" created successfully!`);
+                    
+                    // Reset form
+                    this.virtualNegotiatorParams = {};
+                    this.virtualNegotiatorName = this.selectedExplorerNegotiator.name;
+                    
+                    // Refresh negotiator list
+                    this.explorerNegotiators = [];
+                    await this.loadNegotiatorsForExplorer();
+                    
+                } catch (e) {
+                    console.error('Failed to create virtual negotiator:', e);
+                    alert('Failed to create virtual negotiator: ' + e.message);
+                } finally {
+                    this.creatingVirtualNegotiator = false;
+                }
             },
             
             async loadNegotiatorTypes() {
@@ -5265,6 +5769,18 @@
                     const res = await fetch('/api/tournament/sessions/list');
                     const data = await res.json();
                     this.tournamentSessions = data.sessions || [];
+                    
+                    // Split into running and completed
+                    this.runningTournaments = this.tournamentSessions.filter(t => t.status === 'running');
+                    this.completedTournaments = this.tournamentSessions.filter(t => t.status !== 'running');
+                    
+                    // Update tables if they exist
+                    if (this._runningTournamentsTable) {
+                        this._runningTournamentsTable.setData(this.runningTournaments);
+                    }
+                    if (this._completedTournamentsTable) {
+                        this._completedTournamentsTable.setData(this.completedTournaments);
+                    }
                 } catch (e) {
                     console.error('Failed to load tournament sessions:', e);
                 }
@@ -5524,6 +6040,15 @@
                         this.selectedTournament.results = result.results;
                         this.selectedTournament.error = result.error;
                     }
+                    // Update running/completed arrays
+                    this.runningTournaments = this.tournamentSessions.filter(t => t.status === 'running');
+                    this.completedTournaments = this.tournamentSessions.filter(t => t.status !== 'running');
+                    if (this._runningTournamentsTable) {
+                        this._runningTournamentsTable.setData(this.runningTournaments);
+                    }
+                    if (this._completedTournamentsTable) {
+                        this._completedTournamentsTable.setData(this.completedTournaments);
+                    }
                     this.tournamentEventSource.close();
                     this.tournamentEventSource = null;
                 });
@@ -5543,6 +6068,15 @@
                     }
                     if (this.selectedTournament?.id === sessionId) {
                         this.selectedTournament.status = 'cancelled';
+                    }
+                    // Update running/completed arrays
+                    this.runningTournaments = this.tournamentSessions.filter(t => t.status === 'running');
+                    this.completedTournaments = this.tournamentSessions.filter(t => t.status !== 'running');
+                    if (this._runningTournamentsTable) {
+                        this._runningTournamentsTable.setData(this.runningTournaments);
+                    }
+                    if (this._completedTournamentsTable) {
+                        this._completedTournamentsTable.setData(this.completedTournaments);
                     }
                 } catch (e) {
                     console.error('Failed to cancel tournament:', e);
@@ -6400,9 +6934,30 @@
             async loadSavedTournaments() {
                 this.savedTournamentsLoading = true;
                 try {
-                    const res = await fetch('/api/tournament/saved/list');
+                    // Build query params
+                    const params = new URLSearchParams();
+                    if (this.tournamentTagFilter) params.append('tags', this.tournamentTagFilter);
+                    if (!this.showArchivedTournaments) params.append('archived', 'false');
+                    
+                    const res = await fetch(`/api/tournament/saved/list?${params}`);
                     const data = await res.json();
                     this.savedTournaments = data.tournaments || [];
+                    
+                    // Extract available tags
+                    const tagSet = new Set();
+                    for (const t of this.savedTournaments) {
+                        if (t.tags) {
+                            for (const tag of t.tags) {
+                                tagSet.add(tag);
+                            }
+                        }
+                    }
+                    this.availableTournamentTags = Array.from(tagSet).sort();
+                    
+                    // Update table if it exists
+                    if (this._savedTournamentsTable) {
+                        this._savedTournamentsTable.setData(this.savedTournaments);
+                    }
                 } catch (e) {
                     console.error('Failed to load saved tournaments:', e);
                 } finally {
@@ -6421,6 +6976,15 @@
                         id: data.id,
                         status: 'completed',
                         _fromSaved: true,
+                        path: data.path,
+                        n_scenarios: data.n_scenarios,
+                        n_competitors: data.n_competitors,
+                        n_negotiations: data.n_negotiations,
+                        n_agreements: data.n_agreements,
+                        agreement_rate: data.agreement_rate,
+                        created_at: data.created_at,
+                        scores: data.scores || [],
+                        negotiations: data.negotiations || [],
                         config: {
                             competitor_types: [],  // Not available from saved data
                             scenario_paths: []
@@ -6440,11 +7004,357 @@
                                 n_negotiations: s.raw_data?.n_negotiations ? parseInt(s.raw_data.n_negotiations) : '-'
                             })),
                             negotiations: data.negotiations || []
-                        },
-                        created_at: data.created_at
+                        }
                     };
                 } catch (e) {
                     console.error('Failed to load saved tournament:', e);
+                }
+            },
+            
+            async loadSavedNegotiationTrace(tournamentId, negotiationIndex) {
+                // Set loading state
+                this.loadingTraceIndex = negotiationIndex;
+                
+                try {
+                    // First get the negotiation details to find run_id for trace lookup
+                    const negRes = await fetch(`/api/tournament/saved/${tournamentId}/negotiation/${negotiationIndex}`);
+                    if (!negRes.ok) throw new Error('Failed to load negotiation details');
+                    const negData = await negRes.json();
+                    
+                    // Get the run_id from raw data - this is used as the trace file identifier
+                    // cartesian_tournament names files as: scenario_neg1_neg2_rep_runid.csv
+                    const runId = negData.raw_data?.run_id;
+                    if (!runId) {
+                        console.error('No run_id found in negotiation data');
+                        this.loadingTraceIndex = null;
+                        return;
+                    }
+                    
+                    // Load scenario information to get issue names
+                    const scenarioName = negData.scenario;
+                    const scenarioRes = await fetch(`/api/tournament/saved/${tournamentId}/scenario/${scenarioName}`);
+                    if (!scenarioRes.ok) throw new Error('Failed to load scenario info');
+                    const scenarioData = await scenarioRes.json();
+                    
+                    // Load the full trace using run_id, passing scenario for per-offer utility calculation
+                    const traceRes = await fetch(`/api/tournament/saved/${tournamentId}/trace/${runId}?scenario=${encodeURIComponent(scenarioName)}`);
+                    if (!traceRes.ok) throw new Error('Failed to load negotiation trace');
+                    const traceData = await traceRes.json();
+                    
+                    // Get negotiator names from partners
+                    const negotiatorNames = negData.partners || ['Negotiator 1', 'Negotiator 2'];
+                    
+                    // Generate colors for negotiators
+                    const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
+                    const negotiatorColors = negotiatorNames.map((_, idx) => colors[idx % colors.length]);
+                    
+                    // Build a map of negotiator ID to index
+                    const negotiatorIdToIndex = {};
+                    const uniqueNegotiators = [...new Set(traceData.trace.map(r => r.negotiator).filter(n => n))];
+                    uniqueNegotiators.forEach((negId, idx) => {
+                        negotiatorIdToIndex[negId] = idx;
+                    });
+                    
+                    // Convert trace format to match our negotiation viewer format
+                    // cartesian_tournament saves traces as CSV with columns: time, relative_time, step, negotiator, offer, responses, state
+                    const offers = [];
+                    const issueNames = scenarioData.issue_names || [];
+                    
+                    for (const row of traceData.trace) {
+                        if (row.offer && row.offer !== 'None') {
+                            // Parse the offer tuple string - handles both numbers and strings
+                            let offerArray;
+                            try {
+                                // Offer is stored as string like "('value1', 'value2', 'value3')"
+                                // Replace parens with brackets and handle quotes
+                                const normalized = row.offer
+                                    .replace(/\(/g, '[')
+                                    .replace(/\)/g, ']')
+                                    .replace(/'/g, '"');
+                                offerArray = JSON.parse(normalized);
+                            } catch (e) {
+                                console.warn('Failed to parse offer:', row.offer, e);
+                                continue;
+                            }
+                            
+                            // Convert array to object with issue names as keys
+                            const offerObj = {};
+                            issueNames.forEach((name, idx) => {
+                                offerObj[name] = offerArray[idx];
+                            });
+                            
+                            const proposerIndex = negotiatorIdToIndex[row.negotiator] ?? 0;
+                            
+                            // Use per-offer utilities from backend if available, otherwise fall back to final utilities
+                            const offerUtilities = row.utilities || negData.utilities || [0, 0];
+                            
+                            offers.push({
+                                step: parseInt(row.step),
+                                proposer: negotiatorNames[proposerIndex] || row.negotiator,
+                                proposer_index: proposerIndex,
+                                offer: offerObj,
+                                utilities: offerUtilities,
+                                time: parseFloat(row.time) || 0,
+                                relative_time: parseFloat(row.relative_time) || 0
+                            });
+                        }
+                    }
+                    
+                    // Determine final step and agreement info
+                    const lastStep = Math.max(...offers.map(o => o.step), 0);
+                    const hasAgreement = negData.has_agreement || false;
+                    const agreement = hasAgreement ? offers[offers.length - 1]?.offer : null;
+                    
+                    // Create a complete negotiation object matching the viewer's expectations
+                    const negotiation = {
+                        id: `saved-${tournamentId}-${negotiationIndex}`,
+                        scenario: scenarioName,
+                        step: lastStep,
+                        n_steps: negData.raw_data?.n_steps ? parseInt(negData.raw_data.n_steps) : null,
+                        relative_time: offers[offers.length - 1]?.relative_time || 1.0,
+                        offers: offers,
+                        negotiator_names: negotiatorNames,
+                        negotiator_colors: negotiatorColors,
+                        agreement: agreement,
+                        final_utilities: negData.utilities || null,
+                        end_reason: hasAgreement ? 'agreement' : 'completed',
+                        mechanism_type: negData.raw_data?.mechanism_type || 'SAOMechanism',
+                        // Mark this as a saved negotiation so controls are disabled
+                        isSaved: true,
+                        pendingStart: false,
+                        paused: false
+                    };
+                    
+                    // Switch to negotiations page and set as current
+                    this.currentPage = 'negotiations';
+                    this.currentNegotiation = negotiation;
+                    
+                    // Clear loading state
+                    this.loadingTraceIndex = null;
+                    
+                    // Show notification
+                    console.log(`Loaded ${offers.length} offers from saved negotiation: ${scenarioName}`);
+                    
+                } catch (e) {
+                    console.error('Failed to load saved negotiation trace:', e);
+                    this.loadingTraceIndex = null;
+                    alert('Failed to load negotiation trace. See console for details.');
+                }
+            },
+            
+            // Initialize tournament tables
+            initTournamentsTables() {
+                this.$nextTick(() => {
+                    this.initRunningTournamentsTable();
+                    this.initCompletedTournamentsTable();
+                    this.initSavedTournamentsTable();
+                });
+            },
+            
+            initRunningTournamentsTable() {
+                const container = document.getElementById('running-tournaments-table');
+                if (!container || this._runningTournamentsTable) return;
+                
+                const self = this;
+                this._runningTournamentsTable = new Tabulator(container, {
+                    data: this.runningTournaments,
+                    layout: "fitDataStretch",
+                    height: "150px",
+                    placeholder: "No running tournaments",
+                    selectableRows: 1,
+                    columns: [
+                        { title: "ID", field: "id", width: 90, formatter: (cell) => `<code style="font-size: 11px;">#${cell.getValue()}</code>` },
+                        { title: "Competitors", field: "config", minWidth: 150, formatter: (cell) => {
+                            const config = cell.getValue();
+                            const count = config?.competitor_types?.length || 0;
+                            return `<span class="badge badge-sm badge-secondary">${count} competitors</span>`;
+                        }, headerSort: false },
+                        { title: "Scenarios", field: "config", width: 100, hozAlign: "center", formatter: (cell) => {
+                            const config = cell.getValue();
+                            return config?.scenario_paths?.length || 0;
+                        }, headerSort: false },
+                        { title: "Progress", field: "progress", minWidth: 180, formatter: (cell) => {
+                            const progress = cell.getValue() || {};
+                            const percent = Math.min(100, progress.percent || 0);
+                            return `<div style="display: flex; align-items: center; gap: 8px;">
+                                <div class="progress" style="width: 80px; height: 6px;">
+                                    <div class="progress-bar" style="width: ${percent}%"></div>
+                                </div>
+                                <span style="font-size: 11px;">${progress.completed || 0}/${progress.total || 0}</span>
+                            </div>`;
+                        }, headerSort: false },
+                        { title: "Status", field: "status", width: 80, hozAlign: "center", formatter: () => {
+                            return '<span class="badge badge-primary badge-sm">Running</span>';
+                        } }
+                    ]
+                });
+                this._runningTournamentsTable.on("rowClick", function(e, row) {
+                    self.selectTournament(row.getData());
+                });
+            },
+            
+            initCompletedTournamentsTable() {
+                const container = document.getElementById('completed-tournaments-table');
+                if (!container || this._completedTournamentsTable) return;
+                
+                const self = this;
+                this._completedTournamentsTable = new Tabulator(container, {
+                    data: this.completedTournaments,
+                    layout: "fitDataStretch",
+                    height: "200px",
+                    placeholder: "No completed tournaments",
+                    selectableRows: 1,
+                    columns: [
+                        { title: "ID", field: "id", width: 90, formatter: (cell) => `<code style="font-size: 11px;">#${cell.getValue()}</code>` },
+                        { title: "Competitors", field: "config", minWidth: 150, formatter: (cell) => {
+                            const config = cell.getValue();
+                            const count = config?.competitor_types?.length || 0;
+                            return `<span class="badge badge-sm badge-secondary">${count} competitors</span>`;
+                        }, headerSort: false },
+                        { title: "Negotiations", field: "results", width: 110, hozAlign: "center", sorter: "number", formatter: (cell) => {
+                            const results = cell.getValue();
+                            return results?.total_negotiations || 0;
+                        } },
+                        { title: "Agreements", field: "results", width: 100, hozAlign: "center", formatter: (cell) => {
+                            const results = cell.getValue();
+                            const rate = Math.round((results?.overall_agreement_rate || 0) * 100);
+                            return `${results?.total_agreements || 0} (${rate}%)`;
+                        }, headerSort: false },
+                        { title: "Duration", field: "results", width: 90, hozAlign: "center", sorter: "number", formatter: (cell) => {
+                            const results = cell.getValue();
+                            return results?.execution_time ? `${results.execution_time.toFixed(1)}s` : '-';
+                        } },
+                        { title: "Status", field: "status", width: 90, hozAlign: "center", formatter: (cell) => {
+                            const status = cell.getValue();
+                            const badgeClass = status === 'completed' ? 'badge-success' : status === 'failed' ? 'badge-danger' : 'badge-warning';
+                            return `<span class="badge badge-sm ${badgeClass}">${status}</span>`;
+                        } }
+                    ]
+                });
+                this._completedTournamentsTable.on("rowClick", function(e, row) {
+                    self.selectTournament(row.getData());
+                });
+            },
+            
+            initSavedTournamentsTable() {
+                const container = document.getElementById('saved-tournaments-table');
+                if (!container || this._savedTournamentsTable) return;
+                
+                const self = this;
+                this._savedTournamentsTable = new Tabulator(container, {
+                    data: this.savedTournaments,
+                    layout: "fitDataStretch",
+                    height: "300px",
+                    placeholder: "No saved tournaments",
+                    selectableRows: 1,
+                    columns: [
+                        { title: "Name/ID", field: "id", width: 150, sorter: "string", formatter: (cell) => {
+                            const row = cell.getRow().getData();
+                            return row.name || `<code style="font-size: 11px;">${cell.getValue()}</code>`;
+                        } },
+                        { title: "Negotiations", field: "n_negotiations", width: 110, hozAlign: "center", sorter: "number" },
+                        { title: "Agreements", field: "agreement_rate", width: 100, hozAlign: "center", formatter: (cell) => {
+                            const row = cell.getRow().getData();
+                            const rate = Math.round((cell.getValue() || 0) * 100);
+                            return `${row.n_agreements || 0} (${rate}%)`;
+                        }, headerSort: false },
+                        { title: "Tags", field: "tags", width: 120, formatter: (cell) => {
+                            const tags = cell.getValue() || [];
+                            if (tags.length === 0) return '<span class="text-muted">-</span>';
+                            return tags.slice(0, 2).map(t => `<span class="badge badge-neutral badge-sm">${t}</span>`).join(' ') +
+                                (tags.length > 2 ? ` +${tags.length - 2}` : '');
+                        }, headerSort: false },
+                        { title: "Date", field: "created_at", width: 100, hozAlign: "center", sorter: "datetime", formatter: (cell) => {
+                            const val = cell.getValue();
+                            if (!val) return '-';
+                            const date = new Date(val);
+                            return date.toLocaleDateString();
+                        } },
+                        { title: "", field: "actions", width: 90, hozAlign: "center", headerSort: false, frozen: true, formatter: (cell) => {
+                            const row = cell.getRow().getData();
+                            const archiveIcon = row.archived 
+                                ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 10v11h18V10"/><path d="M21 3H3v7h18V3z"/><path d="M10 14h4"/></svg>`
+                                : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M21 8v13H3V8"/><path d="M23 3H1v5h22V3z"/><path d="M10 12h4"/></svg>`;
+                            const archiveTitle = row.archived ? 'Unarchive' : 'Archive';
+                            return `<div style="display: flex; gap: 4px; justify-content: center;">
+                                <button class="btn btn-ghost btn-xs tag-btn" title="Edit Tags" style="padding: 2px 4px;">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                                        <line x1="7" y1="7" x2="7.01" y2="7"/>
+                                    </svg>
+                                </button>
+                                <button class="btn btn-ghost btn-xs archive-btn" title="${archiveTitle}" style="padding: 2px 4px;">
+                                    ${archiveIcon}
+                                </button>
+                                <button class="btn btn-ghost btn-xs delete-btn" title="Delete" style="padding: 2px 4px;">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    </svg>
+                                </button>
+                            </div>`;
+                        }, cellClick: (e, cell) => {
+                            e.stopPropagation();
+                            const row = cell.getRow().getData();
+                            if (e.target.closest('.delete-btn')) {
+                                self.deleteSavedTournament(row.id);
+                            } else if (e.target.closest('.archive-btn')) {
+                                self.toggleArchiveTournament(row.id, row.archived);
+                            } else if (e.target.closest('.tag-btn')) {
+                                self.openTournamentTagEditor(row);
+                            }
+                        } }
+                    ],
+                    rowFormatter: (row) => {
+                        const data = row.getData();
+                        if (data.archived) {
+                            row.getElement().style.opacity = '0.6';
+                        }
+                    }
+                });
+                this._savedTournamentsTable.on("rowClick", function(e, row) {
+                    if (!e.target.closest('.actions')) {
+                        self.loadAndSelectSavedTournament(row.getData().id);
+                    }
+                });
+            },
+            
+            // Tournament action handlers
+            async toggleArchiveTournament(tournamentId, currentlyArchived) {
+                try {
+                    const res = await fetch(`/api/tournament/saved/${tournamentId}/archive`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ archived: !currentlyArchived })
+                    });
+                    if (!res.ok) throw new Error('Failed to toggle archive');
+                    await this.loadSavedTournaments();
+                } catch (e) {
+                    console.error('Failed to toggle tournament archive:', e);
+                    alert('Failed to archive/unarchive tournament');
+                }
+            },
+            
+            openTournamentTagEditor(tournament) {
+                const newTags = prompt('Enter tags (comma-separated):', (tournament.tags || []).join(', '));
+                if (newTags !== null) {
+                    const tags = newTags.split(',').map(t => t.trim()).filter(t => t);
+                    this.updateTournamentTags(tournament.id, tags);
+                }
+            },
+            
+            async updateTournamentTags(tournamentId, tags) {
+                try {
+                    const res = await fetch(`/api/tournament/saved/${tournamentId}/tags`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tags })
+                    });
+                    if (!res.ok) throw new Error('Failed to update tags');
+                    await this.loadSavedTournaments();
+                } catch (e) {
+                    console.error('Failed to update tournament tags:', e);
+                    alert('Failed to update tags');
                 }
             },
             

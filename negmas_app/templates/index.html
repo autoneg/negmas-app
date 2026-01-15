@@ -8,7 +8,7 @@
     <!-- Header with actions -->
     <div class="table-header">
         <div style="display: flex; align-items: center; gap: 12px;">
-            <h2>Negotiations</h2>
+            <h2>Negotiations <span class="text-muted" style="font-weight: normal; font-size: 14px;" x-show="!currentNegotiation" x-text="'(' + (runningNegotiations.length + completedNegotiations.length + savedNegotiations.length) + ')'"></span></h2>
             <!-- Show current negotiation name when in compact mode -->
             <template x-if="currentNegotiation">
                 <span class="badge badge-primary" style="font-size: 12px;">
@@ -17,8 +17,17 @@
             </template>
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
+            <!-- Back to tournament button for saved negotiations from tournaments -->
+            <button class="btn btn-ghost btn-sm" x-show="currentNegotiation?.isSaved && currentNegotiation?.id?.startsWith('saved-')" 
+                    @click="currentNegotiation = null; currentPage = 'tournaments'" 
+                    title="Back to tournament view">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+                <span>Back to Tournament</span>
+            </button>
             <!-- Deselect button when viewing a negotiation -->
-            <button class="btn btn-ghost btn-sm" x-show="currentNegotiation" @click="currentNegotiation = null" title="Close negotiation view">
+            <button class="btn btn-ghost btn-sm" x-show="currentNegotiation && !(currentNegotiation?.isSaved && currentNegotiation?.id?.startsWith('saved-'))" @click="currentNegotiation = null" title="Close negotiation view">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -318,12 +327,17 @@
         <div class="panel panel-compact panel-info" x-ref="panelInfo" :class="{'collapsed': panelCollapsed.info}">
             <span class="panel-collapsed-label" x-show="panelCollapsed.info">INFO</span>
             <div class="panel-floating-actions">
-                <template x-if="currentNegotiation?.pendingStart">
+                <!-- Show "Saved" badge for saved negotiations -->
+                <template x-if="currentNegotiation?.isSaved">
+                    <span class="badge badge-xs badge-ghost" style="font-size: 9px;">SAVED</span>
+                </template>
+                <!-- Only show controls for live (non-saved) negotiations -->
+                <template x-if="currentNegotiation?.pendingStart && !currentNegotiation?.isSaved">
                     <button class="panel-btn panel-btn-primary" title="Start" @click="actuallyStartNegotiation()">
                         <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                     </button>
                 </template>
-                <template x-if="currentNegotiation && !currentNegotiation?.pendingStart && !currentNegotiation?.agreement && !currentNegotiation?.end_reason">
+                <template x-if="currentNegotiation && !currentNegotiation?.isSaved && !currentNegotiation?.pendingStart && !currentNegotiation?.agreement && !currentNegotiation?.end_reason">
                     <div style="display: flex; gap: 2px;">
                         <button class="panel-btn" :title="currentNegotiation?.paused ? 'Resume' : 'Pause'" @click="togglePause()">
                             <svg x-show="!currentNegotiation?.paused" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>

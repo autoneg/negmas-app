@@ -336,13 +336,32 @@ async def stream_tournament(session_id: str):
     return EventSourceResponse(event_generator())
 
 
+class CancelRequest(BaseModel):
+    """Request model for cancelling a tournament."""
+
+    delete_results: bool = False  # If True, delete the tournament folder
+
+
 @router.post("/{session_id}/cancel")
-async def cancel_tournament(session_id: str):
-    """Cancel a running tournament."""
-    success = _manager.cancel_session(session_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return {"status": "cancelled"}
+async def cancel_tournament(session_id: str, request: CancelRequest | None = None):
+    """Cancel a running tournament.
+
+    Args:
+        session_id: Session to cancel.
+        request: Optional request body with delete_results flag.
+            - delete_results=False (default): Keep partial results
+            - delete_results=True: Delete tournament folder and all results
+
+    Returns:
+        Status dict with cancellation result.
+    """
+    delete_results = request.delete_results if request else False
+    result = _manager.cancel_session(session_id, delete_results=delete_results)
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=404, detail=result.get("error", "Session not found")
+        )
+    return result
 
 
 @router.get("/sessions/list")
@@ -510,13 +529,20 @@ async def run_batch(session_id: str):
 
 
 @router.get("/saved/list")
-async def list_saved_tournaments():
+async def list_saved_tournaments(archived: bool | None = None, tags: str | None = None):
     """List all saved tournaments from disk.
+
+    Args:
+        archived: Filter by archived status (true/false/null for all)
+        tags: Comma-separated tags to filter by (match any)
 
     Returns summary info for each saved tournament.
     """
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
     tournaments = await asyncio.to_thread(
-        TournamentStorageService.list_saved_tournaments
+        TournamentStorageService.list_saved_tournaments,
+        archived=archived,
+        tags=tag_list,
     )
     return {"tournaments": tournaments, "count": len(tournaments)}
 
@@ -560,3 +586,105 @@ async def delete_saved_tournament(tournament_id: str):
     if not success:
         raise HTTPException(status_code=404, detail="Saved tournament not found")
     return {"status": "deleted"}
+
+
+class ArchiveRequest(BaseModel):
+    """Request model for archiving/unarchiving."""
+
+    archived: bool
+
+
+@router.post("/saved/{tournament_id}/archive")
+async def toggle_archive_tournament(tournament_id: str, request: ArchiveRequest):
+    """Archive or unarchive a saved tournament."""
+    success = await asyncio.to_thread(
+        TournamentStorageService.set_archived, tournament_id, request.archived
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Saved tournament not found")
+    return {"status": "updated", "archived": request.archived}
+
+
+class TagsRequest(BaseModel):
+    """Request model for updating tags."""
+
+    tags: list[str]
+
+
+@router.post("/saved/{tournament_id}/tags")
+async def update_tournament_tags(tournament_id: str, request: TagsRequest):
+    """Update tags for a saved tournament."""
+    success = await asyncio.to_thread(
+        TournamentStorageService.set_tags, tournament_id, request.tags
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Saved tournament not found")
+    return {"status": "updated", "tags": request.tags}
+
+
+@router.get("/saved/{tournament_id}/trace/{mechanism_name}")
+async def get_negotiation_trace(
+    tournament_id: str, mechanism_name: str, scenario: str | None = None
+):
+    """Get the full negotiation trace for a specific mechanism run.
+
+    Args:
+        tournament_id: Tournament ID.
+        mechanism_name: The mechanism_name from the negotiation record.
+        scenario: Optional scenario name to calculate per-offer utilities.
+
+    Returns:
+        Negotiation trace with full offer history and utilities if scenario provided.
+    """
+    if scenario:
+        # Get trace with per-offer utility calculations
+        trace = await asyncio.to_thread(
+            TournamentStorageService.get_negotiation_trace_with_utilities,
+            tournament_id,
+            mechanism_name,
+            scenario,
+        )
+    else:
+        trace = await asyncio.to_thread(
+            TournamentStorageService.get_negotiation_trace,
+            tournament_id,
+            mechanism_name,
+        )
+    if trace is None:
+        raise HTTPException(status_code=404, detail="Negotiation trace not found")
+    return trace
+
+
+@router.get("/saved/{tournament_id}/negotiations/files")
+async def list_negotiation_files(tournament_id: str):
+    """List all negotiation trace files in a tournament.
+
+    Args:
+        tournament_id: Tournament ID.
+
+    Returns:
+        List of negotiation files with metadata.
+    """
+    files = await asyncio.to_thread(
+        TournamentStorageService.list_negotiation_files, tournament_id
+    )
+    return {"files": files}
+
+
+@router.get("/saved/{tournament_id}/scenario/{scenario_name}")
+async def get_scenario_info(tournament_id: str, scenario_name: str):
+    """Get scenario information from a saved tournament.
+
+    Args:
+        tournament_id: Tournament ID.
+        scenario_name: Name of the scenario.
+
+    Returns:
+        Scenario info including outcome_space, issue_names, stats, etc.
+    """
+    scenario = await asyncio.to_thread(
+        TournamentStorageService.get_scenario_info, tournament_id, scenario_name
+    )
+    if scenario is None:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    return scenario

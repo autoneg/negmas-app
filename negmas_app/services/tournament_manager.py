@@ -1,15 +1,22 @@
 """Tournament management service for running cartesian tournaments."""
 
+from __future__ import annotations
+
 import asyncio
-import random
+import json
+import queue
+import shutil
+import threading
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from negmas import Scenario
 from negmas.sao import SAOMechanism, SAONegotiator
+from negmas.tournaments.neg import cartesian_tournament
 
 from ..models.tournament import (
     TournamentConfig,
@@ -30,31 +37,62 @@ from .scenario_loader import ScenarioLoader
 from .negotiator_factory import _get_class_for_type
 
 
-def _sample_range_int(value: int | tuple[int, int] | None) -> int | None:
-    """Sample a single value from an int or int range."""
-    if value is None:
-        return None
-    if isinstance(value, tuple):
-        return random.randint(value[0], value[1])
-    return value
+@dataclass
+class TournamentState:
+    """Shared state for a running tournament, updated by callbacks."""
 
+    # Grid structure (set at start)
+    grid_init: TournamentGridInit | None = None
 
-def _sample_range_float(value: float | tuple[float, float] | None) -> float | None:
-    """Sample a single value from a float or float range."""
-    if value is None:
-        return None
-    if isinstance(value, tuple):
-        return random.uniform(value[0], value[1])
-    return value
+    # Mapping from (competitor, opponent, scenario, rep, rotated) -> cell index
+    cell_index_map: dict[tuple[str, str, str, int, bool], int] = field(
+        default_factory=dict
+    )
+
+    # All cell updates (completed cells)
+    completed_cells: list[CellUpdate] = field(default_factory=list)
+
+    # Currently running cell (if any)
+    current_cell: CellUpdate | None = None
+
+    # Current leaderboard
+    leaderboard: list[LeaderboardEntry] = field(default_factory=list)
+
+    # Progress tracking
+    progress: TournamentProgress | None = None
+
+    # Tournament status
+    status: TournamentStatus = TournamentStatus.PENDING
+    error: str | None = None
+
+    # Event queue for SSE streaming
+    event_queue: queue.Queue[Any] = field(default_factory=queue.Queue)
+
+    # Statistics per competitor
+    competitor_stats: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+    # Loaded scenarios (for reference)
+    scenarios: list[Scenario] = field(default_factory=list)  # type: ignore[type-arg]
+    scenario_names: list[str] = field(default_factory=list)
+    scenario_paths: list[str] = field(default_factory=list)
+
+    # Competitor info
+    competitor_names: list[str] = field(default_factory=list)
+    opponent_names: list[str] = field(default_factory=list)
 
 
 class TournamentManager:
-    """Manage tournament sessions with real-time progress updates."""
+    """Manage tournament sessions with real-time progress updates via callbacks."""
 
     def __init__(self):
         self.sessions: dict[str, TournamentSession] = {}
         self._cancel_flags: dict[str, bool] = {}
+        self._tournament_states: dict[str, TournamentState] = {}
+        self._background_threads: dict[str, threading.Thread] = {}
         self.scenario_loader = ScenarioLoader()
+        # Default tournaments directory
+        self.tournaments_dir = Path.home() / "negmas" / "app" / "tournaments"
+        self.tournaments_dir.mkdir(exist_ok=True, parents=True)
 
     def create_session(self, config: TournamentConfig) -> TournamentSession:
         """Create a new tournament session.
@@ -66,6 +104,12 @@ class TournamentManager:
             Created session (not yet started).
         """
         session_id = str(uuid.uuid4())[:8]
+
+        # Set default save_path if not provided
+        if config.save_path is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            config.save_path = str(self.tournaments_dir / f"{timestamp}_{session_id}")
+
         session = TournamentSession(
             id=session_id,
             status=TournamentStatus.PENDING,
@@ -73,22 +117,103 @@ class TournamentManager:
         )
         self.sessions[session_id] = session
         self._cancel_flags[session_id] = False
+        self._tournament_states[session_id] = TournamentState()
         return session
 
     def get_session(self, session_id: str) -> TournamentSession | None:
         """Get a session by ID."""
         return self.sessions.get(session_id)
 
-    def cancel_session(self, session_id: str) -> bool:
-        """Request cancellation of a running session."""
-        if session_id in self._cancel_flags:
-            self._cancel_flags[session_id] = True
-            return True
-        return False
+    def get_tournament_state(self, session_id: str) -> TournamentState | None:
+        """Get the current tournament state for a session."""
+        return self._tournament_states.get(session_id)
+
+    def cancel_session(
+        self, session_id: str, delete_results: bool = False
+    ) -> dict[str, Any]:
+        """Request cancellation of a running session.
+
+        Args:
+            session_id: Session to cancel.
+            delete_results: If True, delete the tournament folder and all results.
+
+        Returns:
+            Status dict with 'success', 'status', and optional 'deleted_path'.
+        """
+        if session_id not in self._cancel_flags:
+            return {"success": False, "error": "Session not found"}
+
+        self._cancel_flags[session_id] = True
+
+        session = self.sessions.get(session_id)
+        state = self._tournament_states.get(session_id)
+
+        result: dict[str, Any] = {"success": True, "status": "cancelled"}
+
+        # Update state
+        if state:
+            state.status = TournamentStatus.CANCELLED
+            # Signal the SSE stream to end
+            state.event_queue.put(("cancelled", None))
+
+        if session:
+            session.status = TournamentStatus.CANCELLED
+            session.end_time = datetime.now()
+
+            # Delete results if requested
+            if delete_results and session.config and session.config.save_path:
+                save_path = Path(session.config.save_path)
+                if save_path.exists():
+                    shutil.rmtree(save_path)
+                    result["deleted_path"] = str(save_path)
+
+        return result
 
     def list_sessions(self) -> list[TournamentSession]:
         """List all tournament sessions."""
         return list(self.sessions.values())
+
+    def _save_tournament_config(self, config: TournamentConfig, path: Path) -> None:
+        """Save tournament configuration to the tournament directory."""
+        path = Path(path)
+        path.mkdir(exist_ok=True, parents=True)
+
+        config_dict = {
+            "competitor_types": config.competitor_types,
+            "scenario_paths": config.scenario_paths,
+            "opponent_types": config.opponent_types,
+            "competitor_params": config.competitor_params,
+            "n_repetitions": config.n_repetitions,
+            "rotate_ufuns": config.rotate_ufuns,
+            "self_play": config.self_play,
+            "mechanism_type": config.mechanism_type,
+            "n_steps": config.n_steps,
+            "time_limit": config.time_limit,
+            "step_time_limit": config.step_time_limit,
+            "negotiator_time_limit": config.negotiator_time_limit,
+            "hidden_time_limit": config.hidden_time_limit,
+            "pend": config.pend,
+            "pend_per_second": config.pend_per_second,
+            "final_score_metric": config.final_score_metric,
+            "final_score_stat": config.final_score_stat,
+            "randomize_runs": config.randomize_runs,
+            "sort_runs": config.sort_runs,
+            "id_reveals_type": config.id_reveals_type,
+            "name_reveals_type": config.name_reveals_type,
+            "mask_scenario_names": config.mask_scenario_names,
+            "only_failures_on_self_play": config.only_failures_on_self_play,
+            "save_stats": config.save_stats,
+            "save_scenario_figs": config.save_scenario_figs,
+            "save_every": config.save_every,
+            "capture_offers": config.capture_offers,
+            "normalize": config.normalize,
+            "njobs": config.njobs,
+            "verbosity": config.verbosity,
+        }
+
+        config_file = path / "config.json"
+        with open(config_file, "w") as f:
+            json.dump(config_dict, f, indent=2)
 
     def _get_mechanism_class(self, mechanism_type: str) -> type[SAOMechanism]:
         """Get mechanism class by name."""
@@ -99,7 +224,6 @@ class TournamentManager:
         if mechanism_type in mechanism_map:
             return mechanism_map[mechanism_type]
 
-        # Try to import from negmas.sao
         try:
             from negmas import sao
 
@@ -108,42 +232,523 @@ class TournamentManager:
         except ImportError:
             pass
 
-        # Default to SAOMechanism
         return SAOMechanism
 
-    def _sample_mechanism_params(self, config: TournamentConfig) -> dict[str, Any]:
-        """Build mechanism params, sampling from ranges if specified."""
-        params: dict[str, Any] = {}
+    def _create_callbacks(
+        self, session_id: str, config: TournamentConfig
+    ) -> tuple[
+        Callable[[Any], None],
+        Callable[[Any], None],
+        Callable[[dict[str, Any]], None],
+    ]:
+        """Create callback functions for the tournament.
 
-        n_steps = _sample_range_int(config.n_steps)
-        if n_steps is not None:
-            params["n_steps"] = n_steps
+        These callbacks update the shared TournamentState and push events
+        to the event queue for SSE streaming.
+        """
+        state = self._tournament_states[session_id]
 
-        time_limit = _sample_range_float(config.time_limit)
-        if time_limit is not None:
-            params["time_limit"] = time_limit
+        def before_start_callback(info: Any) -> None:
+            """Called before each negotiation starts."""
+            if self._cancel_flags.get(session_id, False):
+                return
 
-        step_time_limit = _sample_range_float(config.step_time_limit)
-        if step_time_limit is not None:
-            params["step_time_limit"] = step_time_limit
+            # Extract info about the upcoming negotiation
+            scenario_name = info.s.outcome_space.name or "unknown"
+            partner_names = list(info.partner_names) if info.partner_names else []
+            rep = info.rep
 
-        negotiator_time_limit = _sample_range_float(config.negotiator_time_limit)
-        if negotiator_time_limit is not None:
-            params["negotiator_time_limit"] = negotiator_time_limit
+            # Determine competitor/opponent indices
+            comp_idx = 0
+            opp_idx = 0
+            rotated = False
 
-        hidden_time_limit = _sample_range_float(config.hidden_time_limit)
-        if hidden_time_limit is not None:
-            params["hidden_time_limit"] = hidden_time_limit
+            if len(partner_names) >= 2:
+                p0, p1 = partner_names[0], partner_names[1]
+                # Find indices in our lists
+                if p0 in state.competitor_names:
+                    comp_idx = state.competitor_names.index(p0)
+                if p1 in state.opponent_names:
+                    opp_idx = state.opponent_names.index(p1)
+                # Check if rotated (partner order swapped from normal)
+                # This is a heuristic - negmas handles rotation internally
 
-        pend = _sample_range_float(config.pend)
-        if pend is not None:
-            params["pend"] = pend
+            scenario_idx = 0
+            if scenario_name in state.scenario_names:
+                scenario_idx = state.scenario_names.index(scenario_name)
 
-        pend_per_second = _sample_range_float(config.pend_per_second)
-        if pend_per_second is not None:
-            params["pend_per_second"] = pend_per_second
+            # Create cell_start update
+            cell_start = CellUpdate(
+                competitor_idx=comp_idx,
+                opponent_idx=opp_idx,
+                scenario_idx=scenario_idx,
+                repetition=rep,
+                rotated=rotated,
+                status=CellStatus.RUNNING,
+            )
 
-        return params
+            state.current_cell = cell_start
+            state.event_queue.put(("cell_start", cell_start))
+
+        def after_construction_callback(info: Any) -> None:
+            """Called after mechanism is constructed but before it runs."""
+            # Can be used for additional setup if needed
+            pass
+
+        def after_end_callback(record: dict[str, Any]) -> None:
+            """Called after each negotiation ends with full results."""
+            if self._cancel_flags.get(session_id, False):
+                return
+
+            # Extract data from record
+            scenario_name = record.get("scenario", "unknown")
+            partners = record.get("partners", [])
+            agreement = record.get("agreement")
+            utilities = record.get("utilities", [])
+            has_error = record.get("has_error", False)
+            error_details = record.get("error_details")
+            n_steps = record.get("last_step", 0)
+            broken = record.get("broken", False)
+            timedout = record.get("timedout", False)
+
+            # Determine end reason
+            if has_error or broken:
+                end_reason = NegotiationEndReason.BROKEN
+            elif agreement is not None:
+                end_reason = NegotiationEndReason.AGREEMENT
+            elif timedout:
+                end_reason = NegotiationEndReason.TIMEOUT
+            else:
+                end_reason = NegotiationEndReason.TIMEOUT
+
+            # Get indices
+            comp_idx = 0
+            opp_idx = 0
+            scenario_idx = 0
+            rep = 0
+            rotated = False
+
+            if len(partners) >= 2:
+                p0, p1 = partners[0], partners[1]
+                if p0 in state.competitor_names:
+                    comp_idx = state.competitor_names.index(p0)
+                if p1 in state.opponent_names:
+                    opp_idx = state.opponent_names.index(p1)
+
+            if scenario_name in state.scenario_names:
+                scenario_idx = state.scenario_names.index(scenario_name)
+
+            # Get scenario path
+            scenario_path = None
+            if scenario_idx < len(state.scenario_paths):
+                scenario_path = state.scenario_paths[scenario_idx]
+
+            # Create cell_complete update
+            cell_complete = CellUpdate(
+                competitor_idx=comp_idx,
+                opponent_idx=opp_idx,
+                scenario_idx=scenario_idx,
+                repetition=rep,
+                rotated=rotated,
+                status=CellStatus.COMPLETE,
+                end_reason=end_reason,
+                utilities=list(utilities) if utilities else None,
+                error=error_details,
+                scenario_path=scenario_path,
+                n_steps=n_steps,
+                agreement=tuple(agreement) if agreement else None,
+            )
+
+            state.completed_cells.append(cell_complete)
+            state.current_cell = None
+            state.event_queue.put(("cell_complete", cell_complete))
+
+            # Update competitor statistics
+            self._update_stats_from_record(state, record, config)
+
+            # Build and emit leaderboard
+            leaderboard = self._build_leaderboard(
+                state.competitor_stats,
+                config.final_score_metric,
+                config.final_score_stat,
+            )
+            state.leaderboard = leaderboard
+            state.event_queue.put(("leaderboard", leaderboard))
+
+            # Update progress
+            completed = len(state.completed_cells)
+            total = state.progress.total if state.progress else 0
+            state.progress = TournamentProgress(
+                completed=completed,
+                total=total,
+                current_scenario=scenario_name,
+                current_partners=list(partners) if partners else None,
+                percent=(completed / total * 100) if total > 0 else 0,
+            )
+            state.event_queue.put(("progress", state.progress))
+
+        return before_start_callback, after_construction_callback, after_end_callback
+
+    def _update_stats_from_record(
+        self,
+        state: TournamentState,
+        record: dict[str, Any],
+        config: TournamentConfig,
+    ) -> None:
+        """Update competitor statistics from a negotiation record."""
+        partners = record.get("partners", [])
+        utilities = record.get("utilities", [])
+        agreement = record.get("agreement")
+
+        if not partners or not utilities:
+            return
+
+        for i, name in enumerate(partners):
+            if name not in state.competitor_stats:
+                continue
+
+            stats = state.competitor_stats[name]
+            stats["n_negotiations"] += 1
+
+            if agreement is not None:
+                stats["n_agreements"] += 1
+
+            if i < len(utilities) and utilities[i] is not None:
+                stats["utilities"].append(float(utilities[i]))
+
+                # Calculate advantage if 2-party
+                if len(utilities) == 2:
+                    other_idx = 1 - i
+                    if utilities[other_idx] is not None:
+                        advantage = float(utilities[i]) - float(utilities[other_idx])
+                        stats["advantages"].append(advantage)
+
+    def _build_leaderboard(
+        self,
+        stats: dict[str, dict[str, Any]],
+        metric: str,
+        stat: str,
+    ) -> list[LeaderboardEntry]:
+        """Build a live leaderboard from current competitor statistics."""
+        import statistics as stats_module
+
+        entries: list[LeaderboardEntry] = []
+
+        for name, s in stats.items():
+            if metric == "advantage":
+                values = s["advantages"]
+            elif metric == "utility":
+                values = s["utilities"]
+            else:
+                values = s["advantages"]
+
+            if not values:
+                score = 0.0
+            elif stat == "mean":
+                score = stats_module.mean(values)
+            elif stat == "median":
+                score = stats_module.median(values)
+            elif stat == "min":
+                score = min(values)
+            elif stat == "max":
+                score = max(values)
+            elif stat == "std":
+                score = stats_module.stdev(values) if len(values) > 1 else 0.0
+            else:
+                score = stats_module.mean(values)
+
+            mean_utility = stats_module.mean(s["utilities"]) if s["utilities"] else None
+
+            entries.append(
+                LeaderboardEntry(
+                    name=name,
+                    score=score,
+                    rank=0,
+                    n_negotiations=s["n_negotiations"],
+                    n_agreements=s["n_agreements"],
+                    mean_utility=mean_utility,
+                )
+            )
+
+        entries.sort(key=lambda x: x.score, reverse=True)
+        for i, entry in enumerate(entries):
+            entry.rank = i + 1
+
+        return entries
+
+    def _run_tournament_in_background(self, session_id: str) -> None:
+        """Run the tournament in a background thread using cartesian_tournament.
+
+        This method is called in a separate thread and uses callbacks to
+        update the shared TournamentState.
+        """
+        session = self.sessions.get(session_id)
+        state = self._tournament_states.get(session_id)
+
+        if session is None or session.config is None or state is None:
+            return
+
+        config = session.config
+
+        try:
+            # Load scenarios
+            scenarios: list[Scenario] = []  # type: ignore[type-arg]
+            scenario_names: list[str] = []
+            scenario_paths: list[str] = []
+
+            for path in config.scenario_paths:
+                scenario = self.scenario_loader.load_scenario(path)
+                if scenario is not None:
+                    if config.normalize:
+                        scenario.normalize()
+                    scenarios.append(scenario)
+                    scenario_names.append(
+                        Path(scenario.outcome_space.name or "unknown").name
+                    )
+                    scenario_paths.append(path)
+
+            if not scenarios:
+                state.status = TournamentStatus.FAILED
+                state.error = "No valid scenarios found"
+                session.status = TournamentStatus.FAILED
+                session.error = "No valid scenarios found"
+                state.event_queue.put(("error", "No valid scenarios found"))
+                return
+
+            # Store in state for callbacks
+            state.scenarios = scenarios
+            state.scenario_names = scenario_names
+            state.scenario_paths = scenario_paths
+
+            # Get competitor classes
+            competitors: list[type[SAONegotiator]] = []
+            competitor_names: list[str] = []
+            for type_name in config.competitor_types:
+                cls = _get_class_for_type(type_name)
+                if cls is not None:
+                    competitors.append(cls)  # type: ignore[arg-type]
+                    competitor_names.append(cls.__name__)
+
+            if len(competitors) < 1:
+                state.status = TournamentStatus.FAILED
+                state.error = "At least 1 valid competitor required"
+                session.status = TournamentStatus.FAILED
+                session.error = state.error
+                state.event_queue.put(("error", state.error))
+                return
+
+            state.competitor_names = competitor_names
+
+            # Initialize competitor stats
+            for name in competitor_names:
+                state.competitor_stats[name] = {
+                    "utilities": [],
+                    "advantages": [],
+                    "n_negotiations": 0,
+                    "n_agreements": 0,
+                }
+
+            # Get opponent classes if specified
+            opponents: list[type[SAONegotiator]] | None = None
+            opponent_names: list[str] = []
+
+            if config.opponent_types is not None:
+                opponents = []
+                for type_name in config.opponent_types:
+                    cls = _get_class_for_type(type_name)
+                    if cls is not None:
+                        opponents.append(cls)  # type: ignore[arg-type]
+                        opponent_names.append(cls.__name__)
+                if len(opponents) < 1:
+                    state.status = TournamentStatus.FAILED
+                    state.error = "At least 1 valid opponent required"
+                    session.status = TournamentStatus.FAILED
+                    session.error = state.error
+                    state.event_queue.put(("error", state.error))
+                    return
+                state.opponent_names = opponent_names
+                # Add opponent stats too if they're also being scored
+                for name in opponent_names:
+                    if name not in state.competitor_stats:
+                        state.competitor_stats[name] = {
+                            "utilities": [],
+                            "advantages": [],
+                            "n_negotiations": 0,
+                            "n_agreements": 0,
+                        }
+            else:
+                if len(competitors) < 2:
+                    state.status = TournamentStatus.FAILED
+                    state.error = "At least 2 competitors required when no opponents"
+                    session.status = TournamentStatus.FAILED
+                    session.error = state.error
+                    state.event_queue.put(("error", state.error))
+                    return
+                state.opponent_names = competitor_names
+
+            # Calculate total negotiations
+            n_competitors = len(competitors)
+            n_opponents = len(state.opponent_names)
+            n_scenarios = len(scenarios)
+
+            if config.opponent_types is not None:
+                n_pairings = n_competitors * n_opponents
+            else:
+                n_pairings = (
+                    n_competitors * n_opponents
+                    if config.self_play
+                    else n_competitors * (n_opponents - 1)
+                )
+            if config.rotate_ufuns:
+                n_pairings *= 2
+            total_negotiations = n_scenarios * n_pairings * config.n_repetitions
+
+            # Initialize grid and progress
+            grid_init = TournamentGridInit(
+                competitors=competitor_names,
+                opponents=state.opponent_names,
+                scenarios=scenario_names,
+                n_repetitions=config.n_repetitions,
+                rotate_ufuns=config.rotate_ufuns,
+                total_negotiations=total_negotiations,
+            )
+            state.grid_init = grid_init
+            state.progress = TournamentProgress(
+                completed=0, total=total_negotiations, percent=0.0
+            )
+
+            # Emit grid_init event
+            state.event_queue.put(("grid_init", grid_init))
+            state.event_queue.put(("progress", state.progress))
+
+            # Create callbacks
+            before_cb, after_const_cb, after_end_cb = self._create_callbacks(
+                session_id, config
+            )
+
+            # Get mechanism class
+            mechanism_class = self._get_mechanism_class(config.mechanism_type)
+
+            # Build tournament kwargs
+            tournament_kwargs: dict[str, Any] = {
+                "competitors": competitors,
+                "scenarios": scenarios,
+                "competitor_params": None,
+                "rotate_ufuns": config.rotate_ufuns,
+                "n_repetitions": config.n_repetitions,
+                "njobs": -1,  # Serial for callbacks to work properly
+                "mechanism_type": mechanism_class,
+                "n_steps": config.n_steps,
+                "time_limit": config.time_limit,
+                "self_play": config.self_play,
+                "randomize_runs": config.randomize_runs,
+                "sort_runs": config.sort_runs,
+                "id_reveals_type": config.id_reveals_type,
+                "name_reveals_type": config.name_reveals_type,
+                "mask_scenario_names": config.mask_scenario_names,
+                "only_failures_on_self_play": config.only_failures_on_self_play,
+                "final_score": (config.final_score_metric, config.final_score_stat),
+                "save_stats": config.save_stats,
+                "save_scenario_figs": config.save_scenario_figs,
+                "save_every": config.save_every,
+                "verbosity": config.verbosity,
+                "path": Path(config.save_path) if config.save_path else None,
+                # Callbacks
+                "before_start_callback": before_cb,
+                "after_construction_callback": after_const_cb,
+                "after_end_callback": after_end_cb,
+            }
+
+            # Save config before starting
+            if config.save_path:
+                self._save_tournament_config(config, Path(config.save_path))
+
+            # Add opponents if specified
+            if opponents is not None:
+                tournament_kwargs["opponents"] = opponents
+
+            # Add optional time limits
+            if config.step_time_limit is not None:
+                tournament_kwargs["step_time_limit"] = config.step_time_limit
+            if config.negotiator_time_limit is not None:
+                tournament_kwargs["negotiator_time_limit"] = (
+                    config.negotiator_time_limit
+                )
+            if config.hidden_time_limit is not None:
+                tournament_kwargs["hidden_time_limit"] = config.hidden_time_limit
+            if config.pend is not None:
+                tournament_kwargs["pend"] = config.pend
+            if config.pend_per_second is not None:
+                tournament_kwargs["pend_per_second"] = config.pend_per_second
+
+            # Update status
+            state.status = TournamentStatus.RUNNING
+            session.status = TournamentStatus.RUNNING
+            session.start_time = datetime.now()
+
+            # Run the tournament (blocking in this thread)
+            results = cartesian_tournament(**tournament_kwargs)  # type: ignore[arg-type]
+
+            # Check if cancelled
+            if self._cancel_flags.get(session_id, False):
+                state.status = TournamentStatus.CANCELLED
+                session.status = TournamentStatus.CANCELLED
+                session.end_time = datetime.now()
+                state.event_queue.put(("cancelled", None))
+                return
+
+            # Tournament completed successfully
+            final_scores: list[CompetitorScore] = []
+            if results.final_scores is not None:
+                for idx, row in results.final_scores.iterrows():
+                    # Get strategy name from column or index
+                    if "strategy" in results.final_scores.columns:
+                        name = str(row["strategy"])
+                    else:
+                        name = str(idx)
+                    # Get score from 'score' column or first numeric column
+                    if "score" in results.final_scores.columns:
+                        score = float(row["score"])
+                    else:
+                        score = float(row.iloc[0]) if len(row) > 0 else 0.0
+                    final_scores.append(
+                        CompetitorScore(
+                            name=name,
+                            type_name=name,
+                            score=score,
+                            rank=len(final_scores) + 1,
+                        )
+                    )
+
+            total_completed = len(results.details) if results.details is not None else 0
+            total_agreements = 0
+            if results.details is not None and "agreement" in results.details.columns:
+                total_agreements = int(results.details["agreement"].notna().sum())
+
+            session.results = TournamentResults(
+                final_scores=final_scores,
+                total_negotiations=total_completed,
+                total_agreements=total_agreements,
+                overall_agreement_rate=(
+                    total_agreements / total_completed if total_completed > 0 else 0.0
+                ),
+                results_path=str(results.path) if results.path else None,
+            )
+
+            state.status = TournamentStatus.COMPLETED
+            session.status = TournamentStatus.COMPLETED
+            session.end_time = datetime.now()
+
+            # Emit complete event
+            state.event_queue.put(("complete", session))
+
+        except Exception as e:
+            state.status = TournamentStatus.FAILED
+            state.error = str(e)
+            session.status = TournamentStatus.FAILED
+            session.error = str(e)
+            session.end_time = datetime.now()
+            state.event_queue.put(("error", str(e)))
 
     async def run_tournament_stream(
         self,
@@ -156,10 +761,13 @@ class TournamentManager:
         | list[LeaderboardEntry],
         None,
     ]:
-        """Run a tournament with streaming progress updates.
+        """Stream tournament progress updates.
 
-        This method runs negotiations serially to provide progress updates.
-        For faster execution without progress updates, use run_tournament_batch().
+        This starts the tournament in a background thread (if not already running)
+        and yields events from the shared state's event queue.
+
+        If the browser disconnects and reconnects, this will continue streaming
+        from where the tournament currently is.
 
         Yields:
             - TournamentGridInit: Initial grid structure
@@ -169,691 +777,96 @@ class TournamentManager:
             - TournamentSession: Final session state
         """
         session = self.sessions.get(session_id)
-        if session is None or session.config is None:
+        state = self._tournament_states.get(session_id)
+
+        if session is None or session.config is None or state is None:
             return
 
-        config = session.config
-        session.status = TournamentStatus.RUNNING
-        session.start_time = datetime.now()
+        # Check if tournament is already running
+        thread = self._background_threads.get(session_id)
+        if thread is None or not thread.is_alive():
+            # Start the tournament in a background thread
+            thread = threading.Thread(
+                target=self._run_tournament_in_background,
+                args=(session_id,),
+                daemon=True,
+            )
+            self._background_threads[session_id] = thread
+            thread.start()
+        else:
+            # Tournament already running - send current state first
+            if state.grid_init:
+                yield state.grid_init
+            for cell in state.completed_cells:
+                yield cell
+            if state.leaderboard:
+                yield state.leaderboard
+            if state.progress:
+                yield state.progress
 
-        try:
-            # Load scenarios (run in thread pool to avoid blocking)
-            scenarios: list[Scenario] = []  # type: ignore[type-arg]
-            scenario_names: list[str] = []
-            scenario_paths: list[str] = []  # Track paths for each loaded scenario
-            for path in config.scenario_paths:
-                scenario = await asyncio.to_thread(
-                    self.scenario_loader.load_scenario, path
-                )
-                if scenario is not None:
-                    # Apply normalization if requested
-                    if config.normalize:
-                        scenario.normalize()
-                    scenarios.append(scenario)
-                    scenario_names.append(
-                        Path(scenario.outcome_space.name or "unknown").name
-                    )
-                    scenario_paths.append(path)
+        # Stream events from the queue
+        while True:
+            try:
+                # Non-blocking get with timeout to allow checking for cancellation
+                try:
+                    event_type, event_data = state.event_queue.get(timeout=0.1)
+                except queue.Empty:
+                    # Check if tournament is still running
+                    if state.status in (
+                        TournamentStatus.COMPLETED,
+                        TournamentStatus.FAILED,
+                        TournamentStatus.CANCELLED,
+                    ):
+                        # Yield final session state
+                        yield session
+                        return
+                    # Check if thread died unexpectedly
+                    if thread and not thread.is_alive():
+                        if state.status == TournamentStatus.RUNNING:
+                            state.status = TournamentStatus.FAILED
+                            state.error = "Tournament thread died unexpectedly"
+                            session.status = TournamentStatus.FAILED
+                            session.error = state.error
+                        yield session
+                        return
+                    await asyncio.sleep(0)
+                    continue
 
-            if not scenarios:
-                session.status = TournamentStatus.FAILED
-                session.error = "No valid scenarios found"
-                yield session
-                return
-
-            # Get competitor classes (run in thread pool as it may import modules)
-            competitor_classes: list[type[SAONegotiator]] = []
-            competitor_names: list[str] = []
-            for type_name in config.competitor_types:
-                cls = await asyncio.to_thread(_get_class_for_type, type_name)
-                if cls is not None:
-                    competitor_classes.append(cls)  # type: ignore[arg-type]
-                    competitor_names.append(cls.__name__)
-
-            if len(competitor_classes) < 1:
-                session.status = TournamentStatus.FAILED
-                session.error = "At least 1 valid competitor required"
-                yield session
-                return
-
-            # Get opponent classes if specified, otherwise use competitors
-            opponent_classes: list[type[SAONegotiator]]
-            opponent_names: list[str]
-            if config.opponent_types is not None:
-                opponent_classes = []
-                opponent_names = []
-                for type_name in config.opponent_types:
-                    cls = await asyncio.to_thread(_get_class_for_type, type_name)
-                    if cls is not None:
-                        opponent_classes.append(cls)  # type: ignore[arg-type]
-                        opponent_names.append(cls.__name__)
-                if len(opponent_classes) < 1:
-                    session.status = TournamentStatus.FAILED
-                    session.error = "At least 1 valid opponent required"
+                # Handle different event types
+                if event_type == "grid_init":
+                    yield event_data
+                elif event_type == "cell_start":
+                    yield event_data
+                elif event_type == "cell_complete":
+                    yield event_data
+                elif event_type == "leaderboard":
+                    yield event_data
+                elif event_type == "progress":
+                    yield event_data
+                elif event_type == "complete":
+                    yield event_data
+                    return
+                elif event_type == "cancelled":
                     yield session
                     return
-            else:
-                # Same as competitors - they play against each other
-                opponent_classes = competitor_classes
-                opponent_names = competitor_names
+                elif event_type == "error":
+                    session.error = event_data
+                    yield session
+                    return
 
-            # Check if we need at least 2 total participants
-            if config.opponent_types is None and len(competitor_classes) < 2:
-                session.status = TournamentStatus.FAILED
-                session.error = (
-                    "At least 2 valid competitors required when opponents not specified"
-                )
+            except Exception:
+                # If anything goes wrong, yield current session state
                 yield session
                 return
-
-            # Calculate total negotiations
-            n_competitors = len(competitor_classes)
-            n_opponents = len(opponent_classes)
-            n_scenarios = len(scenarios)
-
-            # When opponents are separate, we iterate competitor x opponent
-            # When opponents are same as competitors, check self_play
-            if config.opponent_types is not None:
-                # Competitor vs opponent mode - all combinations
-                n_pairings_per_scenario = n_competitors * n_opponents
-            else:
-                # Competitor vs competitor mode - respect self_play
-                n_pairings_per_scenario = (
-                    n_competitors * n_opponents
-                    if config.self_play
-                    else n_competitors * (n_opponents - 1)
-                )
-            if config.rotate_ufuns:
-                n_pairings_per_scenario *= 2  # Each pairing in both positions
-            total_negotiations = (
-                n_scenarios * n_pairings_per_scenario * config.n_repetitions
-            )
-
-            # Yield initial grid structure
-            grid_init = TournamentGridInit(
-                competitors=competitor_names,
-                opponents=opponent_names,
-                scenarios=scenario_names,
-                n_repetitions=config.n_repetitions,
-                rotate_ufuns=config.rotate_ufuns,
-                total_negotiations=total_negotiations,
-            )
-            yield grid_init
-
-            session.progress = TournamentProgress(
-                completed=0,
-                total=total_negotiations,
-                percent=0.0,
-            )
-            yield session.progress
-
-            # Track results
-            negotiation_results: list[NegotiationResult] = []
-            competitor_stats: dict[str, dict[str, Any]] = {
-                cls.__name__: {
-                    "utilities": [],
-                    "advantages": [],
-                    "n_negotiations": 0,
-                    "n_agreements": 0,
-                }
-                for cls in competitor_classes
-            }
-
-            # Get mechanism class - params will be sampled per negotiation if ranges
-            mechanism_class = self._get_mechanism_class(config.mechanism_type)
-
-            completed = 0
-            start_time = datetime.now()
-
-            # Run all negotiations
-            for scenario_idx, scenario in enumerate(scenarios):
-                scenario_name = scenario_names[scenario_idx]
-
-                for rep in range(config.n_repetitions):
-                    for i, cls_i in enumerate(competitor_classes):
-                        for j, cls_j in enumerate(opponent_classes):
-                            # Skip self-play if disabled and same agent
-                            # (only applies when opponents == competitors)
-                            if (
-                                config.opponent_types is None
-                                and not config.self_play
-                                and competitor_names[i] == opponent_names[j]
-                            ):
-                                continue
-
-                            # Emit cell_start
-                            cell_start = CellUpdate(
-                                competitor_idx=i,
-                                opponent_idx=j,
-                                scenario_idx=scenario_idx,
-                                repetition=rep,
-                                rotated=False,
-                                status=CellStatus.RUNNING,
-                            )
-                            yield cell_start
-
-                            # Sample mechanism params (may sample from ranges each time)
-                            mechanism_params = self._sample_mechanism_params(config)
-
-                            # Run negotiation with original ufun assignment
-                            result = await self._run_single_negotiation(
-                                scenario=scenario,
-                                competitor_classes=[cls_i, cls_j],
-                                mechanism_class=mechanism_class,
-                                mechanism_params=mechanism_params,
-                                capture_offers=config.capture_offers,
-                                scenario_path=scenario_paths[scenario_idx],
-                            )
-                            negotiation_results.append(result)
-                            # Only update stats for competitor (first position)
-                            # If opponent is also a competitor, update their stats too
-                            self._update_competitor_stats(
-                                competitor_stats,
-                                [cls_i.__name__],  # Only competitor gets scored
-                                result,
-                                positions=[0],  # Competitor is at position 0
-                            )
-                            # If opponent is also in competitor_stats, update them too
-                            if cls_j.__name__ in competitor_stats:
-                                self._update_competitor_stats(
-                                    competitor_stats,
-                                    [cls_j.__name__],
-                                    result,
-                                    positions=[1],  # Opponent is at position 1
-                                )
-                            completed += 1
-
-                            # Emit cell_complete with full negotiation data
-                            cell_complete = CellUpdate(
-                                competitor_idx=i,
-                                opponent_idx=j,
-                                scenario_idx=scenario_idx,
-                                repetition=rep,
-                                rotated=False,
-                                status=CellStatus.COMPLETE,
-                                end_reason=result.end_reason,
-                                utilities=result.utilities,
-                                error=result.error_details,
-                                offers=result.offers,
-                                issue_names=result.issue_names,
-                                scenario_path=result.scenario_path,
-                                n_steps=result.n_steps,
-                                agreement=result.agreement,
-                            )
-                            yield cell_complete
-
-                            # Emit leaderboard update
-                            leaderboard = self._build_leaderboard(
-                                competitor_stats,
-                                config.final_score_metric,
-                                config.final_score_stat,
-                            )
-                            yield leaderboard
-
-                            # Update progress
-                            session.progress = TournamentProgress(
-                                completed=completed,
-                                total=total_negotiations,
-                                current_scenario=scenario_name,
-                                current_partners=[cls_i.__name__, cls_j.__name__],
-                                percent=(completed / total_negotiations) * 100,
-                            )
-                            yield session.progress
-
-                            # Check for cancellation
-                            if self._cancel_flags.get(session_id, False):
-                                session.status = TournamentStatus.CANCELLED
-                                session.end_time = datetime.now()
-                                yield session
-                                return
-
-                            # Small delay to allow other tasks
-                            await asyncio.sleep(0)
-
-                            # Run with rotated ufuns if enabled
-                            if config.rotate_ufuns and len(scenario.ufuns) == 2:
-                                # Emit cell_start for rotated
-                                cell_start_rot = CellUpdate(
-                                    competitor_idx=i,
-                                    opponent_idx=j,
-                                    scenario_idx=scenario_idx,
-                                    repetition=rep,
-                                    rotated=True,
-                                    status=CellStatus.RUNNING,
-                                )
-                                yield cell_start_rot
-
-                                # Sample mechanism params again for rotated run
-                                mechanism_params_rot = self._sample_mechanism_params(
-                                    config
-                                )
-
-                                result = await self._run_single_negotiation(
-                                    scenario=scenario,
-                                    competitor_classes=[cls_i, cls_j],
-                                    mechanism_class=mechanism_class,
-                                    mechanism_params=mechanism_params_rot,
-                                    rotate_ufuns=True,
-                                    capture_offers=config.capture_offers,
-                                    scenario_path=scenario_paths[scenario_idx],
-                                )
-                                negotiation_results.append(result)
-                                # Note: When rotated, cls_i gets ufun[1], cls_j gets ufun[0]
-                                # So competitor (cls_i) is now at position 1 (second utility)
-                                self._update_competitor_stats(
-                                    competitor_stats,
-                                    [cls_i.__name__],
-                                    result,
-                                    positions=[
-                                        1
-                                    ],  # Competitor at position 1 when rotated
-                                )
-                                # If opponent is also a competitor, update them too
-                                if cls_j.__name__ in competitor_stats:
-                                    self._update_competitor_stats(
-                                        competitor_stats,
-                                        [cls_j.__name__],
-                                        result,
-                                        positions=[
-                                            0
-                                        ],  # Opponent at position 0 when rotated
-                                    )
-                                completed += 1
-
-                                # Emit cell_complete for rotated with full negotiation data
-                                cell_complete_rot = CellUpdate(
-                                    competitor_idx=i,
-                                    opponent_idx=j,
-                                    scenario_idx=scenario_idx,
-                                    repetition=rep,
-                                    rotated=True,
-                                    status=CellStatus.COMPLETE,
-                                    end_reason=result.end_reason,
-                                    utilities=result.utilities,
-                                    error=result.error_details,
-                                    offers=result.offers,
-                                    issue_names=result.issue_names,
-                                    scenario_path=result.scenario_path,
-                                    n_steps=result.n_steps,
-                                    agreement=result.agreement,
-                                )
-                                yield cell_complete_rot
-
-                                # Emit leaderboard update
-                                leaderboard = self._build_leaderboard(
-                                    competitor_stats,
-                                    config.final_score_metric,
-                                    config.final_score_stat,
-                                )
-                                yield leaderboard
-
-                                session.progress = TournamentProgress(
-                                    completed=completed,
-                                    total=total_negotiations,
-                                    current_scenario=scenario_name,
-                                    current_partners=[cls_i.__name__, cls_j.__name__],
-                                    percent=(completed / total_negotiations) * 100,
-                                )
-                                yield session.progress
-
-                                if self._cancel_flags.get(session_id, False):
-                                    session.status = TournamentStatus.CANCELLED
-                                    session.end_time = datetime.now()
-                                    yield session
-                                    return
-
-                                await asyncio.sleep(0)
-
-            # Calculate final scores
-            final_scores = self._calculate_final_scores(
-                competitor_stats,
-                config.final_score_metric,
-                config.final_score_stat,
-            )
-
-            # Calculate overall statistics
-            total_agreements = sum(
-                1 for r in negotiation_results if r.agreement is not None
-            )
-            execution_time = (datetime.now() - start_time).total_seconds()
-
-            session.results = TournamentResults(
-                final_scores=final_scores,
-                negotiation_results=negotiation_results,
-                total_negotiations=len(negotiation_results),
-                total_agreements=total_agreements,
-                overall_agreement_rate=total_agreements / len(negotiation_results)
-                if negotiation_results
-                else 0.0,
-                execution_time=execution_time,
-            )
-
-            session.status = TournamentStatus.COMPLETED
-            session.end_time = datetime.now()
-
-        except Exception as e:
-            session.status = TournamentStatus.FAILED
-            session.error = str(e)
-            session.end_time = datetime.now()
-
-        yield session
-
-    async def _run_single_negotiation(
-        self,
-        scenario: Scenario,  # type: ignore[type-arg]
-        competitor_classes: list[type[SAONegotiator]],
-        mechanism_class: type[SAOMechanism],
-        mechanism_params: dict[str, Any],
-        rotate_ufuns: bool = False,
-        capture_offers: bool = True,
-        scenario_path: str | None = None,
-    ) -> NegotiationResult:
-        """Run a single negotiation and return the result.
-
-        Args:
-            scenario: The negotiation scenario.
-            competitor_classes: List of negotiator classes to compete.
-            mechanism_class: The mechanism class to use.
-            mechanism_params: Parameters for the mechanism.
-            rotate_ufuns: Whether to rotate utility functions.
-            capture_offers: Whether to capture the full offer trace.
-            scenario_path: Path to the scenario directory.
-        """
-        scenario_name = scenario.outcome_space.name or "unknown"
-        partners = [cls.__name__ for cls in competitor_classes]
-
-        try:
-            # Create mechanism
-            mechanism = mechanism_class(
-                outcome_space=scenario.outcome_space,
-                **mechanism_params,
-            )
-
-            # Get ufuns (optionally rotated)
-            ufuns = list(scenario.ufuns)
-            if rotate_ufuns and len(ufuns) >= 2:
-                ufuns = [ufuns[1], ufuns[0]]
-
-            # Create negotiators and add to mechanism
-            negotiator_id_to_idx: dict[str, int] = {}
-            for idx, (cls, ufun) in enumerate(zip(competitor_classes, ufuns)):
-                negotiator = cls()
-                mechanism.add(negotiator, ufun=ufun)
-                negotiator_id_to_idx[negotiator.id] = idx
-
-            # Get issue names for offer dicts
-            issue_names = [i.name for i in scenario.outcome_space.issues]
-            n_steps = mechanism_params.get("n_steps")
-
-            # Run the negotiation (run in thread pool to avoid blocking)
-            start = datetime.now()
-            await asyncio.to_thread(mechanism.run)
-            execution_time = (datetime.now() - start).total_seconds()
-
-            # Get results
-            agreement = mechanism.agreement
-            utilities: list[float] | None = None
-            advantages: list[float] | None = None
-
-            # Determine end reason from mechanism state
-            end_reason: NegotiationEndReason
-            if agreement is not None:
-                end_reason = NegotiationEndReason.AGREEMENT
-            elif mechanism.state.broken:
-                end_reason = NegotiationEndReason.BROKEN
-            elif mechanism.state.timedout:
-                end_reason = NegotiationEndReason.TIMEOUT
-            else:
-                # No agreement and not broken/timeout - likely ran out of steps
-                end_reason = NegotiationEndReason.TIMEOUT
-
-            if agreement is not None:
-                # Get actual utilities (in original ufun order if rotated)
-                if rotate_ufuns and len(scenario.ufuns) >= 2:
-                    # Map back to original order
-                    u0 = scenario.ufuns[0](agreement)
-                    u1 = scenario.ufuns[1](agreement)
-                    utilities = [
-                        float(u1) if u1 is not None else 0.0,  # cls[0] had ufun[1]
-                        float(u0) if u0 is not None else 0.0,  # cls[1] had ufun[0]
-                    ]
-                else:
-                    utilities = []
-                    for ufun in scenario.ufuns:
-                        u = ufun(agreement)
-                        utilities.append(float(u) if u is not None else 0.0)
-
-                # Calculate advantages (utility - opponent's utility)
-                if len(utilities) == 2:
-                    advantages = [
-                        utilities[0] - utilities[1],
-                        utilities[1] - utilities[0],
-                    ]
-
-            # Capture offer trace if requested
-            offers: list[TournamentOffer] | None = None
-            if capture_offers:
-                offers = []
-                # The mechanism's extended_trace contains all offers
-                # Format: list of (step, negotiator_id, offer) tuples
-                if hasattr(mechanism, "extended_trace") and mechanism.extended_trace:
-                    for step, neg_id, offer in mechanism.extended_trace:
-                        if offer is None:
-                            continue
-                        proposer_idx = negotiator_id_to_idx.get(neg_id, 0)
-                        # Calculate utilities for this offer
-                        # Use the ufuns in current order (may be rotated)
-                        offer_utils = []
-                        for ufun in ufuns:
-                            u = ufun(offer)
-                            offer_utils.append(float(u) if u is not None else 0.0)
-                        offers.append(
-                            TournamentOffer(
-                                step=step,
-                                proposer=partners[proposer_idx],
-                                proposer_index=proposer_idx,
-                                offer=offer,
-                                offer_dict=dict(zip(issue_names, offer)),
-                                utilities=offer_utils,
-                            )
-                        )
-
-            return NegotiationResult(
-                scenario=scenario_name,
-                partners=partners,
-                agreement=agreement,
-                utilities=utilities,
-                advantages=advantages,
-                has_error=False,
-                execution_time=execution_time,
-                end_reason=end_reason,
-                offers=offers,
-                issue_names=issue_names,
-                scenario_path=scenario_path,
-                n_steps=n_steps,
-            )
-
-        except Exception as e:
-            return NegotiationResult(
-                scenario=scenario_name,
-                partners=partners,
-                agreement=None,
-                utilities=None,
-                advantages=None,
-                has_error=True,
-                error_details=str(e),
-                end_reason=NegotiationEndReason.ERROR,
-            )
-
-    def _update_competitor_stats(
-        self,
-        stats: dict[str, dict[str, Any]],
-        names: list[str],
-        result: NegotiationResult,
-        positions: list[int] | None = None,
-    ) -> None:
-        """Update competitor statistics with negotiation result.
-
-        Args:
-            stats: Dictionary mapping competitor names to their stats
-            names: List of competitor names to update
-            result: The negotiation result
-            positions: List of positions in the result for each name.
-                       If None, uses [0, 1, 2, ...] (original behavior)
-        """
-        if positions is None:
-            positions = list(range(len(names)))
-
-        for name, pos in zip(names, positions):
-            if name not in stats:
-                continue
-
-            stats[name]["n_negotiations"] += 1
-
-            if result.agreement is not None:
-                stats[name]["n_agreements"] += 1
-
-            if result.utilities is not None and pos < len(result.utilities):
-                stats[name]["utilities"].append(result.utilities[pos])
-
-            if result.advantages is not None and pos < len(result.advantages):
-                stats[name]["advantages"].append(result.advantages[pos])
-
-    def _build_leaderboard(
-        self,
-        stats: dict[str, dict[str, Any]],
-        metric: str,
-        stat: str,
-    ) -> list[LeaderboardEntry]:
-        """Build a live leaderboard from current competitor statistics."""
-        import statistics
-
-        entries: list[LeaderboardEntry] = []
-
-        for name, s in stats.items():
-            # Get values based on metric
-            if metric == "advantage":
-                values = s["advantages"]
-            elif metric == "utility":
-                values = s["utilities"]
-            else:
-                values = s["advantages"]
-
-            # Calculate score
-            if not values:
-                score = 0.0
-            elif stat == "mean":
-                score = statistics.mean(values)
-            elif stat == "median":
-                score = statistics.median(values)
-            elif stat == "min":
-                score = min(values)
-            elif stat == "max":
-                score = max(values)
-            elif stat == "std":
-                score = statistics.stdev(values) if len(values) > 1 else 0.0
-            else:
-                score = statistics.mean(values)
-
-            mean_utility = statistics.mean(s["utilities"]) if s["utilities"] else None
-
-            entries.append(
-                LeaderboardEntry(
-                    name=name,
-                    score=score,
-                    rank=0,  # Will be set after sorting
-                    n_negotiations=s["n_negotiations"],
-                    n_agreements=s["n_agreements"],
-                    mean_utility=mean_utility,
-                )
-            )
-
-        # Sort by score (descending) and assign ranks
-        entries.sort(key=lambda x: x.score, reverse=True)
-        for i, entry in enumerate(entries):
-            entry.rank = i + 1
-
-        return entries
-
-    def _calculate_final_scores(
-        self,
-        stats: dict[str, dict[str, Any]],
-        metric: str,
-        stat: str,
-    ) -> list[CompetitorScore]:
-        """Calculate final scores for all competitors."""
-        import statistics
-
-        scores = []
-
-        for name, s in stats.items():
-            # Get values based on metric
-            if metric == "advantage":
-                values = s["advantages"]
-            elif metric == "utility":
-                values = s["utilities"]
-            elif metric == "welfare":
-                # Sum of all utilities in negotiations where this competitor participated
-                values = s["utilities"]  # Use utilities as proxy
-            else:
-                values = s["advantages"]
-
-            # Calculate statistic
-            if not values:
-                score = 0.0
-            elif stat == "mean":
-                score = statistics.mean(values)
-            elif stat == "median":
-                score = statistics.median(values)
-            elif stat == "min":
-                score = min(values)
-            elif stat == "max":
-                score = max(values)
-            elif stat == "std":
-                score = statistics.stdev(values) if len(values) > 1 else 0.0
-            else:
-                score = statistics.mean(values)
-
-            # Calculate additional statistics
-            mean_utility = statistics.mean(s["utilities"]) if s["utilities"] else None
-            mean_advantage = (
-                statistics.mean(s["advantages"]) if s["advantages"] else None
-            )
-            agreement_rate = (
-                s["n_agreements"] / s["n_negotiations"]
-                if s["n_negotiations"] > 0
-                else None
-            )
-
-            scores.append(
-                CompetitorScore(
-                    name=name,
-                    type_name=name,  # Could be enhanced to store full type name
-                    score=score,
-                    rank=0,  # Will be set after sorting
-                    mean_utility=mean_utility,
-                    mean_advantage=mean_advantage,
-                    n_negotiations=s["n_negotiations"],
-                    n_agreements=s["n_agreements"],
-                    agreement_rate=agreement_rate,
-                )
-            )
-
-        # Sort by score (descending) and assign ranks
-        scores.sort(key=lambda x: x.score, reverse=True)
-        for i, s in enumerate(scores):
-            s.rank = i + 1
-
-        return scores
 
     async def run_tournament_batch(
         self,
         session_id: str,
     ) -> TournamentSession:
-        """Run a tournament using negmas cartesian_tournament for faster execution.
+        """Run a tournament using parallel execution (no streaming).
 
-        This method uses parallel execution but provides no progress updates.
-        For progress updates, use run_tournament_stream().
+        This method uses njobs from config for parallel execution but
+        provides no progress updates. For progress updates, use run_tournament_stream().
 
         Returns:
             Completed TournamentSession.
@@ -867,16 +880,13 @@ class TournamentManager:
         session.start_time = datetime.now()
 
         try:
-            from negmas.tournaments.neg import cartesian_tournament
-
-            # Load scenarios (run in thread pool to avoid blocking)
+            # Load scenarios
             scenarios: list[Scenario] = []  # type: ignore[type-arg]
             for path in config.scenario_paths:
                 scenario = await asyncio.to_thread(
                     self.scenario_loader.load_scenario, path
                 )
                 if scenario is not None:
-                    # Apply normalization if requested
                     if config.normalize:
                         scenario.normalize()
                     scenarios.append(scenario)
@@ -886,7 +896,7 @@ class TournamentManager:
                 session.error = "No valid scenarios found"
                 return session
 
-            # Get competitor classes (run in thread pool as it may import modules)
+            # Get competitor classes
             competitors: list[type[SAONegotiator]] = []
             for type_name in config.competitor_types:
                 cls = await asyncio.to_thread(_get_class_for_type, type_name)
@@ -911,16 +921,13 @@ class TournamentManager:
                     session.error = "At least 1 valid opponent required"
                     return session
             else:
-                # When no opponents specified, need at least 2 competitors
                 if len(competitors) < 2:
                     session.status = TournamentStatus.FAILED
-                    session.error = "At least 2 valid competitors required when opponents not specified"
+                    session.error = "At least 2 competitors required when no opponents"
                     return session
 
-            # Get mechanism class
             mechanism_class = self._get_mechanism_class(config.mechanism_type)
 
-            # Build tournament kwargs
             tournament_kwargs: dict[str, Any] = {
                 "competitors": competitors,
                 "scenarios": scenarios,
@@ -946,11 +953,12 @@ class TournamentManager:
                 "path": Path(config.save_path) if config.save_path else None,
             }
 
-            # Add opponents if specified
+            if config.save_path:
+                self._save_tournament_config(config, Path(config.save_path))
+
             if opponents is not None:
                 tournament_kwargs["opponents"] = opponents
 
-            # Add optional time limits if set
             if config.step_time_limit is not None:
                 tournament_kwargs["step_time_limit"] = config.step_time_limit
             if config.negotiator_time_limit is not None:
@@ -959,33 +967,38 @@ class TournamentManager:
                 )
             if config.hidden_time_limit is not None:
                 tournament_kwargs["hidden_time_limit"] = config.hidden_time_limit
-
-            # Add probabilistic ending if set (defaults are 0.0)
             if config.pend is not None:
                 tournament_kwargs["pend"] = config.pend
             if config.pend_per_second is not None:
                 tournament_kwargs["pend_per_second"] = config.pend_per_second
 
-            # Run tournament (run in thread pool - this can take hours/days)
             results = await asyncio.to_thread(
                 cartesian_tournament,
                 **tournament_kwargs,  # type: ignore[arg-type]
             )
 
-            # Convert negmas results to our model
             final_scores: list[CompetitorScore] = []
             if results.final_scores is not None:
                 for idx, row in results.final_scores.iterrows():
+                    # Get strategy name from column or index
+                    if "strategy" in results.final_scores.columns:
+                        name = str(row["strategy"])
+                    else:
+                        name = str(idx)
+                    # Get score from 'score' column or first numeric column
+                    if "score" in results.final_scores.columns:
+                        score = float(row["score"])
+                    else:
+                        score = float(row.iloc[0]) if len(row) > 0 else 0.0
                     final_scores.append(
                         CompetitorScore(
-                            name=str(idx),
-                            type_name=str(idx),
-                            score=float(row.iloc[0]) if len(row) > 0 else 0.0,
+                            name=name,
+                            type_name=name,
+                            score=score,
                             rank=len(final_scores) + 1,
                         )
                     )
 
-            # Get detailed results if available
             total_negotiations = (
                 len(results.details) if results.details is not None else 0
             )
@@ -997,9 +1010,11 @@ class TournamentManager:
                 final_scores=final_scores,
                 total_negotiations=total_negotiations,
                 total_agreements=total_agreements,
-                overall_agreement_rate=total_agreements / total_negotiations
-                if total_negotiations > 0
-                else 0.0,
+                overall_agreement_rate=(
+                    total_agreements / total_negotiations
+                    if total_negotiations > 0
+                    else 0.0
+                ),
                 results_path=str(results.path) if results.path else None,
             )
 

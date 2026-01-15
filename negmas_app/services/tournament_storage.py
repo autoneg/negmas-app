@@ -1,10 +1,13 @@
 """Tournament storage service for loading saved tournament results."""
 
+import ast
 import csv
 import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+import yaml
 
 
 @dataclass
@@ -42,10 +45,16 @@ class TournamentStorageService:
     TOURNAMENTS_DIR = Path.home() / "negmas" / "app" / "tournaments"
 
     @classmethod
-    def list_saved_tournaments(cls) -> list[dict]:
+    def list_saved_tournaments(
+        cls, archived: bool | None = None, tags: list[str] | None = None
+    ) -> list[dict]:
         """List all saved tournaments from disk.
 
         Scans ~/negmas/app/tournaments/ for tournament result directories.
+
+        Args:
+            archived: If True, only archived; if False, only non-archived; if None, all
+            tags: If provided, filter by tags (match any)
 
         Returns:
             List of tournament summary dicts.
@@ -70,6 +79,13 @@ class TournamentStorageService:
             # Try to load summary info
             summary = cls._load_tournament_summary(path)
             if summary:
+                # Apply filters
+                if archived is not None and summary.get("archived", False) != archived:
+                    continue
+                if tags:
+                    tournament_tags = summary.get("tags", [])
+                    if not any(tag in tournament_tags for tag in tags):
+                        continue
                 tournaments.append(summary)
 
         # Sort by creation time (newest first)
@@ -126,6 +142,9 @@ class TournamentStorageService:
                 n_agreements / n_negotiations if n_negotiations > 0 else 0.0
             )
 
+            # Load metadata (tags, archived status)
+            metadata = cls._load_metadata(tournament_id)
+
             return {
                 "id": tournament_id,
                 "path": str(path),
@@ -136,6 +155,8 @@ class TournamentStorageService:
                 "n_negotiations": n_negotiations,
                 "n_agreements": n_agreements,
                 "agreement_rate": agreement_rate,
+                "tags": metadata.get("tags", []),
+                "archived": metadata.get("archived", False),
             }
         except Exception as e:
             print(f"Error loading tournament summary from {path}: {e}")
@@ -229,29 +250,44 @@ class TournamentStorageService:
 
     @classmethod
     def _load_negotiations_summary(cls, path: Path) -> list[dict]:
-        """Load negotiation results summary from all_results.csv."""
+        """Load negotiation results summary from details.csv (cartesian_tournament output)."""
         negotiations = []
-        all_results = path / "all_results.csv"
 
-        if not all_results.exists():
+        # cartesian_tournament saves to details.csv
+        details_file = path / "details.csv"
+        if not details_file.exists():
+            # Fall back to all_results.csv for streaming tournaments
+            details_file = path / "all_results.csv"
+
+        if not details_file.exists():
             return negotiations
 
         try:
-            with open(all_results, "r") as f:
+            with open(details_file, "r") as f:
                 reader = csv.DictReader(f)
                 for idx, row in enumerate(reader):
-                    # Get partners
+                    # Get partners - cartesian_tournament uses 'partners' field as list string
                     partners = []
-                    for key in [
-                        "negotiator0",
-                        "negotiator1",
-                        "first",
-                        "second",
-                        "agent0",
-                        "agent1",
-                    ]:
-                        if row.get(key):
-                            partners.append(row[key])
+                    partners_str = row.get("partners", "")
+                    if partners_str and partners_str != "[]":
+                        try:
+                            # Parse list like "['AspirationNegotiator', 'BoulwareTBNegotiator']"
+                            partners = ast.literal_eval(partners_str)
+                        except (ValueError, SyntaxError):
+                            pass
+
+                    # Fall back to individual fields
+                    if not partners:
+                        for key in [
+                            "negotiator0",
+                            "negotiator1",
+                            "first",
+                            "second",
+                            "agent0",
+                            "agent1",
+                        ]:
+                            if row.get(key):
+                                partners.append(row[key])
 
                     # Get scenario
                     scenario = row.get("scenario") or row.get("domain") or "Unknown"
@@ -264,14 +300,28 @@ class TournamentStorageService:
                         and agreement_str != "None"
                     )
 
-                    # Get utilities
+                    # Get utilities - cartesian_tournament uses 'utilities' field as tuple string
                     utilities = []
-                    for key in ["utility0", "utility1", "u0", "u1"]:
-                        if row.get(key):
-                            try:
-                                utilities.append(float(row[key]))
-                            except ValueError:
-                                pass
+                    utilities_str = row.get("utilities", "")
+                    if utilities_str:
+                        try:
+                            utils_tuple = ast.literal_eval(utilities_str)
+                            utilities = (
+                                list(utils_tuple)
+                                if isinstance(utils_tuple, tuple)
+                                else list(utils_tuple)
+                            )
+                        except (ValueError, SyntaxError):
+                            pass
+
+                    # Fall back to individual fields
+                    if not utilities:
+                        for key in ["utility0", "utility1", "u0", "u1"]:
+                            if row.get(key):
+                                try:
+                                    utilities.append(float(row[key]))
+                                except ValueError:
+                                    pass
 
                     negotiations.append(
                         {
@@ -280,6 +330,7 @@ class TournamentStorageService:
                             "partners": partners,
                             "has_agreement": has_agreement,
                             "utilities": utilities if utilities else None,
+                            "raw_data": row,
                         }
                     )
 
@@ -294,49 +345,336 @@ class TournamentStorageService:
 
         Args:
             tournament_id: Tournament ID.
-            index: Index of the negotiation in all_results.csv.
+            index: Index of the negotiation in details.csv.
 
         Returns:
             Full negotiation data or None if not found.
         """
         path = cls.TOURNAMENTS_DIR / tournament_id
-        all_results = path / "all_results.csv"
 
-        if not all_results.exists():
+        # cartesian_tournament saves to details.csv
+        details_file = path / "details.csv"
+        if not details_file.exists():
+            # Fall back to all_results.csv for streaming tournaments
+            details_file = path / "all_results.csv"
+
+        if not details_file.exists():
             return None
 
         try:
-            with open(all_results, "r") as f:
+            with open(details_file, "r") as f:
                 reader = csv.DictReader(f)
                 for idx, row in enumerate(reader):
                     if idx == index:
-                        # Return full row data
+                        # Parse partners from list string
+                        partners = []
+                        partners_str = row.get("partners", "")
+                        if partners_str and partners_str != "[]":
+                            try:
+                                partners = ast.literal_eval(partners_str)
+                            except (ValueError, SyntaxError):
+                                pass
+
+                        # Fall back to individual fields
+                        if not partners:
+                            for k in ["negotiator0", "negotiator1", "first", "second"]:
+                                if row.get(k):
+                                    partners.append(row[k])
+
+                        # Parse utilities from tuple string
+                        utilities = None
+                        utilities_str = row.get("utilities", "")
+                        if utilities_str:
+                            try:
+                                utils_tuple = ast.literal_eval(utilities_str)
+                                utilities = (
+                                    list(utils_tuple)
+                                    if isinstance(utils_tuple, tuple)
+                                    else list(utils_tuple)
+                                )
+                            except (ValueError, SyntaxError):
+                                pass
+
+                        # Fall back to individual fields
+                        if not utilities:
+                            utilities = []
+                            for k in ["utility0", "utility1", "u0", "u1"]:
+                                if row.get(k):
+                                    try:
+                                        utilities.append(float(row[k]))
+                                    except ValueError:
+                                        pass
+                            utilities = utilities if utilities else None
+
                         return {
                             "index": idx,
                             "raw_data": dict(row),
                             "scenario": row.get("scenario") or row.get("domain"),
-                            "partners": [
-                                row.get(k)
-                                for k in [
-                                    "negotiator0",
-                                    "negotiator1",
-                                    "first",
-                                    "second",
-                                ]
-                                if row.get(k)
-                            ],
+                            "partners": partners,
                             "agreement": row.get("agreement"),
-                            "utilities": [
-                                float(row[k])
-                                for k in ["utility0", "utility1", "u0", "u1"]
-                                if row.get(k)
-                            ]
-                            or None,
+                            "utilities": utilities,
+                            "has_agreement": row.get("agreement")
+                            not in (None, "", "None"),
                         }
         except Exception as e:
             print(f"Error loading negotiation {index} from {tournament_id}: {e}")
 
         return None
+
+    @classmethod
+    def get_negotiation_trace(
+        cls, tournament_id: str, mechanism_name: str
+    ) -> dict | None:
+        """Get the full negotiation trace for a specific mechanism run.
+
+        Args:
+            tournament_id: Tournament ID.
+            mechanism_name: The mechanism_name from the negotiation record.
+
+        Returns:
+            Negotiation trace data with offers and responses, or None if not found.
+        """
+        path = cls.TOURNAMENTS_DIR / tournament_id
+        negotiations_dir = path / "negotiations"
+
+        if not negotiations_dir.exists():
+            return None
+
+        # Find the negotiation CSV file by mechanism name
+        # Files are named like: scenario_negotiator1_negotiator2_rep_mechanismname.csv
+        try:
+            matching_files = list(negotiations_dir.glob(f"*_{mechanism_name}.csv"))
+            if not matching_files:
+                return None
+
+            trace_file = matching_files[0]
+
+            # Read the negotiation trace
+            trace_data = []
+            with open(trace_file, "r") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    trace_data.append(dict(row))
+
+            return {
+                "mechanism_name": mechanism_name,
+                "trace": trace_data,
+                "file_name": trace_file.name,
+            }
+        except Exception as e:
+            print(f"Error loading negotiation trace {mechanism_name}: {e}")
+            return None
+
+    @classmethod
+    def list_negotiation_files(cls, tournament_id: str) -> list[dict]:
+        """List all negotiation trace files in a tournament.
+
+        Args:
+            tournament_id: Tournament ID.
+
+        Returns:
+            List of dicts with file info.
+        """
+        path = cls.TOURNAMENTS_DIR / tournament_id
+        negotiations_dir = path / "negotiations"
+
+        if not negotiations_dir.exists():
+            return []
+
+        files = []
+        for file in negotiations_dir.glob("*.csv"):
+            files.append(
+                {
+                    "name": file.name,
+                    "size": file.stat().st_size,
+                    "mechanism_name": file.stem.split("_")[-1],
+                }
+            )
+
+        return files
+
+    @classmethod
+    def get_scenario_info(cls, tournament_id: str, scenario_name: str) -> dict | None:
+        """Get scenario information from a saved tournament.
+
+        Args:
+            tournament_id: Tournament ID.
+            scenario_name: Name of the scenario.
+
+        Returns:
+            Scenario info including outcome_space, issue_names, stats, etc.
+        """
+        path = cls.TOURNAMENTS_DIR / tournament_id
+        scenarios_dir = path / "scenarios"
+
+        if not scenarios_dir.exists():
+            return None
+
+        # Find the scenario directory
+        scenario_dir = scenarios_dir / scenario_name
+        if not scenario_dir.exists():
+            return None
+
+        # Load the main scenario YAML
+        scenario_yaml = scenario_dir / f"{scenario_name}.yml"
+        if not scenario_yaml.exists():
+            return None
+
+        try:
+            with open(scenario_yaml, "r") as f:
+                scenario_data = yaml.safe_load(f)
+
+            # Load stats if available
+            stats_file = scenario_dir / "stats.json"
+            stats = None
+            if stats_file.exists():
+                with open(stats_file, "r") as f:
+                    stats = json.load(f)
+
+            # Extract issue names - handle both list and dict formats
+            # The YAML stores issues as a list of {name, type, values}
+            issues = scenario_data.get("issues", [])
+            if isinstance(issues, list):
+                issue_names = [
+                    iss.get("name", f"Issue{idx}") for idx, iss in enumerate(issues)
+                ]
+            elif isinstance(issues, dict):
+                issue_names = list(issues.keys())
+            else:
+                issue_names = []
+
+            return {
+                "name": scenario_name,
+                "issues": issues,
+                "issue_names": issue_names,
+                "stats": stats,
+                "raw_data": scenario_data,
+            }
+
+        except Exception as e:
+            print(f"Error loading scenario {scenario_name} from {tournament_id}: {e}")
+            return None
+
+    @classmethod
+    def load_ufuns(cls, tournament_id: str, scenario_name: str) -> list[dict] | None:
+        """Load utility functions for a scenario from saved tournament.
+
+        Args:
+            tournament_id: Tournament ID.
+            scenario_name: Name of the scenario.
+
+        Returns:
+            List of ufun data dicts, or None if not found.
+        """
+        path = cls.TOURNAMENTS_DIR / tournament_id
+        scenario_dir = path / "scenarios" / scenario_name
+
+        if not scenario_dir.exists():
+            return None
+
+        ufuns = []
+        # Load 0_.yml, 1_.yml, etc. for each negotiator
+        for i in range(10):  # Support up to 10 negotiators
+            ufun_file = scenario_dir / f"{i}_.yml"
+            if not ufun_file.exists():
+                break
+
+            try:
+                with open(ufun_file, "r") as f:
+                    ufun_data = yaml.safe_load(f)
+                    ufuns.append(ufun_data)
+            except Exception as e:
+                print(f"Error loading ufun {i} for {scenario_name}: {e}")
+                break
+
+        return ufuns if ufuns else None
+
+    @classmethod
+    def calculate_utility(cls, ufun_data: dict, offer: tuple | list) -> float | None:
+        """Calculate utility for an offer using a saved ufun.
+
+        Supports LinearAdditiveUtilityFunction with TableFun values.
+
+        Args:
+            ufun_data: Parsed ufun data from YAML.
+            offer: The offer as a tuple/list of values.
+
+        Returns:
+            Utility value, or None if calculation fails.
+        """
+        try:
+            ufun_type = ufun_data.get("type", "")
+            if ufun_type != "LinearAdditiveUtilityFunction":
+                return None
+
+            weights = ufun_data.get("weights", [])
+            values = ufun_data.get("values", [])
+
+            if len(weights) != len(values) or len(offer) != len(values):
+                return None
+
+            utility = 0.0
+            for i, (weight, value_fun) in enumerate(zip(weights, values)):
+                mapping = value_fun.get("mapping", {})
+                offer_value = offer[i]
+                issue_utility = mapping.get(offer_value, 0.0)
+                utility += weight * issue_utility
+
+            return utility
+        except Exception as e:
+            print(f"Error calculating utility: {e}")
+            return None
+
+    @classmethod
+    def get_negotiation_trace_with_utilities(
+        cls, tournament_id: str, mechanism_name: str, scenario_name: str
+    ) -> dict | None:
+        """Get negotiation trace with per-offer utility calculations.
+
+        Args:
+            tournament_id: Tournament ID.
+            mechanism_name: The mechanism name (run_id) from the negotiation.
+            scenario_name: The scenario name for loading ufuns.
+
+        Returns:
+            Negotiation trace with offers and calculated utilities.
+        """
+        # Get the raw trace
+        trace_data = cls.get_negotiation_trace(tournament_id, mechanism_name)
+        if not trace_data:
+            return None
+
+        # Load ufuns for this scenario
+        ufuns = cls.load_ufuns(tournament_id, scenario_name)
+        if not ufuns:
+            # Return trace without utilities if ufuns not available
+            return trace_data
+
+        # Load scenario info to get issue names (for offer parsing order validation)
+        scenario_info = cls.get_scenario_info(tournament_id, scenario_name)
+        issue_names = scenario_info.get("issue_names", []) if scenario_info else []
+
+        # Calculate utilities for each offer
+        for row in trace_data.get("trace", []):
+            offer_str = row.get("offer", "")
+            if not offer_str:
+                continue
+
+            # Parse the offer tuple string
+            try:
+                offer_tuple = ast.literal_eval(offer_str)
+            except (ValueError, SyntaxError):
+                continue
+
+            # Calculate utility for each negotiator
+            utilities = []
+            for ufun in ufuns:
+                util = cls.calculate_utility(ufun, offer_tuple)
+                utilities.append(util)
+
+            row["utilities"] = utilities
+
+        return trace_data
 
     @classmethod
     def delete_tournament(cls, tournament_id: str) -> bool:
@@ -360,3 +698,52 @@ class TournamentStorageService:
         except Exception as e:
             print(f"Error deleting tournament {tournament_id}: {e}")
             return False
+
+    @classmethod
+    def _get_metadata_path(cls, tournament_id: str) -> Path:
+        """Get path to tournament metadata file."""
+        return cls.TOURNAMENTS_DIR / tournament_id / ".metadata.json"
+
+    @classmethod
+    def _load_metadata(cls, tournament_id: str) -> dict:
+        """Load tournament metadata (tags, archived status, etc.)."""
+        metadata_path = cls._get_metadata_path(tournament_id)
+        if not metadata_path.exists():
+            return {"tags": [], "archived": False}
+
+        try:
+            with open(metadata_path, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading metadata for {tournament_id}: {e}")
+            return {"tags": [], "archived": False}
+
+    @classmethod
+    def _save_metadata(cls, tournament_id: str, metadata: dict) -> bool:
+        """Save tournament metadata."""
+        path = cls.TOURNAMENTS_DIR / tournament_id
+        if not path.exists():
+            return False
+
+        metadata_path = cls._get_metadata_path(tournament_id)
+        try:
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f, indent=2)
+            return True
+        except Exception as e:
+            print(f"Error saving metadata for {tournament_id}: {e}")
+            return False
+
+    @classmethod
+    def set_archived(cls, tournament_id: str, archived: bool) -> bool:
+        """Set archived status for a tournament."""
+        metadata = cls._load_metadata(tournament_id)
+        metadata["archived"] = archived
+        return cls._save_metadata(tournament_id, metadata)
+
+    @classmethod
+    def set_tags(cls, tournament_id: str, tags: list[str]) -> bool:
+        """Set tags for a tournament."""
+        metadata = cls._load_metadata(tournament_id)
+        metadata["tags"] = tags
+        return cls._save_metadata(tournament_id, metadata)

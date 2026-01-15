@@ -116,13 +116,15 @@ class TestTournamentManagement:
 
         session = manager.create_session(config)
 
-        assert manager.cancel_session(session.id) is True
+        result = manager.cancel_session(session.id)
+        assert result.get("success") is True
         assert manager._cancel_flags[session.id] is True
 
     def test_cancel_nonexistent_session(self):
-        """Should return False for nonexistent session."""
+        """Should return error for nonexistent session."""
         manager = TournamentManager()
-        assert manager.cancel_session("nonexistent") is False
+        result = manager.cancel_session("nonexistent")
+        assert result.get("success") is False
 
 
 class TestTournamentStreamRun:
@@ -247,60 +249,3 @@ class TestTournamentStreamRun:
             await manager.run_tournament_batch("nonexistent")
 
         assert "Session not found" in str(exc_info.value)
-
-
-class TestScoreCalculation:
-    """Test score calculation methods."""
-
-    def test_calculate_final_scores_by_advantage(self):
-        """Should calculate scores using advantage metric."""
-        manager = TournamentManager()
-
-        stats = {
-            "Neg1": {
-                "utilities": [0.7, 0.8, 0.6],
-                "advantages": [0.2, 0.3, 0.1],
-                "n_negotiations": 3,
-                "n_agreements": 3,
-            },
-            "Neg2": {
-                "utilities": [0.5, 0.5, 0.5],
-                "advantages": [-0.2, -0.3, -0.1],
-                "n_negotiations": 3,
-                "n_agreements": 3,
-            },
-        }
-
-        scores = manager._calculate_final_scores(stats, "advantage", "mean")
-
-        assert len(scores) == 2
-        # Neg1 should rank higher (positive advantage)
-        assert scores[0].name == "Neg1"
-        assert scores[0].rank == 1
-        assert scores[1].name == "Neg2"
-        assert scores[1].rank == 2
-
-    def test_calculate_final_scores_by_utility(self):
-        """Should calculate scores using utility metric."""
-        manager = TournamentManager()
-
-        stats = {
-            "Neg1": {
-                "utilities": [0.9, 0.8, 0.7],
-                "advantages": [],
-                "n_negotiations": 3,
-                "n_agreements": 3,
-            },
-            "Neg2": {
-                "utilities": [0.5, 0.6, 0.4],
-                "advantages": [],
-                "n_negotiations": 3,
-                "n_agreements": 3,
-            },
-        }
-
-        scores = manager._calculate_final_scores(stats, "utility", "mean")
-
-        assert scores[0].name == "Neg1"
-        assert scores[0].mean_utility is not None
-        assert scores[0].mean_utility > scores[1].mean_utility

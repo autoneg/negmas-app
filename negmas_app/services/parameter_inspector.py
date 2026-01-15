@@ -13,6 +13,19 @@ _PARAMETER_CACHE: dict[str, list["ParameterInfo"]] = {}
 # Cache file path
 CACHE_FILE = Path.home() / "negmas" / "app" / "cache" / "negotiator_params.json"
 
+# Parameters from base Negotiator class that should be ignored
+# These are set by the app, not configured by users
+IGNORED_BASE_PARAMS = frozenset(
+    {
+        "preferences",
+        "ufun",
+        "id",
+        "name",
+        "parent",
+        "owner",
+    }
+)
+
 
 @dataclass
 class ParameterInfo:
@@ -245,6 +258,9 @@ def _get_class_init_params(cls: type) -> list[ParameterInfo]:
         if param_name.startswith("_"):
             continue
         if param_name in seen_names:
+            continue
+        # Skip base Negotiator class parameters that are set by the app
+        if param_name in IGNORED_BASE_PARAMS:
             continue
 
         seen_names.add(param_name)
