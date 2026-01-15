@@ -117,6 +117,8 @@ class TournamentConfig:
     normalize: bool = (
         True  # Normalize utility functions (recommended for fair aggregation)
     )
+    ignore_discount: bool = False  # Ignore discounting in utility functions
+    ignore_reserved: bool = False  # Ignore reserved values in utility functions
 
     # Execution
     njobs: int = -1  # -1 = serial (safer for web app), 0 = all cores

@@ -322,9 +322,20 @@ def _discover_from_negmas_registry() -> list[NegotiatorEntry]:
                 source = "native"
                 group = ""
 
+            # Determine module_path from full_type_name
+            module_path = ""
+            if info.full_type_name:
+                module_path = info.full_type_name.rsplit(".", 1)[0]
+
+            # Use the registry key to construct type_name to handle aliases properly
+            # For example, both NaiveTitForTatNegotiator and SimpleTitForTatNegotiator
+            # have the same full_type_name, but different registry keys
+            # We use module_path + key to create a unique, importable type_name
+            type_name = f"{module_path}.{key}" if module_path else f"negmas.{key}"
+
             # Create our NegotiatorInfo from negmas RegistryInfo
             neg_info = NegotiatorInfo(
-                type_name=info.full_type_name or f"negmas.{key}",
+                type_name=type_name,
                 name=info.short_name or key,
                 source=source,
                 group=group,
@@ -333,9 +344,7 @@ def _discover_from_negmas_registry() -> list[NegotiatorEntry]:
                 mechanisms=["SAO", "TAU", "GAO"] if "sao" in tags else ["SAO"],
                 requires_bridge="genius" in tags and "builtin" not in tags,
                 available=True,
-                module_path=info.full_type_name.rsplit(".", 1)[0]
-                if info.full_type_name
-                else "",
+                module_path=module_path,
             )
             entries.append(NegotiatorEntry(cls=info.cls, info=neg_info))
     except ImportError:

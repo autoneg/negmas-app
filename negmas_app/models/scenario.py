@@ -98,8 +98,8 @@ class ScenarioStatsInfo:
     modified_ks_utils: list[list[float]] | None = None
     max_relative_welfare_utils: list[list[float]] | None = None
 
-    # Pareto utilities for plotting (can be large)
-    pareto_utils: list[list[float]] | None = None
+    # Note: pareto_utils intentionally omitted - too large (can be 2MB+)
+    # Only n_pareto_outcomes is provided; full Pareto data computed on-demand for visualization
 
     # Negotiator names (for display)
     negotiator_names: list[str] | None = None

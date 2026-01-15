@@ -17,9 +17,9 @@
             </template>
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
-            <!-- Back to tournament button for saved negotiations from tournaments -->
-            <button class="btn btn-ghost btn-sm" x-show="currentNegotiation?.isSaved && currentNegotiation?.id?.startsWith('saved-')" 
-                    @click="currentNegotiation = null; currentPage = 'tournaments'" 
+            <!-- Back to tournament button for negotiations from tournaments -->
+            <button class="btn btn-ghost btn-sm" x-show="currentNegotiation?.isFromTournament || (currentNegotiation?.isSaved && currentNegotiation?.id?.startsWith('saved-'))" 
+                    @click="returnToTournament()" 
                     title="Back to tournament view">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                     <polyline points="15 18 9 12 15 6"></polyline>
@@ -27,7 +27,7 @@
                 <span>Back to Tournament</span>
             </button>
             <!-- Deselect button when viewing a negotiation -->
-            <button class="btn btn-ghost btn-sm" x-show="currentNegotiation && !(currentNegotiation?.isSaved && currentNegotiation?.id?.startsWith('saved-'))" @click="currentNegotiation = null" title="Close negotiation view">
+            <button class="btn btn-ghost btn-sm" x-show="currentNegotiation && !currentNegotiation?.isFromTournament && !(currentNegotiation?.isSaved && currentNegotiation?.id?.startsWith('saved-'))" @click="currentNegotiation = null" title="Close negotiation view">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1070,6 +1070,19 @@ app = function() {
         updateSavedTable() {
             if (this._savedTable) {
                 this._savedTable.replaceData(this.savedNegotiations);
+            }
+        },
+        
+        // Return to tournament view from a negotiation
+        returnToTournament() {
+            // Clear current negotiation
+            this.currentNegotiation = null;
+            // Switch to tournaments page
+            this.currentPage = 'tournaments';
+            // If we have a stored tournament reference, restore it
+            if (this._returnToTournament) {
+                this.selectedTournament = this._returnToTournament;
+                this._returnToTournament = null;
             }
         },
         

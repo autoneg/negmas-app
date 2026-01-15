@@ -1,13 +1,39 @@
 """Load and manage negotiation scenarios."""
 
+import re
+import time
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from negmas import Scenario
 from negmas.preferences.ops import is_rational
 
 from ..models import ScenarioInfo, IssueInfo, ScenarioStatsInfo
 from .settings_service import SettingsService
+
+
+# In-memory cache for scenario info (lightweight)
+# Key: scenario path (str), Value: (ScenarioInfo, cache_time)
+_SCENARIO_INFO_CACHE: dict[str, tuple[ScenarioInfo, float]] = {}
+
+# Cache for detailed scenario info (with full issue data)
+# Key: scenario path (str), Value: (ScenarioInfo with issues, cache_time)
+_SCENARIO_DETAIL_CACHE: dict[str, tuple[ScenarioInfo, float]] = {}
+
+# Cache TTL in seconds (5 minutes) - after this, we check if files changed
+_CACHE_TTL = 300.0
+
+# Regex for fast extraction of opposition from _stats.yaml without full YAML parsing
+_OPPOSITION_RE = re.compile(r"^opposition:\s*([0-9.eE+-]+)", re.MULTILINE)
+
+
+def clear_scenario_cache() -> None:
+    """Clear the in-memory scenario info cache."""
+    global _SCENARIO_INFO_CACHE, _SCENARIO_DETAIL_CACHE
+    _SCENARIO_INFO_CACHE.clear()
+    _SCENARIO_DETAIL_CACHE.clear()
 
 
 def calculate_rational_fraction(scenario: Scenario, max_samples: int = 50000) -> float:
@@ -76,17 +102,100 @@ class ScenarioLoader:
             src_path = self.scenarios_root / src
             for scenario_dir in sorted(src_path.iterdir()):
                 if scenario_dir.is_dir() and not scenario_dir.name.startswith("."):
-                    info = self._load_scenario_info(scenario_dir, src)
+                    # Use lightweight loading for list (no full Scenario.load)
+                    info = self._load_scenario_info_lightweight(scenario_dir, src)
                     if info:
                         scenarios.append(info)
 
         return scenarios
 
-    def _load_scenario_info(self, path: Path, source: str) -> ScenarioInfo | None:
-        """Load scenario info without full parsing."""
+    def _load_scenario_info_lightweight(
+        self, path: Path, source: str
+    ) -> ScenarioInfo | None:
+        """Load scenario info using lightweight file reads (no full Scenario.load).
+
+        This reads only the _info.yml and extracts opposition from _stats.yaml
+        using regex (avoiding expensive full YAML parsing of large files).
+        """
+        path_str = str(path)
+        current_time = time.time()
+
+        # Check cache first
+        if path_str in _SCENARIO_INFO_CACHE:
+            cached_info, cache_time = _SCENARIO_INFO_CACHE[path_str]
+            if current_time - cache_time < _CACHE_TTL:
+                return cached_info
+
         try:
-            # Load with stats and info to check if they're cached
-            scenario = Scenario.load(path, load_stats=True, load_info=True)  # type: ignore[attr-defined]
+            # Read _info.yml for n_outcomes and rational_fraction (small file, full YAML is fine)
+            n_outcomes = None
+            rational_fraction = None
+            info_file = path / "_info.yml"
+            if info_file.exists():
+                with open(info_file) as f:
+                    info_data = yaml.safe_load(f) or {}
+                    n_outcomes = info_data.get("n_outcomes")
+                    rational_fraction = info_data.get("rational_fraction")
+
+            # Extract opposition from _stats.yaml using regex (fast, avoids full YAML parsing)
+            # The _stats.yaml files can be large (2MB+) due to pareto data
+            opposition = None
+            has_stats = False
+            stats_file = path / "_stats.yaml"
+            if stats_file.exists():
+                has_stats = True
+                content = stats_file.read_text()
+                match = _OPPOSITION_RE.search(content)
+                if match:
+                    opposition = float(match.group(1))
+
+            # Count negotiator files (*.yml files that are not the main scenario or special files)
+            # Look for files that don't start with underscore and aren't the main scenario yml
+            ufun_files = [
+                f
+                for f in path.iterdir()
+                if f.is_file()
+                and f.suffix in (".yml", ".yaml")
+                and not f.name.startswith("_")
+                and f.stem.lower() != path.name.lower()  # Not the main scenario file
+            ]
+            n_negotiators = len(ufun_files) if ufun_files else 2  # Default to 2
+
+            info = ScenarioInfo(
+                path=str(path),
+                name=path.name,
+                n_negotiators=n_negotiators,
+                issues=[],  # Empty for lightweight load - filled on detail request
+                n_outcomes=n_outcomes,
+                rational_fraction=rational_fraction,
+                opposition=opposition,
+                source=source,
+                has_stats=has_stats,
+                has_info=rational_fraction is not None,
+            )
+
+            # Store in cache
+            _SCENARIO_INFO_CACHE[path_str] = (info, current_time)
+            return info
+
+        except Exception:
+            return None
+
+    def _load_scenario_info_full(self, path: Path, source: str) -> ScenarioInfo | None:
+        """Load full scenario info including issues (slower, for detail view)."""
+        path_str = str(path)
+        current_time = time.time()
+
+        # Check detail cache first
+        if path_str in _SCENARIO_DETAIL_CACHE:
+            cached_info, cache_time = _SCENARIO_DETAIL_CACHE[path_str]
+            if current_time - cache_time < _CACHE_TTL:
+                return cached_info
+
+        # Load full scenario - NO stats needed here, just issues/ufuns
+        # Stats are only loaded on-demand in get_scenario_stats()
+        try:
+            scenario = Scenario.load(path, load_stats=False, load_info=True)  # type: ignore[attr-defined]
             if scenario is None:
                 return None
 
@@ -104,18 +213,23 @@ class ScenarioLoader:
             if hasattr(scenario.outcome_space, "cardinality"):
                 n_outcomes = scenario.outcome_space.cardinality
 
-            # Get rational_fraction from cached info if available
             rational_fraction = None
             if scenario.info and "rational_fraction" in scenario.info:
                 rational_fraction = float(scenario.info["rational_fraction"])
 
-            # Get opposition from cached stats if available
+            # Extract opposition from _stats.yaml using regex (fast, avoids loading stats)
+            # Stats are NOT loaded here to save memory - only loaded on-demand
             opposition = None
-            if scenario.stats is not None and hasattr(scenario.stats, "opposition"):
-                if scenario.stats.opposition is not None:
-                    opposition = float(scenario.stats.opposition)
+            has_stats = False
+            stats_file = path / "_stats.yaml"
+            if stats_file.exists():
+                has_stats = True
+                content = stats_file.read_text()
+                match = _OPPOSITION_RE.search(content)
+                if match:
+                    opposition = float(match.group(1))
 
-            return ScenarioInfo(
+            info = ScenarioInfo(
                 path=str(path),
                 name=path.name,
                 n_negotiators=len(scenario.ufuns),
@@ -124,10 +238,19 @@ class ScenarioLoader:
                 rational_fraction=rational_fraction,
                 opposition=opposition,
                 source=source,
-                has_stats=scenario.stats is not None,
+                has_stats=has_stats,
                 has_info=scenario.info is not None
                 and "rational_fraction" in scenario.info,
             )
+
+            # Store in detail cache
+            _SCENARIO_DETAIL_CACHE[path_str] = (info, current_time)
+
+            # Also update lightweight cache (without replacing if has issues)
+            if path_str not in _SCENARIO_INFO_CACHE:
+                _SCENARIO_INFO_CACHE[path_str] = (info, current_time)
+
+            return info
         except Exception:
             return None
 
@@ -157,14 +280,14 @@ class ScenarioLoader:
         )  # type: ignore[attr-defined]
 
     def get_scenario_info(self, path: str | Path) -> ScenarioInfo | None:
-        """Get info for a specific scenario."""
+        """Get info for a specific scenario (with full details including issues)."""
         path = Path(path)
         # Determine source from path
         try:
             source = path.parent.name
         except Exception:
             source = "unknown"
-        return self._load_scenario_info(path, source)
+        return self._load_scenario_info_full(path, source)
 
     def get_scenario_stats(self, path: str | Path) -> ScenarioStatsInfo:
         """Get scenario statistics.
@@ -251,6 +374,13 @@ class ScenarioLoader:
                 except Exception:
                     pass  # Ignore save errors (e.g., read-only filesystem)
 
+            # Invalidate in-memory caches so next list_scenarios picks up new stats
+            path_str = str(path)
+            if path_str in _SCENARIO_INFO_CACHE:
+                del _SCENARIO_INFO_CACHE[path_str]
+            if path_str in _SCENARIO_DETAIL_CACHE:
+                del _SCENARIO_DETAIL_CACHE[path_str]
+
         return self._extract_stats(scenario)
 
     def _extract_stats(self, scenario: Scenario) -> ScenarioStatsInfo:
@@ -323,7 +453,8 @@ class ScenarioLoader:
             modified_kalai_utils=to_list(stats.modified_kalai_utils),
             modified_ks_utils=to_list(getattr(stats, "modified_ks_utils", None)),
             max_relative_welfare_utils=to_list(stats.max_relative_welfare_utils),
-            pareto_utils=to_list(stats.pareto_utils),
+            # Note: pareto_utils intentionally NOT included - too large (can be 2MB+)
+            # Pareto frontier is computed on-demand for visualization in outcome_analysis.py
             negotiator_names=negotiator_names,
             issue_names=issue_names,
         )

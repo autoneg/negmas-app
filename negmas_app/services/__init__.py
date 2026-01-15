@@ -1,6 +1,6 @@
 """Business logic services for NegMAS App."""
 
-from .scenario_loader import ScenarioLoader
+from .scenario_loader import ScenarioLoader, clear_scenario_cache
 from .negotiator_factory import NegotiatorFactory, NEGOTIATOR_REGISTRY, BOAFactory
 from .mechanism_factory import MechanismFactory
 from .session_manager import SessionManager
@@ -40,6 +40,7 @@ except ImportError:
 
 __all__ = [
     "ScenarioLoader",
+    "clear_scenario_cache",
     "NegotiatorFactory",
     "NEGOTIATOR_REGISTRY",
     "BOAFactory",

@@ -240,11 +240,16 @@ class TournamentManager:
         Callable[[Any], None],
         Callable[[Any], None],
         Callable[[dict[str, Any]], None],
+        Callable[[str, int, int], None],
     ]:
         """Create callback functions for the tournament.
 
         These callbacks update the shared TournamentState and push events
         to the event queue for SSE streaming.
+
+        Returns:
+            Tuple of (before_start_callback, after_construction_callback,
+                     after_end_callback, progress_callback)
         """
         state = self._tournament_states[session_id]
 
@@ -258,10 +263,20 @@ class TournamentManager:
             partner_names = list(info.partner_names) if info.partner_names else []
             rep = info.rep
 
+            # Parse scenario name for rotation suffix (e.g., "domain-1" -> base="domain", rotated=True)
+            base_scenario_name = scenario_name
+            rotated = False
+            if "-" in scenario_name:
+                parts = scenario_name.rsplit("-", 1)
+                if len(parts) == 2 and parts[1].isdigit():
+                    rotation_idx = int(parts[1])
+                    if rotation_idx > 0:
+                        rotated = True
+                        base_scenario_name = parts[0]
+
             # Determine competitor/opponent indices
             comp_idx = 0
             opp_idx = 0
-            rotated = False
 
             if len(partner_names) >= 2:
                 p0, p1 = partner_names[0], partner_names[1]
@@ -270,11 +285,11 @@ class TournamentManager:
                     comp_idx = state.competitor_names.index(p0)
                 if p1 in state.opponent_names:
                     opp_idx = state.opponent_names.index(p1)
-                # Check if rotated (partner order swapped from normal)
-                # This is a heuristic - negmas handles rotation internally
 
             scenario_idx = 0
-            if scenario_name in state.scenario_names:
+            if base_scenario_name in state.scenario_names:
+                scenario_idx = state.scenario_names.index(base_scenario_name)
+            elif scenario_name in state.scenario_names:
                 scenario_idx = state.scenario_names.index(scenario_name)
 
             # Create cell_start update
@@ -321,12 +336,23 @@ class TournamentManager:
             else:
                 end_reason = NegotiationEndReason.TIMEOUT
 
+            # Parse scenario name for rotation suffix (e.g., "domain-1" -> base="domain", rotated=True)
+            # negmas appends "-N" to scenario names for rotated runs where N > 0
+            base_scenario_name = scenario_name
+            rotated = False
+            if "-" in scenario_name:
+                parts = scenario_name.rsplit("-", 1)
+                if len(parts) == 2 and parts[1].isdigit():
+                    rotation_idx = int(parts[1])
+                    if rotation_idx > 0:
+                        rotated = True
+                        base_scenario_name = parts[0]
+
             # Get indices
             comp_idx = 0
             opp_idx = 0
             scenario_idx = 0
             rep = 0
-            rotated = False
 
             if len(partners) >= 2:
                 p0, p1 = partners[0], partners[1]
@@ -335,7 +361,11 @@ class TournamentManager:
                 if p1 in state.opponent_names:
                     opp_idx = state.opponent_names.index(p1)
 
-            if scenario_name in state.scenario_names:
+            # Try to match the base scenario name to our list
+            if base_scenario_name in state.scenario_names:
+                scenario_idx = state.scenario_names.index(base_scenario_name)
+            elif scenario_name in state.scenario_names:
+                # Fallback to exact match (for non-rotated or differently named scenarios)
                 scenario_idx = state.scenario_names.index(scenario_name)
 
             # Get scenario path
@@ -387,7 +417,35 @@ class TournamentManager:
             )
             state.event_queue.put(("progress", state.progress))
 
-        return before_start_callback, after_construction_callback, after_end_callback
+        def progress_callback(message: str, current: int, total: int) -> None:
+            """Called during tournament setup to report progress.
+
+            Args:
+                message: Description of current setup phase.
+                current: Current step (1-3 typically).
+                total: Total steps (3 typically).
+            """
+            if self._cancel_flags.get(session_id, False):
+                return
+
+            # Emit a setup_progress event
+            state.event_queue.put(
+                (
+                    "setup_progress",
+                    {
+                        "message": message,
+                        "current": current,
+                        "total": total,
+                    },
+                )
+            )
+
+        return (
+            before_start_callback,
+            after_construction_callback,
+            after_end_callback,
+            progress_callback,
+        )
 
     def _update_stats_from_record(
         self,
@@ -491,12 +549,37 @@ class TournamentManager:
         config = session.config
 
         try:
+            # Emit initial setup progress
+            state.event_queue.put(
+                (
+                    "setup_progress",
+                    {
+                        "message": "Loading scenarios...",
+                        "current": 0,
+                        "total": 4,
+                    },
+                )
+            )
+
             # Load scenarios
             scenarios: list[Scenario] = []  # type: ignore[type-arg]
             scenario_names: list[str] = []
             scenario_paths: list[str] = []
 
-            for path in config.scenario_paths:
+            n_scenario_paths = len(config.scenario_paths)
+            for idx, path in enumerate(config.scenario_paths):
+                # Emit progress for each scenario
+                if idx % 10 == 0 or idx == n_scenario_paths - 1:
+                    state.event_queue.put(
+                        (
+                            "setup_progress",
+                            {
+                                "message": f"Loading scenario {idx + 1}/{n_scenario_paths}...",
+                                "current": 0,
+                                "total": 4,
+                            },
+                        )
+                    )
                 scenario = self.scenario_loader.load_scenario(path)
                 if scenario is not None:
                     if config.normalize:
@@ -519,6 +602,18 @@ class TournamentManager:
             state.scenarios = scenarios
             state.scenario_names = scenario_names
             state.scenario_paths = scenario_paths
+
+            # Emit progress for competitor loading
+            state.event_queue.put(
+                (
+                    "setup_progress",
+                    {
+                        "message": "Loading competitor classes...",
+                        "current": 1,
+                        "total": 4,
+                    },
+                )
+            )
 
             # Get competitor classes
             competitors: list[type[SAONegotiator]] = []
@@ -553,6 +648,17 @@ class TournamentManager:
             opponent_names: list[str] = []
 
             if config.opponent_types is not None:
+                # Emit progress for opponent loading
+                state.event_queue.put(
+                    (
+                        "setup_progress",
+                        {
+                            "message": "Loading opponent classes...",
+                            "current": 2,
+                            "total": 4,
+                        },
+                    )
+                )
                 opponents = []
                 for type_name in config.opponent_types:
                     cls = _get_class_for_type(type_name)
@@ -585,6 +691,18 @@ class TournamentManager:
                     state.event_queue.put(("error", state.error))
                     return
                 state.opponent_names = competitor_names
+
+            # Emit progress for building tournament configuration
+            state.event_queue.put(
+                (
+                    "setup_progress",
+                    {
+                        "message": "Building tournament configuration...",
+                        "current": 3,
+                        "total": 4,
+                    },
+                )
+            )
 
             # Calculate total negotiations
             n_competitors = len(competitors)
@@ -622,8 +740,8 @@ class TournamentManager:
             state.event_queue.put(("progress", state.progress))
 
             # Create callbacks
-            before_cb, after_const_cb, after_end_cb = self._create_callbacks(
-                session_id, config
+            before_cb, after_const_cb, after_end_cb, progress_cb = (
+                self._create_callbacks(session_id, config)
             )
 
             # Get mechanism class
@@ -653,10 +771,13 @@ class TournamentManager:
                 "save_every": config.save_every,
                 "verbosity": config.verbosity,
                 "path": Path(config.save_path) if config.save_path else None,
+                "ignore_discount": config.ignore_discount,
+                "ignore_reserved": config.ignore_reserved,
                 # Callbacks
                 "before_start_callback": before_cb,
                 "after_construction_callback": after_const_cb,
                 "after_end_callback": after_end_cb,
+                "progress_callback": progress_cb,
             }
 
             # Save config before starting
@@ -725,8 +846,44 @@ class TournamentManager:
             if results.details is not None and "agreement" in results.details.columns:
                 total_agreements = int(results.details["agreement"].notna().sum())
 
+            # Build negotiation_results from completed_cells
+            negotiation_results: list[NegotiationResult] = []
+            for cell in state.completed_cells:
+                scenario_name = (
+                    state.scenario_names[cell.scenario_idx]
+                    if cell.scenario_idx < len(state.scenario_names)
+                    else "unknown"
+                )
+                competitor_name = (
+                    state.competitor_names[cell.competitor_idx]
+                    if cell.competitor_idx < len(state.competitor_names)
+                    else "unknown"
+                )
+                opponent_name = (
+                    state.opponent_names[cell.opponent_idx]
+                    if cell.opponent_idx < len(state.opponent_names)
+                    else "unknown"
+                )
+
+                neg_result = NegotiationResult(
+                    scenario=scenario_name,
+                    partners=[competitor_name, opponent_name],
+                    agreement=cell.agreement,
+                    utilities=cell.utilities,
+                    advantages=None,  # Not tracked in cells
+                    has_error=cell.end_reason
+                    in (NegotiationEndReason.ERROR, NegotiationEndReason.BROKEN),
+                    error_details=cell.error,
+                    execution_time=None,  # Not tracked
+                    end_reason=cell.end_reason,
+                    scenario_path=cell.scenario_path,
+                    n_steps=cell.n_steps,
+                )
+                negotiation_results.append(neg_result)
+
             session.results = TournamentResults(
                 final_scores=final_scores,
+                negotiation_results=negotiation_results,
                 total_negotiations=total_completed,
                 total_agreements=total_agreements,
                 overall_agreement_rate=(
@@ -743,10 +900,34 @@ class TournamentManager:
             state.event_queue.put(("complete", session))
 
         except Exception as e:
+            import traceback
+            import sys
+
+            # Get full traceback
+            exc_type, exc_value, exc_tb = sys.exc_info()
+            tb_lines = traceback.format_exception(exc_type, exc_value, exc_tb)
+            full_traceback = "".join(tb_lines)
+
+            # Log to console/file
+            print(f"[TournamentManager] Tournament {session_id} failed with error:")
+            print(full_traceback)
+
+            # Also log to a file for easier debugging
+            try:
+                log_path = Path("/tmp/negmas-tournament-error.log")
+                with open(log_path, "a") as f:
+                    f.write(f"\n{'=' * 60}\n")
+                    f.write(f"Tournament {session_id} failed at {datetime.now()}\n")
+                    f.write(f"{'=' * 60}\n")
+                    f.write(full_traceback)
+                    f.write("\n")
+            except Exception:
+                pass  # Don't fail if we can't write the log
+
             state.status = TournamentStatus.FAILED
-            state.error = str(e)
+            state.error = f"{str(e)}\n\nFull traceback written to /tmp/negmas-tournament-error.log"
             session.status = TournamentStatus.FAILED
-            session.error = str(e)
+            session.error = f"{str(e)}\n\nFull traceback written to /tmp/negmas-tournament-error.log"
             session.end_time = datetime.now()
             state.event_queue.put(("error", str(e)))
 
@@ -834,6 +1015,8 @@ class TournamentManager:
 
                 # Handle different event types
                 if event_type == "grid_init":
+                    yield event_data
+                elif event_type == "setup_progress":
                     yield event_data
                 elif event_type == "cell_start":
                     yield event_data

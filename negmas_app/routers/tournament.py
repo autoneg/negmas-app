@@ -79,6 +79,8 @@ class TournamentConfigRequest(BaseModel):
     normalize: bool = (
         True  # Normalize utility functions (recommended for fair aggregation)
     )
+    ignore_discount: bool = False  # Ignore discounting in utility functions
+    ignore_reserved: bool = False  # Ignore reserved values in utility functions
 
     # Execution
     njobs: int = -1
@@ -144,6 +146,8 @@ async def start_tournament(request: TournamentConfigRequest):
         save_scenario_figs=request.save_scenario_figs,
         save_every=request.save_every,
         normalize=request.normalize,
+        ignore_discount=request.ignore_discount,
+        ignore_reserved=request.ignore_reserved,
         njobs=request.njobs,
         save_path=request.save_path,
         verbosity=request.verbosity,
@@ -191,6 +195,12 @@ async def stream_tournament(session_id: str):
                                 "total_negotiations": event.total_negotiations,
                             }
                         ),
+                    }
+                elif isinstance(event, dict) and "message" in event:
+                    # Setup progress event from progress_callback
+                    yield {
+                        "event": "setup_progress",
+                        "data": json.dumps(event),
                     }
                 elif isinstance(event, CellUpdate):
                     # Build the event data
@@ -688,3 +698,111 @@ async def get_scenario_info(tournament_id: str, scenario_name: str):
     if scenario is None:
         raise HTTPException(status_code=404, detail="Scenario not found")
     return scenario
+
+
+@router.get("/saved/{tournament_id}/files")
+async def get_tournament_files(tournament_id: str):
+    """Get list of available files in the tournament directory.
+
+    Args:
+        tournament_id: Tournament ID.
+
+    Returns:
+        Dict with file categories and their availability.
+    """
+    files = await asyncio.to_thread(
+        TournamentStorageService.get_tournament_files, tournament_id
+    )
+    if not files:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    return files
+
+
+@router.get("/saved/{tournament_id}/config")
+async def get_tournament_config(tournament_id: str):
+    """Get tournament configuration from config.json.
+
+    Args:
+        tournament_id: Tournament ID.
+
+    Returns:
+        Config dict from the tournament.
+    """
+    config = await asyncio.to_thread(
+        TournamentStorageService.get_tournament_config, tournament_id
+    )
+    if config is None:
+        raise HTTPException(status_code=404, detail="Config not found")
+    return config
+
+
+@router.get("/saved/{tournament_id}/scores")
+async def get_tournament_scores(tournament_id: str):
+    """Get final scores from scores.csv.
+
+    Args:
+        tournament_id: Tournament ID.
+
+    Returns:
+        List of score dicts with strategy and score.
+    """
+    scores = await asyncio.to_thread(
+        TournamentStorageService.get_scores_csv, tournament_id
+    )
+    if scores is None:
+        raise HTTPException(status_code=404, detail="Scores not found")
+    return {"scores": scores}
+
+
+@router.get("/saved/{tournament_id}/type_scores")
+async def get_tournament_type_scores(tournament_id: str):
+    """Get detailed type scores from type_scores.csv.
+
+    Args:
+        tournament_id: Tournament ID.
+
+    Returns:
+        Dict with metrics, stat names, and per-strategy values.
+    """
+    type_scores = await asyncio.to_thread(
+        TournamentStorageService.get_type_scores_csv, tournament_id
+    )
+    if type_scores is None:
+        raise HTTPException(status_code=404, detail="Type scores not found")
+    return type_scores
+
+
+@router.get("/saved/{tournament_id}/all_scores")
+async def get_tournament_all_scores(tournament_id: str):
+    """Get per-negotiation scores from all_scores.csv.
+
+    Args:
+        tournament_id: Tournament ID.
+
+    Returns:
+        List of per-negotiation score dicts.
+    """
+    all_scores = await asyncio.to_thread(
+        TournamentStorageService.get_all_scores_csv, tournament_id
+    )
+    if all_scores is None:
+        raise HTTPException(status_code=404, detail="All scores not found")
+    return {"scores": all_scores}
+
+
+@router.get("/saved/{tournament_id}/details")
+async def get_tournament_details(tournament_id: str):
+    """Get detailed negotiation results from details.csv.
+
+    Args:
+        tournament_id: Tournament ID.
+
+    Returns:
+        List of detailed negotiation result dicts.
+    """
+    details = await asyncio.to_thread(
+        TournamentStorageService.get_details_csv, tournament_id
+    )
+    if details is None:
+        raise HTTPException(status_code=404, detail="Details not found")
+    return {"details": details}

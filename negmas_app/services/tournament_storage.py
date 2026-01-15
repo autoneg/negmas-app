@@ -747,3 +747,186 @@ class TournamentStorageService:
         metadata = cls._load_metadata(tournament_id)
         metadata["tags"] = tags
         return cls._save_metadata(tournament_id, metadata)
+
+    @classmethod
+    def get_tournament_config(cls, tournament_id: str) -> dict | None:
+        """Get tournament configuration from config.json.
+
+        Args:
+            tournament_id: Tournament ID.
+
+        Returns:
+            Config dict or None if not found.
+        """
+        path = cls.TOURNAMENTS_DIR / tournament_id / "config.json"
+        if not path.exists():
+            return None
+
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading config for {tournament_id}: {e}")
+            return None
+
+    @classmethod
+    def get_scores_csv(cls, tournament_id: str) -> list[dict] | None:
+        """Get final scores from scores.csv.
+
+        Args:
+            tournament_id: Tournament ID.
+
+        Returns:
+            List of score dicts with strategy and score.
+        """
+        path = cls.TOURNAMENTS_DIR / tournament_id / "scores.csv"
+        if not path.exists():
+            return None
+
+        try:
+            scores = []
+            with open(path, "r") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    scores.append(dict(row))
+            return scores
+        except Exception as e:
+            print(f"Error loading scores.csv for {tournament_id}: {e}")
+            return None
+
+    @classmethod
+    def get_type_scores_csv(cls, tournament_id: str) -> dict | None:
+        """Get detailed type scores from type_scores.csv.
+
+        Args:
+            tournament_id: Tournament ID.
+
+        Returns:
+            Dict with headers and rows (transposed for readability).
+        """
+        path = cls.TOURNAMENTS_DIR / tournament_id / "type_scores.csv"
+        if not path.exists():
+            return None
+
+        try:
+            rows = []
+            headers = []
+            with open(path, "r") as f:
+                reader = csv.reader(f)
+                for idx, row in enumerate(reader):
+                    if idx == 0:
+                        # First row is metric names repeated
+                        headers = row
+                    elif idx == 1:
+                        # Second row is stat names (count, mean, std, etc.)
+                        stats = row
+                    else:
+                        # Data rows: index (strategy name), then values
+                        rows.append({"strategy": row[0], "values": row[1:]})
+
+            # Parse the metrics structure
+            metrics = []
+            current_metric = None
+            stat_names = ["count", "mean", "std", "min", "25%", "50%", "75%", "max"]
+            for i, header in enumerate(headers[1:], start=1):  # Skip index column
+                if header and header != current_metric:
+                    current_metric = header
+                    metrics.append({"name": header, "start_idx": i})
+
+            return {
+                "metrics": [m["name"] for m in metrics],
+                "stat_names": stat_names,
+                "strategies": rows,
+            }
+        except Exception as e:
+            print(f"Error loading type_scores.csv for {tournament_id}: {e}")
+            return None
+
+    @classmethod
+    def get_all_scores_csv(cls, tournament_id: str) -> list[dict] | None:
+        """Get per-negotiation scores from all_scores.csv.
+
+        Args:
+            tournament_id: Tournament ID.
+
+        Returns:
+            List of per-negotiation score dicts.
+        """
+        path = cls.TOURNAMENTS_DIR / tournament_id / "all_scores.csv"
+        if not path.exists():
+            return None
+
+        try:
+            scores = []
+            with open(path, "r") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    scores.append(dict(row))
+            return scores
+        except Exception as e:
+            print(f"Error loading all_scores.csv for {tournament_id}: {e}")
+            return None
+
+    @classmethod
+    def get_details_csv(cls, tournament_id: str) -> list[dict] | None:
+        """Get detailed negotiation results from details.csv.
+
+        Args:
+            tournament_id: Tournament ID.
+
+        Returns:
+            List of detailed negotiation result dicts.
+        """
+        path = cls.TOURNAMENTS_DIR / tournament_id / "details.csv"
+        if not path.exists():
+            return None
+
+        try:
+            details = []
+            with open(path, "r") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    details.append(dict(row))
+            return details
+        except Exception as e:
+            print(f"Error loading details.csv for {tournament_id}: {e}")
+            return None
+
+    @classmethod
+    def get_tournament_files(cls, tournament_id: str) -> dict:
+        """Get list of available files in the tournament directory.
+
+        Args:
+            tournament_id: Tournament ID.
+
+        Returns:
+            Dict with file categories and their availability.
+        """
+        path = cls.TOURNAMENTS_DIR / tournament_id
+        if not path.exists():
+            return {}
+
+        files = {
+            "config": (path / "config.json").exists(),
+            "scores": (path / "scores.csv").exists(),
+            "type_scores": (path / "type_scores.csv").exists(),
+            "all_scores": (path / "all_scores.csv").exists(),
+            "details": (path / "details.csv").exists(),
+            "negotiations_dir": (path / "negotiations").exists(),
+            "scenarios_dir": (path / "scenarios").exists(),
+            "plots_dir": (path / "plots").exists(),
+            "results_dir": (path / "results").exists(),
+            "negotiator_behavior_dir": (path / "negotiator_behavior").exists(),
+        }
+
+        # Count files in subdirectories
+        if files["negotiations_dir"]:
+            files["negotiations_count"] = len(
+                list((path / "negotiations").glob("*.csv"))
+            )
+        if files["scenarios_dir"]:
+            files["scenarios_count"] = len(list((path / "scenarios").iterdir()))
+        if files["plots_dir"]:
+            files["plots_count"] = len(list((path / "plots").glob("*")))
+
+        return files

@@ -229,6 +229,14 @@ body {
     animation: spin 1s linear infinite;
 }
 
+.header-loading {
+    color: var(--text-secondary);
+}
+
+.header-loading .spin {
+    animation: spin 1s linear infinite;
+}
+
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
@@ -4237,5 +4245,193 @@ body {
 .tournament-scenario-tab.active {
     background: var(--primary-light);
     color: var(--primary);
+}
+
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    padding: 12px 20px;
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    font-weight: 500;
+    font-size: 14px;
+    max-width: 400px;
+}
+
+.toast-success {
+    background: var(--success);
+    color: white;
+}
+
+.toast-error {
+    background: var(--danger);
+    color: white;
+}
+
+.toast-info {
+    background: var(--primary);
+    color: white;
+}
+
+.dark-mode .toast-success {
+    background: var(--success);
+}
+
+.dark-mode .toast-error {
+    background: var(--danger);
+}
+
+.dark-mode .toast-info {
+    background: var(--primary);
+}
+
+/* Raw Data Panel Styles */
+.raw-data-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+}
+
+.raw-data-tab {
+    padding: 6px 12px;
+    font-size: 12px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.15s ease;
+}
+
+.raw-data-tab:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.raw-data-tab.active {
+    background: var(--bg-primary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.raw-data-content {
+    padding: 12px;
+    max-height: 300px;
+    overflow: auto;
+}
+
+.raw-data-json {
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    padding: 12px;
+    overflow: auto;
+}
+
+.raw-data-json pre {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-secondary);
+}
+
+.raw-data-table-container {
+    overflow: auto;
+}
+
+.raw-data-table-info {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.raw-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.raw-data-table th,
+.raw-data-table td {
+    padding: 6px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.raw-data-table th {
+    font-weight: 600;
+    background: var(--bg-tertiary);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.raw-data-table tr:hover {
+    background: var(--bg-tertiary);
+}
+
+.raw-data-table .truncate-cell {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.raw-data-files {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.file-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.file-item svg {
+    flex-shrink: 0;
+    color: var(--text-tertiary);
+}
+
+.file-path {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+}
+
+.file-path code {
+    font-family: var(--font-mono);
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 4px;
+    word-break: break-all;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 24px;
+    color: var(--text-tertiary);
+    font-size: 12px;
 }
 
