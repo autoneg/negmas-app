@@ -1,0 +1,28 @@
+<!-- Issue Frequency / Histogram Panel -->
+<div class="panel panel-compact panel-histogram" x-ref="panelHistogram" :class="{'collapsed': panelCollapsed.histogram}">
+    <span class="panel-collapsed-label" x-show="panelCollapsed.histogram">HISTOGRAM</span>
+    <div class="panel-floating-actions panel-floating-actions-left">
+        <button class="panel-btn" title="Save as Image" @click="savePlot('issue-frequency-container', 'issue-frequency')" x-show="!panelCollapsed.histogram">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+        </button>
+        <button class="panel-btn" title="Zoom" @click="zoomPanel('Issue Frequency', 'issue-frequency-container')" x-show="!panelCollapsed.histogram">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+            </svg>
+        </button>
+        <button class="panel-btn panel-collapse-btn" title="Toggle panel" @click="panelCollapsed.histogram = !panelCollapsed.histogram">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+    </div>
+    <div class="panel-content panel-content-compact" style="padding: 0; position: relative; overflow: hidden;" x-show="!panelCollapsed.histogram">
+        <div id="issue-frequency-container" style="width: 100%; height: 100%;"></div>
+        <div x-show="!currentNegotiation?.offers || currentNegotiation.offers.length === 0" class="empty-state-mini" style="position: absolute; inset: 0; background: var(--bg-secondary);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px; opacity: 0.4;">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+            </svg>
+            <span class="text-muted">Waiting...</span>
+        </div>
+    </div>
+</div>

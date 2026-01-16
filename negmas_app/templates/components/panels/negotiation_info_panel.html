@@ -1,0 +1,53 @@
+<!-- Negotiation Info Panel - Ultra Compact -->
+<div class="panel panel-compact panel-info" x-ref="panelInfo" :class="{'collapsed': panelCollapsed.info}">
+    <span class="panel-collapsed-label" x-show="panelCollapsed.info">INFO</span>
+    <div class="panel-floating-actions">
+        <!-- Show "Saved" badge for saved negotiations -->
+        <template x-if="currentNegotiation?.isSaved">
+            <span class="badge badge-xs badge-ghost" style="font-size: 9px;">SAVED</span>
+        </template>
+        <!-- Only show controls for live (non-saved) negotiations -->
+        <template x-if="currentNegotiation?.pendingStart && !currentNegotiation?.isSaved">
+            <button class="panel-btn panel-btn-primary" title="Start" @click="actuallyStartNegotiation()">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </button>
+        </template>
+        <template x-if="currentNegotiation && !currentNegotiation?.isSaved && !currentNegotiation?.pendingStart && !currentNegotiation?.agreement && !currentNegotiation?.end_reason">
+            <div style="display: flex; gap: 2px;">
+                <button class="panel-btn" :title="currentNegotiation?.paused ? 'Resume' : 'Pause'" @click="togglePause()">
+                    <svg x-show="!currentNegotiation?.paused" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                    <svg x-show="currentNegotiation?.paused" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                </button>
+                <button class="panel-btn" title="Cancel" @click="stopNegotiation()">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
+                </button>
+            </div>
+        </template>
+        <button class="panel-btn panel-collapse-btn" title="Toggle panel" @click="panelCollapsed.info = !panelCollapsed.info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <button class="panel-btn" title="Scenario Stats" @click="showScenarioStatsModal = true; loadCurrentNegotiationStats()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+        </button>
+    </div>
+    <div class="panel-content-ultra-compact" x-show="!panelCollapsed.info">
+        <!-- Row 1: Scenario + Status + Progress -->
+        <div class="info-row">
+            <span class="info-scenario" x-text="currentNegotiation?.scenario"></span>
+            <span class="badge badge-xs" 
+                  :class="{'badge-warning': currentNegotiation?.pendingStart, 'badge-primary': !currentNegotiation?.pendingStart && !currentNegotiation?.agreement && !currentNegotiation?.end_reason && !currentNegotiation?.paused, 'badge-info': currentNegotiation?.paused, 'badge-success': currentNegotiation?.agreement, 'badge-neutral': currentNegotiation?.end_reason && !currentNegotiation?.agreement}"
+                  x-text="currentNegotiation?.pendingStart ? 'Pending' : (currentNegotiation?.agreement ? 'Done' : (currentNegotiation?.end_reason ? 'End' : (currentNegotiation?.paused ? 'Paused' : 'Running')))"></span>
+            <span class="info-stats" x-text="(currentNegotiation?.step || 0) + '/' + (currentNegotiation?.n_steps || '∞') + ' steps'"></span>
+            <span class="info-stats" x-text="(currentNegotiation?.offers?.length || 0) + ' offers'"></span>
+            <div class="info-progress" x-show="!currentNegotiation?.pendingStart && !currentNegotiation?.agreement && !currentNegotiation?.end_reason">
+                <div class="progress-mini"><div class="progress-bar" :style="'width: ' + Math.min(100, (currentNegotiation?.relative_time || 0) * 100) + '%'"></div></div>
+            </div>
+        </div>
+        <!-- Row 2: Negotiators (only if needed) -->
+        <div class="info-row info-row-negotiators">
+            <template x-for="(name, idx) in (currentNegotiation?.negotiator_names || [])" :key="idx">
+                <span class="badge badge-xs" :style="'background: ' + (currentNegotiation?.negotiator_colors?.[idx] || 'var(--primary)') + '; color: white;'" x-text="name"></span>
+            </template>
+        </div>
+    </div>
+</div>

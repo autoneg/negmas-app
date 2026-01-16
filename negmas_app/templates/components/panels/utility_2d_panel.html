@@ -1,0 +1,46 @@
+<!-- 2D Utility View Panel -->
+<div class="panel panel-compact panel-2d-utility" x-ref="panel2dUtility" :class="{'collapsed': panelCollapsed.utility2d}">
+    <span class="panel-collapsed-label" x-show="panelCollapsed.utility2d">2D VIEW</span>
+    <div class="panel-floating-actions panel-floating-actions-left">
+        <div class="panel-inline-controls" x-show="currentNegotiation?.panelSettings?.adjustable && !panelCollapsed.utility2d">
+            <select class="form-select form-select-xs" x-model.number="panelState.utilityView.xAxis" @change="applyUtilityViewAxes()" title="X-Axis">
+                <template x-for="(name, idx) in (currentNegotiation?.negotiator_names || [])" :key="idx">
+                    <option :value="idx" x-text="name.substring(0, 6)"></option>
+                </template>
+            </select>
+            <span style="font-size: 9px; opacity: 0.5;">×</span>
+            <select class="form-select form-select-xs" x-model.number="panelState.utilityView.yAxis" @change="applyUtilityViewAxes()" title="Y-Axis">
+                <template x-for="(name, idx) in (currentNegotiation?.negotiator_names || [])" :key="idx">
+                    <option :value="idx" x-text="name.substring(0, 6)"></option>
+                </template>
+            </select>
+        </div>
+        <button class="panel-btn" title="Save as Image" @click="savePlot('outcome-space-plot', '2d-utility-view')" x-show="!panelCollapsed.utility2d">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+        </button>
+        <button class="panel-btn" title="Zoom" @click="zoomPanel('2D Utility View', 'outcome-space-plot')" x-show="!panelCollapsed.utility2d">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+            </svg>
+        </button>
+        <button class="panel-btn" title="Reset View" @click="resetPlotView()" x-show="!panelCollapsed.utility2d">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+            </svg>
+        </button>
+        <button class="panel-btn panel-collapse-btn" title="Toggle panel" @click="panelCollapsed.utility2d = !panelCollapsed.utility2d">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+    </div>
+    <div class="panel-content panel-content-compact" style="padding: 0; position: relative;" x-show="!panelCollapsed.utility2d">
+        <div id="outcome-space-plot" style="width: 100%; height: 100%;"></div>
+        <div x-show="!currentNegotiation?.outcome_space_data" class="empty-state-mini" style="position: absolute; inset: 0; background: var(--bg-secondary);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px; opacity: 0.4;">
+                <circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/>
+            </svg>
+            <span class="text-muted">Loading...</span>
+        </div>
+    </div>
+</div>

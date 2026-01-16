@@ -1,0 +1,96 @@
+<!-- Result Panel - Ultra Compact -->
+<div class="panel panel-compact panel-result" x-ref="panelResult" 
+     :class="{
+         'collapsed': panelCollapsed.result,
+         'panel-result-agreement': currentNegotiation?.agreement,
+         'panel-result-disagreement': currentNegotiation?.end_reason && !currentNegotiation?.agreement && !currentNegotiation?.error,
+         'panel-result-error': currentNegotiation?.error
+     }">
+    <span class="panel-collapsed-label" x-show="panelCollapsed.result">RESULT</span>
+    <div class="panel-floating-actions">
+        <button class="panel-btn" title="Save Results" @click="saveResults()" x-show="currentNegotiation?.agreement || currentNegotiation?.end_reason">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <button class="panel-btn panel-collapse-btn" title="Toggle panel" @click="panelCollapsed.result = !panelCollapsed.result">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+    </div>
+    <div class="panel-content-ultra-compact" x-show="!panelCollapsed.result">
+        <template x-if="currentNegotiation?.agreement">
+            <div class="result-row result-agreement-display">
+                <span class="result-state-badge agreement">Agreement</span>
+                <template x-for="(value, key) in currentNegotiation.agreement" :key="key">
+                    <span class="result-item"><span class="text-muted" x-text="key"></span>=<strong x-text="value"></strong></span>
+                </template>
+                <span class="result-separator">→</span>
+                <template x-for="(util, idx) in (currentNegotiation.final_utilities || [])" :key="idx">
+                    <span class="result-utility-labeled" :style="'color: ' + (currentNegotiation?.negotiator_colors?.[idx] || 'var(--primary)')">
+                        <span class="utility-name" x-text="(currentNegotiation?.negotiator_names?.[idx] || '').substring(0, 3)"></span>
+                        <span x-text="util.toFixed(3)"></span>
+                    </span>
+                </template>
+            </div>
+        </template>
+        <!-- Optimality Statistics Row (shown when stats are available) -->
+        <template x-if="currentNegotiation?.optimality_stats">
+            <div class="result-row result-optimality-stats" style="font-size: 10px; gap: 6px; flex-wrap: wrap; padding: 2px 6px; background: var(--bg-tertiary); border-top: 1px solid var(--border-color);">
+                <span class="optimality-stat" title="Pareto Optimality - how close to the Pareto frontier (1.0 = on frontier)">
+                    <span class="text-muted">Pareto:</span>
+                    <strong :class="{'text-success': currentNegotiation.optimality_stats.pareto_optimality >= 0.95, 'text-warning': currentNegotiation.optimality_stats.pareto_optimality >= 0.8 && currentNegotiation.optimality_stats.pareto_optimality < 0.95}"
+                            x-text="(currentNegotiation.optimality_stats.pareto_optimality * 100).toFixed(1) + '%'"></strong>
+                </span>
+                <span class="optimality-stat" title="Nash Optimality - closeness to Nash bargaining solution">
+                    <span class="text-muted">Nash:</span>
+                    <strong x-text="(currentNegotiation.optimality_stats.nash_optimality * 100).toFixed(1) + '%'"></strong>
+                </span>
+                <span class="optimality-stat" title="Kalai Optimality - closeness to egalitarian solution">
+                    <span class="text-muted">Kalai:</span>
+                    <strong x-text="(currentNegotiation.optimality_stats.kalai_optimality * 100).toFixed(1) + '%'"></strong>
+                </span>
+                <span class="optimality-stat" title="Max Welfare Optimality - closeness to social welfare maximum">
+                    <span class="text-muted">Welfare:</span>
+                    <strong x-text="(currentNegotiation.optimality_stats.max_welfare_optimality * 100).toFixed(1) + '%'"></strong>
+                </span>
+                <span class="optimality-stat" title="Kalai-Smorodinsky Optimality - closeness to proportional solution">
+                    <span class="text-muted">KS:</span>
+                    <strong x-text="(currentNegotiation.optimality_stats.ks_optimality * 100).toFixed(1) + '%'"></strong>
+                </span>
+            </div>
+        </template>
+        <template x-if="currentNegotiation?.end_reason && !currentNegotiation?.agreement">
+            <div class="result-row result-final-state">
+                <span class="result-state-badge" 
+                      :class="{
+                          'timeout': currentNegotiation.end_reason === 'timeout' || currentNegotiation.end_reason === 'no_agreement',
+                          'error': currentNegotiation.error,
+                          'ended': !currentNegotiation.error && currentNegotiation.end_reason !== 'timeout' && currentNegotiation.end_reason !== 'no_agreement'
+                      }"
+                      x-text="currentNegotiation.error ? 'Error' : (currentNegotiation.end_reason === 'timeout' || currentNegotiation.end_reason === 'no_agreement' ? 'No Agreement' : 'Ended')"></span>
+                <template x-if="currentNegotiation.error">
+                    <span class="result-error-scrollable" x-text="currentNegotiation.error"></span>
+                </template>
+                <template x-if="!currentNegotiation.error">
+                    <span class="text-muted result-reason" x-text="currentNegotiation.end_reason"></span>
+                </template>
+            </div>
+        </template>
+        <template x-if="!currentNegotiation?.end_reason && !currentNegotiation?.agreement && !currentNegotiation?.pendingStart">
+            <div class="result-row result-row-progress">
+                <div class="progress-container" style="flex: 1; display: flex; align-items: center; gap: 8px;">
+                    <div class="progress-bar-container" style="flex: 1; height: 6px; background: var(--bg-tertiary); border-radius: 3px; overflow: hidden;">
+                        <div class="progress-bar" 
+                             :style="'width: ' + Math.min(100, getNegotiationProgress(currentNegotiation) * 100) + '%'">
+                        </div>
+                    </div>
+                    <span class="text-muted" style="font-size: 11px; min-width: 40px;" 
+                          x-text="Math.round(getNegotiationProgress(currentNegotiation) * 100) + '%'"></span>
+                </div>
+                <span class="text-muted" style="font-size: 10px; margin-left: 8px;" 
+                      x-text="'Step ' + (currentNegotiation?.step || 0) + (currentNegotiation?.n_steps ? '/' + currentNegotiation.n_steps : '')"></span>
+            </div>
+        </template>
+        <template x-if="currentNegotiation?.pendingStart">
+            <div class="result-row result-row-center"><span class="text-muted">Ready</span></div>
+        </template>
+    </div>
+</div>
