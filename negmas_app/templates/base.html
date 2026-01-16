@@ -58,14 +58,19 @@
             
             <!-- Content Area - Negotiations -->
             <main class="content-area" x-show="currentPage === 'negotiations'">
-                {% block content %}{% endblock %}
+                {% include 'components/pages/negotiations_list_page.html' %}
+                {% include 'components/pages/negotiation_view_page.html' %}
             </main>
             
             {% include 'components/pages/scenarios_page.html' %}
             
             {% include 'components/pages/negotiators_page.html' %}
             
-            {% include 'components/pages/tournaments_page.html' %}
+            <!-- Content Area - Tournaments -->
+            <div class="content-area tournament-page" x-show="currentPage === 'tournaments'" x-cloak>
+                {% include 'components/pages/tournaments_list_page.html' %}
+                {% include 'components/pages/tournament_view_page.html' %}
+            </div>
         </div>
     </div>
     
@@ -380,6 +385,9 @@
             virtualNegotiatorParams: {},
             virtualNegotiatorName: '',
             creatingVirtualNegotiator: false,
+            baseTypeVirtualNegotiators: [],
+            baseTypeVirtualNegotiatorsLoading: false,
+            editingVirtualNegotiator: null,
             
             // Running/completed negotiations
             runningNegotiations: [],
@@ -1148,8 +1156,26 @@
                 this.virtualNegotiatorParams = {};
                 this.virtualNegotiatorName = negotiator.name;
                 
-                // Load parameters for this negotiator
-                await this.loadNegotiatorExplorerParams(negotiator.type_name);
+                // Load parameters and virtual negotiators in parallel
+                await Promise.all([
+                    this.loadNegotiatorExplorerParams(negotiator.type_name),
+                    this.loadBaseTypeVirtualNegotiators(negotiator.type_name)
+                ]);
+            },
+            
+            async loadBaseTypeVirtualNegotiators(typeName) {
+                this.baseTypeVirtualNegotiatorsLoading = true;
+                this.baseTypeVirtualNegotiators = [];
+                try {
+                    const res = await fetch(`/api/negotiators/virtual/by-base/${encodeURIComponent(typeName)}?include_disabled=true`);
+                    if (!res.ok) throw new Error('Failed to load virtual negotiators');
+                    const data = await res.json();
+                    this.baseTypeVirtualNegotiators = data.virtual_negotiators || [];
+                } catch (e) {
+                    console.error('Failed to load virtual negotiators:', e);
+                } finally {
+                    this.baseTypeVirtualNegotiatorsLoading = false;
+                }
             },
             
             async loadNegotiatorExplorerParams(typeName) {
@@ -1209,15 +1235,99 @@
                     this.virtualNegotiatorParams = {};
                     this.virtualNegotiatorName = this.selectedExplorerNegotiator.name;
                     
-                    // Refresh negotiator list
+                    // Refresh negotiator list and virtual negotiators list
                     this.explorerNegotiators = [];
-                    await this.loadNegotiatorsForExplorer();
+                    await Promise.all([
+                        this.loadNegotiatorsForExplorer(),
+                        this.loadBaseTypeVirtualNegotiators(this.selectedExplorerNegotiator.type_name)
+                    ]);
                     
                 } catch (e) {
                     console.error('Failed to create virtual negotiator:', e);
                     alert('Failed to create virtual negotiator: ' + e.message);
                 } finally {
                     this.creatingVirtualNegotiator = false;
+                }
+            },
+            
+            async toggleVirtualNegotiatorEnabled(vn) {
+                const action = vn.enabled ? 'disable' : 'enable';
+                try {
+                    const res = await fetch(`/api/negotiators/virtual/${vn.id}/${action}`, {
+                        method: 'POST'
+                    });
+                    if (!res.ok) {
+                        const error = await res.json();
+                        throw new Error(error.detail || `Failed to ${action} virtual negotiator`);
+                    }
+                    // Update local state
+                    vn.enabled = !vn.enabled;
+                } catch (e) {
+                    console.error(`Failed to ${action} virtual negotiator:`, e);
+                    alert(`Failed to ${action} virtual negotiator: ` + e.message);
+                }
+            },
+            
+            async editVirtualNegotiator(vn) {
+                // For now, populate the form with the virtual negotiator's values for editing
+                const newName = prompt('Enter new name for virtual negotiator:', vn.name);
+                if (newName === null) return; // Cancelled
+                if (!newName.trim()) {
+                    alert('Name cannot be empty');
+                    return;
+                }
+                
+                const newDescription = prompt('Enter description (optional):', vn.description || '');
+                if (newDescription === null) return; // Cancelled
+                
+                try {
+                    const res = await fetch(`/api/negotiators/virtual/${vn.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: newName.trim(),
+                            description: newDescription
+                        })
+                    });
+                    
+                    if (!res.ok) {
+                        const error = await res.json();
+                        throw new Error(error.detail || 'Failed to update virtual negotiator');
+                    }
+                    
+                    // Refresh the list
+                    await this.loadBaseTypeVirtualNegotiators(this.selectedExplorerNegotiator.type_name);
+                    
+                } catch (e) {
+                    console.error('Failed to update virtual negotiator:', e);
+                    alert('Failed to update virtual negotiator: ' + e.message);
+                }
+            },
+            
+            async deleteVirtualNegotiator(vn) {
+                if (!confirm(`Are you sure you want to delete "${vn.name}"? This cannot be undone.`)) {
+                    return;
+                }
+                
+                try {
+                    const res = await fetch(`/api/negotiators/virtual/${vn.id}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (!res.ok) {
+                        const error = await res.json();
+                        throw new Error(error.detail || 'Failed to delete virtual negotiator');
+                    }
+                    
+                    // Refresh both lists
+                    await Promise.all([
+                        this.loadNegotiatorsForExplorer(),
+                        this.loadBaseTypeVirtualNegotiators(this.selectedExplorerNegotiator.type_name)
+                    ]);
+                    
+                } catch (e) {
+                    console.error('Failed to delete virtual negotiator:', e);
+                    alert('Failed to delete virtual negotiator: ' + e.message);
                 }
             },
             

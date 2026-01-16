@@ -264,6 +264,9 @@ class VirtualNegotiator:
     # Timestamp when last modified (ISO format string)
     modified_at: str = ""
 
+    # Whether this virtual negotiator is enabled (disabled ones are hidden from searches/lists)
+    enabled: bool = True
+
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -275,6 +278,7 @@ class VirtualNegotiator:
             "params": self.params,
             "created_at": self.created_at,
             "modified_at": self.modified_at,
+            "enabled": self.enabled,
         }
 
     @classmethod
@@ -289,4 +293,5 @@ class VirtualNegotiator:
             params=data.get("params", {}),
             created_at=data.get("created_at", ""),
             modified_at=data.get("modified_at", ""),
+            enabled=data.get("enabled", True),
         )

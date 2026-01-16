@@ -55,6 +55,7 @@ class VirtualNegotiatorService:
         search: str | None = None,
         tags: list[str] | None = None,
         base_type: str | None = None,
+        include_disabled: bool = False,
     ) -> list[VirtualNegotiator]:
         """List all virtual negotiators with optional filtering.
 
@@ -62,11 +63,16 @@ class VirtualNegotiatorService:
             search: Search string to match in name/description
             tags: Filter by tags (match any)
             base_type: Filter by base negotiator type
+            include_disabled: If True, include disabled virtual negotiators
 
         Returns:
             List of matching virtual negotiators.
         """
         all_vns = list(cls._load_all().values())
+
+        # Filter out disabled by default
+        if not include_disabled:
+            all_vns = [vn for vn in all_vns if vn.enabled]
 
         if search:
             search_lower = search.lower()
@@ -121,7 +127,7 @@ class VirtualNegotiatorService:
             base_type_name: Full type name of the base negotiator
             params: Custom parameters for the negotiator
             description: User-friendly description
-            tags: Tags for categorization
+            tags: Tags for categorization (will include "virtual" automatically)
 
         Returns:
             The created virtual negotiator.
@@ -136,16 +142,22 @@ class VirtualNegotiatorService:
         if cls.get_by_name(name):
             raise ValueError(f"A virtual negotiator named '{name}' already exists")
 
+        # Ensure "virtual" tag is always present
+        final_tags = list(tags) if tags else []
+        if "virtual" not in final_tags:
+            final_tags.insert(0, "virtual")
+
         now = datetime.now(timezone.utc).isoformat()
         vn = VirtualNegotiator(
             id=str(uuid.uuid4()),
             name=name.strip(),
             base_type_name=base_type_name,
             description=description,
-            tags=tags or [],
+            tags=final_tags,
             params=params or {},
             created_at=now,
             modified_at=now,
+            enabled=True,
         )
 
         cls._load_all()[vn.id] = vn
@@ -220,6 +232,47 @@ class VirtualNegotiatorService:
         del cache[vn_id]
         cls._save_all()
         return True
+
+    @classmethod
+    def set_enabled(cls, vn_id: str, enabled: bool) -> VirtualNegotiator | None:
+        """Enable or disable a virtual negotiator.
+
+        Args:
+            vn_id: ID of the virtual negotiator
+            enabled: New enabled state
+
+        Returns:
+            The updated virtual negotiator, or None if not found.
+        """
+        vn = cls.get(vn_id)
+        if vn is None:
+            return None
+
+        vn.enabled = enabled
+        vn.modified_at = datetime.now(timezone.utc).isoformat()
+        cls._save_all()
+        return vn
+
+    @classmethod
+    def list_by_base_type(
+        cls, base_type: str, include_disabled: bool = True
+    ) -> list[VirtualNegotiator]:
+        """List all virtual negotiators based on a specific negotiator type.
+
+        Args:
+            base_type: The base negotiator type name to filter by
+            include_disabled: If True, include disabled virtual negotiators
+
+        Returns:
+            List of virtual negotiators based on the specified type.
+        """
+        all_vns = list(cls._load_all().values())
+        result = [vn for vn in all_vns if vn.base_type_name == base_type]
+
+        if not include_disabled:
+            result = [vn for vn in result if vn.enabled]
+
+        return sorted(result, key=lambda vn: vn.name.lower())
 
     @classmethod
     def duplicate(

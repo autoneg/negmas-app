@@ -175,6 +175,9 @@ async def list_virtual_negotiators(
     search: str | None = Query(None, description="Search in name/description/tags"),
     tags: str | None = Query(None, description="Comma-separated tags to filter by"),
     base_type: str | None = Query(None, description="Filter by base negotiator type"),
+    include_disabled: bool = Query(
+        False, description="Include disabled virtual negotiators"
+    ),
 ):
     """List all virtual negotiators with optional filtering.
 
@@ -182,6 +185,7 @@ async def list_virtual_negotiators(
         search: Search string to match in name/description/tags
         tags: Comma-separated tags (match any)
         base_type: Filter by base negotiator type name
+        include_disabled: If True, include disabled virtual negotiators
 
     Returns:
         List of virtual negotiator objects.
@@ -193,6 +197,7 @@ async def list_virtual_negotiators(
         search=search,
         tags=tag_list,
         base_type=base_type,
+        include_disabled=include_disabled,
     )
     return {
         "virtual_negotiators": [vn.to_dict() for vn in virtual_negotiators],
@@ -314,6 +319,66 @@ async def duplicate_virtual_negotiator(
     if vn is None:
         raise HTTPException(status_code=404, detail="Virtual negotiator not found")
     return {"virtual_negotiator": vn.to_dict(), "status": "duplicated"}
+
+
+@router.post("/virtual/{vn_id}/enable")
+async def enable_virtual_negotiator(vn_id: str):
+    """Enable a virtual negotiator.
+
+    Args:
+        vn_id: Virtual negotiator ID
+
+    Returns:
+        The updated virtual negotiator.
+    """
+    vn = await asyncio.to_thread(VirtualNegotiatorService.set_enabled, vn_id, True)
+    if vn is None:
+        raise HTTPException(status_code=404, detail="Virtual negotiator not found")
+    return {"virtual_negotiator": vn.to_dict(), "status": "enabled"}
+
+
+@router.post("/virtual/{vn_id}/disable")
+async def disable_virtual_negotiator(vn_id: str):
+    """Disable a virtual negotiator.
+
+    Args:
+        vn_id: Virtual negotiator ID
+
+    Returns:
+        The updated virtual negotiator.
+    """
+    vn = await asyncio.to_thread(VirtualNegotiatorService.set_enabled, vn_id, False)
+    if vn is None:
+        raise HTTPException(status_code=404, detail="Virtual negotiator not found")
+    return {"virtual_negotiator": vn.to_dict(), "status": "disabled"}
+
+
+@router.get("/virtual/by-base/{base_type:path}")
+async def list_virtual_negotiators_by_base(
+    base_type: str,
+    include_disabled: bool = Query(
+        True, description="Include disabled virtual negotiators"
+    ),
+):
+    """List all virtual negotiators based on a specific negotiator type.
+
+    Args:
+        base_type: The base negotiator type name
+        include_disabled: If True, include disabled virtual negotiators
+
+    Returns:
+        List of virtual negotiators based on the specified type.
+    """
+    virtual_negotiators = await asyncio.to_thread(
+        VirtualNegotiatorService.list_by_base_type,
+        base_type=base_type,
+        include_disabled=include_disabled,
+    )
+    return {
+        "virtual_negotiators": [vn.to_dict() for vn in virtual_negotiators],
+        "count": len(virtual_negotiators),
+        "base_type": base_type,
+    }
 
 
 # =============================================================================
