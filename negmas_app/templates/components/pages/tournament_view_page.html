@@ -1,0 +1,237 @@
+<!-- Single Tournament View - Shown when a tournament is selected -->
+<div class="tournament-single-view" x-show="selectedTournament">
+    <!-- Compact Header -->
+    <div class="table-header" style="margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <h2 style="font-size: 16px;" x-text="selectedTournament?._fromSaved ? selectedTournament?.id : 'Tournament #' + selectedTournament?.id"></h2>
+        </div>
+        <div class="tournament-actions" style="display: flex; gap: 8px;">
+            <button class="btn btn-sm btn-ghost" @click="selectedTournament = null">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                Close
+            </button>
+            <button class="btn btn-sm btn-danger" 
+                    x-show="selectedTournament?.status === 'running'"
+                    @click="cancelTournament(selectedTournament.id)">
+                Cancel
+            </button>
+        </div>
+    </div>
+    
+    <!-- Tournament View Container -->
+    <div class="tournament-view-container" x-show="selectedTournament?.status === 'running' || selectedTournament?.status === 'completed'" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+        <!-- Stats Bar (single line) -->
+        <div class="tournament-stats-bar">
+            <div class="tournament-stats-inline">
+                <span class="stat-inline">
+                    <span class="stat-label">Negotiations:</span>
+                    <span class="stat-value" x-text="selectedTournament?.status === 'completed' ? (selectedTournament?.results?.total_negotiations || 0) : ((selectedTournament?.progress?.completed || 0) + '/' + (selectedTournament?.progress?.total || 0))"></span>
+                </span>
+                <span class="stat-inline" x-show="selectedTournament?.status === 'completed'">
+                    <span class="stat-label">Agreements:</span>
+                    <span class="stat-value" x-text="(selectedTournament?.results?.total_agreements || 0) + ' (' + Math.round((selectedTournament?.results?.overall_agreement_rate || 0) * 100) + '%)'"></span>
+                </span>
+                <span class="stat-inline" x-show="selectedTournament?.status === 'running'">
+                    <span class="stat-label">Progress:</span>
+                    <span class="stat-value" x-text="Math.round(selectedTournament?.progress?.percent || 0) + '%'"></span>
+                </span>
+                <span class="stat-inline" x-show="selectedTournament?.results?.execution_time">
+                    <span class="stat-label">Duration:</span>
+                    <span class="stat-value" x-text="(selectedTournament?.results?.execution_time || 0).toFixed(1) + 's'"></span>
+                </span>
+            </div>
+            <!-- Progress bar for running tournaments -->
+            <div class="tournament-progress-bar-inline" x-show="selectedTournament?.status === 'running'">
+                <div class="tournament-progress-fill" :style="'width: ' + (selectedTournament?.progress?.percent || 0) + '%'"></div>
+            </div>
+        </div>
+        
+        <!-- Main content: Grid + Scores panels -->
+        <div class="tournament-main-panels">
+            {% include 'components/panels/tournament_grid_panel.html' %}
+            
+            {% include 'components/panels/tournament_scores_panel.html' %}
+        </div>
+        
+        {% include 'components/panels/tournament_negotiations_panel.html' %}
+        
+        <!-- Saved Tournament Additional Panels (only for saved tournaments) -->
+        <template x-if="selectedTournament?._fromSaved">
+            <div class="tournament-saved-details">
+                <!-- Configuration Panel -->
+                <div class="tournament-detail-panel" :class="{ collapsed: tournamentPanelCollapsed.savedConfig }">
+                    <div class="tournament-panel-header" @click="tournamentPanelCollapsed.savedConfig = !tournamentPanelCollapsed.savedConfig">
+                        <h3>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                 :style="{ transform: tournamentPanelCollapsed.savedConfig ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                            Tournament Configuration
+                        </h3>
+                    </div>
+                    <div class="tournament-panel-content" x-show="!tournamentPanelCollapsed.savedConfig" x-collapse>
+                        <div class="config-grid">
+                            <div class="config-item">
+                                <span class="config-label">Competitors:</span>
+                                <span x-text="(selectedTournament?.n_competitors || 0) + ' negotiators'"></span>
+                            </div>
+                            <div class="config-item">
+                                <span class="config-label">Scenarios:</span>
+                                <span x-text="(selectedTournament?.n_scenarios || 0) + ' domains'"></span>
+                            </div>
+                            <div class="config-item">
+                                <span class="config-label">Total Negotiations:</span>
+                                <span x-text="selectedTournament?.n_negotiations || 0"></span>
+                            </div>
+                            <div class="config-item">
+                                <span class="config-label">Agreements:</span>
+                                <span x-text="(selectedTournament?.n_agreements || 0) + ' (' + Math.round((selectedTournament?.agreement_rate || 0) * 100) + '%)'"></span>
+                            </div>
+                            <div class="config-item">
+                                <span class="config-label">Created:</span>
+                                <span x-text="selectedTournament?.created_at ? new Date(selectedTournament.created_at).toLocaleString() : '-'"></span>
+                            </div>
+                            <div class="config-item" style="grid-column: 1 / -1;">
+                                <span class="config-label">Path:</span>
+                                <code style="font-size: 11px; word-break: break-all;" x-text="selectedTournament?.path || '-'"></code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Scores Breakdown Panel -->
+                <div class="tournament-detail-panel" :class="{ collapsed: tournamentPanelCollapsed.savedScores }" x-show="selectedTournament?.scores?.length > 0">
+                    <div class="tournament-panel-header" @click="tournamentPanelCollapsed.savedScores = !tournamentPanelCollapsed.savedScores">
+                        <h3>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                 :style="{ transform: tournamentPanelCollapsed.savedScores ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                            Final Scores (<span x-text="selectedTournament?.scores?.length || 0"></span>)
+                        </h3>
+                    </div>
+                    <div class="tournament-panel-content" x-show="!tournamentPanelCollapsed.savedScores" x-collapse>
+                        <div class="tournament-final-rankings">
+                            <template x-for="score in (selectedTournament?.scores || [])" :key="score.name">
+                                <div class="leaderboard-entry" :class="'rank-' + score.rank">
+                                    <div class="leaderboard-rank" x-text="score.rank"></div>
+                                    <div class="leaderboard-info">
+                                        <div class="leaderboard-name" x-text="score.name"></div>
+                                        <div class="leaderboard-stats">
+                                            <span x-text="'Score: ' + (score.score?.toFixed(3) || '-')"></span>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-xs btn-ghost" @click="console.log('View details for', score.name)" title="View details">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                
+                {% include 'components/panels/tournament_score_analysis_panel.html' %}
+                
+                <!-- Negotiations List with View Button -->
+                <div class="tournament-detail-panel" :class="{ collapsed: tournamentPanelCollapsed.savedNegotiations }" x-show="selectedTournament?.negotiations?.length > 0">
+                    <div class="tournament-panel-header" @click="tournamentPanelCollapsed.savedNegotiations = !tournamentPanelCollapsed.savedNegotiations">
+                        <h3>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                                 :style="{ transform: tournamentPanelCollapsed.savedNegotiations ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                            All Negotiations (<span x-text="selectedTournament?.negotiations?.length || 0"></span>)
+                        </h3>
+                    </div>
+                    <div class="tournament-panel-content negotiations-list" x-show="!tournamentPanelCollapsed.savedNegotiations" x-collapse>
+                        <table class="tournament-table tournament-negotiations-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Scenario</th>
+                                    <th>Partners</th>
+                                    <th>Result</th>
+                                    <th>Utilities</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(neg, idx) in (selectedTournament?.negotiations || [])" :key="'saved-neg-' + idx">
+                                    <tr class="negotiation-row">
+                                        <td x-text="idx + 1"></td>
+                                        <td x-text="neg.scenario || '-'"></td>
+                                        <td x-text="(neg.partners || []).join(' vs ')"></td>
+                                        <td>
+                                            <span class="badge badge-sm" :class="neg.has_agreement ? 'badge-success' : 'badge-warning'"
+                                                  x-text="neg.has_agreement ? 'Agreement' : 'No Agreement'"></span>
+                                        </td>
+                                        <td x-text="neg.utilities ? neg.utilities.map(u => u.toFixed(2)).join(', ') : '-'"></td>
+                                        <td>
+                                            <button class="btn btn-xs btn-primary" 
+                                                    @click="loadSavedNegotiationTrace(selectedTournament.id, idx)" 
+                                                    :disabled="loadingTraceIndex !== null"
+                                                    title="View in negotiation viewer">
+                                                <template x-if="loadingTraceIndex === idx">
+                                                    <span class="loading loading-spinner loading-xs"></span>
+                                                </template>
+                                                <template x-if="loadingTraceIndex !== idx">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                                                    </svg>
+                                                </template>
+                                                <span x-text="loadingTraceIndex === idx ? 'Loading...' : 'View'"></span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            {% include 'components/panels/tournament_raw_data_panel.html' %}
+        </template>
+    </div>
+    
+    <!-- Error Section (for failed tournaments) -->
+    <div class="tournament-error-section" x-show="selectedTournament?.status === 'failed'">
+        <div class="error-message">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span x-text="selectedTournament?.error || 'Unknown error'"></span>
+        </div>
+    </div>
+    
+    <!-- Config Section -->
+    <div class="tournament-config-section" x-show="selectedTournament?.config && selectedTournament?.config.competitor_types?.length > 0">
+        <h4>Configuration</h4>
+        <div class="config-grid">
+            <div class="config-item">
+                <span class="config-label">Competitors:</span>
+                <span x-text="selectedTournament?.config?.competitor_types?.join(', ') || '-'"></span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Scenarios:</span>
+                <span x-text="(selectedTournament?.config?.scenario_paths?.length || 0) + ' selected'"></span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Repetitions:</span>
+                <span x-text="selectedTournament?.config?.n_repetitions || 1"></span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Mechanism:</span>
+                <span x-text="selectedTournament?.config?.mechanism_type || 'SAOMechanism'"></span>
+            </div>
+        </div>
+    </div>
+</div>
