@@ -451,7 +451,12 @@ class TournamentStorageService:
                         value_idx = start_idx + j
                         if value_idx < len(row):
                             try:
-                                metric_stats[stat_name] = float(row[value_idx])
+                                val = float(row[value_idx])
+                                # Sanitize inf/-inf/nan for JSON compatibility
+                                if math.isnan(val) or math.isinf(val):
+                                    metric_stats[stat_name] = None
+                                else:
+                                    metric_stats[stat_name] = val
                             except (ValueError, TypeError):
                                 metric_stats[stat_name] = None
                     result[strategy_name][metric_name] = metric_stats
