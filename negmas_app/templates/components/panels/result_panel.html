@@ -1,11 +1,12 @@
-<!-- Result Panel - Ultra Compact -->
+<!-- Result Panel - Shows agreement/result with optimality stats -->
 <div class="panel panel-compact panel-result" x-ref="panelResult" 
      :class="{
          'collapsed': panelCollapsed.result,
          'panel-result-agreement': currentNegotiation?.agreement,
          'panel-result-disagreement': currentNegotiation?.end_reason && !currentNegotiation?.agreement && !currentNegotiation?.error,
          'panel-result-error': currentNegotiation?.error
-     }">
+     }"
+     :style="currentNegotiation?.agreement || currentNegotiation?.optimality_stats ? 'max-height: 160px; flex: 0 0 auto;' : ''">
     <span class="panel-collapsed-label" x-show="panelCollapsed.result">RESULT</span>
     <div class="panel-floating-actions">
         <button class="panel-btn" title="Save Results" @click="saveResults()" x-show="currentNegotiation?.agreement || currentNegotiation?.end_reason">
@@ -15,7 +16,8 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
         </button>
     </div>
-    <div class="panel-content-ultra-compact" x-show="!panelCollapsed.result">
+    <div class="panel-content-ultra-compact" x-show="!panelCollapsed.result" style="overflow-y: auto;">
+        <!-- Agreement Display -->
         <template x-if="currentNegotiation?.agreement">
             <div class="result-row result-agreement-display">
                 <span class="result-state-badge agreement">Agreement</span>
@@ -31,32 +33,68 @@
                 </template>
             </div>
         </template>
-        <!-- Optimality Statistics Row (shown when stats are available) -->
-        <template x-if="currentNegotiation?.optimality_stats">
-            <div class="result-row result-optimality-stats" style="font-size: 10px; gap: 6px; flex-wrap: wrap; padding: 2px 6px; background: var(--bg-tertiary); border-top: 1px solid var(--border-color);">
-                <span class="optimality-stat" title="Pareto Optimality - how close to the Pareto frontier (1.0 = on frontier)">
-                    <span class="text-muted">Pareto:</span>
-                    <strong :class="{'text-success': currentNegotiation.optimality_stats.pareto_optimality >= 0.95, 'text-warning': currentNegotiation.optimality_stats.pareto_optimality >= 0.8 && currentNegotiation.optimality_stats.pareto_optimality < 0.95}"
-                            x-text="(currentNegotiation.optimality_stats.pareto_optimality * 100).toFixed(1) + '%'"></strong>
-                </span>
-                <span class="optimality-stat" title="Nash Optimality - closeness to Nash bargaining solution">
-                    <span class="text-muted">Nash:</span>
-                    <strong x-text="(currentNegotiation.optimality_stats.nash_optimality * 100).toFixed(1) + '%'"></strong>
-                </span>
-                <span class="optimality-stat" title="Kalai Optimality - closeness to egalitarian solution">
-                    <span class="text-muted">Kalai:</span>
-                    <strong x-text="(currentNegotiation.optimality_stats.kalai_optimality * 100).toFixed(1) + '%'"></strong>
-                </span>
-                <span class="optimality-stat" title="Max Welfare Optimality - closeness to social welfare maximum">
-                    <span class="text-muted">Welfare:</span>
-                    <strong x-text="(currentNegotiation.optimality_stats.max_welfare_optimality * 100).toFixed(1) + '%'"></strong>
-                </span>
-                <span class="optimality-stat" title="Kalai-Smorodinsky Optimality - closeness to proportional solution">
-                    <span class="text-muted">KS:</span>
-                    <strong x-text="(currentNegotiation.optimality_stats.ks_optimality * 100).toFixed(1) + '%'"></strong>
-                </span>
+        
+        <!-- Optimality Statistics - More prominent display -->
+        <template x-if="currentNegotiation?.optimality_stats && (currentNegotiation.optimality_stats.pareto_optimality != null || currentNegotiation.optimality_stats.nash_optimality != null)">
+            <div class="result-optimality-section" style="padding: 8px; background: var(--bg-tertiary); border-top: 1px solid var(--border-color); margin-top: 4px;">
+                <div style="font-size: 10px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Agreement Quality</div>
+                <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; font-size: 11px;">
+                    <!-- Pareto -->
+                    <div class="optimality-stat-card" style="text-align: center; padding: 4px; background: var(--bg-secondary); border-radius: 4px; border: 1px solid var(--border-color);">
+                        <div class="text-muted" style="font-size: 9px; margin-bottom: 2px;">Pareto</div>
+                        <div style="font-weight: 600; font-size: 13px;"
+                             :class="{
+                                 'text-success': currentNegotiation.optimality_stats.pareto_optimality >= 0.95,
+                                 'text-warning': currentNegotiation.optimality_stats.pareto_optimality >= 0.7 && currentNegotiation.optimality_stats.pareto_optimality < 0.95,
+                                 'text-danger': currentNegotiation.optimality_stats.pareto_optimality < 0.7
+                             }"
+                             x-text="currentNegotiation.optimality_stats.pareto_optimality != null ? (currentNegotiation.optimality_stats.pareto_optimality * 100).toFixed(0) + '%' : 'N/A'"></div>
+                    </div>
+                    <!-- Nash -->
+                    <div class="optimality-stat-card" style="text-align: center; padding: 4px; background: var(--bg-secondary); border-radius: 4px; border: 1px solid var(--border-color);">
+                        <div class="text-muted" style="font-size: 9px; margin-bottom: 2px;">Nash</div>
+                        <div style="font-weight: 600; font-size: 13px;"
+                             :class="{
+                                 'text-success': currentNegotiation.optimality_stats.nash_optimality >= 0.95,
+                                 'text-warning': currentNegotiation.optimality_stats.nash_optimality >= 0.7 && currentNegotiation.optimality_stats.nash_optimality < 0.95
+                             }"
+                             x-text="currentNegotiation.optimality_stats.nash_optimality != null ? (currentNegotiation.optimality_stats.nash_optimality * 100).toFixed(0) + '%' : 'N/A'"></div>
+                    </div>
+                    <!-- Kalai -->
+                    <div class="optimality-stat-card" style="text-align: center; padding: 4px; background: var(--bg-secondary); border-radius: 4px; border: 1px solid var(--border-color);">
+                        <div class="text-muted" style="font-size: 9px; margin-bottom: 2px;">Kalai</div>
+                        <div style="font-weight: 600; font-size: 13px;"
+                             :class="{
+                                 'text-success': currentNegotiation.optimality_stats.kalai_optimality >= 0.95,
+                                 'text-warning': currentNegotiation.optimality_stats.kalai_optimality >= 0.7 && currentNegotiation.optimality_stats.kalai_optimality < 0.95
+                             }"
+                             x-text="currentNegotiation.optimality_stats.kalai_optimality != null ? (currentNegotiation.optimality_stats.kalai_optimality * 100).toFixed(0) + '%' : 'N/A'"></div>
+                    </div>
+                    <!-- Max Welfare -->
+                    <div class="optimality-stat-card" style="text-align: center; padding: 4px; background: var(--bg-secondary); border-radius: 4px; border: 1px solid var(--border-color);">
+                        <div class="text-muted" style="font-size: 9px; margin-bottom: 2px;">Welfare</div>
+                        <div style="font-weight: 600; font-size: 13px;"
+                             :class="{
+                                 'text-success': currentNegotiation.optimality_stats.max_welfare_optimality >= 0.95,
+                                 'text-warning': currentNegotiation.optimality_stats.max_welfare_optimality >= 0.7 && currentNegotiation.optimality_stats.max_welfare_optimality < 0.95
+                             }"
+                             x-text="currentNegotiation.optimality_stats.max_welfare_optimality != null ? (currentNegotiation.optimality_stats.max_welfare_optimality * 100).toFixed(0) + '%' : 'N/A'"></div>
+                    </div>
+                    <!-- KS -->
+                    <div class="optimality-stat-card" style="text-align: center; padding: 4px; background: var(--bg-secondary); border-radius: 4px; border: 1px solid var(--border-color);">
+                        <div class="text-muted" style="font-size: 9px; margin-bottom: 2px;">KS</div>
+                        <div style="font-weight: 600; font-size: 13px;"
+                             :class="{
+                                 'text-success': currentNegotiation.optimality_stats.ks_optimality >= 0.95,
+                                 'text-warning': currentNegotiation.optimality_stats.ks_optimality >= 0.7 && currentNegotiation.optimality_stats.ks_optimality < 0.95
+                             }"
+                             x-text="currentNegotiation.optimality_stats.ks_optimality != null && !isNaN(currentNegotiation.optimality_stats.ks_optimality) ? (currentNegotiation.optimality_stats.ks_optimality * 100).toFixed(0) + '%' : 'N/A'"></div>
+                    </div>
+                </div>
             </div>
         </template>
+        
+        <!-- No Agreement Display -->
         <template x-if="currentNegotiation?.end_reason && !currentNegotiation?.agreement">
             <div class="result-row result-final-state">
                 <span class="result-state-badge" 
@@ -74,6 +112,8 @@
                 </template>
             </div>
         </template>
+        
+        <!-- Progress (running) -->
         <template x-if="!currentNegotiation?.end_reason && !currentNegotiation?.agreement && !currentNegotiation?.pendingStart">
             <div class="result-row result-row-progress">
                 <div class="progress-container" style="flex: 1; display: flex; align-items: center; gap: 8px;">
@@ -89,6 +129,8 @@
                       x-text="'Step ' + (currentNegotiation?.step || 0) + (currentNegotiation?.n_steps ? '/' + currentNegotiation.n_steps : '')"></span>
             </div>
         </template>
+        
+        <!-- Pending -->
         <template x-if="currentNegotiation?.pendingStart">
             <div class="result-row result-row-center"><span class="text-muted">Ready</span></div>
         </template>

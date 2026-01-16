@@ -35,13 +35,18 @@
         
         <!-- Final Rankings (completed) -->
         <div class="tournament-final-rankings" x-show="selectedTournament?.status === 'completed'">
+            <template x-if="!selectedTournament?.results?.final_scores?.length">
+                <div class="empty-state-mini">
+                    <p>No scores available</p>
+                </div>
+            </template>
             <template x-for="score in (selectedTournament?.results?.final_scores || [])" :key="score.name">
                 <div class="leaderboard-entry" :class="'rank-' + score.rank">
                     <div class="leaderboard-rank" x-text="score.rank"></div>
                     <div class="leaderboard-info">
                         <div class="leaderboard-name" x-text="score.name"></div>
                         <div class="leaderboard-stats">
-                            <span x-text="(score.n_agreements || 0) + '/' + (score.n_negotiations || 0) + ' agr'"></span>
+                            <span x-text="(score.n_negotiations || '-') + ' games'"></span>
                             <span x-text="'u:' + (score.mean_utility?.toFixed(2) || '-')"></span>
                         </div>
                     </div>

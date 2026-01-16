@@ -775,12 +775,19 @@ class TournamentManager:
                 "path": Path(config.save_path) if config.save_path else None,
                 "ignore_discount": config.ignore_discount,
                 "ignore_reserved": config.ignore_reserved,
+                # Storage and memory optimization
+                "storage_optimization": config.storage_optimization,
+                "memory_optimization": config.memory_optimization,
                 # Callbacks
                 "before_start_callback": before_cb,
                 "after_construction_callback": after_const_cb,
                 "after_end_callback": after_end_cb,
                 "progress_callback": progress_cb,
             }
+
+            # Add storage format if specified
+            if config.storage_format is not None:
+                tournament_kwargs["storage_format"] = config.storage_format
 
             # Save config before starting
             if config.save_path:

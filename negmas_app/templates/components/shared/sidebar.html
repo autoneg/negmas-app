@@ -14,6 +14,14 @@
             </svg>
             <span x-show="!sidebarCollapsed">Start Negotiation</span>
         </button>
+        <button class="sidebar-btn" @click="showLoadNegotiation = true; currentPage = 'negotiations'" :title="sidebarCollapsed ? 'Load from File' : ''">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                <polyline points="12 11 12 17"/>
+                <polyline points="9 14 12 11 15 14"/>
+            </svg>
+            <span x-show="!sidebarCollapsed">Load from File</span>
+        </button>
         <button class="sidebar-btn" @click="showNewTournament = true; currentPage = 'tournaments'; loadTournamentSessions()" :title="sidebarCollapsed ? 'Start Tournament' : ''">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="8" r="5"></circle>

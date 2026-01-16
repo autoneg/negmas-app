@@ -3,11 +3,16 @@
 import ast
 import csv
 import json
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
+import pandas as pd
 import yaml
+
+from negmas.tournaments.neg import SimpleTournamentResults
 
 
 @dataclass
@@ -40,9 +45,112 @@ class TournamentNegotiationResult:
 
 
 class TournamentStorageService:
-    """Service for loading saved tournament results from cartesian_tournament."""
+    """Service for loading saved tournament results from cartesian_tournament.
+
+    This service handles tournament results saved in any format (csv, gzip, parquet)
+    by using negmas.SimpleTournamentResults.load() for robust format detection.
+    """
 
     TOURNAMENTS_DIR = Path.home() / "negmas" / "app" / "tournaments"
+
+    # Cache for loaded tournament results (path -> SimpleTournamentResults)
+    _results_cache: dict[str, SimpleTournamentResults] = {}
+
+    @staticmethod
+    def _sanitize_for_json(obj: Any) -> Any:
+        """Sanitize values for JSON serialization.
+
+        Converts pandas NaN/NaT and numpy types to JSON-compatible values.
+        """
+        if obj is None:
+            return None
+        if isinstance(obj, float):
+            if math.isnan(obj) or math.isinf(obj):
+                return None
+            return obj
+        if isinstance(obj, dict):
+            return {
+                k: TournamentStorageService._sanitize_for_json(v)
+                for k, v in obj.items()
+            }
+        if isinstance(obj, (list, tuple)):
+            return [TournamentStorageService._sanitize_for_json(v) for v in obj]
+        # Handle pandas/numpy NaN
+        if pd.isna(obj):
+            return None
+        # Handle numpy numeric types
+        if hasattr(obj, "item"):
+            try:
+                val = obj.item()
+                # Check for nan/inf after converting numpy to Python
+                if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                    return None
+                return val
+            except (ValueError, AttributeError):
+                pass
+        return obj
+
+    @classmethod
+    def _load_results(cls, path: Path) -> SimpleTournamentResults | None:
+        """Load tournament results using SimpleTournamentResults.load().
+
+        This handles all storage formats (csv, gzip, parquet) automatically.
+
+        Args:
+            path: Path to tournament directory.
+
+        Returns:
+            SimpleTournamentResults or None if loading fails.
+        """
+        path_str = str(path)
+        if path_str in cls._results_cache:
+            return cls._results_cache[path_str]
+
+        try:
+            results = SimpleTournamentResults.load(
+                path,
+                must_have_details=False,
+                memory_optimization="balanced",  # Keep details in memory, compute scores on demand
+            )
+            cls._results_cache[path_str] = results
+            return results
+        except FileNotFoundError:
+            return None
+        except Exception as e:
+            print(f"Error loading tournament results from {path}: {e}")
+            return None
+
+    @classmethod
+    def clear_cache(cls, tournament_id: str | None = None) -> None:
+        """Clear the results cache.
+
+        Args:
+            tournament_id: If provided, only clear cache for this tournament.
+                          If None, clear entire cache.
+        """
+        if tournament_id:
+            path_str = str(cls.TOURNAMENTS_DIR / tournament_id)
+            cls._results_cache.pop(path_str, None)
+        else:
+            cls._results_cache.clear()
+
+    @classmethod
+    def _check_tournament_files_exist(cls, path: Path) -> bool:
+        """Check if a directory contains tournament result files.
+
+        Checks for scores.csv (always present) or any format of details/all_scores.
+        """
+        # scores.csv is always present (small file, always CSV)
+        if (path / "scores.csv").exists():
+            return True
+
+        # Check for any format of details or all_scores
+        for base_name in ("details", "all_scores", "all_results"):
+            for ext in (".csv", ".csv.gz", ".parquet"):
+                if (path / f"{base_name}{ext}").exists():
+                    return True
+
+        return False
 
     @classmethod
     def list_saved_tournaments(
@@ -51,6 +159,7 @@ class TournamentStorageService:
         """List all saved tournaments from disk.
 
         Scans ~/negmas/app/tournaments/ for tournament result directories.
+        Supports all storage formats (csv, gzip, parquet).
 
         Args:
             archived: If True, only archived; if False, only non-archived; if None, all
@@ -69,11 +178,8 @@ class TournamentStorageService:
             if not path.is_dir():
                 continue
 
-            # Check for required files
-            all_results = path / "all_results.csv"
-            all_scores = path / "all_scores.csv"
-
-            if not all_results.exists() and not all_scores.exists():
+            # Check for required files (any format)
+            if not cls._check_tournament_files_exist(path):
                 continue
 
             # Try to load summary info
@@ -94,7 +200,10 @@ class TournamentStorageService:
 
     @classmethod
     def _load_tournament_summary(cls, path: Path) -> dict | None:
-        """Load summary info for a tournament directory."""
+        """Load summary info for a tournament directory.
+
+        Uses SimpleTournamentResults.load() for robust format handling.
+        """
         try:
             tournament_id = path.name
 
@@ -106,37 +215,65 @@ class TournamentStorageService:
             except Exception:
                 pass
 
-            # Count negotiations from all_results.csv
+            # Try to load using SimpleTournamentResults for format-agnostic access
+            results = cls._load_results(path)
+
             n_negotiations = 0
             n_agreements = 0
-            scenarios = set()
-            competitors = set()
+            scenarios: set[str] = set()
+            competitors: set[str] = set()
 
-            all_results = path / "all_results.csv"
-            if all_results.exists():
-                with open(all_results, "r") as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        n_negotiations += 1
-                        if row.get("agreement") and row["agreement"] != "None":
-                            n_agreements += 1
-                        if row.get("scenario"):
-                            scenarios.add(row["scenario"])
-                        # Try to get competitor names
-                        for key in ["negotiator0", "negotiator1", "first", "second"]:
-                            if row.get(key):
-                                competitors.add(row[key])
+            if results is not None:
+                # Use the loaded results
+                details_df = results.details
+                if details_df is not None and len(details_df) > 0:
+                    n_negotiations = len(details_df)
 
-            # Try to get competitor count from all_scores.csv
-            all_scores = path / "all_scores.csv"
-            if all_scores.exists() and not competitors:
-                with open(all_scores, "r") as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        for key in ["strategy", "name", "competitor"]:
-                            if row.get(key):
-                                competitors.add(row[key])
-                                break
+                    # Count agreements
+                    if "agreement" in details_df.columns:
+                        n_agreements = details_df["agreement"].notna().sum()
+                        # Also filter out "None" strings
+                        if details_df["agreement"].dtype == object:
+                            n_agreements = (
+                                (details_df["agreement"].notna())
+                                & (details_df["agreement"] != "None")
+                                & (details_df["agreement"] != "")
+                            ).sum()
+
+                    # Get scenarios
+                    if "scenario" in details_df.columns:
+                        scenarios = set(details_df["scenario"].dropna().unique())
+
+                    # Get partners/competitors
+                    if "partners" in details_df.columns:
+                        for partners_val in details_df["partners"].dropna():
+                            if isinstance(partners_val, (list, tuple)):
+                                competitors.update(partners_val)
+                            elif isinstance(partners_val, str):
+                                try:
+                                    parsed = ast.literal_eval(partners_val)
+                                    if isinstance(parsed, (list, tuple)):
+                                        competitors.update(parsed)
+                                except (ValueError, SyntaxError):
+                                    pass
+
+                # Also check scores for competitor names
+                scores_df = results.final_scores
+                if scores_df is not None and len(scores_df) > 0:
+                    if "strategy" in scores_df.columns:
+                        competitors.update(scores_df["strategy"].dropna().unique())
+            else:
+                # Fallback: try to read scores.csv directly (always CSV format)
+                scores_file = path / "scores.csv"
+                if scores_file.exists():
+                    try:
+                        with open(scores_file, "r") as f:
+                            reader = csv.DictReader(f)
+                            for row in reader:
+                                if row.get("strategy"):
+                                    competitors.add(row["strategy"])
+                    except Exception:
+                        pass
 
             agreement_rate = (
                 n_agreements / n_negotiations if n_negotiations > 0 else 0.0
@@ -153,7 +290,7 @@ class TournamentStorageService:
                 "n_scenarios": len(scenarios),
                 "n_competitors": len(competitors),
                 "n_negotiations": n_negotiations,
-                "n_agreements": n_agreements,
+                "n_agreements": int(n_agreements),
                 "agreement_rate": agreement_rate,
                 "tags": metadata.get("tags", []),
                 "archived": metadata.get("archived", False),
@@ -195,46 +332,32 @@ class TournamentStorageService:
 
     @classmethod
     def _load_scores(cls, path: Path) -> list[dict]:
-        """Load competitor scores from all_scores.csv."""
-        scores = []
-        all_scores = path / "all_scores.csv"
+        """Load competitor scores using SimpleTournamentResults and type_scores.csv.
 
-        if not all_scores.exists():
+        Handles all storage formats automatically.
+        Enriches scores with detailed statistics from type_scores.csv.
+        """
+        scores = []
+
+        # Use SimpleTournamentResults for format-agnostic loading
+        results = cls._load_results(path)
+        if results is None:
             return scores
 
         try:
-            with open(all_scores, "r") as f:
-                reader = csv.DictReader(f)
-                for idx, row in enumerate(reader):
-                    # Try to find competitor name
-                    name = None
-                    for key in ["strategy", "name", "competitor", ""]:
-                        if key == "":
-                            # First column might be unnamed index
-                            name = row.get("") or row.get("Unnamed: 0")
-                        elif row.get(key):
-                            name = row[key]
-                            break
-
-                    if not name:
-                        name = f"Competitor {idx + 1}"
-
-                    # Get score (might be in various columns)
-                    score = None
-                    for key in ["score", "mean", "advantage", "utility"]:
-                        if row.get(key):
-                            try:
-                                score = float(row[key])
-                                break
-                            except ValueError:
-                                pass
+            # Get final scores (always in memory, small)
+            final_scores_df = results.final_scores
+            if final_scores_df is not None and len(final_scores_df) > 0:
+                for idx, row in final_scores_df.iterrows():
+                    name = row.get("strategy", str(idx))
+                    score = row.get("score")
 
                     scores.append(
                         {
                             "name": name,
                             "rank": idx + 1,
-                            "score": score,
-                            "raw_data": row,
+                            "score": float(score) if pd.notna(score) else None,
+                            "raw_data": cls._sanitize_for_json(row.to_dict()),
                         }
                     )
 
@@ -243,96 +366,199 @@ class TournamentStorageService:
             for idx, s in enumerate(scores):
                 s["rank"] = idx + 1
 
+            # Enrich with type_scores.csv data if available
+            type_scores_path = path / "type_scores.csv"
+            if type_scores_path.exists():
+                try:
+                    type_scores_data = cls._parse_type_scores_csv(type_scores_path)
+                    for score_entry in scores:
+                        strategy_name = score_entry["name"]
+                        if strategy_name in type_scores_data:
+                            stats = type_scores_data[strategy_name]
+                            # Add key statistics to the score entry
+                            score_entry["mean_utility"] = stats.get("utility", {}).get(
+                                "mean"
+                            )
+                            score_entry["n_negotiations"] = int(
+                                stats.get("utility", {}).get("count", 0)
+                            )
+                            score_entry["mean_advantage"] = stats.get(
+                                "advantage", {}
+                            ).get("mean")
+                            score_entry["mean_welfare"] = stats.get("welfare", {}).get(
+                                "mean"
+                            )
+                            score_entry["mean_nash_optimality"] = stats.get(
+                                "nash_optimality", {}
+                            ).get("mean")
+                            score_entry["mean_pareto_optimality"] = stats.get(
+                                "pareto_optimality", {}
+                            ).get("mean")
+                            score_entry["type_scores"] = stats
+                except Exception as e:
+                    print(f"Error enriching scores with type_scores: {e}")
+
         except Exception as e:
             print(f"Error loading scores from {path}: {e}")
 
         return scores
 
     @classmethod
+    def _parse_type_scores_csv(cls, path: Path) -> dict[str, dict]:
+        """Parse type_scores.csv into a structured dict.
+
+        Args:
+            path: Path to type_scores.csv file.
+
+        Returns:
+            Dict mapping strategy name to dict of metric -> {count, mean, std, min, max, ...}
+        """
+        result: dict[str, dict] = {}
+        stat_names = ["count", "mean", "std", "min", "25%", "50%", "75%", "max"]
+
+        try:
+            with open(path, "r") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            if len(rows) < 3:
+                return result
+
+            # First row: metric names (repeated 8 times each)
+            # Second row: stat names (count, mean, std, min, 25%, 50%, 75%, max)
+            # Subsequent rows: strategy name, then values
+            metric_row = rows[0]
+
+            # Build metric positions
+            metrics: list[tuple[str, int]] = []  # (metric_name, start_index)
+            current_metric = None
+            for i, header in enumerate(metric_row[1:], start=1):  # Skip index column
+                if header and header != current_metric:
+                    current_metric = header
+                    metrics.append((header, i))
+
+            # Parse data rows
+            for row in rows[3:]:  # Skip header rows and "index" row
+                if not row or not row[0] or row[0] == "index":
+                    continue
+
+                strategy_name = row[0]
+                result[strategy_name] = {}
+
+                for metric_name, start_idx in metrics:
+                    metric_stats = {}
+                    for j, stat_name in enumerate(stat_names):
+                        value_idx = start_idx + j
+                        if value_idx < len(row):
+                            try:
+                                metric_stats[stat_name] = float(row[value_idx])
+                            except (ValueError, TypeError):
+                                metric_stats[stat_name] = None
+                    result[strategy_name][metric_name] = metric_stats
+
+        except Exception as e:
+            print(f"Error parsing type_scores.csv: {e}")
+
+        return result
+
+    @classmethod
     def _load_negotiations_summary(cls, path: Path) -> list[dict]:
-        """Load negotiation results summary from details.csv (cartesian_tournament output)."""
+        """Load negotiation results summary using SimpleTournamentResults.
+
+        Handles all storage formats (csv, gzip, parquet) automatically.
+        """
         negotiations = []
 
-        # cartesian_tournament saves to details.csv
-        details_file = path / "details.csv"
-        if not details_file.exists():
-            # Fall back to all_results.csv for streaming tournaments
-            details_file = path / "all_results.csv"
-
-        if not details_file.exists():
+        # Use SimpleTournamentResults for format-agnostic loading
+        results = cls._load_results(path)
+        if results is None:
             return negotiations
 
         try:
-            with open(details_file, "r") as f:
-                reader = csv.DictReader(f)
-                for idx, row in enumerate(reader):
-                    # Get partners - cartesian_tournament uses 'partners' field as list string
-                    partners = []
-                    partners_str = row.get("partners", "")
-                    if partners_str and partners_str != "[]":
+            details_df = results.details
+            if details_df is None or len(details_df) == 0:
+                return negotiations
+
+            for idx, row in details_df.iterrows():
+                # Get partners - cartesian_tournament uses 'partners' field as list
+                partners = []
+                partners_val = row.get("partners")
+                if partners_val is not None:
+                    if isinstance(partners_val, (list, tuple)):
+                        partners = list(partners_val)
+                    elif isinstance(partners_val, str) and partners_val != "[]":
                         try:
                             # Parse list like "['AspirationNegotiator', 'BoulwareTBNegotiator']"
-                            partners = ast.literal_eval(partners_str)
+                            parsed = ast.literal_eval(partners_val)
+                            if isinstance(parsed, (list, tuple)):
+                                partners = list(parsed)
                         except (ValueError, SyntaxError):
                             pass
 
-                    # Fall back to individual fields
-                    if not partners:
-                        for key in [
-                            "negotiator0",
-                            "negotiator1",
-                            "first",
-                            "second",
-                            "agent0",
-                            "agent1",
-                        ]:
-                            if row.get(key):
-                                partners.append(row[key])
+                # Fall back to individual fields
+                if not partners:
+                    for key in [
+                        "negotiator0",
+                        "negotiator1",
+                        "first",
+                        "second",
+                        "agent0",
+                        "agent1",
+                    ]:
+                        if row.get(key):
+                            partners.append(row[key])
 
-                    # Get scenario
-                    scenario = row.get("scenario") or row.get("domain") or "Unknown"
+                # Get scenario
+                scenario = row.get("scenario") or row.get("domain") or "Unknown"
 
-                    # Get agreement
-                    agreement_str = row.get("agreement")
-                    has_agreement = (
-                        agreement_str is not None
-                        and agreement_str != ""
-                        and agreement_str != "None"
-                    )
+                # Get agreement
+                agreement_val = row.get("agreement")
+                has_agreement = (
+                    agreement_val is not None
+                    and str(agreement_val) != ""
+                    and str(agreement_val) != "None"
+                    and pd.notna(agreement_val)
+                )
 
-                    # Get utilities - cartesian_tournament uses 'utilities' field as tuple string
-                    utilities = []
-                    utilities_str = row.get("utilities", "")
-                    if utilities_str:
+                # Get utilities - cartesian_tournament uses 'utilities' field
+                utilities = []
+                utilities_val = row.get("utilities")
+                if utilities_val is not None:
+                    if isinstance(utilities_val, (list, tuple)):
+                        utilities = [float(u) for u in utilities_val if pd.notna(u)]
+                    elif isinstance(utilities_val, str):
                         try:
-                            utils_tuple = ast.literal_eval(utilities_str)
+                            utils_tuple = ast.literal_eval(utilities_val)
                             utilities = (
                                 list(utils_tuple)
-                                if isinstance(utils_tuple, tuple)
-                                else list(utils_tuple)
+                                if isinstance(utils_tuple, (list, tuple))
+                                else []
                             )
                         except (ValueError, SyntaxError):
                             pass
 
-                    # Fall back to individual fields
-                    if not utilities:
-                        for key in ["utility0", "utility1", "u0", "u1"]:
-                            if row.get(key):
-                                try:
-                                    utilities.append(float(row[key]))
-                                except ValueError:
-                                    pass
+                # Fall back to individual fields
+                if not utilities:
+                    for key in ["utility0", "utility1", "u0", "u1"]:
+                        val = row.get(key)
+                        if val is not None and pd.notna(val):
+                            try:
+                                utilities.append(float(val))
+                            except (ValueError, TypeError):
+                                pass
 
-                    negotiations.append(
-                        {
-                            "index": idx,
-                            "scenario": scenario,
-                            "partners": partners,
-                            "has_agreement": has_agreement,
-                            "utilities": utilities if utilities else None,
-                            "raw_data": row,
-                        }
-                    )
+                negotiations.append(
+                    {
+                        "index": idx,
+                        "scenario": scenario,
+                        "partners": partners,
+                        "has_agreement": has_agreement,
+                        "utilities": utilities if utilities else None,
+                        "raw_data": cls._sanitize_for_json(
+                            row.to_dict() if hasattr(row, "to_dict") else dict(row)
+                        ),
+                    }
+                )
 
         except Exception as e:
             print(f"Error loading negotiations from {path}: {e}")
@@ -343,79 +569,102 @@ class TournamentStorageService:
     def get_tournament_negotiation(cls, tournament_id: str, index: int) -> dict | None:
         """Get full details of a specific negotiation from a tournament.
 
+        Uses SimpleTournamentResults for format-agnostic loading.
+
         Args:
             tournament_id: Tournament ID.
-            index: Index of the negotiation in details.csv.
+            index: Index of the negotiation in details.
 
         Returns:
             Full negotiation data or None if not found.
         """
         path = cls.TOURNAMENTS_DIR / tournament_id
 
-        # cartesian_tournament saves to details.csv
-        details_file = path / "details.csv"
-        if not details_file.exists():
-            # Fall back to all_results.csv for streaming tournaments
-            details_file = path / "all_results.csv"
-
-        if not details_file.exists():
+        # Use SimpleTournamentResults for format-agnostic loading
+        results = cls._load_results(path)
+        if results is None:
             return None
 
         try:
-            with open(details_file, "r") as f:
-                reader = csv.DictReader(f)
-                for idx, row in enumerate(reader):
-                    if idx == index:
-                        # Parse partners from list string
-                        partners = []
-                        partners_str = row.get("partners", "")
-                        if partners_str and partners_str != "[]":
-                            try:
-                                partners = ast.literal_eval(partners_str)
-                            except (ValueError, SyntaxError):
-                                pass
+            details_df = results.details
+            if details_df is None or len(details_df) == 0:
+                return None
 
-                        # Fall back to individual fields
-                        if not partners:
-                            for k in ["negotiator0", "negotiator1", "first", "second"]:
-                                if row.get(k):
-                                    partners.append(row[k])
+            # Get the row at the specified index
+            if index < 0 or index >= len(details_df):
+                return None
 
-                        # Parse utilities from tuple string
-                        utilities = None
-                        utilities_str = row.get("utilities", "")
-                        if utilities_str:
-                            try:
-                                utils_tuple = ast.literal_eval(utilities_str)
-                                utilities = (
-                                    list(utils_tuple)
-                                    if isinstance(utils_tuple, tuple)
-                                    else list(utils_tuple)
-                                )
-                            except (ValueError, SyntaxError):
-                                pass
+            row = details_df.iloc[index]
 
-                        # Fall back to individual fields
-                        if not utilities:
-                            utilities = []
-                            for k in ["utility0", "utility1", "u0", "u1"]:
-                                if row.get(k):
-                                    try:
-                                        utilities.append(float(row[k]))
-                                    except ValueError:
-                                        pass
-                            utilities = utilities if utilities else None
+            # Parse partners
+            partners = []
+            partners_val = row.get("partners")
+            if partners_val is not None:
+                if isinstance(partners_val, (list, tuple)):
+                    partners = list(partners_val)
+                elif isinstance(partners_val, str) and partners_val != "[]":
+                    try:
+                        parsed = ast.literal_eval(partners_val)
+                        if isinstance(parsed, (list, tuple)):
+                            partners = list(parsed)
+                    except (ValueError, SyntaxError):
+                        pass
 
-                        return {
-                            "index": idx,
-                            "raw_data": dict(row),
-                            "scenario": row.get("scenario") or row.get("domain"),
-                            "partners": partners,
-                            "agreement": row.get("agreement"),
-                            "utilities": utilities,
-                            "has_agreement": row.get("agreement")
-                            not in (None, "", "None"),
-                        }
+            # Fall back to individual fields
+            if not partners:
+                for k in ["negotiator0", "negotiator1", "first", "second"]:
+                    if row.get(k):
+                        partners.append(row[k])
+
+            # Parse utilities
+            utilities = None
+            utilities_val = row.get("utilities")
+            if utilities_val is not None:
+                if isinstance(utilities_val, (list, tuple)):
+                    utilities = [float(u) for u in utilities_val if pd.notna(u)]
+                elif isinstance(utilities_val, str):
+                    try:
+                        utils_tuple = ast.literal_eval(utilities_val)
+                        utilities = (
+                            list(utils_tuple)
+                            if isinstance(utils_tuple, (list, tuple))
+                            else None
+                        )
+                    except (ValueError, SyntaxError):
+                        pass
+
+            # Fall back to individual fields
+            if not utilities:
+                utilities = []
+                for k in ["utility0", "utility1", "u0", "u1"]:
+                    val = row.get(k)
+                    if val is not None and pd.notna(val):
+                        try:
+                            utilities.append(float(val))
+                        except (ValueError, TypeError):
+                            pass
+                utilities = utilities if utilities else None
+
+            # Get agreement value
+            agreement_val = row.get("agreement")
+            has_agreement = (
+                agreement_val is not None
+                and str(agreement_val) != ""
+                and str(agreement_val) != "None"
+                and pd.notna(agreement_val)
+            )
+
+            return {
+                "index": index,
+                "raw_data": cls._sanitize_for_json(
+                    row.to_dict() if hasattr(row, "to_dict") else dict(row)
+                ),
+                "scenario": row.get("scenario") or row.get("domain"),
+                "partners": partners,
+                "agreement": str(agreement_val) if agreement_val is not None else None,
+                "utilities": utilities,
+                "has_agreement": has_agreement,
+            }
         except Exception as e:
             print(f"Error loading negotiation {index} from {tournament_id}: {e}")
 
@@ -844,7 +1093,9 @@ class TournamentStorageService:
 
     @classmethod
     def get_all_scores_csv(cls, tournament_id: str) -> list[dict] | None:
-        """Get per-negotiation scores from all_scores.csv.
+        """Get per-negotiation scores using SimpleTournamentResults.
+
+        Handles all storage formats (csv, gzip, parquet) automatically.
 
         Args:
             tournament_id: Tournament ID.
@@ -852,24 +1103,31 @@ class TournamentStorageService:
         Returns:
             List of per-negotiation score dicts.
         """
-        path = cls.TOURNAMENTS_DIR / tournament_id / "all_scores.csv"
-        if not path.exists():
+        path = cls.TOURNAMENTS_DIR / tournament_id
+
+        # Use SimpleTournamentResults for format-agnostic loading
+        results = cls._load_results(path)
+        if results is None:
             return None
 
         try:
+            scores_df = results.scores
+            if scores_df is None or len(scores_df) == 0:
+                return None
+
             scores = []
-            with open(path, "r") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    scores.append(dict(row))
+            for _, row in scores_df.iterrows():
+                scores.append(cls._sanitize_for_json(row.to_dict()))
             return scores
         except Exception as e:
-            print(f"Error loading all_scores.csv for {tournament_id}: {e}")
+            print(f"Error loading all_scores for {tournament_id}: {e}")
             return None
 
     @classmethod
     def get_details_csv(cls, tournament_id: str) -> list[dict] | None:
-        """Get detailed negotiation results from details.csv.
+        """Get detailed negotiation results using SimpleTournamentResults.
+
+        Handles all storage formats (csv, gzip, parquet) automatically.
 
         Args:
             tournament_id: Tournament ID.
@@ -877,24 +1135,39 @@ class TournamentStorageService:
         Returns:
             List of detailed negotiation result dicts.
         """
-        path = cls.TOURNAMENTS_DIR / tournament_id / "details.csv"
-        if not path.exists():
+        path = cls.TOURNAMENTS_DIR / tournament_id
+
+        # Use SimpleTournamentResults for format-agnostic loading
+        results = cls._load_results(path)
+        if results is None:
             return None
 
         try:
+            details_df = results.details
+            if details_df is None or len(details_df) == 0:
+                return None
+
             details = []
-            with open(path, "r") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    details.append(dict(row))
+            for _, row in details_df.iterrows():
+                details.append(cls._sanitize_for_json(row.to_dict()))
             return details
         except Exception as e:
-            print(f"Error loading details.csv for {tournament_id}: {e}")
+            print(f"Error loading details for {tournament_id}: {e}")
             return None
+
+    @classmethod
+    def _file_exists_any_format(cls, path: Path, base_name: str) -> bool:
+        """Check if a file exists in any supported format (csv, gzip, parquet)."""
+        for ext in (".csv", ".csv.gz", ".parquet"):
+            if (path / f"{base_name}{ext}").exists():
+                return True
+        return False
 
     @classmethod
     def get_tournament_files(cls, tournament_id: str) -> dict:
         """Get list of available files in the tournament directory.
+
+        Supports format-agnostic detection (csv, gzip, parquet).
 
         Args:
             tournament_id: Tournament ID.
@@ -908,10 +1181,10 @@ class TournamentStorageService:
 
         files = {
             "config": (path / "config.json").exists(),
-            "scores": (path / "scores.csv").exists(),
-            "type_scores": (path / "type_scores.csv").exists(),
-            "all_scores": (path / "all_scores.csv").exists(),
-            "details": (path / "details.csv").exists(),
+            "scores": (path / "scores.csv").exists(),  # Always CSV (small file)
+            "type_scores": (path / "type_scores.csv").exists(),  # Always CSV
+            "all_scores": cls._file_exists_any_format(path, "all_scores"),
+            "details": cls._file_exists_any_format(path, "details"),
             "negotiations_dir": (path / "negotiations").exists(),
             "scenarios_dir": (path / "scenarios").exists(),
             "plots_dir": (path / "plots").exists(),
@@ -1155,3 +1428,387 @@ class TournamentStorageService:
             "filter_scenario": filter_scenario,
             "filter_partner": filter_partner,
         }
+
+    @classmethod
+    def load_full_negotiation(
+        cls, tournament_id: str, negotiation_index: int
+    ) -> dict | None:
+        """Load complete negotiation data for display in UI panels.
+
+        This method loads all data needed to display a negotiation from a tournament
+        with full panel support (trace, utilities, outcome space, etc.).
+
+        Args:
+            tournament_id: Tournament ID.
+            negotiation_index: Index of the negotiation in details.
+
+        Returns:
+            Complete negotiation data dict compatible with UI display, or None.
+        """
+        from .outcome_analysis import compute_outcome_space_data
+
+        path = cls.TOURNAMENTS_DIR / tournament_id
+
+        # Get the negotiation metadata from details
+        neg_data = cls.get_tournament_negotiation(tournament_id, negotiation_index)
+        if neg_data is None:
+            return None
+
+        raw_data = neg_data.get("raw_data", {})
+        scenario_name = neg_data.get("scenario") or raw_data.get(
+            "effective_scenario_name"
+        )
+        run_id = raw_data.get("run_id")
+
+        if not scenario_name:
+            return None
+
+        # Load the scenario to get ufuns and outcome space
+        scenario_dir = path / "scenarios" / scenario_name
+        scenario = None
+        ufuns = []
+        outcome_space_data = None
+
+        if scenario_dir.exists():
+            try:
+                from negmas import Scenario
+
+                scenario = Scenario.load(scenario_dir, load_stats=True, load_info=True)
+                if scenario:
+                    ufuns = list(scenario.ufuns) if scenario.ufuns else []
+
+                    # Compute outcome space data
+                    osd = compute_outcome_space_data(
+                        scenario, max_samples=50000, use_cached_stats=True
+                    )
+                    outcome_space_data = {
+                        "outcome_utilities": osd.outcome_utilities,
+                        "pareto_utilities": osd.pareto_utilities,
+                        "nash_point": osd.nash_point.utilities
+                        if osd.nash_point
+                        else None,
+                        "kalai_point": osd.kalai_point.utilities
+                        if osd.kalai_point
+                        else None,
+                        "kalai_smorodinsky_point": osd.kalai_smorodinsky_point.utilities
+                        if osd.kalai_smorodinsky_point
+                        else None,
+                        "max_welfare_point": osd.max_welfare_point.utilities
+                        if osd.max_welfare_point
+                        else None,
+                        "total_outcomes": osd.total_outcomes,
+                        "sampled": osd.sampled,
+                        "sample_size": osd.sample_size,
+                    }
+            except Exception as e:
+                print(f"Error loading scenario {scenario_name}: {e}")
+
+        # Load the negotiation trace from negotiations folder
+        trace = []
+        history = []  # History in UI format
+
+        if run_id:
+            trace_data = cls.get_negotiation_trace(tournament_id, str(run_id))
+            if trace_data and trace_data.get("trace"):
+                raw_trace = trace_data["trace"]
+
+                # Convert trace to history format for UI
+                for row in raw_trace:
+                    step = int(row.get("step", 0))
+                    negotiator_id = row.get("negotiator", "")
+                    offer_str = row.get("offer", "")
+                    relative_time = float(row.get("relative_time", 0))
+
+                    # Parse offer
+                    offer = None
+                    if offer_str:
+                        try:
+                            offer = ast.literal_eval(offer_str)
+                            if isinstance(offer, tuple):
+                                offer = list(offer)
+                        except (ValueError, SyntaxError):
+                            offer = None
+
+                    # Calculate utilities for this offer
+                    offer_utilities = []
+                    if offer and ufuns:
+                        for ufun in ufuns:
+                            try:
+                                u = ufun(tuple(offer)) if offer else None
+                                offer_utilities.append(
+                                    float(u) if u is not None else None
+                                )
+                            except Exception:
+                                offer_utilities.append(None)
+
+                    history.append(
+                        {
+                            "step": step,
+                            "negotiator": negotiator_id,
+                            "offer": offer,
+                            "utilities": offer_utilities if offer_utilities else None,
+                            "relative_time": relative_time,
+                            "response": row.get("responses", ""),
+                        }
+                    )
+
+        # Parse partners/negotiator info
+        partners = neg_data.get("partners", [])
+        negotiator_names = []
+        negotiator_types = []
+
+        if raw_data.get("negotiator_names"):
+            names_val = raw_data["negotiator_names"]
+            if isinstance(names_val, str):
+                try:
+                    negotiator_names = ast.literal_eval(names_val)
+                except (ValueError, SyntaxError):
+                    pass
+            elif isinstance(names_val, (list, tuple)):
+                negotiator_names = list(names_val)
+
+        if raw_data.get("negotiator_types"):
+            types_val = raw_data["negotiator_types"]
+            if isinstance(types_val, str):
+                try:
+                    negotiator_types = ast.literal_eval(types_val)
+                except (ValueError, SyntaxError):
+                    pass
+            elif isinstance(types_val, (list, tuple)):
+                negotiator_types = list(types_val)
+
+        # Get final utilities
+        final_utilities = neg_data.get("utilities") or []
+        if not final_utilities and raw_data.get("utilities"):
+            utils_val = raw_data["utilities"]
+            if isinstance(utils_val, str):
+                try:
+                    parsed = ast.literal_eval(utils_val)
+                    final_utilities = (
+                        list(parsed) if isinstance(parsed, (list, tuple)) else []
+                    )
+                except (ValueError, SyntaxError):
+                    pass
+
+        # Get agreement
+        agreement = None
+        agreement_val = raw_data.get("agreement")
+        if agreement_val and str(agreement_val) not in ("", "None"):
+            if isinstance(agreement_val, str):
+                try:
+                    agreement = ast.literal_eval(agreement_val)
+                    if isinstance(agreement, tuple):
+                        agreement = list(agreement)
+                except (ValueError, SyntaxError):
+                    agreement = agreement_val
+            else:
+                agreement = agreement_val
+
+        # Get issue names from scenario
+        issue_names = []
+        if scenario and scenario.outcome_space:
+            try:
+                issue_names = list(scenario.outcome_space.issues)
+                issue_names = [
+                    str(iss.name) if hasattr(iss, "name") else str(iss)
+                    for iss in scenario.outcome_space.issues
+                ]
+            except Exception:
+                pass
+
+        # Build the complete result
+        result = {
+            "id": f"{tournament_id}_{negotiation_index}",
+            "tournament_id": tournament_id,
+            "negotiation_index": negotiation_index,
+            "scenario": scenario_name,
+            "status": "completed",
+            "has_agreement": neg_data.get("has_agreement", False),
+            "agreement": agreement,
+            "final_utilities": final_utilities,
+            "history": history,
+            "n_steps": int(raw_data.get("n_steps", 0))
+            if raw_data.get("n_steps")
+            else len(history),
+            "current_step": int(raw_data.get("last_step", 0))
+            if raw_data.get("last_step")
+            else len(history),
+            "negotiators": [
+                {
+                    "name": negotiator_names[i]
+                    if i < len(negotiator_names)
+                    else partners[i]
+                    if i < len(partners)
+                    else f"Negotiator{i}",
+                    "type": negotiator_types[i]
+                    if i < len(negotiator_types)
+                    else partners[i]
+                    if i < len(partners)
+                    else "Unknown",
+                    "short_type": partners[i] if i < len(partners) else "Unknown",
+                }
+                for i in range(max(len(partners), len(negotiator_names), 2))
+            ],
+            "issue_names": issue_names,
+            "outcome_space_data": outcome_space_data,
+            # Optimality metrics from tournament results
+            "pareto_optimality": float(raw_data.get("pareto_optimality", 0))
+            if raw_data.get("pareto_optimality")
+            else None,
+            "nash_optimality": float(raw_data.get("nash_optimality", 0))
+            if raw_data.get("nash_optimality")
+            else None,
+            "kalai_optimality": float(raw_data.get("kalai_optimality", 0))
+            if raw_data.get("kalai_optimality")
+            else None,
+            "ks_optimality": float(raw_data.get("ks_optimality", 0))
+            if raw_data.get("ks_optimality")
+            else None,
+            "max_welfare_optimality": float(raw_data.get("max_welfare_optimality", 0))
+            if raw_data.get("max_welfare_optimality")
+            else None,
+            "execution_time": float(raw_data.get("execution_time", 0))
+            if raw_data.get("execution_time")
+            else None,
+            "source": "tournament",
+        }
+
+        return result
+
+    @classmethod
+    def load_negotiation_from_folder(cls, folder_path: str) -> dict | None:
+        """Load a negotiation from a standalone folder (like those in tournament negotiations/).
+
+        This can load negotiations saved by cartesian_tournament or similar formats.
+        The folder should contain a CSV trace file and optionally scenario data.
+
+        Args:
+            folder_path: Path to the folder containing negotiation data, or path to a CSV file.
+
+        Returns:
+            Complete negotiation data dict, or None if loading fails.
+        """
+        from pathlib import Path as P
+
+        folder = P(folder_path)
+
+        # If it's a file, load it directly as a trace
+        if folder.is_file() and folder.suffix == ".csv":
+            return cls._load_negotiation_from_csv(folder)
+
+        # If it's a directory, look for CSV files
+        if folder.is_dir():
+            csv_files = list(folder.glob("*.csv"))
+            if csv_files:
+                # Use the first CSV file found
+                return cls._load_negotiation_from_csv(csv_files[0])
+
+        return None
+
+    @classmethod
+    def _load_negotiation_from_csv(cls, csv_path) -> dict | None:
+        """Load negotiation data from a single CSV trace file.
+
+        Args:
+            csv_path: Path to the CSV file.
+
+        Returns:
+            Negotiation data dict, or None.
+        """
+        from pathlib import Path as P
+
+        csv_path = P(csv_path)
+        if not csv_path.exists():
+            return None
+
+        try:
+            history = []
+            negotiator_ids = set()
+
+            with open(csv_path, "r") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    step = int(row.get("step", 0))
+                    negotiator_id = row.get("negotiator", "")
+                    offer_str = row.get("offer", "")
+                    relative_time = (
+                        float(row.get("relative_time", 0))
+                        if row.get("relative_time")
+                        else 0
+                    )
+
+                    negotiator_ids.add(negotiator_id)
+
+                    # Parse offer
+                    offer = None
+                    if offer_str:
+                        try:
+                            offer = ast.literal_eval(offer_str)
+                            if isinstance(offer, tuple):
+                                offer = list(offer)
+                        except (ValueError, SyntaxError):
+                            offer = None
+
+                    history.append(
+                        {
+                            "step": step,
+                            "negotiator": negotiator_id,
+                            "offer": offer,
+                            "utilities": None,  # No ufuns available
+                            "relative_time": relative_time,
+                            "response": row.get("responses", ""),
+                            "state": row.get("state", ""),
+                        }
+                    )
+
+            # Try to parse scenario and negotiator info from filename
+            # Format: scenario_neg1_neg2_rep_runid.csv
+            filename = csv_path.stem
+            parts = filename.rsplit("_", 2)  # Split from right to get runid, rep, rest
+
+            scenario_name = "Unknown"
+            negotiator_types = list(negotiator_ids)
+
+            if len(parts) >= 3:
+                # Try to extract scenario and negotiators from the prefix
+                prefix = parts[0]
+                # This is approximate - the actual format varies
+                scenario_name = prefix.split("_")[0] if "_" in prefix else prefix
+
+            # Determine if there was an agreement (last state)
+            has_agreement = False
+            agreement = None
+            if history:
+                last_entry = history[-1]
+                state = last_entry.get("state", "")
+                if state in ("agreement", "ended"):
+                    has_agreement = True
+                    agreement = last_entry.get("offer")
+
+            return {
+                "id": csv_path.stem,
+                "scenario": scenario_name,
+                "status": "completed",
+                "has_agreement": has_agreement,
+                "agreement": agreement,
+                "final_utilities": None,
+                "history": history,
+                "n_steps": max((h["step"] for h in history), default=0) + 1
+                if history
+                else 0,
+                "current_step": max((h["step"] for h in history), default=0) + 1
+                if history
+                else 0,
+                "negotiators": [
+                    {"name": nid, "type": "Unknown", "short_type": "Unknown"}
+                    for nid in sorted(negotiator_ids)
+                ],
+                "issue_names": [],
+                "outcome_space_data": None,
+                "source": "file",
+                "file_path": str(csv_path),
+            }
+
+        except Exception as e:
+            print(f"Error loading negotiation from {csv_path}: {e}")
+            return None

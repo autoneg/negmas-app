@@ -321,7 +321,19 @@ class SessionManager:
 
                 # Execute one step in thread pool to avoid blocking the event loop
                 # This is critical for slow negotiators that sort the outcome space
-                await asyncio.to_thread(mechanism.step)
+                # Use timeout to prevent hung negotiators from freezing the UI
+                try:
+                    await asyncio.wait_for(
+                        asyncio.to_thread(mechanism.step),
+                        timeout=60.0,  # 60 second timeout per step
+                    )
+                except asyncio.TimeoutError:
+                    # Step timed out - negotiator took too long
+                    session.status = SessionStatus.COMPLETED
+                    session.end_reason = "timeout"
+                    session.error_message = "Negotiation step timed out (60s limit)"
+                    break
+
                 state: SAOState = mechanism.state
                 session.current_step = state.step
                 running = state.running  # Update for next iteration

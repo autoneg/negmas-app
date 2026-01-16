@@ -885,3 +885,56 @@ async def get_score_analysis(
     if "error" in analysis:
         raise HTTPException(status_code=400, detail=analysis["error"])
     return analysis
+
+
+@router.get("/saved/{tournament_id}/negotiation/{index}/full")
+async def get_full_negotiation(tournament_id: str, index: int):
+    """Load complete negotiation data with all panel support.
+
+    This endpoint loads a negotiation from a tournament with full data needed
+    for displaying all UI panels (trace, utilities, outcome space, etc.).
+
+    Args:
+        tournament_id: Tournament ID.
+        index: Index of the negotiation in the tournament results.
+
+    Returns:
+        Complete negotiation data including history, outcome_space_data,
+        final_utilities, negotiators, and all metadata.
+    """
+    negotiation = await asyncio.to_thread(
+        TournamentStorageService.load_full_negotiation, tournament_id, index
+    )
+    if negotiation is None:
+        raise HTTPException(status_code=404, detail="Negotiation not found")
+    return negotiation
+
+
+class LoadNegotiationRequest(BaseModel):
+    """Request model for loading negotiation from file path."""
+
+    path: str
+
+
+@router.post("/load_negotiation_from_file")
+async def load_negotiation_from_file(request: LoadNegotiationRequest):
+    """Load a negotiation from a file path (CSV trace file or folder).
+
+    This allows loading negotiations from anywhere on disk, not just from
+    saved tournaments. Useful for examining negotiations saved by
+    cartesian_tournament or other sources.
+
+    Args:
+        request: Request with path to CSV file or folder.
+
+    Returns:
+        Negotiation data dict, or error if loading fails.
+    """
+    negotiation = await asyncio.to_thread(
+        TournamentStorageService.load_negotiation_from_folder, request.path
+    )
+    if negotiation is None:
+        raise HTTPException(
+            status_code=404, detail="Could not load negotiation from path"
+        )
+    return negotiation

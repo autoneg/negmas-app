@@ -545,6 +545,7 @@ body {
     gap: 16px;
     padding: 16px;
     overflow: auto;
+    min-height: 0; /* Critical for flexbox children to shrink properly */
 }
 
 .panels-container.single {
@@ -1096,6 +1097,35 @@ body {
 
 .wizard-tab.completed .wizard-tab-icon {
     color: var(--success);
+}
+
+/* Error state for wizard tabs - shown when validation fails */
+.wizard-tab.has-error {
+    color: var(--danger);
+}
+
+.wizard-tab.has-error .wizard-tab-icon {
+    color: var(--danger);
+}
+
+.wizard-tab.has-error::after {
+    content: '';
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 6px;
+    height: 6px;
+    background: var(--danger);
+    border-radius: 50%;
+}
+
+/* Error state takes precedence over active */
+.wizard-tab.active.has-error {
+    color: var(--danger);
+}
+
+.wizard-tab.active.has-error::before {
+    background: var(--danger);
 }
 
 .wizard-content {
@@ -2473,45 +2503,85 @@ body {
     margin: 0 0 16px 0;
 }
 
-/* Tournament Results Table */
+/* Tournament Results Table - Modern Design */
 .tournament-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 13px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
 }
 
 .tournament-table th,
 .tournament-table td {
-    padding: 12px 16px;
+    padding: 14px 18px;
     text-align: left;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: none;
 }
 
 .tournament-table th {
-    font-weight: 600;
-    color: var(--text-secondary);
-    background: var(--bg-tertiary);
+    font-weight: 500;
+    color: var(--text-muted);
+    background: transparent;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    padding-top: 16px;
+    padding-bottom: 12px;
+}
+
+.tournament-table tbody tr {
+    transition: background var(--transition-fast);
+}
+
+.tournament-table tbody tr:nth-child(even) {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.dark-mode .tournament-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
 }
 
 .tournament-table tbody tr:hover {
-    background: var(--bg-tertiary);
+    background: var(--primary-light);
 }
 
 .tournament-table .rank {
     font-weight: 600;
     color: var(--primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--primary-light);
 }
 
-.tournament-table .rank-1 { color: #f5a623; }
-.tournament-table .rank-2 { color: #8e8e93; }
-.tournament-table .rank-3 { color: #cd7f32; }
+.tournament-table .rank-1 { 
+    color: #d97706;
+    background: rgba(217, 119, 6, 0.15);
+}
+.tournament-table .rank-2 { 
+    color: #6b7280;
+    background: rgba(107, 114, 128, 0.15);
+}
+.tournament-table .rank-3 { 
+    color: #b45309;
+    background: rgba(180, 83, 9, 0.15);
+}
 
 .tournament-table .score {
     font-weight: 600;
-    font-family: monospace;
+    font-family: var(--font-mono, monospace);
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
 }
 
 /* Tournament Negotiations Table */
@@ -2521,7 +2591,7 @@ body {
 
 .tournament-negotiations-table th,
 .tournament-negotiations-table td {
-    padding: 6px 10px;
+    padding: 10px 14px;
 }
 
 /* Tournament List */
@@ -2844,13 +2914,23 @@ body {
    COMPACT PANEL LAYOUT SYSTEM
    ============================================ */
 
+/* Negotiation single view container */
+.negotiation-single-view {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0; /* Critical for flexbox to respect overflow */
+    overflow: hidden;
+}
+
 /* Main layout container - two columns */
 .panels-layout-compact {
     display: flex;
     flex-direction: row;
     gap: 0;
     padding: 8px;
-    height: 100%;
+    flex: 1;
+    min-height: 0; /* Critical for flexbox to respect overflow */
     overflow: hidden;
 }
 
@@ -2860,6 +2940,7 @@ body {
     flex-direction: column;
     gap: 0;
     min-width: 200px;
+    min-height: 0; /* Critical for flexbox to respect overflow */
     overflow: hidden;
 }
 
@@ -2960,13 +3041,13 @@ body {
     display: none;
 }
 
-/* Panel size classes */
-.panel-info { flex: 0 0 auto; }
-.panel-history { flex: 1 1 40%; min-height: 100px; overflow: hidden; }
-.panel-histogram { flex: 0 0 180px; min-height: 120px; overflow: hidden; }
-.panel-result { flex: 0 0 auto; min-height: 60px; }
-.panel-2d-utility { flex: 1 1 55%; min-height: 200px; overflow: hidden; }
-.panel-timeline { flex: 1 1 45%; min-height: 150px; overflow: hidden; }
+/* Panel size classes - optimized for typical viewport heights */
+.panel-info { flex: 0 0 auto; max-height: 120px; }
+.panel-history { flex: 1 1 35%; min-height: 80px; overflow: hidden; }
+.panel-histogram { flex: 0 0 140px; min-height: 100px; overflow: hidden; }
+.panel-result { flex: 0 0 auto; min-height: 40px; max-height: 80px; }
+.panel-2d-utility { flex: 1 1 60%; min-height: 150px; overflow: hidden; }
+.panel-timeline { flex: 1 1 40%; min-height: 120px; overflow: hidden; }
 
 /* Floating actions - top right of panel */
 .panel-floating-actions {
@@ -3429,29 +3510,108 @@ body {
 }
 
 /* =============================================================================
-   Tabulator Customizations
+   Modern Table Base Styles
    ============================================================================= */
 
-/* Override Tabulator midnight theme to match our design */
+/* Base modern table - apply to any table for consistent styling */
+.table-modern {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.table-modern th,
+.table-modern td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: none;
+}
+
+.table-modern th {
+    font-weight: 500;
+    color: var(--text-muted);
+    background: transparent;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding-top: 14px;
+    padding-bottom: 10px;
+}
+
+.table-modern tbody tr {
+    transition: background var(--transition-fast);
+}
+
+.table-modern tbody tr:nth-child(even) {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.dark-mode .table-modern tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.table-modern tbody tr:hover {
+    background: var(--primary-light);
+    cursor: pointer;
+}
+
+/* Compact table variant */
+.table-modern.table-compact th,
+.table-modern.table-compact td {
+    padding: 8px 12px;
+    font-size: 12px;
+}
+
+.table-modern.table-compact th {
+    font-size: 10px;
+    padding-top: 10px;
+    padding-bottom: 8px;
+}
+
+/* Borderless variant - no outer shadow */
+.table-modern.table-borderless {
+    box-shadow: none;
+    background: transparent;
+}
+
+.table-modern.table-borderless tbody tr:nth-child(even) {
+    background: var(--bg-tertiary);
+}
+
+.dark-mode .table-modern.table-borderless tbody tr:nth-child(even) {
+    background: var(--bg-tertiary);
+}
+
+/* =============================================================================
+   Tabulator Customizations - Modern Design
+   ============================================================================= */
+
+/* Base Tabulator theme override for app consistency */
 .tabulator {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    background: var(--bg-secondary) !important;
+    border: 1px solid var(--border-color) !important;
     border-radius: 8px;
     font-size: 13px;
+    overflow: hidden;
 }
 
 .tabulator .tabulator-header {
-    background: var(--bg-tertiary);
-    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary) !important;
+    border-bottom: 1px solid var(--border-color) !important;
 }
 
 .tabulator .tabulator-header .tabulator-col {
-    background: transparent;
-    border-right: 1px solid var(--border-color);
+    background: transparent !important;
+    border-right: 1px solid var(--border-color) !important;
 }
 
 .tabulator .tabulator-header .tabulator-col:last-child {
-    border-right: none;
+    border-right: none !important;
 }
 
 .tabulator .tabulator-header .tabulator-col .tabulator-col-content {
@@ -3459,51 +3619,74 @@ body {
 }
 
 .tabulator .tabulator-header .tabulator-col .tabulator-col-title {
-    color: var(--text-secondary);
+    color: var(--text-secondary) !important;
     font-weight: 600;
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
+}
+
+.tabulator .tabulator-tableholder {
+    background: var(--bg-secondary) !important;
 }
 
 .tabulator .tabulator-tableholder .tabulator-table .tabulator-row {
-    background: var(--bg-primary);
-    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    transition: background var(--transition-fast);
+}
+
+.tabulator .tabulator-tableholder .tabulator-table .tabulator-row:nth-child(even) {
+    background: var(--bg-tertiary) !important;
 }
 
 .tabulator .tabulator-tableholder .tabulator-table .tabulator-row:hover {
-    background: var(--bg-secondary);
+    background: var(--primary-light) !important;
     cursor: pointer;
 }
 
 .tabulator .tabulator-tableholder .tabulator-table .tabulator-row .tabulator-cell {
     padding: 10px 12px;
-    border-right: none;
-    color: var(--text-primary);
+    border-right: none !important;
+    color: var(--text-primary) !important;
+    font-size: 13px;
+}
+
+/* Frozen column styling */
+.tabulator .tabulator-tableholder .tabulator-table .tabulator-row .tabulator-cell.tabulator-frozen {
+    background: inherit !important;
+    border-left: 1px solid var(--border-color) !important;
+}
+
+.tabulator .tabulator-header .tabulator-col.tabulator-frozen {
+    background: var(--bg-tertiary) !important;
+    border-left: 1px solid var(--border-color) !important;
 }
 
 .tabulator .tabulator-tableholder .tabulator-table .tabulator-row.tabulator-selected {
-    background: var(--primary-bg);
+    background: var(--primary-light) !important;
 }
 
 .tabulator .tabulator-tableholder .tabulator-table .tabulator-row.tabulator-selected:hover {
-    background: var(--primary-bg);
+    background: var(--primary-light) !important;
 }
 
 /* Tabulator footer/pagination */
 .tabulator .tabulator-footer {
-    background: var(--bg-tertiary);
-    border-top: 1px solid var(--border-color);
+    background: var(--bg-tertiary) !important;
+    border-top: 1px solid var(--border-color) !important;
     padding: 8px 12px;
 }
 
 .tabulator .tabulator-footer .tabulator-page {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
     padding: 4px 10px;
     border-radius: 4px;
     margin: 0 2px;
+    font-weight: 500;
+    transition: all var(--transition-fast);
 }
 
 .tabulator .tabulator-footer .tabulator-page.active {
@@ -3513,33 +3696,48 @@ body {
 }
 
 .tabulator .tabulator-footer .tabulator-page:hover:not(.active):not(:disabled) {
-    background: var(--bg-tertiary);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
 }
 
 /* Tabulator sorter icons */
 .tabulator .tabulator-header .tabulator-col.tabulator-sortable .tabulator-col-title {
-    padding-right: 20px;
+    padding-right: 16px;
 }
 
 .tabulator .tabulator-header .tabulator-col .tabulator-col-sorter {
-    color: var(--text-muted);
+    color: var(--text-muted) !important;
 }
 
-/* Light mode overrides */
-:root:not(.dark-mode) .tabulator {
-    background: var(--bg-primary);
+/* Tabulator header sort indicator */
+.tabulator .tabulator-header .tabulator-col.tabulator-sortable[aria-sort="asc"],
+.tabulator .tabulator-header .tabulator-col.tabulator-sortable[aria-sort="desc"] {
+    background: var(--primary-light) !important;
 }
 
-:root:not(.dark-mode) .tabulator .tabulator-header {
-    background: var(--bg-secondary);
+.tabulator .tabulator-header .tabulator-col.tabulator-sortable[aria-sort="asc"] .tabulator-col-title,
+.tabulator .tabulator-header .tabulator-col.tabulator-sortable[aria-sort="desc"] .tabulator-col-title {
+    color: var(--primary) !important;
 }
 
-:root:not(.dark-mode) .tabulator .tabulator-tableholder .tabulator-table .tabulator-row {
-    background: var(--bg-primary);
+/* Placeholder styling */
+.tabulator .tabulator-tableholder .tabulator-placeholder {
+    background: var(--bg-secondary) !important;
+    color: var(--text-muted) !important;
 }
 
-:root:not(.dark-mode) .tabulator .tabulator-tableholder .tabulator-table .tabulator-row:hover {
-    background: var(--bg-secondary);
+.tabulator .tabulator-tableholder .tabulator-placeholder span {
+    color: var(--text-muted) !important;
+}
+
+/* Action buttons in tables */
+.tabulator .tabulator-cell .btn-ghost {
+    opacity: 0.6;
+    transition: opacity var(--transition-fast);
+}
+
+.tabulator .tabulator-row:hover .tabulator-cell .btn-ghost {
+    opacity: 1;
 }
 
 /* Negotiations table view styles */
@@ -4368,6 +4566,9 @@ body {
 
 .raw-data-table-container {
     overflow: auto;
+    border-radius: 10px;
+    background: var(--bg-secondary);
+    box-shadow: var(--shadow-sm);
 }
 
 .raw-data-table-info {
@@ -4378,27 +4579,46 @@ body {
 
 .raw-data-table {
     width: 100%;
-    border-collapse: collapse;
-    font-size: 11px;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
 }
 
 .raw-data-table th,
 .raw-data-table td {
-    padding: 6px 8px;
+    padding: 10px 14px;
     text-align: left;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: none;
 }
 
 .raw-data-table th {
-    font-weight: 600;
-    background: var(--bg-tertiary);
+    font-weight: 500;
+    background: transparent;
     position: sticky;
     top: 0;
     z-index: 1;
+    color: var(--text-muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding-top: 14px;
+    padding-bottom: 10px;
+}
+
+.raw-data-table tbody tr {
+    transition: background var(--transition-fast);
+}
+
+.raw-data-table tbody tr:nth-child(even) {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.dark-mode .raw-data-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
 }
 
 .raw-data-table tr:hover {
-    background: var(--bg-tertiary);
+    background: var(--primary-light);
 }
 
 .raw-data-table .truncate-cell {

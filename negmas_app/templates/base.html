@@ -34,8 +34,8 @@
     <!-- Plotly.js for real-time plotting -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
     
-    <!-- Tabulator for data tables -->
-    <link href="https://unpkg.com/tabulator-tables@6.2.5/dist/css/tabulator_midnight.min.css" rel="stylesheet">
+    <!-- Tabulator for data tables - using simple theme, colors overridden in styles.css -->
+    <link href="https://unpkg.com/tabulator-tables@6.2.5/dist/css/tabulator_simple.min.css" rel="stylesheet">
     <script src="https://unpkg.com/tabulator-tables@6.2.5/dist/js/tabulator.min.js"></script>
     
     <!-- Layout System -->
@@ -90,6 +90,8 @@
 
     {% include 'components/modals/scenario_creator_modal.html' %}
 
+    {% include 'components/modals/load_negotiation_modal.html' %}
+
     <script>
     function app() {
         return {
@@ -112,6 +114,10 @@
             showNewNegotiation: false,
             showSettings: false,
             showNegotiatorConfig: false,
+            showLoadNegotiation: false,
+            loadNegotiationPath: '',
+            loadNegotiationLoading: false,
+            loadNegotiationError: null,
             
             // Negotiator configuration modal state
             configNegotiatorIndex: null,  // Index of negotiator being configured
@@ -235,6 +241,10 @@
                 normalize: true,  // Normalize utility functions (recommended for tournaments)
                 ignore_discount: false,  // Ignore discounting in utility functions
                 ignore_reserved: false,  // Ignore reserved values in utility functions
+                // Storage/memory optimization options
+                storage_optimization: 'balanced',  // 'speed'|'balanced'|'space'|'max' - controls disk space usage
+                memory_optimization: 'balanced',   // 'speed'|'balanced'|'space' - controls RAM usage
+                storage_format: null,              // null|'csv'|'gzip'|'parquet' - format for large files
             },
             tournamentTab: 'scenarios',
             tournamentScenarioSearch: '',
@@ -399,8 +409,8 @@
                 source: '',
                 scenario: null,
                 negotiators: [
-                    { type_name: 'AspirationNegotiator', name: 'Agent1', params: {} },
-                    { type_name: 'BoulwareTBNegotiator', name: 'Agent2', params: {} }
+                    { type_name: 'negmas.sao.AspirationNegotiator', name: 'Aspiration1', source: 'native', params: {} },
+                    { type_name: 'negmas.sao.BoulwareTBNegotiator', name: 'Boulware2', source: 'native', params: {} }
                 ],
                 // Scenario loading options
                 ignore_discount: false,
@@ -614,6 +624,56 @@
                        (params.hidden_time_limit && params.hidden_time_limit > 0 && params.hidden_time_limit !== 'inf');
             },
             
+            // Tab validation helpers - returns true if tab is valid (no errors)
+            isScenarioTabValid() {
+                return this.newNeg.scenario !== null;
+            },
+            
+            isNegotiatorsTabValid() {
+                const required = this.newNeg.scenario?.n_negotiators || 2;
+                return this.newNeg.negotiators.length >= required;
+            },
+            
+            isParametersTabValid() {
+                // Parameters tab requires a deadline for SAO mechanism
+                if (this.newNeg.mechanism_type === 'SAOMechanism') {
+                    return this.hasDeadline();
+                }
+                return true;
+            },
+            
+            // Check if a tab has an error that prevents starting
+            tabHasError(tabName) {
+                switch(tabName) {
+                    case 'scenario':
+                        return !this.isScenarioTabValid();
+                    case 'negotiators':
+                        return this.isScenarioTabValid() && !this.isNegotiatorsTabValid();
+                    case 'parameters':
+                        return this.isScenarioTabValid() && this.isNegotiatorsTabValid() && !this.isParametersTabValid();
+                    default:
+                        return false;
+                }
+            },
+            
+            // Get error message for a tab
+            getTabErrorMessage(tabName) {
+                switch(tabName) {
+                    case 'scenario':
+                        if (!this.newNeg.scenario) return 'Select a scenario';
+                        break;
+                    case 'negotiators':
+                        const required = this.newNeg.scenario?.n_negotiators || 2;
+                        const current = this.newNeg.negotiators.length;
+                        if (current < required) return `Need ${required} negotiators (have ${current})`;
+                        break;
+                    case 'parameters':
+                        if (!this.hasDeadline()) return 'Set a deadline (steps or time limit)';
+                        break;
+                }
+                return null;
+            },
+            
             getDeadlineSummary() {
                 const params = this.newNeg.mechanism_params || {};
                 const parts = [];
@@ -642,6 +702,33 @@
                     gb: 'General game-based mechanism with configurable evaluators.'
                 };
                 return descriptions[type] || '';
+            },
+            
+            // Format configured parameters for display
+            formatConfiguredParams(params) {
+                if (!params || Object.keys(params).length === 0) return '';
+                return Object.entries(params)
+                    .map(([key, value]) => {
+                        let displayValue;
+                        const valueType = typeof value;
+                        if (value === null || value === undefined) {
+                            displayValue = 'null';
+                        } else if (valueType === 'boolean') {
+                            displayValue = value ? 'true' : 'false';
+                        } else if (valueType === 'number') {
+                            displayValue = Number.isInteger(value) ? value.toString() : value.toFixed(3).replace(/\.?0+$/, '');
+                        } else if (valueType === 'string') {
+                            displayValue = `"${value}"`;
+                        } else if (Array.isArray(value)) {
+                            displayValue = `[${value.length}]`;
+                        } else if (valueType === 'object') {
+                            displayValue = '{...}';
+                        } else {
+                            displayValue = String(value);
+                        }
+                        return `${key}=${displayValue}`;
+                    })
+                    .join(', ');
             },
             
             // Toast notification
@@ -1684,7 +1771,8 @@
                 };
                 
                 if (slotIndex < this.newNeg.negotiators.length) {
-                    this.newNeg.negotiators[slotIndex] = newNeg;
+                    // Use splice for proper Alpine.js reactivity
+                    this.newNeg.negotiators.splice(slotIndex, 1, newNeg);
                 } else {
                     this.newNeg.negotiators.push(newNeg);
                 }
@@ -1848,7 +1936,8 @@
                 };
                 
                 if (slotIndex < this.newNeg.negotiators.length) {
-                    this.newNeg.negotiators[slotIndex] = boaNeg;
+                    // Use splice for proper Alpine.js reactivity
+                    this.newNeg.negotiators.splice(slotIndex, 1, boaNeg);
                 } else {
                     this.newNeg.negotiators.push(boaNeg);
                 }
@@ -1890,7 +1979,8 @@
                 };
                 
                 if (slotIndex < this.newNeg.negotiators.length) {
-                    this.newNeg.negotiators[slotIndex] = mapNeg;
+                    // Use splice for proper Alpine.js reactivity
+                    this.newNeg.negotiators.splice(slotIndex, 1, mapNeg);
                 } else {
                     this.newNeg.negotiators.push(mapNeg);
                 }
@@ -2306,7 +2396,7 @@
                     }
                 });
                 
-                this.tournamentEventSource.addEventListener('complete', (event) => {
+                this.tournamentEventSource.addEventListener('complete', async (event) => {
                     const result = JSON.parse(event.data);
                     const session = this.tournamentSessions.find(s => s.id === sessionId);
                     if (session) {
@@ -2330,6 +2420,59 @@
                     }
                     this.tournamentEventSource.close();
                     this.tournamentEventSource = null;
+                    
+                    // Refresh saved tournaments list to show the newly completed tournament
+                    await this.loadSavedTournaments();
+                    
+                    // If results_path is available, load enriched data from saved files
+                    if (result.results?.results_path && this.selectedTournament?.id === sessionId) {
+                        try {
+                            // Extract tournament ID from results_path (format: .../tournaments/{id})
+                            const pathMatch = result.results.results_path.match(/tournaments\/([^\/]+)/);
+                            if (pathMatch) {
+                                const savedId = pathMatch[1];
+                                // Load saved tournament data to enrich the current view
+                                const res = await fetch(`/api/tournament/saved/${savedId}`);
+                                if (res.ok) {
+                                    const savedData = await res.json();
+                                    // Enrich the current tournament with saved data
+                                    this.selectedTournament._fromSaved = true;
+                                    this.selectedTournament.path = savedData.path;
+                                    this.selectedTournament.scores = savedData.scores || [];
+                                    this.selectedTournament.negotiations = savedData.negotiations || [];
+                                    this.selectedTournament.n_scenarios = savedData.n_scenarios;
+                                    this.selectedTournament.n_competitors = savedData.n_competitors;
+                                    this.selectedTournament.n_negotiations = savedData.n_negotiations;
+                                    this.selectedTournament.n_agreements = savedData.n_agreements;
+                                    this.selectedTournament.agreement_rate = savedData.agreement_rate;
+                                    
+                                    // Also update results.final_scores with enriched data
+                                    if (savedData.scores?.length > 0) {
+                                        this.selectedTournament.results.final_scores = savedData.scores.map((s, idx) => ({
+                                            name: s.name,
+                                            rank: s.rank,
+                                            score: s.score,
+                                            type_name: s.raw_data?.type || s.name,
+                                            mean_utility: s.mean_utility ?? (s.raw_data?.utility ? parseFloat(s.raw_data.utility) : null),
+                                            n_negotiations: s.n_negotiations ?? (s.raw_data?.n_negotiations ? parseInt(s.raw_data.n_negotiations) : null),
+                                            n_agreements: s.raw_data?.n_agreements ? parseInt(s.raw_data.n_agreements) : null,
+                                            mean_advantage: s.mean_advantage,
+                                            mean_welfare: s.mean_welfare,
+                                            mean_nash_optimality: s.mean_nash_optimality,
+                                            mean_pareto_optimality: s.mean_pareto_optimality,
+                                            type_scores: s.type_scores
+                                        }));
+                                    }
+                                    
+                                    // Load raw data and score analysis
+                                    this.loadTournamentRawData(savedId);
+                                    this.loadScoreAnalysis(savedId);
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Could not enrich completed tournament with saved data:', e);
+                        }
+                    }
                 });
                 
                 this.tournamentEventSource.addEventListener('error', () => {
@@ -2472,6 +2615,13 @@
                 // Switch to negotiations page and set as current
                 this.currentPage = 'negotiations';
                 this.currentNegotiation = negotiation;
+                
+                // Initialize plots after DOM updates
+                this.$nextTick(() => {
+                    this.initOutcomeSpacePlot();
+                    this.initUtilityTimelinePlots();
+                    this.initHistogramPlot();
+                });
             },
             
             // Tournament grid helper methods
@@ -3392,10 +3542,15 @@
                                 name: s.name,
                                 rank: s.rank,
                                 score: s.score,
-                                type_name: s.raw_data?.type || '',
-                                mean_utility: s.raw_data?.utility ? parseFloat(s.raw_data.utility) : null,
-                                n_agreements: s.raw_data?.n_agreements ? parseInt(s.raw_data.n_agreements) : '-',
-                                n_negotiations: s.raw_data?.n_negotiations ? parseInt(s.raw_data.n_negotiations) : '-'
+                                type_name: s.raw_data?.type || s.name,
+                                mean_utility: s.mean_utility ?? (s.raw_data?.utility ? parseFloat(s.raw_data.utility) : null),
+                                n_negotiations: s.n_negotiations ?? (s.raw_data?.n_negotiations ? parseInt(s.raw_data.n_negotiations) : null),
+                                n_agreements: s.raw_data?.n_agreements ? parseInt(s.raw_data.n_agreements) : null,
+                                mean_advantage: s.mean_advantage,
+                                mean_welfare: s.mean_welfare,
+                                mean_nash_optimality: s.mean_nash_optimality,
+                                mean_pareto_optimality: s.mean_pareto_optimality,
+                                type_scores: s.type_scores
                             })),
                             negotiations: data.negotiations || []
                         }
@@ -3510,126 +3665,111 @@
                 this.loadingTraceIndex = negotiationIndex;
                 
                 try {
-                    // First get the negotiation details to find run_id for trace lookup
-                    const negRes = await fetch(`/api/tournament/saved/${tournamentId}/negotiation/${negotiationIndex}`);
-                    if (!negRes.ok) throw new Error('Failed to load negotiation details');
-                    const negData = await negRes.json();
+                    // Use the new /full endpoint which returns all data in one call
+                    const res = await fetch(`/api/tournament/saved/${tournamentId}/negotiation/${negotiationIndex}/full`);
+                    if (!res.ok) throw new Error('Failed to load negotiation data');
+                    const fullData = await res.json();
                     
-                    // Get the run_id from raw data - this is used as the trace file identifier
-                    // cartesian_tournament names files as: scenario_neg1_neg2_rep_runid.csv
-                    const runId = negData.raw_data?.run_id;
-                    if (!runId) {
-                        console.error('No run_id found in negotiation data');
-                        this.loadingTraceIndex = null;
-                        return;
-                    }
-                    
-                    // Load scenario information to get issue names
-                    const scenarioName = negData.scenario;
-                    const scenarioRes = await fetch(`/api/tournament/saved/${tournamentId}/scenario/${scenarioName}`);
-                    if (!scenarioRes.ok) throw new Error('Failed to load scenario info');
-                    const scenarioData = await scenarioRes.json();
-                    
-                    // Load the full trace using run_id, passing scenario for per-offer utility calculation
-                    const traceRes = await fetch(`/api/tournament/saved/${tournamentId}/trace/${runId}?scenario=${encodeURIComponent(scenarioName)}`);
-                    if (!traceRes.ok) throw new Error('Failed to load negotiation trace');
-                    const traceData = await traceRes.json();
-                    
-                    // Get negotiator names from partners
-                    const negotiatorNames = negData.partners || ['Negotiator 1', 'Negotiator 2'];
+                    // Get negotiator names from negotiators array or partners
+                    const negotiatorNames = fullData.negotiators?.map(n => n.short_type || n.type || n.name) || ['Negotiator 1', 'Negotiator 2'];
                     
                     // Generate colors for negotiators
                     const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
                     const negotiatorColors = negotiatorNames.map((_, idx) => colors[idx % colors.length]);
                     
-                    // Build a map of negotiator ID to index
+                    // Build a map of negotiator ID to index from history
                     const negotiatorIdToIndex = {};
-                    const uniqueNegotiators = [...new Set(traceData.trace.map(r => r.negotiator).filter(n => n))];
-                    uniqueNegotiators.forEach((negId, idx) => {
-                        negotiatorIdToIndex[negId] = idx;
-                    });
+                    if (fullData.history) {
+                        const uniqueNegotiators = [...new Set(fullData.history.map(r => r.negotiator).filter(n => n))];
+                        uniqueNegotiators.forEach((negId, idx) => {
+                            negotiatorIdToIndex[negId] = idx;
+                        });
+                    }
                     
-                    // Convert trace format to match our negotiation viewer format
-                    // cartesian_tournament saves traces as CSV with columns: time, relative_time, step, negotiator, offer, responses, state
+                    // Convert history format to offers format expected by the UI
                     const offers = [];
-                    const issueNames = scenarioData.issue_names || [];
+                    const issueNames = fullData.issue_names || [];
                     
-                    for (const row of traceData.trace) {
-                        if (row.offer && row.offer !== 'None') {
-                            // Parse the offer tuple string - handles both numbers and strings
-                            let offerArray;
-                            try {
-                                // Offer is stored as string like "('value1', 'value2', 'value3')"
-                                // Replace parens with brackets and handle quotes
-                                const normalized = row.offer
-                                    .replace(/\(/g, '[')
-                                    .replace(/\)/g, ']')
-                                    .replace(/'/g, '"');
-                                offerArray = JSON.parse(normalized);
-                            } catch (e) {
-                                console.warn('Failed to parse offer:', row.offer, e);
-                                continue;
-                            }
-                            
-                            // Convert array to object with issue names as keys
+                    for (const row of (fullData.history || [])) {
+                        if (row.offer) {
+                            // Convert array offer to object with issue names as keys
                             const offerObj = {};
-                            issueNames.forEach((name, idx) => {
-                                offerObj[name] = offerArray[idx];
-                            });
+                            if (Array.isArray(row.offer) && issueNames.length > 0) {
+                                issueNames.forEach((name, idx) => {
+                                    offerObj[name] = row.offer[idx];
+                                });
+                            } else if (typeof row.offer === 'object' && !Array.isArray(row.offer)) {
+                                Object.assign(offerObj, row.offer);
+                            }
                             
                             const proposerIndex = negotiatorIdToIndex[row.negotiator] ?? 0;
                             
-                            // Use per-offer utilities from backend if available, otherwise fall back to final utilities
-                            const offerUtilities = row.utilities || negData.utilities || [0, 0];
-                            
                             offers.push({
-                                step: parseInt(row.step),
+                                step: row.step,
                                 proposer: negotiatorNames[proposerIndex] || row.negotiator,
                                 proposer_index: proposerIndex,
                                 offer: offerObj,
-                                utilities: offerUtilities,
-                                time: parseFloat(row.time) || 0,
-                                relative_time: parseFloat(row.relative_time) || 0
+                                utilities: row.utilities || fullData.final_utilities || [0, 0],
+                                time: 0,
+                                relative_time: row.relative_time || 0
                             });
                         }
                     }
                     
                     // Determine final step and agreement info
-                    const lastStep = Math.max(...offers.map(o => o.step), 0);
-                    const hasAgreement = negData.has_agreement || false;
-                    const agreement = hasAgreement ? offers[offers.length - 1]?.offer : null;
+                    const lastStep = offers.length > 0 ? Math.max(...offers.map(o => o.step)) : 0;
+                    const hasAgreement = fullData.has_agreement || false;
+                    
+                    // Build agreement object from array if needed
+                    let agreement = null;
+                    if (hasAgreement && fullData.agreement) {
+                        if (Array.isArray(fullData.agreement) && issueNames.length > 0) {
+                            agreement = {};
+                            issueNames.forEach((name, idx) => {
+                                agreement[name] = fullData.agreement[idx];
+                            });
+                        } else if (typeof fullData.agreement === 'object' && !Array.isArray(fullData.agreement)) {
+                            agreement = fullData.agreement;
+                        } else {
+                            // Last offer as agreement
+                            agreement = offers.length > 0 ? offers[offers.length - 1]?.offer : null;
+                        }
+                    }
                     
                     // Create a complete negotiation object matching the viewer's expectations
                     const negotiation = {
                         id: `saved-${tournamentId}-${negotiationIndex}`,
-                        scenario: scenarioName,
+                        scenario: fullData.scenario,
                         step: lastStep,
-                        n_steps: negData.raw_data?.n_steps ? parseInt(negData.raw_data.n_steps) : null,
-                        relative_time: offers[offers.length - 1]?.relative_time || 1.0,
+                        n_steps: fullData.n_steps || null,
+                        relative_time: offers.length > 0 ? (offers[offers.length - 1]?.relative_time || 1.0) : 1.0,
                         offers: offers,
                         negotiator_names: negotiatorNames,
                         negotiator_colors: negotiatorColors,
                         agreement: agreement,
-                        final_utilities: negData.utilities || null,
+                        final_utilities: fullData.final_utilities || null,
                         end_reason: hasAgreement ? 'agreement' : 'completed',
-                        mechanism_type: negData.raw_data?.mechanism_type || 'SAOMechanism',
+                        mechanism_type: 'SAOMechanism',
                         // Include outcome_space_data for 2D utility visualization
-                        outcome_space_data: scenarioData.outcome_space_data || null,
+                        outcome_space_data: fullData.outcome_space_data || null,
                         // Include optimality stats for agreement analysis
                         optimality_stats: hasAgreement ? {
-                            pareto_optimality: negData.raw_data?.pareto_optimality,
-                            nash_optimality: negData.raw_data?.nash_optimality,
-                            kalai_optimality: negData.raw_data?.kalai_optimality,
-                            modified_kalai_optimality: negData.raw_data?.modified_kalai_optimality,
-                            max_welfare_optimality: negData.raw_data?.max_welfare_optimality,
-                            ks_optimality: negData.raw_data?.ks_optimality,
-                            modified_ks_optimality: negData.raw_data?.modified_ks_optimality,
+                            pareto_optimality: fullData.pareto_optimality,
+                            nash_optimality: fullData.nash_optimality,
+                            kalai_optimality: fullData.kalai_optimality,
+                            max_welfare_optimality: fullData.max_welfare_optimality,
+                            ks_optimality: fullData.ks_optimality,
                         } : null,
                         // Mark this as a saved negotiation so controls are disabled
                         isSaved: true,
+                        isFromTournament: true,
+                        tournamentId: tournamentId,
                         pendingStart: false,
                         paused: false
                     };
+                    
+                    // Store reference to return to tournament
+                    this._returnToTournament = this.selectedTournament;
                     
                     // Switch to negotiations page and set as current
                     this.currentPage = 'negotiations';
@@ -3638,13 +3778,176 @@
                     // Clear loading state
                     this.loadingTraceIndex = null;
                     
-                    // Show notification
-                    console.log(`Loaded ${offers.length} offers from saved negotiation: ${scenarioName}`);
+                    // Initialize plots after DOM updates
+                    this.$nextTick(() => {
+                        this.initOutcomeSpacePlot();
+                        this.initUtilityTimelinePlots();
+                        this.initHistogramPlot();
+                    });
+                    
+                    // Debug logging
+                    console.log('Loaded negotiation object:', {
+                        id: negotiation.id,
+                        offers_count: negotiation.offers?.length,
+                        agreement: negotiation.agreement,
+                        end_reason: negotiation.end_reason,
+                        outcome_space_data: !!negotiation.outcome_space_data,
+                        final_utilities: negotiation.final_utilities
+                    });
                     
                 } catch (e) {
                     console.error('Failed to load saved negotiation trace:', e);
                     this.loadingTraceIndex = null;
                     alert('Failed to load negotiation trace. See console for details.');
+                }
+            },
+            
+            // Load a negotiation from a file path (CSV or folder)
+            async loadNegotiationFromFile() {
+                if (!this.loadNegotiationPath?.trim()) {
+                    this.loadNegotiationError = 'Please enter a file path';
+                    return;
+                }
+                
+                this.loadNegotiationLoading = true;
+                this.loadNegotiationError = null;
+                
+                try {
+                    const res = await fetch('/api/tournament/load_negotiation_from_file', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: this.loadNegotiationPath.trim() })
+                    });
+                    
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({ detail: 'Failed to load negotiation' }));
+                        throw new Error(err.detail || 'Failed to load negotiation');
+                    }
+                    
+                    const fullData = await res.json();
+                    
+                    // Get negotiator names from negotiators array or partners
+                    const negotiatorNames = fullData.negotiators?.map(n => n.short_type || n.type || n.name) || ['Negotiator 1', 'Negotiator 2'];
+                    
+                    // Generate colors for negotiators
+                    const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
+                    const negotiatorColors = negotiatorNames.map((_, idx) => colors[idx % colors.length]);
+                    
+                    // Build a map of negotiator ID to index from history
+                    const negotiatorIdToIndex = {};
+                    if (fullData.history) {
+                        const uniqueNegotiators = [...new Set(fullData.history.map(r => r.negotiator).filter(n => n))];
+                        uniqueNegotiators.forEach((negId, idx) => {
+                            negotiatorIdToIndex[negId] = idx;
+                        });
+                    }
+                    
+                    // Convert history format to offers format expected by the UI
+                    const offers = [];
+                    const issueNames = fullData.issue_names || [];
+                    
+                    for (const row of (fullData.history || [])) {
+                        if (row.offer) {
+                            // Convert array offer to object with issue names as keys
+                            const offerObj = {};
+                            if (Array.isArray(row.offer) && issueNames.length > 0) {
+                                issueNames.forEach((name, idx) => {
+                                    offerObj[name] = row.offer[idx];
+                                });
+                            } else if (typeof row.offer === 'object' && !Array.isArray(row.offer)) {
+                                Object.assign(offerObj, row.offer);
+                            }
+                            
+                            const proposerIndex = negotiatorIdToIndex[row.negotiator] ?? 0;
+                            
+                            offers.push({
+                                step: row.step,
+                                proposer: negotiatorNames[proposerIndex] || row.negotiator,
+                                proposer_index: proposerIndex,
+                                offer: offerObj,
+                                utilities: row.utilities || fullData.final_utilities || [0, 0],
+                                time: 0,
+                                relative_time: row.relative_time || 0
+                            });
+                        }
+                    }
+                    
+                    // Determine final step and agreement info
+                    const lastStep = offers.length > 0 ? Math.max(...offers.map(o => o.step)) : 0;
+                    const hasAgreement = fullData.has_agreement || false;
+                    
+                    // Build agreement object from array if needed
+                    let agreement = null;
+                    if (hasAgreement && fullData.agreement) {
+                        if (Array.isArray(fullData.agreement) && issueNames.length > 0) {
+                            agreement = {};
+                            issueNames.forEach((name, idx) => {
+                                agreement[name] = fullData.agreement[idx];
+                            });
+                        } else if (typeof fullData.agreement === 'object' && !Array.isArray(fullData.agreement)) {
+                            agreement = fullData.agreement;
+                        } else {
+                            // Last offer as agreement
+                            agreement = offers.length > 0 ? offers[offers.length - 1]?.offer : null;
+                        }
+                    }
+                    
+                    // Extract scenario name from path
+                    const scenarioName = fullData.scenario || this.loadNegotiationPath.split('/').pop().replace(/\.csv$/, '');
+                    
+                    // Create a complete negotiation object matching the viewer's expectations
+                    const negotiation = {
+                        id: `file-${Date.now()}`,
+                        scenario: scenarioName,
+                        step: lastStep,
+                        n_steps: fullData.n_steps || null,
+                        relative_time: offers.length > 0 ? (offers[offers.length - 1]?.relative_time || 1.0) : 1.0,
+                        offers: offers,
+                        negotiator_names: negotiatorNames,
+                        negotiator_colors: negotiatorColors,
+                        agreement: agreement,
+                        final_utilities: fullData.final_utilities || null,
+                        end_reason: hasAgreement ? 'agreement' : 'completed',
+                        mechanism_type: 'SAOMechanism',
+                        // Include outcome_space_data for 2D utility visualization
+                        outcome_space_data: fullData.outcome_space_data || null,
+                        // Include optimality stats for agreement analysis
+                        optimality_stats: hasAgreement ? {
+                            pareto_optimality: fullData.pareto_optimality,
+                            nash_optimality: fullData.nash_optimality,
+                            kalai_optimality: fullData.kalai_optimality,
+                            max_welfare_optimality: fullData.max_welfare_optimality,
+                            ks_optimality: fullData.ks_optimality,
+                        } : null,
+                        // Mark this as a saved negotiation so controls are disabled
+                        isSaved: true,
+                        isFromFile: true,
+                        sourcePath: this.loadNegotiationPath,
+                        pendingStart: false,
+                        paused: false
+                    };
+                    
+                    // Close modal and switch to negotiations page
+                    this.showLoadNegotiation = false;
+                    this.loadNegotiationPath = '';
+                    this.currentPage = 'negotiations';
+                    this.currentNegotiation = negotiation;
+                    
+                    // Initialize plots after DOM updates
+                    this.$nextTick(() => {
+                        this.initOutcomeSpacePlot();
+                        this.initUtilityTimelinePlots();
+                        this.initHistogramPlot();
+                    });
+                    
+                    // Show notification
+                    this.showToast(`Loaded negotiation from file: ${scenarioName}`, 'success');
+                    
+                } catch (e) {
+                    console.error('Failed to load negotiation from file:', e);
+                    this.loadNegotiationError = e.message || 'Failed to load negotiation';
+                } finally {
+                    this.loadNegotiationLoading = false;
                 }
             },
             
@@ -3752,34 +4055,34 @@
                 const self = this;
                 this._savedTournamentsTable = new Tabulator(container, {
                     data: this.savedTournaments,
-                    layout: "fitDataStretch",
+                    layout: "fitColumns",
                     height: "300px",
                     placeholder: "No saved tournaments",
                     selectableRows: 1,
                     columns: [
-                        { title: "Name/ID", field: "id", width: 150, sorter: "string", formatter: (cell) => {
+                        { title: "Name/ID", field: "id", widthGrow: 2, minWidth: 120, sorter: "string", formatter: (cell) => {
                             const row = cell.getRow().getData();
                             return row.name || `<code style="font-size: 11px;">${cell.getValue()}</code>`;
                         } },
-                        { title: "Negotiations", field: "n_negotiations", width: 110, hozAlign: "center", sorter: "number" },
-                        { title: "Agreements", field: "agreement_rate", width: 100, hozAlign: "center", formatter: (cell) => {
+                        { title: "Negotiations", field: "n_negotiations", width: 95, hozAlign: "center", resizable: false, sorter: "number" },
+                        { title: "Agreements", field: "agreement_rate", width: 90, hozAlign: "center", resizable: false, formatter: (cell) => {
                             const row = cell.getRow().getData();
                             const rate = Math.round((cell.getValue() || 0) * 100);
                             return `${row.n_agreements || 0} (${rate}%)`;
                         }, headerSort: false },
-                        { title: "Tags", field: "tags", width: 120, formatter: (cell) => {
+                        { title: "Tags", field: "tags", width: 100, resizable: false, formatter: (cell) => {
                             const tags = cell.getValue() || [];
                             if (tags.length === 0) return '<span class="text-muted">-</span>';
                             return tags.slice(0, 2).map(t => `<span class="badge badge-neutral badge-sm">${t}</span>`).join(' ') +
                                 (tags.length > 2 ? ` +${tags.length - 2}` : '');
                         }, headerSort: false },
-                        { title: "Date", field: "created_at", width: 100, hozAlign: "center", sorter: "datetime", formatter: (cell) => {
+                        { title: "Date", field: "created_at", width: 85, hozAlign: "center", resizable: false, sorter: "datetime", formatter: (cell) => {
                             const val = cell.getValue();
                             if (!val) return '-';
                             const date = new Date(val);
                             return date.toLocaleDateString();
                         } },
-                        { title: "", field: "actions", width: 90, hozAlign: "center", headerSort: false, frozen: true, formatter: (cell) => {
+                        { title: "", field: "actions", width: 75, hozAlign: "center", headerSort: false, resizable: false, formatter: (cell) => {
                             const row = cell.getRow().getData();
                             const archiveIcon = row.archived 
                                 ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 10v11h18V10"/><path d="M21 3H3v7h18V3z"/><path d="M10 14h4"/></svg>`
@@ -4388,6 +4691,9 @@
         };
     }
     </script>
+    
+    <!-- Negotiation plotting functionality -->
+    <script src="/static/js/negotiation-plots.js"></script>
     
     {% block scripts %}{% endblock %}
 </body>

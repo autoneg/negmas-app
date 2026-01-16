@@ -43,7 +43,16 @@
                 <div class="progress-mini"><div class="progress-bar" :style="'width: ' + Math.min(100, (currentNegotiation?.relative_time || 0) * 100) + '%'"></div></div>
             </div>
         </div>
-        <!-- Row 2: Negotiators (only if needed) -->
+        <!-- Row 2: ID (clickable to copy) -->
+        <div class="info-row" x-show="currentNegotiation?.id" style="font-size: 10px;">
+            <span class="text-muted">ID:</span>
+            <code class="negotiation-id-display" 
+                  style="font-size: 10px; background: var(--bg-tertiary); padding: 1px 4px; border-radius: 3px; cursor: pointer; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                  :title="'Click to copy: ' + currentNegotiation?.id"
+                  @click="navigator.clipboard.writeText(currentNegotiation?.id); showToast('ID copied to clipboard', 'success')"
+                  x-text="currentNegotiation?.id"></code>
+        </div>
+        <!-- Row 3: Negotiators -->
         <div class="info-row info-row-negotiators">
             <template x-for="(name, idx) in (currentNegotiation?.negotiator_names || [])" :key="idx">
                 <span class="badge badge-xs" :style="'background: ' + (currentNegotiation?.negotiator_colors?.[idx] || 'var(--primary)') + '; color: white;'" x-text="name"></span>

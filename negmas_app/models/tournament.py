@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from typing import Literal
 
 
 class TournamentStatus(str, Enum):
@@ -49,6 +50,11 @@ class CellStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETE = "complete"
+
+
+# Type aliases matching negmas types
+OptimizationLevel = Literal["speed", "time", "none", "balanced", "space", "max"]
+StorageFormat = Literal["csv", "gzip", "parquet"]
 
 
 @dataclass
@@ -126,6 +132,26 @@ class TournamentConfig:
     # Output
     save_path: str | None = None  # Path to save results (None = don't save)
     verbosity: int = 0
+
+    # Storage and Memory Optimization
+    # Controls disk space usage for tournament results:
+    # - "speed"/"time"/"none": Keep all files (results/, all_scores.csv, details.csv)
+    # - "balanced": Remove results/ folder after details.csv is created
+    # - "space"/"max": Remove both results/ folder AND all_scores.csv
+    storage_optimization: OptimizationLevel = "speed"
+
+    # Controls RAM usage for tournament results:
+    # - "speed"/"time"/"none": Keep all DataFrames in memory
+    # - "balanced": Keep details + final_scores, compute scores on demand
+    # - "space"/"max": Keep only final_scores, load from disk on demand
+    memory_optimization: OptimizationLevel = "speed"
+
+    # Storage format for large data files (all_scores, details):
+    # - "csv": Plain CSV files (human-readable, larger size)
+    # - "gzip": Gzip-compressed CSV (good compression)
+    # - "parquet": Parquet binary (best compression, preserves types, fastest)
+    # - None: Auto-select based on storage_optimization
+    storage_format: StorageFormat | None = None
 
 
 @dataclass

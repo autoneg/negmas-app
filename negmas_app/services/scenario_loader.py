@@ -8,6 +8,11 @@ from typing import Any
 import yaml
 
 from negmas import Scenario
+from negmas.inout import (
+    find_domain_and_utility_files_geniusweb,
+    find_domain_and_utility_files_xml,
+    find_domain_and_utility_files_yaml,
+)
 from negmas.preferences.ops import is_rational
 
 from ..models import ScenarioInfo, IssueInfo, ScenarioStatsInfo
@@ -207,16 +212,13 @@ class ScenarioLoader:
                 if match:
                     opposition = float(match.group(1))
 
-            # Count negotiator files (*.yml files that are not the main scenario or special files)
-            # Look for files that don't start with underscore and aren't the main scenario yml
-            ufun_files = [
-                f
-                for f in path.iterdir()
-                if f.is_file()
-                and f.suffix in (".yml", ".yaml")
-                and not f.name.startswith("_")
-                and f.stem.lower() != path.name.lower()  # Not the main scenario file
-            ]
+            # Count utility function files using negmas built-in detection
+            # Try formats in order: YAML, XML (Genius), GeniusWeb
+            _, ufun_files = find_domain_and_utility_files_yaml(path)
+            if not ufun_files:
+                _, ufun_files = find_domain_and_utility_files_xml(path)
+            if not ufun_files:
+                _, ufun_files = find_domain_and_utility_files_geniusweb(path)
             n_negotiators = len(ufun_files) if ufun_files else 2  # Default to 2
 
             info = ScenarioInfo(

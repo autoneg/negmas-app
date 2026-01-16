@@ -8,6 +8,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from negmas.inout import (
+    find_domain_and_utility_files_geniusweb,
+    find_domain_and_utility_files_xml,
+    find_domain_and_utility_files_yaml,
+)
+
 # Parameters from base Negotiator class that should be ignored
 # These are set by the app, not configured by users
 IGNORED_BASE_PARAMS = frozenset(
@@ -366,50 +372,33 @@ def _validate_serialized_scenario(path: Path) -> dict[str, Any]:
 def _validate_scenario_directory(path: Path) -> dict[str, Any]:
     """Validate a scenario directory."""
     try:
-        # Check for GENIUS XML format
-        domain_xml = list(path.glob("*domain*.xml")) + list(path.glob("*Domain*.xml"))
-        if domain_xml:
-            ufun_files = [f for f in path.glob("*.xml") if f not in domain_xml]
+        # Use negmas built-in detection - try formats in order: YAML, XML (Genius), GeniusWeb
+        domain_file, ufun_files = find_domain_and_utility_files_yaml(path)
+        detected_format = "negmas_yaml"
+
+        if not ufun_files:
+            domain_file, ufun_files = find_domain_and_utility_files_xml(path)
+            detected_format = "genius_xml"
+
+        if not ufun_files:
+            domain_file, ufun_files = find_domain_and_utility_files_geniusweb(path)
+            detected_format = "geniusweb"
+
+        if ufun_files:
             return {
                 "valid": True,
                 "type": "directory",
-                "format": "genius_xml",
+                "format": detected_format,
                 "path": str(path),
                 "name": path.name,
                 "n_negotiators": len(ufun_files),
                 "files": {
-                    "domain": [str(f) for f in domain_xml],
+                    "domain": [str(domain_file)] if domain_file else [],
                     "ufuns": [str(f) for f in ufun_files],
                 },
             }
 
-        # Check for negmas YAML format
-        domain_yaml = list(path.glob("*domain*.yaml")) + list(path.glob("*domain*.yml"))
-        if domain_yaml:
-            ufun_files = [
-                f
-                for f in path.glob("*.yaml")
-                if f not in domain_yaml and "_stats" not in f.name
-            ]
-            ufun_files += [
-                f
-                for f in path.glob("*.yml")
-                if f not in domain_yaml and "_stats" not in f.name
-            ]
-            return {
-                "valid": True,
-                "type": "directory",
-                "format": "negmas_yaml",
-                "path": str(path),
-                "name": path.name,
-                "n_negotiators": len(ufun_files),
-                "files": {
-                    "domain": [str(f) for f in domain_yaml],
-                    "ufuns": [str(f) for f in ufun_files],
-                },
-            }
-
-        # Try loading with negmas Scenario.load
+        # Try loading with negmas Scenario.load as fallback
         from negmas import Scenario
 
         scenario = Scenario.load(str(path))
