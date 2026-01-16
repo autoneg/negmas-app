@@ -8,24 +8,45 @@ A modern web GUI for [NegMAS](https://github.com/yasserfarouk/negmas) - the Nego
 
 ## Features
 
-- **Interactive Negotiations** - Run SAO (Stacked Alternating Offers) negotiations with real-time visualization
-- **Rich Visualizations** - 2D utility space plots, utility timelines, offer histograms, and more
-- **Scenario Explorer** - Browse and load ANAC competition scenarios (2010-2022)
-- **Tournament Mode** - Run tournaments with multiple negotiators across scenarios
-- **Customizable Panels** - Flexible panel layout system with drag-and-resize support
-- **Dark Mode** - Full dark/light theme support with color-blind friendly palettes
-- **Export Results** - Save negotiations as JSON, export plots as images
+### Real-time Negotiation Visualization
+
+- **2D Utility Space**: Visualize offers with Pareto frontier overlay
+- **Utility Timeline**: Track utilities over negotiation rounds
+- **Offer History**: Complete history with utility values
+- **Offer Histogram**: Distribution of proposed values per issue
+- **Result Analysis**: Compare outcomes against Nash, Kalai, and welfare optima
+
+### Tournament System
+
+- **Grid Visualization**: Real-time progress grid showing all matchups
+- **Live Leaderboard**: Watch rankings update as negotiations complete
+- **Score Analysis**: Analyze results by metric, scenario, or opponent
+- **Raw Data Export**: Access detailed tournament data for analysis
+
+### Scenario Management
+
+- **Scenario Explorer**: Browse ANAC competition scenarios (2010-2022)
+- **Scenario Creator**: Design custom scenarios with the built-in wizard
+- **Statistics Calculation**: Compute Pareto frontiers, Nash points, and welfare optima
+- **Quick Start**: Launch negotiations directly from the explorer
+
+### Negotiator Support
+
+- **Native NegMAS Agents**: All built-in NegMAS negotiators
+- **Genius Agents**: ANAC competition agents via Genius Bridge
+- **BOA Architecture**: Build custom agents from components
+- **Virtual Negotiators**: Save configured agents for reuse
 
 ## Quick Start
 
 ### Installation
 
 ```bash
-# Using uv (recommended)
-uv pip install negmas-app
-
-# Or using pip
+# Using pip
 pip install negmas-app
+
+# Or using uv (recommended)
+uv pip install negmas-app
 ```
 
 ### Running
@@ -34,11 +55,8 @@ pip install negmas-app
 # Start the server
 negmas-app
 
-# Or with uv
-uv run negmas-app
+# Open browser at http://127.0.0.1:8019
 ```
-
-Open http://127.0.0.1:8019 in your browser.
 
 ### From Source
 
@@ -48,43 +66,65 @@ git clone https://github.com/yasserfarouk/negmas-app.git
 cd negmas-app
 
 # Install dependencies
-uv sync
+uv sync --all-extras --dev
+
+# Install local negmas packages (for development)
+for x in negmas negmas-llm negmas-genius-agents negmas-negolog negmas-rl; do
+    uv pip install -e ../$x
+done
 
 # Run the app
-uv run negmas-app
+negmas-app run
 ```
 
-## Usage
+## Architecture
 
-### Running a Negotiation
+NegMAS App is built with a modern stack optimized for real-time visualization:
 
-1. Click **Start Negotiation** on the Negotiations page
-2. Select a scenario from the dropdown (or browse in Scenario Explorer)
-3. Choose negotiators for each party
-4. Configure mechanism parameters (steps, time limit, etc.)
-5. Click **Start** to begin the negotiation
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Browser (Frontend)                      │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │  Alpine.js  │  │  Plotly.js  │  │     Tabulator       │  │
+│  │   (State)   │  │   (Charts)  │  │      (Tables)       │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└────────────────────────────┬────────────────────────────────┘
+                             │ HTTP/SSE
+┌────────────────────────────┴────────────────────────────────┐
+│                    FastAPI (Backend)                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │   Routers   │  │  Services   │  │      Models         │  │
+│  │   (API)     │  │  (Logic)    │  │   (Dataclasses)     │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+┌────────────────────────────┴────────────────────────────────┐
+│                     NegMAS Library                           │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │ Mechanisms  │  │ Negotiators │  │     Scenarios       │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### Panels
+### Key Technologies
 
-The negotiation view includes several panels:
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| Web Framework | FastAPI | REST API, SSE, async support |
+| Templates | Jinja2 | Server-side HTML rendering |
+| Reactivity | Alpine.js | Client-side state management |
+| Visualization | Plotly.js | Interactive charts |
+| Data Tables | Tabulator | Rich data grids |
+| Real-time | SSE | Server-to-client streaming |
 
-| Panel | Description |
-|-------|-------------|
-| **Info** | Shows scenario name, negotiators, progress |
-| **Offer History** | Live stream of offers with utilities |
-| **2D Utility View** | Scatter plot of outcome space with Pareto frontier |
-| **Utility Timeline** | Per-agent utility over time |
-| **Offer Histogram** | Distribution of proposed values per issue |
-| **Result** | Final agreement and utilities |
+## Documentation
 
-### Layout Presets
+Full documentation is available at: https://yasserfarouk.github.io/negmas-app/
 
-Switch between layouts using the dropdown in the header:
-
-- **Default** - Two-column with offer history left, charts right
-- **Focus** - Three-column with large center chart
-- **Compact** - All panels in tabs, no bottom row
-- **Analysis** - All panels visible in stacked mode
+- [Installation Guide](https://yasserfarouk.github.io/negmas-app/getting-started/installation/)
+- [User Guide](https://yasserfarouk.github.io/negmas-app/user-guide/)
+- [Developer Guide](https://yasserfarouk.github.io/negmas-app/developer-guide/)
+- [API Reference](https://yasserfarouk.github.io/negmas-app/developer-guide/api/)
 
 ## Configuration
 
@@ -94,7 +134,6 @@ Configuration is stored in `~/negmas/app/settings.yaml`:
 # Negotiator sources - directories to scan for custom negotiators
 negotiator_sources:
   - ~/my-negotiators
-  - /path/to/more/negotiators
 
 # Scenario sources - additional scenario directories
 scenario_sources:
@@ -111,65 +150,25 @@ save_path: ~/negmas/app/negotiations
 
 Local project config in `negmas_app/settings.yaml` overrides global settings.
 
-## Development
+## Citation
 
-### Setup
+If you use NegMAS App in your research, please cite the NegMAS library:
 
-```bash
-# Clone and install dev dependencies
-git clone https://github.com/yasserfarouk/negmas-app.git
-cd negmas-app
-uv sync
-
-# Run tests
-uv run pytest tests/ -v
-
-# Type checking
-uv run pyright negmas_app/
-
-# Run the app in development
-uv run negmas-app
+```bibtex
+@inproceedings{mohammad2023negmas,
+  title={NegMAS: A Platform for Situated Negotiations},
+  author={Mohammad, Yasser and Greenwald, Amy and Nakadai, Shinji},
+  booktitle={Proceedings of the 2023 International Conference on 
+             Autonomous Agents and Multiagent Systems},
+  year={2023}
+}
 ```
-
-### Project Structure
-
-```
-negmas_app/
-├── models/          # Pydantic/dataclass models
-├── routers/         # FastAPI route handlers
-├── services/        # Business logic
-├── static/
-│   ├── css/         # Stylesheets
-│   └── js/          # Panel system, layout manager
-├── templates/       # Jinja2 HTML templates
-└── main.py          # FastAPI app entry point
-```
-
-### Documentation
-
-```bash
-# Install docs dependencies
-uv pip install -e ".[docs]"
-
-# Serve docs locally
-uv run mkdocs serve
-
-# Build docs
-uv run mkdocs build
-```
-
-## Tech Stack
-
-- **Backend**: FastAPI + Uvicorn
-- **Frontend**: Jinja2 + Alpine.js + Plotly.js
-- **Real-time**: Server-Sent Events (SSE)
-- **Styling**: Custom CSS with CSS variables
-- **Docs**: MkDocs Material
 
 ## Related Projects
 
 - [NegMAS](https://github.com/yasserfarouk/negmas) - The underlying negotiation library
 - [SCML](https://github.com/yasserfarouk/scml) - Supply Chain Management League
+- [Genius](http://ii.tudelft.nl/genius/) - Negotiation environment (for Genius agents)
 
 ## License
 
@@ -177,4 +176,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-Contributions are welcome! Please see the [Contributing Guide](https://yasserfarouk.github.io/negmas-app/development/contributing/) for details.
+Contributions are welcome! Please see the [Contributing Guide](https://yasserfarouk.github.io/negmas-app/developer-guide/contributing/) for details.

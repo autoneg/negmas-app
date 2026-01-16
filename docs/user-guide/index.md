@@ -4,11 +4,12 @@ Welcome to the NegMAS App User Guide. This section covers how to use the applica
 
 ## Overview
 
-NegMAS App provides three main features:
+NegMAS App provides four main features:
 
 1. **Negotiations** - Run and visualize individual negotiations
 2. **Tournaments** - Compare negotiation strategies in round-robin competitions
 3. **Scenario Explorer** - Browse and analyze negotiation scenarios
+4. **Negotiator Explorer** - Discover and configure negotiation agents
 
 ## Navigation
 
@@ -17,6 +18,7 @@ Use the header navigation to switch between sections:
 - **Negotiations** - Main workspace for running negotiations
 - **Tournaments** - Tournament management and results
 - **Scenarios** - Browse available scenarios
+- **Negotiators** - Explore and configure negotiation agents
 - **Settings** - Configure the application
 
 ## Sidebar
@@ -42,3 +44,4 @@ Click on any negotiation to view its details and visualizations.
 - [Running Negotiations](negotiations.md)
 - [Running Tournaments](tournaments.md)
 - [Exploring Scenarios](scenarios.md)
+- [Exploring Negotiators](negotiators.md)

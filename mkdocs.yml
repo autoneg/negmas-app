@@ -116,14 +116,17 @@ nav:
     - Running Negotiations: user-guide/negotiations.md
     - Running Tournaments: user-guide/tournaments.md
     - Scenario Explorer: user-guide/scenarios.md
+    - Negotiator Explorer: user-guide/negotiators.md
+  - Developer Guide:
+    - Overview: developer-guide/index.md
+    - Architecture: developer-guide/architecture.md
+    - Code Structure: developer-guide/code-structure.md
+    - API Reference: developer-guide/api.md
+    - Contributing: developer-guide/contributing.md
   - Panel System:
     - Overview: panels/index.md
     - Layout System: panels/layout-system.md
     - Built-in Panels: panels/builtin-panels.md
     - Creating Custom Panels: panels/creating-panels.md
     - Panel API Reference: panels/api-reference.md
-  - Development:
-    - Contributing: development/contributing.md
-    - Architecture: development/architecture.md
-    - API Reference: development/api.md
   - Changelog: changelog.md
