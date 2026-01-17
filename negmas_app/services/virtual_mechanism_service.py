@@ -186,8 +186,6 @@ class VirtualMechanismService:
         if vm is None:
             return None
 
-        old_name = vm.name
-
         if name is not None:
             name = name.strip()
             if not name:

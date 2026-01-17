@@ -198,8 +198,6 @@ class VirtualNegotiatorService:
         if vn is None:
             return None
 
-        old_name = vn.name
-
         if name is not None:
             name = name.strip()
             if not name:

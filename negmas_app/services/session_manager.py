@@ -6,8 +6,7 @@ from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
 
-from negmas import Scenario
-from negmas.sao import SAOMechanism, SAOState
+from negmas.sao import SAOState
 
 from ..models import (
     NegotiationSession,

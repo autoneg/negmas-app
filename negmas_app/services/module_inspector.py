@@ -204,8 +204,8 @@ def inspect_module_dynamic(file_path: str) -> ModuleInspectionResult:
     try:
         # Import negmas to have base classes available
         try:
-            from negmas.gb import GBMechanism, GBNegotiator
-            from negmas.sao import SAOMechanism, SAONegotiator
+            from negmas.gb import GBMechanism, GBNegotiator  # noqa: F401
+            from negmas.sao import SAOMechanism, SAONegotiator  # noqa: F401
         except ImportError:
             pass
 

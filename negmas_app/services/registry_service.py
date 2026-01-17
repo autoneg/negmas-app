@@ -23,9 +23,6 @@ from typing import TYPE_CHECKING, Any
 
 from negmas import Mechanism, Negotiator
 from negmas.registry import (
-    Registry,
-    MechanismInfo,
-    NegotiatorInfo,
     mechanism_registry,
     negotiator_registry,
 )

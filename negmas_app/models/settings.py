@@ -3,7 +3,6 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from .session import PANEL_TYPES  # Import from canonical location
 
 
 @dataclass

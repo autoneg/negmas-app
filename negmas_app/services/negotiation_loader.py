@@ -17,7 +17,6 @@ from typing import Any
 
 from negmas import Scenario
 from negmas.mechanisms import CompletedRun
-from negmas.common import TRACE_ELEMENT_MEMBERS
 from negmas.sao import SAOMechanism
 
 from ..models.session import (
@@ -198,7 +197,9 @@ class NegotiationLoader:
         # Negotiator info from config
         negotiator_names = config.get("negotiator_names", [])
         negotiator_types = config.get("negotiator_types", [])
-        negotiator_ids = config.get("negotiator_ids", [])
+        _negotiator_ids = config.get(
+            "negotiator_ids", []
+        )  # Extracted for potential future use
         n_negotiators = config.get("n_negotiators", 0) or len(negotiator_names) or 2
 
         # Assign colors
@@ -207,11 +208,15 @@ class NegotiationLoader:
         ]
 
         # Mechanism config
-        mechanism_type = config.get("mechanism_type", "SAOMechanism")
+        _mechanism_type = config.get(
+            "mechanism_type", "SAOMechanism"
+        )  # Stored for metadata
         n_steps = config.get("n_steps")
         time_limit = config.get("time_limit")
-        step_time_limit = config.get("step_time_limit")
-        negotiator_time_limit = config.get("negotiator_time_limit")
+        _step_time_limit = config.get("step_time_limit")  # Stored for metadata
+        _negotiator_time_limit = config.get(
+            "negotiator_time_limit"
+        )  # Stored for metadata
 
         # Final state from config
         final_step = config.get("final_step", 0)

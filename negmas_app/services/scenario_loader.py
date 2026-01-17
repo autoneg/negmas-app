@@ -3,7 +3,7 @@
 import re
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -546,7 +546,6 @@ class ScenarioLoader:
             IdentityFun,
         )
 
-        from ..models.scenario import ScenarioDefinition
 
         try:
             # 1. Create issues

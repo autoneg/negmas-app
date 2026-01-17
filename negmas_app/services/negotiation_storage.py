@@ -411,7 +411,7 @@ class NegotiationStorageService:
         Returns:
             NegotiationData ready for UI display, or None if not found.
         """
-        from .negotiation_loader import NegotiationLoader, NegotiationData
+        from .negotiation_loader import NegotiationLoader
 
         session_dir = NegotiationStorageService.get_session_dir(session_id)
         if not session_dir.exists():

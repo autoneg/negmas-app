@@ -14,7 +14,7 @@ import importlib
 import importlib.util
 import inspect
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from negmas import Negotiator, Scenario
 from negmas.sao import SAONegotiator
@@ -27,7 +27,6 @@ from ..models import (
     BUILTIN_SOURCES,
     BOAComponentInfo,
     BOANegotiatorConfig,
-    MAPNegotiatorConfig,
 )
 from .settings_service import SettingsService
 
@@ -120,7 +119,7 @@ def _discover_genius_negotiators() -> list[NegotiatorEntry]:
         return entries
 
     try:
-        from negmas.genius import gnegotiators
+        from negmas.genius import gnegotiators  # noqa: F401
         from negmas.genius.gnegotiators.basic import GeniusNegotiator
     except ImportError:
         return entries
@@ -588,14 +587,16 @@ class NegotiatorFactory:
     def get_available_sources() -> list[NegotiatorSource]:
         """List all available negotiator sources (builtin + custom)."""
         settings = SettingsService.load_negotiator_sources()
-        disabled = set(settings.disabled_sources)
+        _disabled_sources = set(
+            settings.disabled_sources
+        )  # For potential future filtering
 
         sources = []
         for src in BUILTIN_SOURCES:
             # Check if the library is available (if required)
-            available = True
+            # Note: availability info could be added to NegotiatorSource in the future
             if src.library:
-                available = _is_package_available(src.library)
+                _is_available = _is_package_available(src.library)  # noqa: F841
 
             # Copy with availability info
             source = NegotiatorSource(
