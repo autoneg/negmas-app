@@ -326,7 +326,7 @@ def _validate_pickle_scenario(path: Path) -> dict[str, Any]:
         # Try to deserialize
         scenario = deserialize(str(path))
 
-        if isinstance(scenario, Scenario):
+        if isinstance(scenario, Scenario):  # type: ignore[arg-type]
             return {
                 "valid": True,
                 "type": "serialized_file",
@@ -401,7 +401,7 @@ def _validate_scenario_directory(path: Path) -> dict[str, Any]:
         # Try loading with negmas Scenario.load as fallback
         from negmas import Scenario
 
-        scenario = Scenario.load(str(path))
+        scenario = Scenario.load(str(path))  # type: ignore[attr-defined]
         return {
             "valid": True,
             "type": "directory",
