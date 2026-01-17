@@ -16,7 +16,7 @@ import inspect
 import re
 from dataclasses import dataclass, field
 
-from negmas import Scenario
+from negmas import Negotiator, Scenario
 from negmas.sao import SAONegotiator
 from negmas.preferences import UtilityFunction
 
@@ -296,25 +296,47 @@ def _discover_from_library(
     return entries
 
 
+def _extract_anac_year_from_tags(tags: set[str] | list[str]) -> int | None:
+    """Extract ANAC year from tags like 'anac-2019'.
+
+    The new negmas registry uses tags instead of dedicated anac_year field.
+    """
+    for tag in tags:
+        if tag.startswith("anac-") and len(tag) == 9:  # "anac-YYYY"
+            try:
+                return int(tag[5:])
+            except ValueError:
+                continue
+    return None
+
+
 def _discover_from_negmas_registry() -> list[NegotiatorEntry]:
     """Discover negotiators from negmas built-in registry.
 
-    This provides rich metadata including tags, anac_year, etc.
+    This provides rich metadata including tags for categorization.
+    Note: The new negmas registry API uses tags instead of dedicated fields:
+    - "anac-YYYY" tags instead of anac_year field
+    - "bilateral-only", "learning", etc. instead of dedicated boolean fields
     """
     entries = []
     try:
         from negmas import negotiator_registry
 
-        for key in negotiator_registry.keys():
-            info = negotiator_registry.get(key)
+        for key in negotiator_registry.keys():  # type: ignore
+            info = negotiator_registry.get(key)  # type: ignore
             if info is None:
                 continue
 
-            # Determine source based on tags
-            tags = list(info.tags) if info.tags else []
+            # Determine source and group based on tags
+            tags = set(info.tags) if info.tags else set()
+            tags_list = list(tags)
+
+            # Extract ANAC year from tags (e.g., "anac-2019")
+            anac_year = _extract_anac_year_from_tags(tags)
+
             if "genius" in tags:
                 source = "genius"
-                group = f"y{info.anac_year}" if info.anac_year else "other"
+                group = f"y{anac_year}" if anac_year else "other"
             elif "builtin" in tags:
                 source = "native"
                 group = "core"
@@ -327,20 +349,21 @@ def _discover_from_negmas_registry() -> list[NegotiatorEntry]:
             if info.full_type_name:
                 module_path = info.full_type_name.rsplit(".", 1)[0]
 
-            # Use the registry key to construct type_name to handle aliases properly
-            # For example, both NaiveTitForTatNegotiator and SimpleTitForTatNegotiator
-            # have the same full_type_name, but different registry keys
-            # We use module_path + key to create a unique, importable type_name
-            type_name = f"{module_path}.{key}" if module_path else f"negmas.{key}"
+            # Use the short_name for type_name construction
+            # The registry key has format "ShortName#uuid", so we use short_name
+            short_name = info.short_name
+            type_name = (
+                f"{module_path}.{short_name}" if module_path else f"negmas.{short_name}"
+            )
 
             # Create our NegotiatorInfo from negmas RegistryInfo
             neg_info = NegotiatorInfo(
                 type_name=type_name,
-                name=info.short_name or key,
+                name=short_name,
                 source=source,
                 group=group,
-                description=f"ANAC {info.anac_year}" if info.anac_year else "",
-                tags=tags,
+                description=f"ANAC {anac_year}" if anac_year else "",
+                tags=tags_list,
                 mechanisms=["SAO", "TAU", "GAO"] if "sao" in tags else ["SAO"],
                 requires_bridge="genius" in tags and "builtin" not in tags,
                 available=True,
@@ -503,7 +526,27 @@ def _discover_all_negotiators() -> None:
 
 
 def _get_class_for_type(type_name: str) -> type | None:
-    """Get a negotiator class by type name, dynamically importing if needed."""
+    """Get a negotiator class by type name, dynamically importing if needed.
+
+    Handles:
+    - Regular type names (e.g., 'negmas.sao.AspirationNegotiator')
+    - Virtual negotiators (e.g., 'virtual:<uuid>')
+    - Registry lookups
+    """
+    # Handle virtual negotiators
+    if type_name.startswith("virtual:"):
+        vn_id = type_name[8:]  # Remove "virtual:" prefix
+        from .virtual_negotiator_service import VirtualNegotiatorService
+        from .registry_service import _create_virtual_negotiator_class
+
+        vn = VirtualNegotiatorService.get(vn_id)
+        if vn is None:
+            # Try by name as fallback
+            vn = VirtualNegotiatorService.get_by_name(vn_id)
+        if vn is not None:
+            return _create_virtual_negotiator_class(vn)
+        return None
+
     # Check registry first
     if type_name in NEGOTIATOR_REGISTRY:
         entry = NEGOTIATOR_REGISTRY[type_name]
@@ -675,7 +718,7 @@ class NegotiatorFactory:
     def create(
         config: NegotiatorConfig,
         ufun: UtilityFunction | None = None,
-    ) -> SAONegotiator:
+    ) -> Negotiator:
         """Create a negotiator instance.
 
         Args:
@@ -713,7 +756,7 @@ class NegotiatorFactory:
     def _create_boa_negotiator(
         config: NegotiatorConfig,
         ufun: UtilityFunction | None = None,
-    ) -> SAONegotiator:
+    ) -> Negotiator:
         """Create a BOA-style negotiator from type_name format.
 
         Type format: BOA:AcceptPolicy/OfferPolicy or BOA:AcceptPolicy/OfferPolicy/Model
@@ -782,7 +825,7 @@ class NegotiatorFactory:
     def _create_map_negotiator(
         config: NegotiatorConfig,
         ufun: UtilityFunction | None = None,
-    ) -> SAONegotiator:
+    ) -> Negotiator:
         """Create a MAP-style negotiator from type_name format.
 
         Type format: MAP:AcceptPolicy/OfferPolicy
@@ -1073,7 +1116,7 @@ class BOAFactory:
     def create(
         config: BOANegotiatorConfig,
         ufun: UtilityFunction | None = None,
-    ) -> SAONegotiator:
+    ) -> Negotiator:
         """Create a BOA-style modular negotiator.
 
         Args:
