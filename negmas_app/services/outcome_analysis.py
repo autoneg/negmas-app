@@ -152,7 +152,7 @@ def _compute_from_scratch(scenario: Scenario, max_samples: int) -> OutcomeSpaceD
 
     # Compute Pareto frontier
     try:
-        pareto_utils, pareto_indices = pareto_frontier(
+        pareto_utils, pareto_indices = pareto_frontier(  # type: ignore[operator]
             ufuns,
             outcomes=outcomes,
             max_cardinality=max_samples,
@@ -176,7 +176,7 @@ def _compute_from_scratch(scenario: Scenario, max_samples: int) -> OutcomeSpaceD
 
     # Nash point(s) - product of utilities
     try:
-        nash_results = nash_points(
+        nash_results = nash_points(  # type: ignore[operator]
             ufuns,
             frontier=pareto_utilities,
             outcome_space=outcome_space,
@@ -192,7 +192,7 @@ def _compute_from_scratch(scenario: Scenario, max_samples: int) -> OutcomeSpaceD
 
     # Kalai point(s) - egalitarian, minimize max regret
     try:
-        kalai_results = kalai_points(
+        kalai_results = kalai_points(  # type: ignore[operator]
             ufuns,
             frontier=pareto_utilities,
             outcome_space=outcome_space,
@@ -208,7 +208,7 @@ def _compute_from_scratch(scenario: Scenario, max_samples: int) -> OutcomeSpaceD
 
     # Kalai-Smorodinsky point(s) - proportional fairness
     try:
-        ks_results = ks_points(
+        ks_results = ks_points(  # type: ignore[operator]
             ufuns,
             frontier=pareto_utilities,
             outcome_space=outcome_space,
@@ -224,7 +224,7 @@ def _compute_from_scratch(scenario: Scenario, max_samples: int) -> OutcomeSpaceD
 
     # Max welfare point(s) - sum of utilities
     try:
-        welfare_results = max_welfare_points(
+        welfare_results = max_welfare_points(  # type: ignore[operator]
             ufuns,
             frontier=pareto_utilities,
             outcome_space=outcome_space,
