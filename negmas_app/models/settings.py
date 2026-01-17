@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from .session import PANEL_TYPES  # Import from canonical location
+
 
 @dataclass
 class ThemeSettings:
@@ -378,35 +380,7 @@ class LayoutPreset:
     created_at: str = ""  # ISO timestamp
 
 
-# Available panel types
-PANEL_TYPES = [
-    {
-        "id": "info",
-        "name": "Negotiation Info",
-        "description": "Shows progress, status, and negotiator info",
-    },
-    {
-        "id": "outcome_space",
-        "name": "Outcome Space",
-        "description": "2D utility plot with Pareto frontier",
-    },
-    {
-        "id": "offer_history",
-        "name": "Offer History",
-        "description": "List of offers made during negotiation",
-    },
-    {
-        "id": "timeline",
-        "name": "Utility Timeline",
-        "description": "Utility values over time",
-    },
-    {"id": "result", "name": "Result", "description": "Final agreement and utilities"},
-    {
-        "id": "stats",
-        "name": "Scenario Stats",
-        "description": "Scenario statistics: opposition, Pareto, Nash, Kalai, KS, Max Welfare",
-    },
-]
+# PANEL_TYPES is imported from session.py (canonical location)
 
 
 def get_default_layout() -> LayoutPreset:

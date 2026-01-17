@@ -279,6 +279,12 @@ PANEL_TYPES = [
         "title": "Result",
         "description": "Final agreement and utilities",
     },
+    {
+        "id": "stats",
+        "type": "stats",
+        "title": "Scenario Stats",
+        "description": "Scenario statistics: opposition, Pareto, Nash, Kalai, KS, Max Welfare",
+    },
 ]
 
 
