@@ -331,7 +331,7 @@ class SessionManager:
                     # Step timed out - negotiator took too long
                     session.status = SessionStatus.COMPLETED
                     session.end_reason = "timeout"
-                    session.error_message = "Negotiation step timed out (60s limit)"
+                    session.error = "Negotiation step timed out (60s limit)"
                     break
 
                 state: SAOState = mechanism.state
@@ -401,12 +401,15 @@ class SessionManager:
                 else:
                     session.end_reason = "no_agreement"
 
-            # Auto-save if enabled (run in thread pool to avoid blocking)
+            # Auto-save if enabled using standard negmas CompletedRun format
             if self._auto_save.get(session_id, False):
                 try:
-                    configs = self._configs.get(session_id)
                     await asyncio.to_thread(
-                        NegotiationStorageService.save_negotiation, session, configs
+                        NegotiationStorageService.save_from_mechanism,
+                        mechanism,  # type: ignore[arg-type]
+                        scenario,
+                        session_id,
+                        {"scenario_path": session.scenario_path},
                     )
                 except Exception as e:
                     print(f"Failed to auto-save negotiation {session_id}: {e}")
