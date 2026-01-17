@@ -180,9 +180,10 @@ app = function() {
             });
             
             // Watch for changes to negotiations arrays to update tables
-            this.$watch('runningNegotiations', () => this.updateRunningTable(), { deep: true });
-            this.$watch('completedNegotiations', () => this.updateCompletedTable(), { deep: true });
-            this.$watch('savedNegotiations', () => this.updateSavedTable(), { deep: true });
+            // Use shallow watch - only trigger on array length changes, not nested offer updates
+            this.$watch('runningNegotiations.length', () => this.updateRunningTable());
+            this.$watch('completedNegotiations.length', () => this.updateCompletedTable());
+            this.$watch('savedNegotiations.length', () => this.updateSavedTable());
             
             // Watch for currentNegotiation changes to redraw tables when returning to table view
             this.$watch('currentNegotiation', (newVal, oldVal) => {

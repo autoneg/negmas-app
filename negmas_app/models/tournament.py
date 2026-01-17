@@ -71,6 +71,24 @@ class TournamentConfig:
 
     # Optional negotiator parameters (one dict per competitor or None for defaults)
     competitor_params: list[dict] | None = None
+    # Optional opponent parameters (one dict per opponent or None for defaults)
+    opponent_params: list[dict] | None = None
+
+    # Mechanism parameters (passed to mechanism constructor)
+    mechanism_params: dict | None = None
+
+    # Private info options
+    # If True, each negotiator receives opponent's ufun in private_info["opponent_ufun"]
+    pass_opponent_ufun: bool = False
+    # Custom private_infos (tuple of dicts, one per negotiator position)
+    # If provided, overrides pass_opponent_ufun
+    private_infos: list[dict] | None = None
+    # Whether to rotate private_infos along with ufuns
+    rotate_private_infos: bool = True
+
+    # Error handling
+    # If False, negotiator exceptions are caught and recorded as failures instead of crashing
+    raise_exceptions: bool = False
 
     # Tournament settings
     n_repetitions: int = 1

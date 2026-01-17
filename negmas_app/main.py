@@ -20,11 +20,15 @@ from .routers import (
     tournament_router,
     sources_router,
 )
+from .services.registry_service import initialize_registry
 
 # Path configuration
 APP_DIR = Path(__file__).parent
 TEMPLATES_DIR = APP_DIR / "templates"
 STATIC_DIR = APP_DIR / "static"
+
+# Initialize the negmas registry with virtual negotiators/mechanisms and custom paths
+initialize_registry()
 
 # Create FastAPI app
 app = FastAPI(

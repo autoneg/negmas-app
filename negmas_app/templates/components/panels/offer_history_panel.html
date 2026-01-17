@@ -20,20 +20,15 @@
                 <span class="text-muted">Waiting for offers...</span>
             </div>
             
-            <!-- Loading indicator for large datasets -->
-            <div x-show="currentNegotiation?.offers?.length > 100 && !offersRendered" class="empty-state-mini">
-                <span class="text-muted">Loading <span x-text="currentNegotiation?.offers?.length"></span> offers...</span>
-            </div>
-            
-            <!-- Show message if truncated -->
-            <div x-show="currentNegotiation?.offers?.length > 100" 
+            <!-- Show message if truncated (more than 10 offers) -->
+            <div x-show="currentNegotiation?.offers?.length > 10" 
                  style="padding: 4px 8px; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 4px; font-size: 10px; color: var(--text-secondary);">
-                Showing last 100 of <span x-text="currentNegotiation?.offers?.length"></span> offers. 
+                Showing last 10 of <span x-text="currentNegotiation?.offers?.length"></span> offers. 
                 <button class="btn-link" style="font-size: 10px; padding: 0; color: var(--primary);" @click="zoomOfferHistory()">View all</button>
             </div>
             
-            <!-- Render offers (limited to last 100 for performance) -->
-            <template x-for="(offer, offerIdx) in (currentNegotiation?.offers || []).slice(-100)" :key="(offer.step ?? offerIdx) + '-' + offerIdx">
+            <!-- Render offers (limited to last 10 for performance during live updates) -->
+            <template x-for="(offer, offerIdx) in (currentNegotiation?.offers || []).slice(-10)" :key="(offer.step ?? offerIdx) + '-' + offerIdx">
                 <div class="offer-item-compact" 
                      :class="{
                          'offer-item-bilateral-first': (currentNegotiation?.negotiator_names?.length === 2) && offer.proposer_index === 0,

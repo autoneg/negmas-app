@@ -31,7 +31,7 @@ const BuiltInLayouts = {
                 displayMode: 'tabbed'
             },
             right: {
-                panels: ['utility-2d', 'utility-timeline'],
+                panels: ['utility-2d', 'utility-timeline', 'result'],
                 activePanel: 'utility-2d',
                 displayMode: 'stacked'
             },
@@ -41,8 +41,8 @@ const BuiltInLayouts = {
                 displayMode: 'tabbed'
             },
             bottomRight: {
-                panels: ['result'],
-                activePanel: 'result',
+                panels: [],
+                activePanel: null,
                 displayMode: 'tabbed'
             }
         },

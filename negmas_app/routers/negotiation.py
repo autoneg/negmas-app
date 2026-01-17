@@ -423,6 +423,21 @@ async def get_saved_negotiation(session_id: str):
     }
 
 
+@router.get("/saved/{session_id}/data")
+async def get_saved_negotiation_data(session_id: str):
+    """Load a saved negotiation using unified NegotiationData format.
+
+    This endpoint uses NegotiationLoader which handles both CompletedRun
+    format and legacy formats. Returns data in a standardized format.
+    """
+    data = await asyncio.to_thread(
+        NegotiationStorageService.load_as_negotiation_data, session_id
+    )
+    if data is None:
+        raise HTTPException(status_code=404, detail="Saved negotiation not found")
+    return data.to_frontend_dict()
+
+
 @router.delete("/saved/{session_id}")
 async def delete_saved_negotiation(session_id: str):
     """Delete a saved negotiation from disk."""

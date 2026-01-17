@@ -910,6 +910,29 @@ async def get_full_negotiation(tournament_id: str, index: int):
     return negotiation
 
 
+@router.get("/saved/{tournament_id}/negotiation/{index}/data")
+async def get_negotiation_data(tournament_id: str, index: int):
+    """Load negotiation using unified NegotiationData format.
+
+    This endpoint uses the new NegotiationLoader which handles both
+    CompletedRun format and legacy formats. Returns data in a standardized
+    format that's directly usable by the frontend.
+
+    Args:
+        tournament_id: Tournament ID.
+        index: Index of the negotiation in the tournament results.
+
+    Returns:
+        NegotiationData dict with offers, outcome_space_data, agreement, etc.
+    """
+    data = await asyncio.to_thread(
+        TournamentStorageService.load_negotiation_as_data, tournament_id, index
+    )
+    if data is None:
+        raise HTTPException(status_code=404, detail="Negotiation not found")
+    return data.to_frontend_dict()
+
+
 class LoadNegotiationRequest(BaseModel):
     """Request model for loading negotiation from file path."""
 
@@ -938,3 +961,26 @@ async def load_negotiation_from_file(request: LoadNegotiationRequest):
             status_code=404, detail="Could not load negotiation from path"
         )
     return negotiation
+
+
+@router.post("/load_negotiation_from_file_v2")
+async def load_negotiation_from_file_v2(request: LoadNegotiationRequest):
+    """Load a negotiation from a file path using unified NegotiationData format.
+
+    This is the v2 endpoint that uses NegotiationLoader for better handling
+    of both CompletedRun format and legacy CSV formats.
+
+    Args:
+        request: Request with path to CSV file or folder.
+
+    Returns:
+        NegotiationData dict in standardized format.
+    """
+    data = await asyncio.to_thread(
+        TournamentStorageService.load_file_as_data, request.path
+    )
+    if data is None:
+        raise HTTPException(
+            status_code=404, detail="Could not load negotiation from path"
+        )
+    return data.to_frontend_dict()

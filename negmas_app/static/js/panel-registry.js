@@ -266,9 +266,13 @@ const PanelRegistry = {
                     return '<div class="empty-state-mini"><span class="text-muted">Waiting for offers...</span></div>';
                 }
                 
-                // Show last 50 offers
-                const recentOffers = offers.slice(-50);
+                // Show last 10 offers for performance during live updates
+                const recentOffers = offers.slice(-10);
+                const truncated = offers.length > 10;
                 return `
+                    ${truncated ? `<div style="padding: 4px 8px; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 4px; font-size: 10px; color: var(--text-secondary);">
+                        Showing last 10 of ${offers.length} offers.
+                    </div>` : ''}
                     <div class="offer-log">
                         ${recentOffers.map((offer, idx) => this._renderOffer(offer, neg)).join('')}
                     </div>
@@ -721,8 +725,8 @@ const PanelRegistry = {
             name: 'Result',
             icon: PanelIcons.result,
             contexts: ['negotiation'],
-            defaultZone: 'bottom-right',
-            defaultOrder: 10,
+            defaultZone: 'right',
+            defaultOrder: 30,
             minHeight: 60,
             closable: false,
             
