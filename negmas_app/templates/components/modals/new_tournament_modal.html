@@ -810,6 +810,24 @@
                                         <div class="form-hint">0 = save only at end</div>
                                     </div>
                                     
+                                    <h4 style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 12px;">Information Sharing</h4>
+                                    <div class="form-group">
+                                        <label class="form-checkbox">
+                                            <input type="checkbox" x-model="newTournament.pass_opponent_ufun">
+                                            <span>Pass Opponent Utility Function</span>
+                                        </label>
+                                        <div class="form-hint">Give each negotiator access to opponent's utility function via private_info</div>
+                                    </div>
+                                    
+                                    <h4 style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 12px;">Error Handling</h4>
+                                    <div class="form-group">
+                                        <label class="form-checkbox">
+                                            <input type="checkbox" x-model="newTournament.raise_exceptions">
+                                            <span>Raise Exceptions</span>
+                                        </label>
+                                        <div class="form-hint">Stop tournament on negotiator errors (useful for debugging)</div>
+                                    </div>
+                                    
                                     <h4 style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 12px;">Storage & Memory Optimization</h4>
                                     <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
                                         <div class="form-group">

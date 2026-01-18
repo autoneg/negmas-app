@@ -125,6 +125,8 @@ class TournamentConfig:
     )
     ignore_discount: bool = False  # Ignore discounting in utility functions
     ignore_reserved: bool = False  # Ignore reserved values in utility functions
+    pass_opponent_ufun: bool = False  # Pass opponent utility function to negotiators
+    raise_exceptions: bool = False  # Raise exceptions on negotiator errors
 
     # Execution
     njobs: int = -1  # -1 = serial (safer for web app), 0 = all cores

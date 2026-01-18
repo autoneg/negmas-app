@@ -81,6 +81,8 @@ class TournamentConfigRequest(BaseModel):
     )
     ignore_discount: bool = False  # Ignore discounting in utility functions
     ignore_reserved: bool = False  # Ignore reserved values in utility functions
+    pass_opponent_ufun: bool = False  # Pass opponent utility function to negotiators
+    raise_exceptions: bool = False  # Raise exceptions on negotiator errors
 
     # Execution
     njobs: int = -1
@@ -148,6 +150,8 @@ async def start_tournament(request: TournamentConfigRequest):
         normalize=request.normalize,
         ignore_discount=request.ignore_discount,
         ignore_reserved=request.ignore_reserved,
+        pass_opponent_ufun=request.pass_opponent_ufun,
+        raise_exceptions=request.raise_exceptions,
         njobs=request.njobs,
         save_path=request.save_path,
         verbosity=request.verbosity,
