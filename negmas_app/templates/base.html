@@ -2106,24 +2106,6 @@
                 
                 const params = this.newNeg.mechanism_params || {};
                 
-                // Add to running negotiations list with progress tracking
-                const tempNeg = {
-                    id: `temp-${Date.now()}`,
-                    scenario: this.newNeg.scenario.name,
-                    step: 0,
-                    relative_time: 0,
-                    mechanism_type: this.newNeg.mechanism_type,
-                    background: true,
-                    progress: 0,
-                    panelSettings: {
-                        adjustable: this.newNeg.panels.adjustable,
-                        utilityView: { ...this.newNeg.panels.utilityView },
-                        timeline: { ...this.newNeg.panels.timeline },
-                        visible: { ...this.newNeg.panels.visible }
-                    }
-                };
-                this.runningNegotiations.push(tempNeg);
-                
                 this.showNewNegotiation = false;
                 this.currentPage = 'negotiations';
                 
@@ -2150,27 +2132,97 @@
                     }
                     
                     const data = await res.json();
+                    const sessionId = data.session_id;
                     
-                    // Remove temp entry and add completed one
-                    const idx = this.runningNegotiations.findIndex(n => n.id === tempNeg.id);
-                    if (idx >= 0) {
-                        this.runningNegotiations.splice(idx, 1);
+                    // Add to running negotiations list with progress tracking
+                    const tempNeg = {
+                        id: sessionId,
+                        scenario: this.newNeg.scenario.name,
+                        step: 0,
+                        relative_time: 0,
+                        mechanism_type: this.newNeg.mechanism_type,
+                        background: true,
+                        progress: 0,
+                        panelSettings: {
+                            adjustable: this.newNeg.panels.adjustable,
+                            utilityView: { ...this.newNeg.panels.utilityView },
+                            timeline: { ...this.newNeg.panels.timeline },
+                            visible: { ...this.newNeg.panels.visible }
+                        }
+                    };
+                    this.runningNegotiations.push(tempNeg);
+                    
+                    // Poll for progress
+                    const pollProgress = async () => {
+                        try {
+                            const progressRes = await fetch(`/api/negotiation/${sessionId}/progress`);
+                            if (!progressRes.ok) {
+                                throw new Error('Failed to fetch progress');
+                            }
+                            const progress = await progressRes.json();
+                            
+                            // Update progress in running negotiations
+                            const neg = this.runningNegotiations.find(n => n.id === sessionId);
+                            if (neg) {
+                                neg.step = progress.current_step;
+                                neg.relative_time = progress.relative_time;
+                                neg.progress = progress.relative_time * 100;
+                            }
+                            
+                            // Check if complete
+                            if (progress.status === 'completed' || progress.status === 'error' || progress.status === 'cancelled') {
+                                // Remove from running
+                                const idx = this.runningNegotiations.findIndex(n => n.id === sessionId);
+                                if (idx >= 0) {
+                                    this.runningNegotiations.splice(idx, 1);
+                                }
+                                
+                                // Load completed session
+                                await this.loadCompletedSession(sessionId);
+                                
+                                this.showToast('Negotiation completed', 'success');
+                            } else {
+                                // Continue polling
+                                setTimeout(pollProgress, 500);
+                            }
+                        } catch (e) {
+                            console.error('Failed to poll progress:', e);
+                            // Remove from running on error
+                            const idx = this.runningNegotiations.findIndex(n => n.id === sessionId);
+                            if (idx >= 0) {
+                                this.runningNegotiations.splice(idx, 1);
+                            }
+                        }
+                    };
+                    
+                    // Start polling
+                    setTimeout(pollProgress, 500);
+                    
+                } catch (e) {
+                    console.error('Failed to start background negotiation:', e);
+                    alert('Failed to start negotiation: ' + e.message);
+                }
+            },
+            
+            async loadCompletedSession(sessionId) {
+                try {
+                    const res = await fetch(`/api/negotiation/${sessionId}`);
+                    if (!res.ok) {
+                        throw new Error('Failed to load session');
                     }
+                    const data = await res.json();
                     
                     // Build negotiator colors
                     const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
                     const negotiatorColors = data.negotiator_names.map((_, i) => colors[i % colors.length]);
                     
-                    // Convert offers to expected format
-                    const offers = data.offers || [];
-                    
                     // Add to completed negotiations
                     const completedNeg = {
                         id: data.session_id,
-                        scenario: data.scenario_name || this.newNeg.scenario.name,
+                        scenario: data.scenario_name,
                         step: data.current_step,
                         n_steps: data.n_steps,
-                        relative_time: offers.length > 0 ? offers[offers.length - 1].relative_time : 1.0,
+                        relative_time: data.offers && data.offers.length > 0 ? data.offers[data.offers.length - 1].relative_time : 1.0,
                         negotiator_names: data.negotiator_names,
                         negotiator_types: data.negotiator_types,
                         negotiator_colors: negotiatorColors,
@@ -2181,26 +2233,16 @@
                         error: data.error,
                         optimality_stats: data.optimality_stats,
                         outcome_space_data: data.outcome_space_data,
-                        offers: offers,
-                        mechanism_type: this.newNeg.mechanism_type,
-                        panelSettings: tempNeg.panelSettings
+                        offers: data.offers || [],
+                        mechanism_type: data.mechanism_type
                     };
                     
                     this.completedNegotiations.unshift(completedNeg);
                     
                     // Auto-select to show results
                     this.selectNegotiation(completedNeg);
-                    
-                    this.showToast('Negotiation completed', 'success');
-                    
                 } catch (e) {
-                    console.error('Failed to start background negotiation:', e);
-                    // Remove temp entry on error
-                    const idx = this.runningNegotiations.findIndex(n => n.id === tempNeg.id);
-                    if (idx >= 0) {
-                        this.runningNegotiations.splice(idx, 1);
-                    }
-                    alert('Failed to start negotiation: ' + e.message);
+                    console.error('Failed to load completed session:', e);
                 }
             },
             

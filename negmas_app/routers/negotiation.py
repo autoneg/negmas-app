@@ -92,7 +92,7 @@ async def start_negotiation(request: StartNegotiationRequest):
 async def start_negotiation_background(request: StartNegotiationRequest):
     """Start a negotiation and run it in the background without streaming.
 
-    Returns the completed session when done.
+    Returns session_id immediately so client can poll for progress.
     """
     # Convert request to internal configs
     configs = [
@@ -116,81 +116,22 @@ async def start_negotiation_background(request: StartNegotiationRequest):
         auto_save=request.auto_save,
     )
 
-    # Run the negotiation to completion in a background thread
-    # We collect all events but don't stream them
-    async for event in _manager.run_session_stream(
-        session.id, configs, step_delay=0.0, share_ufuns=request.share_ufuns
-    ):
-        # Just consume events, don't stream
-        pass
+    # Run negotiation in background task (non-blocking)
+    async def run_negotiation_task():
+        async for event in _manager.run_session_stream(
+            session.id, configs, step_delay=0.0, share_ufuns=request.share_ufuns
+        ):
+            pass  # Just consume events, don't stream
 
-    # Get the completed session
-    completed_session = _manager.get_session(session.id)
-    if completed_session is None:
-        raise HTTPException(
-            status_code=404, detail="Session not found after completion"
-        )
+    # Start background task
+    import asyncio
 
+    asyncio.create_task(run_negotiation_task())
+
+    # Return session_id immediately for client to poll
     return {
-        "session_id": completed_session.id,
-        "status": completed_session.status.value,
-        "scenario_name": completed_session.scenario_name or "",
-        "negotiator_names": completed_session.negotiator_names,
-        "negotiator_types": completed_session.negotiator_types,
-        "issue_names": completed_session.issue_names,
-        "n_steps": completed_session.n_steps,
-        "current_step": completed_session.current_step,
-        "agreement": completed_session.agreement_dict,
-        "final_utilities": completed_session.final_utilities,
-        "end_reason": completed_session.end_reason,
-        "error": completed_session.error,
-        "optimality_stats": completed_session.optimality_stats,
-        "outcome_space_data": {
-            "outcome_utilities": completed_session.outcome_space_data.outcome_utilities
-            if completed_session.outcome_space_data
-            else None,
-            "pareto_utilities": completed_session.outcome_space_data.pareto_utilities
-            if completed_session.outcome_space_data
-            else None,
-            "nash_point": completed_session.outcome_space_data.nash_point.utilities
-            if completed_session.outcome_space_data
-            and completed_session.outcome_space_data.nash_point
-            else None,
-            "kalai_point": completed_session.outcome_space_data.kalai_point.utilities
-            if completed_session.outcome_space_data
-            and completed_session.outcome_space_data.kalai_point
-            else None,
-            "kalai_smorodinsky_point": completed_session.outcome_space_data.kalai_smorodinsky_point.utilities
-            if completed_session.outcome_space_data
-            and completed_session.outcome_space_data.kalai_smorodinsky_point
-            else None,
-            "max_welfare_point": completed_session.outcome_space_data.max_welfare_point.utilities
-            if completed_session.outcome_space_data
-            and completed_session.outcome_space_data.max_welfare_point
-            else None,
-            "total_outcomes": completed_session.outcome_space_data.total_outcomes
-            if completed_session.outcome_space_data
-            else None,
-            "sampled": completed_session.outcome_space_data.sampled
-            if completed_session.outcome_space_data
-            else False,
-            "sample_size": completed_session.outcome_space_data.sample_size
-            if completed_session.outcome_space_data
-            else None,
-        }
-        if completed_session.outcome_space_data
-        else None,
-        "offers": [
-            {
-                "step": offer.step,
-                "proposer": offer.proposer,
-                "proposer_index": offer.proposer_index,
-                "offer": offer.offer_dict,
-                "utilities": offer.utilities,
-                "relative_time": offer.relative_time,
-            }
-            for offer in completed_session.offers
-        ],
+        "session_id": session.id,
+        "status": "running",
     }
 
 
