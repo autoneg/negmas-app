@@ -774,6 +774,7 @@ class TournamentManager:
             # Build tournament kwargs
             tournament_kwargs: dict[str, Any] = {
                 "competitors": competitors,
+                "competitor_names": competitor_names,
                 "scenarios": scenarios,
                 "competitor_params": None,
                 "rotate_ufuns": config.rotate_ufuns,
@@ -819,6 +820,7 @@ class TournamentManager:
             # Add opponents if specified
             if opponents is not None:
                 tournament_kwargs["opponents"] = opponents
+                tournament_kwargs["opponent_names"] = opponent_names
 
             # Add optional time limits
             if config.step_time_limit is not None:
