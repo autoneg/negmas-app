@@ -462,8 +462,15 @@ class TournamentManager:
             return
 
         for i, name in enumerate(partners):
+            # Dynamically create stats entry if it doesn't exist
+            # (negmas may use different names than we initialized)
             if name not in state.competitor_stats:
-                continue
+                state.competitor_stats[name] = {
+                    "utilities": [],
+                    "advantages": [],
+                    "n_negotiations": 0,
+                    "n_agreements": 0,
+                }
 
             stats = state.competitor_stats[name]
             stats["n_negotiations"] += 1
