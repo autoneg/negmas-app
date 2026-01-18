@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from negmas import Scenario
+from negmas.helpers import shortest_unique_names
 from negmas.sao import SAOMechanism, SAONegotiator
 from negmas.tournaments.neg import cartesian_tournament
 
@@ -34,46 +35,6 @@ from ..models.tournament import (
 )
 from .scenario_loader import ScenarioLoader
 from .negotiator_factory import _get_class_for_type
-
-
-def _get_unique_name_from_type(type_name: str) -> str:
-    """
-    Extract a unique display name from a type_name string.
-
-    Handles formats like:
-    - "negmas.genius.gnegotiators.y2014.Atlas#140cd0ce" → "y2014.Atlas"
-    - "negmas_genius_agents.Atlas" → "atlas.Atlas"
-    - "virtual:uuid" → "virtual:uuid"
-    """
-    # Remove hash suffix if present
-    if "#" in type_name:
-        type_name = type_name.split("#")[0]
-
-    # Handle virtual negotiators
-    if type_name.startswith("virtual:"):
-        return type_name
-
-    # Extract meaningful parts from module path
-    parts = type_name.split(".")
-    if len(parts) >= 2:
-        # For genius: "negmas.genius.gnegotiators.y2014.Atlas" → "y2014.Atlas"
-        if "gnegotiators" in parts:
-            idx = parts.index("gnegotiators")
-            if idx + 2 < len(parts):
-                return f"{parts[idx + 1]}.{parts[-1]}"
-
-        # For negmas_genius_agents: "negmas_genius_agents.Atlas" → "atlas.Atlas"
-        if parts[0] == "negmas_genius_agents":
-            return f"atlas.{parts[-1]}"
-
-        # For negmas_negolog: "negmas_negolog.agents.Atlas3Agent" → "negolog.Atlas3Agent"
-        if parts[0] == "negmas_negolog":
-            return f"negolog.{parts[-1]}"
-
-        # Default: last two parts
-        return f"{parts[-2]}.{parts[-1]}"
-
-    return type_name
 
 
 @dataclass
@@ -656,15 +617,18 @@ class TournamentManager:
                 )
             )
 
-            # Get competitor classes
+            # Get competitor classes and compute unique short names
             competitors: list[type[SAONegotiator]] = []
-            competitor_names: list[str] = []
+            competitor_type_names: list[str] = []  # Store original type names
             for type_name in config.competitor_types:
                 cls = _get_class_for_type(type_name)
                 if cls is not None:
                     competitors.append(cls)  # type: ignore[arg-type]
-                    # Use unique name derived from type_name instead of just cls.__name__
-                    competitor_names.append(_get_unique_name_from_type(type_name))
+                    # Remove hash suffix for unique name computation
+                    clean_type_name = (
+                        type_name.split("#")[0] if "#" in type_name else type_name
+                    )
+                    competitor_type_names.append(clean_type_name)
 
             if len(competitors) < 1:
                 state.status = TournamentStatus.FAILED
@@ -673,6 +637,9 @@ class TournamentManager:
                 session.error = state.error
                 state.event_queue.put(("error", state.error))
                 return
+
+            # Generate shortest unique names for all competitors
+            competitor_names = shortest_unique_names(competitor_type_names, sep=".")
 
             state.competitor_names = competitor_names
 
@@ -702,11 +669,16 @@ class TournamentManager:
                     )
                 )
                 opponents = []
+                opponent_type_names: list[str] = []
                 for type_name in config.opponent_types:
                     cls = _get_class_for_type(type_name)
                     if cls is not None:
                         opponents.append(cls)  # type: ignore[arg-type]
-                        opponent_names.append(_get_unique_name_from_type(type_name))
+                        clean_type_name = (
+                            type_name.split("#")[0] if "#" in type_name else type_name
+                        )
+                        opponent_type_names.append(clean_type_name)
+
                 if len(opponents) < 1:
                     state.status = TournamentStatus.FAILED
                     state.error = "At least 1 valid opponent required"
@@ -714,6 +686,9 @@ class TournamentManager:
                     session.error = state.error
                     state.event_queue.put(("error", state.error))
                     return
+
+                # Generate shortest unique names for opponents
+                opponent_names = shortest_unique_names(opponent_type_names, sep=".")
                 state.opponent_names = opponent_names
                 # Add opponent stats too if they're also being scored
                 for name in opponent_names:
