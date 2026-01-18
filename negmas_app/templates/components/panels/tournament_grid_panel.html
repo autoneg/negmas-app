@@ -78,12 +78,12 @@
                         <div class="tournament-grid-row" style="display: contents;">
                             <div class="tournament-grid-row-header" :title="competitor" x-text="competitor.slice(0, 12)"></div>
                             <template x-for="(opponent, j) in tournamentGrid.opponents" :key="'c-'+i+'-'+j">
-                                <div class="tournament-cell" :class="getScenarioCellClass(i, j)">
+                                <div class="tournament-cell" :class="getScenarioCellClass(i, j)" :title="getScenarioCellTooltip(i, j)">
                                     <!-- Icon based on state -->
                                     <template x-if="getScenarioCellStatus(i, j) === 'running'">
                                         <div class="spinner spinner-xs"></div>
                                     </template>
-                                    <template x-if="getScenarioCellStatus(i, j) === 'agreement'">
+                                    <template x-if="getScenarioCellStatus(i, j) === 'agreement' || getScenarioCellStatus(i, j) === 'complete'">
                                         <svg class="tournament-cell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                             <polyline points="20 6 9 17 4 12"></polyline>
                                         </svg>
@@ -100,6 +100,11 @@
                                             <line x1="15" y1="9" x2="9" y2="15"></line>
                                             <line x1="9" y1="9" x2="15" y2="15"></line>
                                         </svg>
+                                    </template>
+                                    <!-- Progress indicator for multiple runs -->
+                                    <template x-if="getScenarioCellProgress(i, j).total > 1">
+                                        <div style="position: absolute; bottom: 2px; left: 2px; right: 2px; font-size: 8px; opacity: 0.7;"
+                                             x-text="getScenarioCellProgress(i, j).completed + '/' + getScenarioCellProgress(i, j).total"></div>
                                     </template>
                                 </div>
                             </template>

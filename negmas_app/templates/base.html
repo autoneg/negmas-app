@@ -1774,13 +1774,25 @@
             selectNegotiatorForSlot(negInfo) {
                 // Use the currently selected slot
                 const slotIndex = this.selectedNegotiatorSlot;
-                const existingName = this.newNeg.negotiators[slotIndex]?.name;
+                const existingNeg = this.newNeg.negotiators[slotIndex];
+                const existingName = existingNeg?.name;
                 
-                // Generate default name from type name + index if user hasn't set a custom name
-                // Check if existing name is a generic "AgentN" or empty
-                const isGenericName = !existingName || /^Agent\d+$/.test(existingName);
-                const shortTypeName = negInfo.name || negInfo.type_name.split('.').pop();
-                const defaultName = isGenericName ? `${shortTypeName}${slotIndex + 1}` : existingName;
+                // Check if name should be auto-updated:
+                // 1. No name or generic "AgentN" pattern
+                // 2. Name matches old type's default pattern (TypeName + index)
+                let shouldUpdateName = !existingName || /^Agent\d+$/.test(existingName);
+                
+                if (!shouldUpdateName && existingNeg?.type_name) {
+                    // Extract old type's short name
+                    const oldShortName = existingNeg.type_name.split('.').pop().replace(/Negotiator$/, '');
+                    // Check if current name is old type's default (e.g., "Random1", "Boulware2")
+                    const oldDefaultPattern = new RegExp(`^${oldShortName}\\d+$`);
+                    shouldUpdateName = oldDefaultPattern.test(existingName);
+                }
+                
+                // Generate default name from type name + index
+                const shortTypeName = (negInfo.name || negInfo.type_name.split('.').pop()).replace(/Negotiator$/, '');
+                const defaultName = shouldUpdateName ? `${shortTypeName}${slotIndex + 1}` : existingName;
                 
                 const newNeg = {
                     type_name: negInfo.type_name,
@@ -2946,6 +2958,42 @@
                 if (totalPossible === 0) return '0%';
                 const percent = Math.round((completed / totalPossible) * 100);
                 return percent + '%';
+            },
+            
+            getScenarioCellProgress(i, j) {
+                const s = this.tournamentGrid.currentTab;
+                if (s === 'summary') return { completed: 0, total: 0 };
+                
+                const nReps = this.tournamentGrid.n_repetitions;
+                const rotateMultiplier = this.tournamentGrid.rotate_ufuns ? 2 : 1;
+                const totalRuns = nReps * rotateMultiplier;
+                let completed = 0;
+                
+                for (let r = 0; r < nReps; r++) {
+                    const key = this.getCellKey(i, j, s, r, false);
+                    const cell = this.tournamentGrid.cells[key];
+                    if (cell?.status === 'complete') completed++;
+                    
+                    if (this.tournamentGrid.rotate_ufuns) {
+                        const keyRot = this.getCellKey(i, j, s, r, true);
+                        const cellRot = this.tournamentGrid.cells[keyRot];
+                        if (cellRot?.status === 'complete') completed++;
+                    }
+                }
+                
+                return { completed, total: totalRuns };
+            },
+            
+            getScenarioCellTooltip(i, j) {
+                const competitor = this.tournamentGrid.competitors[i];
+                const opponent = this.tournamentGrid.opponents[j];
+                const progress = this.getScenarioCellProgress(i, j);
+                const status = this.getScenarioCellStatus(i, j);
+                
+                if (progress.total > 1) {
+                    return `${competitor} vs ${opponent}: ${progress.completed}/${progress.total} runs ${status}`;
+                }
+                return `${competitor} vs ${opponent}: ${status}`;
             },
             
             // Legacy methods for backward compatibility
