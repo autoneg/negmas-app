@@ -20,17 +20,28 @@ class TestNegotiatorDiscovery:
 
     def test_native_negotiators_discovered(self):
         """Native negmas negotiators should be in registry."""
-        # Check for some common native negotiators
+        # Check for some common native negotiators (may have hash suffix in newer versions)
         native_types = [
             "negmas.gb.negotiators.timebased.AspirationNegotiator",
             "negmas.gb.negotiators.titfortat.NaiveTitForTatNegotiator",
             "negmas.gb.negotiators.randneg.RandomNegotiator",
         ]
         for type_name in native_types:
-            assert type_name in NEGOTIATOR_REGISTRY, (
-                f"{type_name} not found in registry"
+            # Check if exact match exists, or if any key starts with this type_name (hash suffix)
+            found = type_name in NEGOTIATOR_REGISTRY or any(
+                k.startswith(type_name + "#") for k in NEGOTIATOR_REGISTRY
             )
-            entry = NEGOTIATOR_REGISTRY[type_name]
+            assert found, f"{type_name} not found in registry"
+
+            # Get the entry (with or without hash)
+            entry = NEGOTIATOR_REGISTRY.get(type_name)
+            if entry is None:
+                # Find with hash suffix
+                entry = next(
+                    v
+                    for k, v in NEGOTIATOR_REGISTRY.items()
+                    if k.startswith(type_name + "#")
+                )
             assert entry.info.source == "native"
             assert entry.info.available is True
 
@@ -61,11 +72,11 @@ class TestNegotiatorDiscovery:
 
     def test_get_info_existing(self):
         """get_info should return info for existing negotiator."""
-        info = NegotiatorFactory.get_info(
-            "negmas.gb.negotiators.timebased.AspirationNegotiator"
-        )
+        type_name = "negmas.gb.negotiators.timebased.AspirationNegotiator"
+        info = NegotiatorFactory.get_info(type_name)
         assert info is not None
-        assert info.type_name == "negmas.gb.negotiators.timebased.AspirationNegotiator"
+        # Type name may have hash suffix in newer versions
+        assert info.type_name == type_name or info.type_name.startswith(type_name + "#")
         assert info.source == "native"
 
     def test_get_info_nonexistent(self):

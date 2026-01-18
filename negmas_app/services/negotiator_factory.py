@@ -666,11 +666,21 @@ class NegotiatorFactory:
 
     @staticmethod
     def get_info(type_name: str) -> NegotiatorInfo | None:
-        """Get info for a specific negotiator type."""
+        """Get info for a specific negotiator type.
+
+        Handles both exact matches and hash-suffixed versions (e.g., Foo#abc123).
+        """
+        # Try exact match first
         entry = NEGOTIATOR_REGISTRY.get(type_name)
-        if entry is None:
-            return None
-        return entry.info
+        if entry is not None:
+            return entry.info
+
+        # Try with hash suffix (newer negmas versions)
+        for key, entry in NEGOTIATOR_REGISTRY.items():
+            if key.startswith(type_name + "#"):
+                return entry.info
+
+        return None
 
     @staticmethod
     def create(
