@@ -71,7 +71,7 @@ class TournamentConfigRequest(BaseModel):
     only_failures_on_self_play: bool = False
 
     # Save options
-    save_stats: bool = False
+    save_stats: bool = True
     save_scenario_figs: bool = False
     save_every: int = 0
 

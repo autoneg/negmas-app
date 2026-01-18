@@ -112,7 +112,7 @@ class TournamentConfig:
     only_failures_on_self_play: bool = False  # Only record failures for self-play
 
     # Save options
-    save_stats: bool = False  # Save statistics (disabled by default - can cause errors with some scenarios)
+    save_stats: bool = True  # Save statistics (Pareto, Nash, Kalai, etc.)
     save_scenario_figs: bool = True  # Save scenario figures
     save_every: int = 1  # Save results every N negotiations (0 = only at end)
     capture_offers: bool = (

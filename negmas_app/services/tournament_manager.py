@@ -748,16 +748,30 @@ class TournamentManager:
             # Get mechanism class
             mechanism_class = self._get_mechanism_class(config.mechanism_type)
 
-            # Disable save_stats if ignore_discount or ignore_reserved is True
-            # because calc_stats() fails with modified utility functions
+            # Check if any scenarios have time-based discounted utility functions
+            # These can cause calc_stats() to fail during tournament execution
+            has_time_discounted_ufuns = False
+            if config.save_stats:
+                try:
+                    from negmas.preferences import ExpDiscountedUFun
+
+                    for scenario in scenarios:
+                        if any(
+                            isinstance(uf, ExpDiscountedUFun) for uf in scenario.ufuns
+                        ):
+                            has_time_discounted_ufuns = True
+                            break
+                except ImportError:
+                    pass
+
+            # Disable save_stats if time-discounted ufuns detected
             save_stats = config.save_stats
-            if (config.ignore_discount or config.ignore_reserved) and save_stats:
+            if has_time_discounted_ufuns and save_stats:
                 save_stats = False
-                # Log warning through event queue
                 state.event_queue.put(
                     (
                         "warning",
-                        "Scenario stats disabled when ignoring discount/reserved values",
+                        "Stats disabled: time-based discounting detected (can cause errors)",
                     )
                 )
 
