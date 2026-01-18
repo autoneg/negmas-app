@@ -748,33 +748,6 @@ class TournamentManager:
             # Get mechanism class
             mechanism_class = self._get_mechanism_class(config.mechanism_type)
 
-            # Check if any scenarios have time-based discounted utility functions
-            # These can cause calc_stats() to fail during tournament execution
-            has_time_discounted_ufuns = False
-            if config.save_stats:
-                try:
-                    from negmas.preferences import ExpDiscountedUFun
-
-                    for scenario in scenarios:
-                        if any(
-                            isinstance(uf, ExpDiscountedUFun) for uf in scenario.ufuns
-                        ):
-                            has_time_discounted_ufuns = True
-                            break
-                except ImportError:
-                    pass
-
-            # Disable save_stats if time-discounted ufuns detected
-            save_stats = config.save_stats
-            if has_time_discounted_ufuns and save_stats:
-                save_stats = False
-                state.event_queue.put(
-                    (
-                        "warning",
-                        "Stats disabled: time-based discounting detected (can cause errors)",
-                    )
-                )
-
             # Build tournament kwargs
             tournament_kwargs: dict[str, Any] = {
                 "competitors": competitors,
@@ -794,7 +767,7 @@ class TournamentManager:
                 "mask_scenario_names": config.mask_scenario_names,
                 "only_failures_on_self_play": config.only_failures_on_self_play,
                 "final_score": (config.final_score_metric, config.final_score_stat),
-                "save_stats": save_stats,
+                "save_stats": config.save_stats,
                 "save_scenario_figs": config.save_scenario_figs,
                 "save_every": config.save_every,
                 "verbosity": config.verbosity,
