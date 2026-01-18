@@ -774,6 +774,7 @@ class TournamentManager:
                 "path": Path(config.save_path) if config.save_path else None,
                 "ignore_discount": config.ignore_discount,
                 "ignore_reserved": config.ignore_reserved,
+                "raise_exceptions": config.raise_exceptions,
                 # Storage and memory optimization
                 "storage_optimization": config.storage_optimization,
                 "memory_optimization": config.memory_optimization,
