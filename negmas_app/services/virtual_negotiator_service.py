@@ -162,12 +162,6 @@ class VirtualNegotiatorService:
 
         cls._load_all()[vn.id] = vn
         cls._save_all()
-
-        # Register in negmas registry
-        from .registry_service import register_virtual_negotiator
-
-        register_virtual_negotiator(vn)
-
         return vn
 
     @classmethod
@@ -219,17 +213,6 @@ class VirtualNegotiatorService:
 
         vn.modified_at = datetime.now(timezone.utc).isoformat()
         cls._save_all()
-
-        # Re-register in negmas registry if name or params changed
-        if name is not None or params is not None:
-            from .registry_service import (
-                unregister_virtual_negotiator,
-                register_virtual_negotiator,
-            )
-
-            unregister_virtual_negotiator(vn_id)
-            register_virtual_negotiator(vn)
-
         return vn
 
     @classmethod
@@ -248,12 +231,6 @@ class VirtualNegotiatorService:
 
         del cache[vn_id]
         cls._save_all()
-
-        # Unregister from negmas registry
-        from .registry_service import unregister_virtual_negotiator
-
-        unregister_virtual_negotiator(vn_id)
-
         return True
 
     @classmethod

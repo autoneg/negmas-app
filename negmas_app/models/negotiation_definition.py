@@ -1,10 +1,4 @@
-"""Negotiation definition models - complete definition of a negotiation setup.
-
-Note: This module defines *Definition classes (NegotiatorDefinition, MechanismDefinition, etc.)
-which are used for serialization and definition files. These are distinct from the *Config classes
-in other model files (like NegotiatorConfig in negotiator.py, MechanismConfig in mechanism.py)
-which are used for UI configuration.
-"""
+"""Negotiation definition models - complete definition of a negotiation setup."""
 
 from __future__ import annotations
 
@@ -17,12 +11,8 @@ from datetime import datetime
 
 
 @dataclass
-class NegotiatorDefinition:
-    """Definition of a single negotiator for negotiation definitions.
-
-    Note: This is distinct from NegotiatorConfig in models/negotiator.py which
-    is used for UI configuration. This class is for serialization/definition files.
-    """
+class NegotiatorConfig:
+    """Configuration for a single negotiator."""
 
     class_name: str
     name: str | None = None  # Display name (auto-generated if None)
@@ -38,7 +28,7 @@ class NegotiatorDefinition:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "NegotiatorDefinition":
+    def from_dict(cls, data: dict[str, Any]) -> NegotiatorConfig:
         return cls(
             class_name=data["class_name"],
             name=data.get("name"),
@@ -48,12 +38,8 @@ class NegotiatorDefinition:
 
 
 @dataclass
-class ScenarioDefinition:
-    """Definition of the negotiation scenario.
-
-    Note: This is distinct from ScenarioInfo/ScenarioConfig used elsewhere.
-    This class is for serialization/definition files.
-    """
+class ScenarioConfig:
+    """Configuration for the negotiation scenario."""
 
     # Either load from path or define inline
     path: str | None = None  # Path to scenario folder
@@ -80,7 +66,7 @@ class ScenarioDefinition:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ScenarioDefinition":
+    def from_dict(cls, data: dict[str, Any]) -> ScenarioConfig:
         return cls(
             path=data.get("path"),
             issues=data.get("issues"),
@@ -93,12 +79,8 @@ class ScenarioDefinition:
 
 
 @dataclass
-class MechanismDefinition:
-    """Definition of the negotiation mechanism.
-
-    Note: This is distinct from MechanismConfig in models/mechanism.py which
-    is used for UI configuration. This class is for serialization/definition files.
-    """
+class MechanismConfig:
+    """Configuration for the negotiation mechanism."""
 
     class_name: str = "SAOMechanism"
     module: str = "negmas.sao"
@@ -154,7 +136,7 @@ class MechanismDefinition:
         return {k: v for k, v in result.items() if v is not None}
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "MechanismDefinition":
+    def from_dict(cls, data: dict[str, Any]) -> MechanismConfig:
         hidden = data.get("hidden_time_limit")
         return cls(
             class_name=data.get("class_name", "SAOMechanism"),
@@ -227,8 +209,8 @@ class MechanismDefinition:
 
 
 @dataclass
-class ExecutionDefinition:
-    """Definition for how to run the negotiation."""
+class ExecutionConfig:
+    """Configuration for how to run the negotiation."""
 
     mode: str = "batch"  # "batch" or "realtime"
     step_delay: float = 0.3  # Delay between steps in realtime mode
@@ -244,7 +226,7 @@ class ExecutionDefinition:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ExecutionDefinition":
+    def from_dict(cls, data: dict[str, Any]) -> ExecutionConfig:
         return cls(
             mode=data.get("mode", "batch"),
             step_delay=data.get("step_delay", 0.3),
@@ -266,10 +248,10 @@ class NegotiationDefinition:
     tags: list[str] = field(default_factory=list)
 
     # Configuration
-    mechanism: MechanismDefinition = field(default_factory=MechanismDefinition)
-    scenario: ScenarioDefinition = field(default_factory=ScenarioDefinition)
-    negotiators: list[NegotiatorDefinition] = field(default_factory=list)
-    execution: ExecutionDefinition = field(default_factory=ExecutionDefinition)
+    mechanism: MechanismConfig = field(default_factory=MechanismConfig)
+    scenario: ScenarioConfig = field(default_factory=ScenarioConfig)
+    negotiators: list[NegotiatorConfig] = field(default_factory=list)
+    execution: ExecutionConfig = field(default_factory=ExecutionConfig)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -286,7 +268,7 @@ class NegotiationDefinition:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "NegotiationDefinition":
+    def from_dict(cls, data: dict[str, Any]) -> NegotiationDefinition:
         return cls(
             id=data.get("id"),
             name=data.get("name", "Untitled Negotiation"),
@@ -294,12 +276,12 @@ class NegotiationDefinition:
             created_at=data.get("created_at"),
             updated_at=data.get("updated_at"),
             tags=data.get("tags", []),
-            mechanism=MechanismDefinition.from_dict(data.get("mechanism", {})),
-            scenario=ScenarioDefinition.from_dict(data.get("scenario", {})),
+            mechanism=MechanismConfig.from_dict(data.get("mechanism", {})),
+            scenario=ScenarioConfig.from_dict(data.get("scenario", {})),
             negotiators=[
-                NegotiatorDefinition.from_dict(n) for n in data.get("negotiators", [])
+                NegotiatorConfig.from_dict(n) for n in data.get("negotiators", [])
             ],
-            execution=ExecutionDefinition.from_dict(data.get("execution", {})),
+            execution=ExecutionConfig.from_dict(data.get("execution", {})),
         )
 
     def to_yaml(self) -> str:
@@ -311,13 +293,13 @@ class NegotiationDefinition:
         return json.dumps(self.to_dict(), indent=2)
 
     @classmethod
-    def from_yaml(cls, yaml_str: str) -> "NegotiationDefinition":
+    def from_yaml(cls, yaml_str: str) -> NegotiationDefinition:
         """Load from YAML string."""
         data = yaml.safe_load(yaml_str)
         return cls.from_dict(data)
 
     @classmethod
-    def from_json(cls, json_str: str) -> "NegotiationDefinition":
+    def from_json(cls, json_str: str) -> NegotiationDefinition:
         """Load from JSON string."""
         data = json.loads(json_str)
         return cls.from_dict(data)
@@ -333,7 +315,7 @@ class NegotiationDefinition:
             path.write_text(self.to_json())
 
     @classmethod
-    def load(cls, path: str | Path) -> "NegotiationDefinition":
+    def load(cls, path: str | Path) -> NegotiationDefinition:
         """Load from file (auto-detects format)."""
         path = Path(path)
         content = path.read_text()

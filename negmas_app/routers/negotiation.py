@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -84,6 +85,112 @@ async def start_negotiation(request: StartNegotiationRequest):
         "session_id": session.id,
         "status": session.status.value,
         "stream_url": f"/api/negotiation/{session.id}/stream?step_delay={request.step_delay}&share_ufuns={str(request.share_ufuns).lower()}",
+    }
+
+
+@router.post("/start_background")
+async def start_negotiation_background(request: StartNegotiationRequest):
+    """Start a negotiation and run it in the background without streaming.
+
+    Returns the completed session when done.
+    """
+    # Convert request to internal configs
+    configs = [
+        NegotiatorConfig(
+            type_name=n.type_name,
+            name=n.name,
+            params=n.params,
+        )
+        for n in request.negotiators
+    ]
+
+    # Create session
+    session = _manager.create_session(
+        scenario_path=request.scenario_path,
+        negotiator_configs=configs,
+        mechanism_type=request.mechanism_type,
+        mechanism_params=request.mechanism_params,
+        ignore_discount=request.ignore_discount,
+        ignore_reserved=request.ignore_reserved,
+        normalize=request.normalize,
+        auto_save=request.auto_save,
+    )
+
+    # Run the negotiation to completion in a background thread
+    # We collect all events but don't stream them
+    async for event in _manager.run_session_stream(
+        session.id, configs, step_delay=0.0, share_ufuns=request.share_ufuns
+    ):
+        # Just consume events, don't stream
+        pass
+
+    # Get the completed session
+    completed_session = _manager.get_session(session.id)
+    if completed_session is None:
+        raise HTTPException(
+            status_code=404, detail="Session not found after completion"
+        )
+
+    return {
+        "session_id": completed_session.id,
+        "status": completed_session.status.value,
+        "scenario_name": completed_session.scenario_name or "",
+        "negotiator_names": completed_session.negotiator_names,
+        "negotiator_types": completed_session.negotiator_types,
+        "issue_names": completed_session.issue_names,
+        "n_steps": completed_session.n_steps,
+        "current_step": completed_session.current_step,
+        "agreement": completed_session.agreement_dict,
+        "final_utilities": completed_session.final_utilities,
+        "end_reason": completed_session.end_reason,
+        "error": completed_session.error,
+        "optimality_stats": completed_session.optimality_stats,
+        "outcome_space_data": {
+            "outcome_utilities": completed_session.outcome_space_data.outcome_utilities
+            if completed_session.outcome_space_data
+            else None,
+            "pareto_utilities": completed_session.outcome_space_data.pareto_utilities
+            if completed_session.outcome_space_data
+            else None,
+            "nash_point": completed_session.outcome_space_data.nash_point.utilities
+            if completed_session.outcome_space_data
+            and completed_session.outcome_space_data.nash_point
+            else None,
+            "kalai_point": completed_session.outcome_space_data.kalai_point.utilities
+            if completed_session.outcome_space_data
+            and completed_session.outcome_space_data.kalai_point
+            else None,
+            "kalai_smorodinsky_point": completed_session.outcome_space_data.kalai_smorodinsky_point.utilities
+            if completed_session.outcome_space_data
+            and completed_session.outcome_space_data.kalai_smorodinsky_point
+            else None,
+            "max_welfare_point": completed_session.outcome_space_data.max_welfare_point.utilities
+            if completed_session.outcome_space_data
+            and completed_session.outcome_space_data.max_welfare_point
+            else None,
+            "total_outcomes": completed_session.outcome_space_data.total_outcomes
+            if completed_session.outcome_space_data
+            else None,
+            "sampled": completed_session.outcome_space_data.sampled
+            if completed_session.outcome_space_data
+            else False,
+            "sample_size": completed_session.outcome_space_data.sample_size
+            if completed_session.outcome_space_data
+            else None,
+        }
+        if completed_session.outcome_space_data
+        else None,
+        "offers": [
+            {
+                "step": offer.step,
+                "proposer": offer.proposer,
+                "proposer_index": offer.proposer_index,
+                "offer": offer.offer_dict,
+                "utilities": offer.utilities,
+                "relative_time": offer.relative_time,
+            }
+            for offer in completed_session.offers
+        ],
     }
 
 
@@ -192,6 +299,22 @@ async def stream_negotiation(
             }
 
     return EventSourceResponse(event_generator())
+
+
+@router.get("/{session_id}/progress")
+async def get_negotiation_progress(session_id: str):
+    """Get current progress of a running negotiation."""
+    session = _manager.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return {
+        "session_id": session.id,
+        "status": session.status.value,
+        "current_step": session.current_step,
+        "n_steps": session.n_steps,
+        "relative_time": session.offers[-1].relative_time if session.offers else 0.0,
+    }
 
 
 @router.post("/{session_id}/cancel")
@@ -420,21 +543,6 @@ async def get_saved_negotiation(session_id: str):
         if session.outcome_space_data
         else None,
     }
-
-
-@router.get("/saved/{session_id}/data")
-async def get_saved_negotiation_data(session_id: str):
-    """Load a saved negotiation using unified NegotiationData format.
-
-    This endpoint uses NegotiationLoader which handles both CompletedRun
-    format and legacy formats. Returns data in a standardized format.
-    """
-    data = await asyncio.to_thread(
-        NegotiationStorageService.load_as_negotiation_data, session_id
-    )
-    if data is None:
-        raise HTTPException(status_code=404, detail="Saved negotiation not found")
-    return data.to_frontend_dict()
 
 
 @router.delete("/saved/{session_id}")

@@ -150,12 +150,6 @@ class VirtualMechanismService:
 
         cls._load_all()[vm.id] = vm
         cls._save_all()
-
-        # Register in negmas registry
-        from .registry_service import register_virtual_mechanism
-
-        register_virtual_mechanism(vm)
-
         return vm
 
     @classmethod
@@ -207,17 +201,6 @@ class VirtualMechanismService:
 
         vm.modified_at = datetime.now(timezone.utc).isoformat()
         cls._save_all()
-
-        # Re-register in negmas registry if name or params changed
-        if name is not None or params is not None:
-            from .registry_service import (
-                unregister_virtual_mechanism,
-                register_virtual_mechanism,
-            )
-
-            unregister_virtual_mechanism(vm_id)
-            register_virtual_mechanism(vm)
-
         return vm
 
     @classmethod
@@ -236,12 +219,6 @@ class VirtualMechanismService:
 
         del cache[vm_id]
         cls._save_all()
-
-        # Unregister from negmas registry
-        from .registry_service import unregister_virtual_mechanism
-
-        unregister_virtual_mechanism(vm_id)
-
         return True
 
     @classmethod

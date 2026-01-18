@@ -2077,6 +2077,133 @@
                 }
             },
             
+            // Start negotiation in background without monitoring
+            async startNegotiationBackground() {
+                if (!this.canStart) return;
+                
+                // Same validation as startNegotiation
+                const maxOutcomes = this.settings.maxOutcomesRun;
+                if (maxOutcomes && maxOutcomes > 0 && this.newNeg.scenario?.n_outcomes) {
+                    if (this.newNeg.scenario.n_outcomes > maxOutcomes) {
+                        alert(`Cannot start negotiation: Scenario "${this.newNeg.scenario.name}" has ${this.newNeg.scenario.n_outcomes.toLocaleString()} outcomes, which exceeds the configured limit of ${maxOutcomes.toLocaleString()}.\n\nYou can change this limit in Settings > Performance.`);
+                        return;
+                    }
+                }
+                
+                const needsBridge = this.newNeg.negotiators.some(n => n.requires_bridge);
+                if (needsBridge) {
+                    await this.checkGeniusBridgeStatus();
+                    if (!this.geniusBridge.running) {
+                        await this.startGeniusBridge();
+                        if (!this.geniusBridge.running) {
+                            alert('Cannot start negotiation: Genius Bridge is required but failed to start.');
+                            return;
+                        }
+                    }
+                }
+                
+                await this.addToRecentSessions();
+                
+                const params = this.newNeg.mechanism_params || {};
+                
+                // Add to running negotiations list with progress tracking
+                const tempNeg = {
+                    id: `temp-${Date.now()}`,
+                    scenario: this.newNeg.scenario.name,
+                    step: 0,
+                    relative_time: 0,
+                    mechanism_type: this.newNeg.mechanism_type,
+                    background: true,
+                    progress: 0,
+                    panelSettings: {
+                        adjustable: this.newNeg.panels.adjustable,
+                        utilityView: { ...this.newNeg.panels.utilityView },
+                        timeline: { ...this.newNeg.panels.timeline },
+                        visible: { ...this.newNeg.panels.visible }
+                    }
+                };
+                this.runningNegotiations.push(tempNeg);
+                
+                this.showNewNegotiation = false;
+                this.currentPage = 'negotiations';
+                
+                try {
+                    const res = await fetch('/api/negotiation/start_background', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            scenario_path: this.newNeg.scenario.path,
+                            negotiators: this.newNeg.negotiators,
+                            mechanism_type: this.newNeg.mechanism_type,
+                            mechanism_params: params,
+                            step_delay: 0,
+                            share_ufuns: this.newNeg.share_ufuns,
+                            ignore_discount: this.newNeg.ignore_discount,
+                            ignore_reserved: this.newNeg.ignore_reserved,
+                            normalize: this.newNeg.normalize,
+                            auto_save: this.newNeg.auto_save
+                        })
+                    });
+                    
+                    if (!res.ok) {
+                        throw new Error('Failed to start negotiation');
+                    }
+                    
+                    const data = await res.json();
+                    
+                    // Remove temp entry and add completed one
+                    const idx = this.runningNegotiations.findIndex(n => n.id === tempNeg.id);
+                    if (idx >= 0) {
+                        this.runningNegotiations.splice(idx, 1);
+                    }
+                    
+                    // Build negotiator colors
+                    const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
+                    const negotiatorColors = data.negotiator_names.map((_, i) => colors[i % colors.length]);
+                    
+                    // Convert offers to expected format
+                    const offers = data.offers || [];
+                    
+                    // Add to completed negotiations
+                    const completedNeg = {
+                        id: data.session_id,
+                        scenario: data.scenario_name || this.newNeg.scenario.name,
+                        step: data.current_step,
+                        n_steps: data.n_steps,
+                        relative_time: offers.length > 0 ? offers[offers.length - 1].relative_time : 1.0,
+                        negotiator_names: data.negotiator_names,
+                        negotiator_types: data.negotiator_types,
+                        negotiator_colors: negotiatorColors,
+                        issue_names: data.issue_names,
+                        agreement: data.agreement,
+                        final_utilities: data.final_utilities,
+                        end_reason: data.end_reason,
+                        error: data.error,
+                        optimality_stats: data.optimality_stats,
+                        outcome_space_data: data.outcome_space_data,
+                        offers: offers,
+                        mechanism_type: this.newNeg.mechanism_type,
+                        panelSettings: tempNeg.panelSettings
+                    };
+                    
+                    this.completedNegotiations.unshift(completedNeg);
+                    
+                    // Auto-select to show results
+                    this.selectNegotiation(completedNeg);
+                    
+                    this.showToast('Negotiation completed', 'success');
+                    
+                } catch (e) {
+                    console.error('Failed to start background negotiation:', e);
+                    // Remove temp entry on error
+                    const idx = this.runningNegotiations.findIndex(n => n.id === tempNeg.id);
+                    if (idx >= 0) {
+                        this.runningNegotiations.splice(idx, 1);
+                    }
+                    alert('Failed to start negotiation: ' + e.message);
+                }
+            },
+            
             connectToStream(sessionId, url) {
                 const eventSource = new EventSource(url);
                 
@@ -3813,8 +3940,7 @@
                 this.loadNegotiationError = null;
                 
                 try {
-                    // Use v2 endpoint which returns clean NegotiationData format
-                    const res = await fetch('/api/tournament/load_negotiation_from_file_v2', {
+                    const res = await fetch('/api/tournament/load_negotiation_from_file', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ path: this.loadNegotiationPath.trim() })
@@ -3825,14 +3951,103 @@
                         throw new Error(err.detail || 'Failed to load negotiation');
                     }
                     
-                    const data = await res.json();
+                    const fullData = await res.json();
                     
-                    // v2 returns NegotiationData format which is already clean
-                    // Just need to add UI-specific fields
+                    // Get negotiator names from negotiators array or partners
+                    const negotiatorNames = fullData.negotiators?.map(n => n.short_type || n.type || n.name) || ['Negotiator 1', 'Negotiator 2'];
+                    
+                    // Generate colors for negotiators
+                    const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
+                    const negotiatorColors = negotiatorNames.map((_, idx) => colors[idx % colors.length]);
+                    
+                    // Build a map of negotiator ID to index from history
+                    const negotiatorIdToIndex = {};
+                    if (fullData.history) {
+                        const uniqueNegotiators = [...new Set(fullData.history.map(r => r.negotiator).filter(n => n))];
+                        uniqueNegotiators.forEach((negId, idx) => {
+                            negotiatorIdToIndex[negId] = idx;
+                        });
+                    }
+                    
+                    // Convert history format to offers format expected by the UI
+                    const offers = [];
+                    const issueNames = fullData.issue_names || [];
+                    
+                    for (const row of (fullData.history || [])) {
+                        if (row.offer) {
+                            // Convert array offer to object with issue names as keys
+                            const offerObj = {};
+                            if (Array.isArray(row.offer) && issueNames.length > 0) {
+                                issueNames.forEach((name, idx) => {
+                                    offerObj[name] = row.offer[idx];
+                                });
+                            } else if (typeof row.offer === 'object' && !Array.isArray(row.offer)) {
+                                Object.assign(offerObj, row.offer);
+                            }
+                            
+                            const proposerIndex = negotiatorIdToIndex[row.negotiator] ?? 0;
+                            
+                            offers.push({
+                                step: row.step,
+                                proposer: negotiatorNames[proposerIndex] || row.negotiator,
+                                proposer_index: proposerIndex,
+                                offer: offerObj,
+                                utilities: row.utilities || fullData.final_utilities || [0, 0],
+                                time: 0,
+                                relative_time: row.relative_time || 0
+                            });
+                        }
+                    }
+                    
+                    // Determine final step and agreement info
+                    const lastStep = offers.length > 0 ? Math.max(...offers.map(o => o.step)) : 0;
+                    const hasAgreement = fullData.has_agreement || false;
+                    
+                    // Build agreement object from array if needed
+                    let agreement = null;
+                    if (hasAgreement && fullData.agreement) {
+                        if (Array.isArray(fullData.agreement) && issueNames.length > 0) {
+                            agreement = {};
+                            issueNames.forEach((name, idx) => {
+                                agreement[name] = fullData.agreement[idx];
+                            });
+                        } else if (typeof fullData.agreement === 'object' && !Array.isArray(fullData.agreement)) {
+                            agreement = fullData.agreement;
+                        } else {
+                            // Last offer as agreement
+                            agreement = offers.length > 0 ? offers[offers.length - 1]?.offer : null;
+                        }
+                    }
+                    
+                    // Extract scenario name from path
+                    const scenarioName = fullData.scenario || this.loadNegotiationPath.split('/').pop().replace(/\.csv$/, '');
+                    
+                    // Create a complete negotiation object matching the viewer's expectations
                     const negotiation = {
-                        ...data,
-                        step: data.final_step || (data.offers?.length > 0 ? Math.max(...data.offers.map(o => o.step)) : 0),
-                        relative_time: data.final_relative_time || (data.offers?.length > 0 ? data.offers[data.offers.length - 1]?.relative_time : 1.0),
+                        id: `file-${Date.now()}`,
+                        scenario: scenarioName,
+                        step: lastStep,
+                        n_steps: fullData.n_steps || null,
+                        relative_time: offers.length > 0 ? (offers[offers.length - 1]?.relative_time || 1.0) : 1.0,
+                        offers: offers,
+                        negotiator_names: negotiatorNames,
+                        negotiator_colors: negotiatorColors,
+                        agreement: agreement,
+                        final_utilities: fullData.final_utilities || null,
+                        end_reason: hasAgreement ? 'agreement' : 'completed',
+                        mechanism_type: 'SAOMechanism',
+                        // Include outcome_space_data for 2D utility visualization
+                        outcome_space_data: fullData.outcome_space_data || null,
+                        // Include optimality stats for agreement analysis
+                        optimality_stats: hasAgreement ? {
+                            pareto_optimality: fullData.pareto_optimality,
+                            nash_optimality: fullData.nash_optimality,
+                            kalai_optimality: fullData.kalai_optimality,
+                            max_welfare_optimality: fullData.max_welfare_optimality,
+                            ks_optimality: fullData.ks_optimality,
+                        } : null,
+                        // Mark this as a saved negotiation so controls are disabled
+                        isSaved: true,
                         isFromFile: true,
                         sourcePath: this.loadNegotiationPath,
                         pendingStart: false,
@@ -3853,7 +4068,6 @@
                     });
                     
                     // Show notification
-                    const scenarioName = data.scenario || this.loadNegotiationPath.split('/').pop();
                     this.showToast(`Loaded negotiation from file: ${scenarioName}`, 'success');
                     
                 } catch (e) {

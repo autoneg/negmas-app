@@ -2,7 +2,7 @@
 
 import importlib
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, get_type_hints, get_origin, get_args, Union
 from pathlib import Path
 import json

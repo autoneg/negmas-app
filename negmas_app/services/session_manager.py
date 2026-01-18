@@ -6,7 +6,8 @@ from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
 
-from negmas.sao import SAOState
+from negmas import Scenario
+from negmas.sao import SAOMechanism, SAOState
 
 from ..models import (
     NegotiationSession,
@@ -400,15 +401,12 @@ class SessionManager:
                 else:
                     session.end_reason = "no_agreement"
 
-            # Auto-save if enabled using standard negmas CompletedRun format
+            # Auto-save if enabled (run in thread pool to avoid blocking)
             if self._auto_save.get(session_id, False):
                 try:
+                    configs = self._configs.get(session_id)
                     await asyncio.to_thread(
-                        NegotiationStorageService.save_from_mechanism,
-                        mechanism,  # type: ignore[arg-type]
-                        scenario,
-                        session_id,
-                        {"scenario_path": session.scenario_path},
+                        NegotiationStorageService.save_negotiation, session, configs
                     )
                 except Exception as e:
                     print(f"Failed to auto-save negotiation {session_id}: {e}")

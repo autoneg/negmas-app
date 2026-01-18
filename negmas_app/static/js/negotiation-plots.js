@@ -2513,10 +2513,9 @@ app = function() {
                         this.currentNegotiation.offers = neg.offers;
                         this.currentNegotiation.pendingStart = false;
                         
-                        // Time-based throttling: max 10 updates per second (100ms between updates)
-                        // Lower fps is sufficient for visualization and prevents browser freeze on large scenarios
+                        // Time-based throttling: max 30 updates per second (33ms between updates)
                         const now = performance.now();
-                        const MIN_UPDATE_INTERVAL = 100; // ~10fps
+                        const MIN_UPDATE_INTERVAL = 33; // ~30fps
                         
                         if (!this._lastPlotUpdate || (now - this._lastPlotUpdate) >= MIN_UPDATE_INTERVAL) {
                             this._lastPlotUpdate = now;

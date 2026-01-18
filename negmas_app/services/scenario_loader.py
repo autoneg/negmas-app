@@ -3,7 +3,7 @@
 import re
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import yaml
 
@@ -17,9 +17,6 @@ from negmas.preferences.ops import is_rational
 
 from ..models import ScenarioInfo, IssueInfo, ScenarioStatsInfo
 from .settings_service import SettingsService
-
-if TYPE_CHECKING:
-    from ..models.scenario import ScenarioDefinition
 
 
 # In-memory cache for scenario info (lightweight)
@@ -335,12 +332,12 @@ class ScenarioLoader:
         Returns:
             Loaded Scenario or None if loading fails.
         """
-        return Scenario.load(  # type: ignore
+        return Scenario.load(
             Path(path),
             ignore_discount=ignore_discount,
             load_stats=load_stats,
             load_info=load_info,
-        )
+        )  # type: ignore[attr-defined]
 
     def get_scenario_info(self, path: str | Path) -> ScenarioInfo | None:
         """Get info for a specific scenario (with full details including issues)."""
@@ -542,10 +539,10 @@ class ScenarioLoader:
             AffineUtilityFunction,
             TableFun,
             LinearFun,
-            AffineFun,
             IdentityFun,
         )
 
+        from ..models.scenario import ScenarioDefinition
 
         try:
             # 1. Create issues
@@ -612,13 +609,7 @@ class ScenarioLoader:
                                     if vf_def.intercept is not None
                                     else 0.0
                                 )
-                                # Use AffineFun for slope + intercept, LinearFun for slope only
-                                if intercept != 0.0:
-                                    values.append(
-                                        AffineFun(slope=slope, bias=intercept)
-                                    )
-                                else:
-                                    values.append(LinearFun(slope=slope))
+                                values.append(LinearFun(slope, intercept))
                             elif vf_def.type == "identity":
                                 values.append(IdentityFun())
                             else:
@@ -632,7 +623,7 @@ class ScenarioLoader:
                     weights = ufun_def.weights or [1.0 / len(issues)] * len(issues)
 
                     ufun = LinearAdditiveUtilityFunction(
-                        values=values,  # type: ignore[arg-type]
+                        values=values,
                         weights=weights,
                         outcome_space=outcome_space,
                         reserved_value=ufun_def.reserved_value,
@@ -654,7 +645,7 @@ class ScenarioLoader:
                 ufuns.append(ufun)
 
             # 4. Create scenario
-            scenario = Scenario(outcome_space=outcome_space, ufuns=ufuns)  # type: ignore
+            scenario = Scenario(outcome_space=outcome_space, ufuns=ufuns)
 
             # 5. Save to disk if path provided
             if save_path is None:

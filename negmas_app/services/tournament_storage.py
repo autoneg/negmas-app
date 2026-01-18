@@ -1,7 +1,5 @@
 """Tournament storage service for loading saved tournament results."""
 
-from __future__ import annotations
-
 import ast
 import csv
 import json
@@ -9,15 +7,12 @@ import math
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
 import pandas as pd
 import yaml
 
 from negmas.tournaments.neg import SimpleTournamentResults
-
-if TYPE_CHECKING:
-    from .negotiation_loader import NegotiationData
 
 
 @dataclass
@@ -360,8 +355,8 @@ class TournamentStorageService:
                     scores.append(
                         {
                             "name": name,
-                            "rank": int(idx) + 1 if isinstance(idx, int) else 1,  # type: ignore[arg-type]
-                            "score": float(score) if pd.notna(score) else None,  # type: ignore[arg-type]
+                            "rank": idx + 1,
+                            "score": float(score) if pd.notna(score) else None,
                             "raw_data": cls._sanitize_for_json(row.to_dict()),
                         }
                     )
@@ -456,12 +451,7 @@ class TournamentStorageService:
                         value_idx = start_idx + j
                         if value_idx < len(row):
                             try:
-                                val = float(row[value_idx])
-                                # Sanitize inf/-inf/nan for JSON compatibility
-                                if math.isnan(val) or math.isinf(val):
-                                    metric_stats[stat_name] = None
-                                else:
-                                    metric_stats[stat_name] = val
+                                metric_stats[stat_name] = float(row[value_idx])
                             except (ValueError, TypeError):
                                 metric_stats[stat_name] = None
                     result[strategy_name][metric_name] = metric_stats
@@ -911,9 +901,7 @@ class TournamentStorageService:
 
         # Load scenario info to get issue names (for offer parsing order validation)
         scenario_info = cls.get_scenario_info(tournament_id, scenario_name)
-        _issue_names = (
-            scenario_info.get("issue_names", []) if scenario_info else []
-        )  # For validation
+        issue_names = scenario_info.get("issue_names", []) if scenario_info else []
 
         # Calculate utilities for each offer
         for row in trace_data.get("trace", []):
@@ -1080,9 +1068,7 @@ class TournamentStorageService:
                         headers = row
                     elif idx == 1:
                         # Second row is stat names (count, mean, std, etc.)
-                        _stats = (
-                            row  # Header row for stats - used implicitly via stat_names
-                        )
+                        stats = row
                     else:
                         # Data rows: index (strategy name), then values
                         rows.append({"strategy": row[0], "values": row[1:]})
@@ -1178,7 +1164,7 @@ class TournamentStorageService:
         return False
 
     @classmethod
-    def get_tournament_files(cls, tournament_id: str) -> dict[str, bool | int]:
+    def get_tournament_files(cls, tournament_id: str) -> dict:
         """Get list of available files in the tournament directory.
 
         Supports format-agnostic detection (csv, gzip, parquet).
@@ -1193,7 +1179,7 @@ class TournamentStorageService:
         if not path.exists():
             return {}
 
-        files: dict[str, bool | int] = {
+        files = {
             "config": (path / "config.json").exists(),
             "scores": (path / "scores.csv").exists(),  # Always CSV (small file)
             "type_scores": (path / "type_scores.csv").exists(),  # Always CSV
@@ -1247,7 +1233,7 @@ class TournamentStorageService:
 
         try:
             # Load the scenario using negmas - this gives us ufuns and outcome_space
-            scenario = Scenario.load(scenario_dir, load_stats=True, load_info=True)  # type: ignore[attr-defined]
+            scenario = Scenario.load(scenario_dir, load_stats=True, load_info=True)
 
             # Compute outcome space data
             osd = compute_outcome_space_data(
@@ -1487,7 +1473,7 @@ class TournamentStorageService:
             try:
                 from negmas import Scenario
 
-                scenario = Scenario.load(scenario_dir, load_stats=True, load_info=True)  # type: ignore[attr-defined]
+                scenario = Scenario.load(scenario_dir, load_stats=True, load_info=True)
                 if scenario:
                     ufuns = list(scenario.ufuns) if scenario.ufuns else []
 
@@ -1518,7 +1504,7 @@ class TournamentStorageService:
                 print(f"Error loading scenario {scenario_name}: {e}")
 
         # Load the negotiation trace from negotiations folder
-        _trace = []  # Raw trace data (converted to history below)
+        trace = []
         history = []  # History in UI format
 
         if run_id:
@@ -1781,7 +1767,7 @@ class TournamentStorageService:
             parts = filename.rsplit("_", 2)  # Split from right to get runid, rep, rest
 
             scenario_name = "Unknown"
-            _negotiator_types = list(negotiator_ids)  # Fallback types from IDs
+            negotiator_types = list(negotiator_ids)
 
             if len(parts) >= 3:
                 # Try to extract scenario and negotiators from the prefix
@@ -1826,274 +1812,3 @@ class TournamentStorageService:
         except Exception as e:
             print(f"Error loading negotiation from {csv_path}: {e}")
             return None
-
-    @classmethod
-    def load_negotiation_as_data(
-        cls, tournament_id: str, negotiation_index: int
-    ) -> NegotiationData | None:
-        """Load a tournament negotiation using the unified NegotiationLoader.
-
-        This method tries to use CompletedRun.load() for newer format negotiations,
-        falling back to the legacy parsing for older formats.
-
-        Args:
-            tournament_id: Tournament ID.
-            negotiation_index: Index of the negotiation in details.
-
-        Returns:
-            NegotiationData ready for UI display, or None if not found.
-        """
-        from .negotiation_loader import NegotiationLoader
-
-        path = cls.TOURNAMENTS_DIR / tournament_id
-
-        # Get negotiation metadata to find the run_id
-        neg_data = cls.get_tournament_negotiation(tournament_id, negotiation_index)
-        if neg_data is None:
-            return None
-
-        raw_data = neg_data.get("raw_data", {})
-        run_id = raw_data.get("run_id")
-        scenario_name = neg_data.get("scenario") or raw_data.get(
-            "effective_scenario_name", ""
-        )
-
-        if not run_id:
-            # Fall back to legacy loading and convert
-            legacy_data = cls.load_full_negotiation(tournament_id, negotiation_index)
-            if legacy_data:
-                return cls._legacy_dict_to_negotiation_data(legacy_data)
-            return None
-
-        # Find the negotiation file/folder in negotiations directory
-        negotiations_dir = path / "negotiations"
-        negotiation_path = None
-
-        if negotiations_dir.exists():
-            # Try different file patterns
-            for pattern in [f"*{run_id}*", f"{scenario_name}*{run_id}*"]:
-                matches = list(negotiations_dir.glob(pattern))
-                if matches:
-                    negotiation_path = matches[0]
-                    break
-
-        if not negotiation_path:
-            # Fall back to legacy loading
-            legacy_data = cls.load_full_negotiation(tournament_id, negotiation_index)
-            if legacy_data:
-                return cls._legacy_dict_to_negotiation_data(legacy_data)
-            return None
-
-        # Try to load using NegotiationLoader (CompletedRun format)
-        try:
-            negotiation_id = f"{tournament_id}_{negotiation_index}"
-            return NegotiationLoader.from_file(
-                negotiation_path,
-                negotiation_id=negotiation_id,
-                load_scenario_stats=True,
-            )
-        except Exception as e:
-            print(f"Error loading negotiation via NegotiationLoader: {e}")
-            # Fall back to legacy loading
-            legacy_data = cls.load_full_negotiation(tournament_id, negotiation_index)
-            if legacy_data:
-                return cls._legacy_dict_to_negotiation_data(legacy_data)
-            return None
-
-    @classmethod
-    def load_file_as_data(cls, file_path: str) -> NegotiationData | None:
-        """Load a negotiation from any file path using NegotiationLoader.
-
-        This method handles both CompletedRun format and legacy CSV format.
-
-        Args:
-            file_path: Path to negotiation file or directory.
-
-        Returns:
-            NegotiationData ready for UI display, or None if loading fails.
-        """
-        from .negotiation_loader import NegotiationLoader
-
-        path = Path(file_path)
-        if not path.exists():
-            return None
-
-        # Try NegotiationLoader first (handles CompletedRun format)
-        try:
-            return NegotiationLoader.from_file(
-                path,
-                negotiation_id=f"file-{path.stem}",
-                load_scenario_stats=True,
-            )
-        except Exception as e:
-            print(f"NegotiationLoader failed for {path}: {e}")
-
-        # Fall back to legacy CSV loading
-        legacy_data = cls.load_negotiation_from_folder(str(path))
-        if legacy_data:
-            return cls._legacy_dict_to_negotiation_data(legacy_data)
-
-        return None
-
-    @classmethod
-    def _legacy_dict_to_negotiation_data(cls, data: dict) -> NegotiationData:
-        """Convert legacy negotiation dict format to NegotiationData.
-
-        Args:
-            data: Legacy negotiation dict from load_full_negotiation or load_negotiation_from_folder.
-
-        Returns:
-            NegotiationData instance.
-        """
-        from .negotiation_loader import NegotiationData, NegotiationOffer
-        from ..models.session import NEGOTIATOR_COLORS
-
-        # Extract negotiator info
-        negotiators = data.get("negotiators", [])
-        negotiator_names = [
-            n.get("name", f"Negotiator{i}") for i, n in enumerate(negotiators)
-        ]
-        negotiator_types = [n.get("type", "Unknown") for n in negotiators]
-        n_negotiators = len(negotiators) if negotiators else 2
-
-        negotiator_colors = [
-            NEGOTIATOR_COLORS[i % len(NEGOTIATOR_COLORS)] for i in range(n_negotiators)
-        ]
-
-        # Build name to index mapping
-        name_to_idx = {name: i for i, name in enumerate(negotiator_names)}
-
-        # Convert history to NegotiationOffer objects
-        offers = []
-        for entry in data.get("history", []):
-            proposer = entry.get("negotiator", "")
-            proposer_idx = name_to_idx.get(proposer, 0)
-
-            # Handle case where proposer might be ID with UUID
-            if proposer_idx == 0 and proposer:
-                for name, idx in name_to_idx.items():
-                    if name in proposer or proposer in name:
-                        proposer_idx = idx
-                        break
-
-            offer_val = entry.get("offer")
-            offer_dict = {}
-            issue_names = data.get("issue_names", [])
-            if offer_val and issue_names:
-                if isinstance(offer_val, dict):
-                    offer_dict = offer_val
-                else:
-                    offer_dict = dict(zip(issue_names, offer_val))
-            elif offer_val:
-                offer_dict = {f"issue_{i}": v for i, v in enumerate(offer_val)}
-
-            offers.append(
-                NegotiationOffer(
-                    step=entry.get("step", 0),
-                    relative_time=entry.get("relative_time", 0.0),
-                    proposer=proposer,
-                    proposer_index=proposer_idx,
-                    offer=tuple(offer_val)
-                    if offer_val and not isinstance(offer_val, dict)
-                    else offer_val,
-                    offer_dict=offer_dict,
-                    utilities=entry.get("utilities", []) or [],
-                    responses={},
-                    state=entry.get("state", "continuing"),
-                )
-            )
-
-        # Build agreement dict
-        agreement = data.get("agreement")
-        agreement_dict = None
-        agreement_tuple = None
-        issue_names = data.get("issue_names", [])
-
-        if agreement:
-            if isinstance(agreement, dict):
-                agreement_dict = agreement
-                agreement_tuple = tuple(agreement.values())
-            elif issue_names:
-                agreement_tuple = (
-                    tuple(agreement) if not isinstance(agreement, tuple) else agreement
-                )
-                agreement_dict = dict(zip(issue_names, agreement_tuple))
-            else:
-                agreement_tuple = (
-                    tuple(agreement) if not isinstance(agreement, tuple) else agreement
-                )
-                agreement_dict = {
-                    f"issue_{i}": v for i, v in enumerate(agreement_tuple)
-                }
-
-        # Build optimality stats
-        optimality_stats = None
-        if any(
-            data.get(k) is not None
-            for k in ["pareto_optimality", "nash_optimality", "kalai_optimality"]
-        ):
-            optimality_stats = {
-                "pareto_optimality": data.get("pareto_optimality"),
-                "nash_optimality": data.get("nash_optimality"),
-                "kalai_optimality": data.get("kalai_optimality"),
-                "ks_optimality": data.get("ks_optimality"),
-                "max_welfare_optimality": data.get("max_welfare_optimality"),
-            }
-
-        # Convert outcome_space_data dict to OutcomeSpaceData if present
-        outcome_space_data = None
-        osd = data.get("outcome_space_data")
-        if osd:
-            from ..models.session import OutcomeSpaceData, AnalysisPoint
-
-            outcome_space_data = OutcomeSpaceData(
-                outcome_utilities=[tuple(u) for u in osd.get("outcome_utilities", [])],
-                pareto_utilities=[tuple(u) for u in osd.get("pareto_utilities", [])],
-                total_outcomes=osd.get("total_outcomes", 0),
-                sampled=osd.get("sampled", False),
-                sample_size=osd.get("sample_size", 0),
-            )
-
-            if osd.get("nash_point"):
-                outcome_space_data.nash_point = AnalysisPoint(
-                    name="nash", utilities=osd["nash_point"]
-                )
-            if osd.get("kalai_point"):
-                outcome_space_data.kalai_point = AnalysisPoint(
-                    name="kalai", utilities=osd["kalai_point"]
-                )
-            if osd.get("kalai_smorodinsky_point"):
-                outcome_space_data.kalai_smorodinsky_point = AnalysisPoint(
-                    name="kalai_smorodinsky", utilities=osd["kalai_smorodinsky_point"]
-                )
-            if osd.get("max_welfare_point"):
-                outcome_space_data.max_welfare_point = AnalysisPoint(
-                    name="max_welfare", utilities=osd["max_welfare_point"]
-                )
-
-        # Determine end reason
-        end_reason = None
-        if data.get("has_agreement"):
-            end_reason = "agreement"
-        elif data.get("status") == "completed":
-            end_reason = "no_agreement"
-
-        return NegotiationData(
-            id=data.get("id", "unknown"),
-            source=data.get("source", "tournament"),
-            source_path=data.get("file_path"),
-            scenario_name=data.get("scenario", ""),
-            negotiator_names=negotiator_names,
-            negotiator_types=negotiator_types,
-            negotiator_colors=negotiator_colors,
-            issue_names=issue_names,
-            n_steps=data.get("n_steps"),
-            offers=offers,
-            agreement=agreement_dict,
-            agreement_tuple=agreement_tuple,
-            final_utilities=data.get("final_utilities"),
-            end_reason=end_reason,
-            final_step=data.get("current_step", 0),
-            optimality_stats=optimality_stats,
-            outcome_space_data=outcome_space_data,
-        )

@@ -194,6 +194,21 @@ class NegotiationLoader:
         # Extract config - now contains all Mechanism construction arguments
         config = run.config or {}
 
+        # If scenario is missing, try to load from scenario_path in metadata
+        scenario = run.scenario
+        metadata = run.metadata or {}
+        scenario_path_from_meta = metadata.get("scenario_path")
+
+        if scenario is None and scenario_path_from_meta:
+            try:
+                scenario = Scenario.load(  # type: ignore[attr-defined]
+                    scenario_path_from_meta,
+                    load_stats=False,
+                    load_info=True,
+                )
+            except Exception:
+                pass  # Scenario loading failed, continue without it
+
         # Negotiator info from config
         negotiator_names = config.get("negotiator_names", [])
         negotiator_types = config.get("negotiator_types", [])
@@ -234,14 +249,14 @@ class NegotiationLoader:
             issue_names = run.metadata["issue_names"]
 
         # Then try scenario outcome_space
-        if not issue_names and run.scenario and run.scenario.outcome_space:
+        if not issue_names and scenario and scenario.outcome_space:
             try:
                 # Try dict-style access first (CartesianOutcomeSpace)
-                issue_names = list(run.scenario.outcome_space.issues.keys())  # type: ignore[union-attr]
+                issue_names = list(scenario.outcome_space.issues.keys())  # type: ignore[union-attr]
             except (AttributeError, TypeError):
                 try:
                     # Try tuple-style (issues is a tuple of Issue objects)
-                    issues = run.scenario.outcome_space.issues
+                    issues = scenario.outcome_space.issues
                     if isinstance(issues, (list, tuple)):
                         issue_names = [
                             getattr(issue, "name", f"issue_{i}")
@@ -256,7 +271,7 @@ class NegotiationLoader:
             run.history_type,
             negotiator_names,
             issue_names,
-            run.scenario,
+            scenario,
         )
 
         # If we still don't have issue names, try to get from first offer
@@ -309,7 +324,7 @@ class NegotiationLoader:
             }
 
         # Build outcome space data from scenario
-        outcome_space_data = cls._build_outcome_space_data(run.scenario)
+        outcome_space_data = cls._build_outcome_space_data(scenario)
 
         # Determine scenario name
         final_scenario_name = scenario_name or ""

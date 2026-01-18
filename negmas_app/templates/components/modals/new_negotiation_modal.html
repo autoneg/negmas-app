@@ -907,6 +907,12 @@
                         </svg>
                         <span x-text="newNeg.auto_start ? 'Start Negotiation' : 'Open Negotiation'"></span>
                     </button>
+                    <button class="btn btn-secondary" @click="startNegotiationBackground()" :disabled="!canStart" style="margin-left: 8px;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        <span>Start without Monitoring</span>
+                    </button>
                 </template>
             </div>
         </div>

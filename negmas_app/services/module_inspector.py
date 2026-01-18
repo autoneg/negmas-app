@@ -204,8 +204,8 @@ def inspect_module_dynamic(file_path: str) -> ModuleInspectionResult:
     try:
         # Import negmas to have base classes available
         try:
-            from negmas.gb import GBMechanism, GBNegotiator  # noqa: F401
-            from negmas.sao import SAOMechanism, SAONegotiator  # noqa: F401
+            from negmas.gb import GBMechanism, GBNegotiator
+            from negmas.sao import SAOMechanism, SAONegotiator
         except ImportError:
             pass
 
@@ -326,7 +326,7 @@ def _validate_pickle_scenario(path: Path) -> dict[str, Any]:
         # Try to deserialize
         scenario = deserialize(str(path))
 
-        if isinstance(scenario, Scenario):  # type: ignore[arg-type]
+        if isinstance(scenario, Scenario):
             return {
                 "valid": True,
                 "type": "serialized_file",
@@ -401,7 +401,7 @@ def _validate_scenario_directory(path: Path) -> dict[str, Any]:
         # Try loading with negmas Scenario.load as fallback
         from negmas import Scenario
 
-        scenario = Scenario.load(str(path))  # type: ignore[attr-defined]
+        scenario = Scenario.load(str(path))
         return {
             "valid": True,
             "type": "directory",

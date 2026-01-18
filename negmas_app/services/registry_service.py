@@ -469,6 +469,172 @@ def get_registered_virtual_mechanisms() -> dict[str, str]:
     return _registered_virtual_mechanisms.copy()
 
 
+def _convert_param_value(value: Any, expected_type: str) -> Any:
+    """Convert a parameter value to the expected type.
+
+    This handles conversion of string values (from form input) to the
+    actual types expected by negotiator __init__ methods.
+
+    Args:
+        value: The value to convert (may be string from form input)
+        expected_type: The expected type as a string (e.g., 'int', 'float', 'bool')
+
+    Returns:
+        The converted value, or the original value if conversion fails or is not needed.
+    """
+    if value is None:
+        return None
+
+    # Already the right type - no conversion needed
+    if not isinstance(value, str):
+        return value
+
+    # Normalize the type string for matching
+    type_lower = expected_type.lower()
+
+    # Handle Optional types - extract inner type
+    if type_lower.startswith("optional[") and type_lower.endswith("]"):
+        inner_type = type_lower[9:-1]
+        if value.strip().lower() in ("none", "null", ""):
+            return None
+        return _convert_param_value(value, inner_type)
+
+    # Handle Union types - try to infer from value
+    if type_lower.startswith("union["):
+        # For Union types, try common conversions
+        # First check if it looks like a number
+        try:
+            if "." in value:
+                return float(value)
+            return int(value)
+        except ValueError:
+            pass
+        # Check for boolean
+        if value.lower() in ("true", "false"):
+            return value.lower() == "true"
+        return value
+
+    # Boolean conversion
+    if type_lower == "bool":
+        if isinstance(value, bool):
+            return value
+        return value.lower() in ("true", "1", "yes", "on")
+
+    # Integer conversion
+    if type_lower == "int":
+        try:
+            # Handle float strings like "10.0" -> 10
+            return int(float(value))
+        except (ValueError, TypeError):
+            return value
+
+    # Float conversion
+    if type_lower == "float":
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return value
+
+    # String - no conversion needed
+    if type_lower in ("str", "string"):
+        return value
+
+    # For unknown types, try common conversions based on value format
+    # Try boolean
+    if value.lower() in ("true", "false"):
+        return value.lower() == "true"
+
+    # Try numeric
+    try:
+        if "." in value:
+            return float(value)
+        return int(value)
+    except ValueError:
+        pass
+
+    return value
+
+
+def _get_param_types_for_class(cls: type) -> dict[str, str]:
+    """Get parameter types from a class's __init__ method.
+
+    Args:
+        cls: The class to inspect
+
+    Returns:
+        Dict mapping parameter name to type string.
+    """
+    import inspect
+    from typing import get_type_hints
+
+    param_types: dict[str, str] = {}
+
+    try:
+        # Get type hints from __init__
+        hints = get_type_hints(cls.__init__)
+        for name, hint in hints.items():
+            if name == "return":
+                continue
+            # Convert type hint to string
+            if hasattr(hint, "__name__"):
+                param_types[name] = hint.__name__
+            else:
+                # Handle complex types like Optional[int]
+                param_types[name] = str(hint)
+    except Exception:
+        pass
+
+    # Also check signature for parameters without type hints
+    try:
+        sig = inspect.signature(cls.__init__)
+        for name, param in sig.parameters.items():
+            if name in ("self", "args", "kwargs"):
+                continue
+            if name not in param_types:
+                # Try to infer from default value
+                if param.default is not inspect.Parameter.empty:
+                    default = param.default
+                    if isinstance(default, bool):
+                        param_types[name] = "bool"
+                    elif isinstance(default, int):
+                        param_types[name] = "int"
+                    elif isinstance(default, float):
+                        param_types[name] = "float"
+                    elif isinstance(default, str):
+                        param_types[name] = "str"
+    except Exception:
+        pass
+
+    return param_types
+
+
+def _convert_params_for_class(params: dict[str, Any], cls: type) -> dict[str, Any]:
+    """Convert parameter values to types expected by a class's __init__.
+
+    Args:
+        params: Dict of parameter name -> value (may be strings from form input)
+        cls: The class whose __init__ will receive these params
+
+    Returns:
+        Dict with values converted to appropriate types.
+    """
+    if not params:
+        return params
+
+    param_types = _get_param_types_for_class(cls)
+    converted = {}
+
+    for name, value in params.items():
+        expected_type = param_types.get(name)
+        if expected_type:
+            converted[name] = _convert_param_value(value, expected_type)
+        else:
+            # No type info - try automatic conversion
+            converted[name] = _convert_param_value(value, "unknown")
+
+    return converted
+
+
 def _create_virtual_negotiator_class(vn: VirtualNegotiator) -> type | None:
     """Create a class for a virtual negotiator that applies stored params on init.
 
@@ -487,8 +653,9 @@ def _create_virtual_negotiator_class(vn: VirtualNegotiator) -> type | None:
     if base_cls is None:
         return None
 
-    # Create a subclass that applies the stored params
-    stored_params = dict(vn.params)
+    # Convert stored params to proper types based on base class __init__ signature
+    # This handles string values from form input being converted to int/float/bool
+    stored_params = _convert_params_for_class(dict(vn.params), base_cls)
 
     class VirtualNegotiatorClass(base_cls):  # type: ignore[valid-type, misc]
         """Dynamically created class for virtual negotiator."""

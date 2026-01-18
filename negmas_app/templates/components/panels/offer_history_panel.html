@@ -20,7 +20,12 @@
                 <span class="text-muted">Waiting for offers...</span>
             </div>
             
-            <!-- Show message if truncated (more than 10 offers) -->
+            <!-- Loading indicator for large datasets -->
+            <div x-show="currentNegotiation?.offers?.length > 10 && !offersRendered" class="empty-state-mini">
+                <span class="text-muted">Loading <span x-text="currentNegotiation?.offers?.length"></span> offers...</span>
+            </div>
+            
+            <!-- Show message if truncated -->
             <div x-show="currentNegotiation?.offers?.length > 10" 
                  style="padding: 4px 8px; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 4px; font-size: 10px; color: var(--text-secondary);">
                 Showing last 10 of <span x-text="currentNegotiation?.offers?.length"></span> offers. 

@@ -31,6 +31,7 @@ from ..models.tournament import (
     CellUpdate,
     LeaderboardEntry,
     TournamentGridInit,
+    TournamentOffer,
 )
 from .scenario_loader import ScenarioLoader
 from .negotiator_factory import _get_class_for_type
@@ -752,13 +753,11 @@ class TournamentManager:
             tournament_kwargs: dict[str, Any] = {
                 "competitors": competitors,
                 "scenarios": scenarios,
-                "competitor_params": config.competitor_params,
-                "opponent_params": config.opponent_params,
+                "competitor_params": None,
                 "rotate_ufuns": config.rotate_ufuns,
                 "n_repetitions": config.n_repetitions,
                 "njobs": -1,  # Serial for callbacks to work properly
                 "mechanism_type": mechanism_class,
-                "mechanism_params": config.mechanism_params,
                 "n_steps": config.n_steps,
                 "time_limit": config.time_limit,
                 "self_play": config.self_play,
@@ -776,8 +775,6 @@ class TournamentManager:
                 "path": Path(config.save_path) if config.save_path else None,
                 "ignore_discount": config.ignore_discount,
                 "ignore_reserved": config.ignore_reserved,
-                # Error handling - don't crash on negotiator exceptions
-                "raise_exceptions": config.raise_exceptions,
                 # Storage and memory optimization
                 "storage_optimization": config.storage_optimization,
                 "memory_optimization": config.memory_optimization,
@@ -787,46 +784,6 @@ class TournamentManager:
                 "after_end_callback": after_end_cb,
                 "progress_callback": progress_cb,
             }
-
-            # Handle private_infos for passing opponent ufun
-            if config.private_infos is not None:
-                # User-provided private_infos (convert list to tuple)
-                tournament_kwargs["private_infos"] = [
-                    tuple(config.private_infos) for _ in scenarios
-                ]
-                tournament_kwargs["rotate_private_infos"] = config.rotate_private_infos
-            elif config.pass_opponent_ufun:
-                # Auto-generate private_infos with opponent ufuns
-                # For bilateral scenarios, this creates:
-                # [{"opponent_ufun": ufun_1}, {"opponent_ufun": ufun_0}]
-                private_infos_list = []
-                for scenario in scenarios:
-                    n_negotiators = len(scenario.ufuns)
-                    scenario_private_infos = []
-                    for i in range(n_negotiators):
-                        # For bilateral: negotiator 0 gets ufun of negotiator 1, and vice versa
-                        if n_negotiators == 2:
-                            opponent_idx = 1 - i
-                        else:
-                            # For multilateral: each gets a dict of all others' ufuns
-                            opponent_idx = None  # Will handle differently
-                        if opponent_idx is not None:
-                            scenario_private_infos.append(
-                                {"opponent_ufun": scenario.ufuns[opponent_idx]}
-                            )
-                        else:
-                            # Multilateral: give dict of all opponent ufuns
-                            opponent_ufuns = {
-                                j: scenario.ufuns[j]
-                                for j in range(n_negotiators)
-                                if j != i
-                            }
-                            scenario_private_infos.append(
-                                {"opponent_ufuns": opponent_ufuns}
-                            )
-                    private_infos_list.append(tuple(scenario_private_infos))
-                tournament_kwargs["private_infos"] = private_infos_list
-                tournament_kwargs["rotate_private_infos"] = config.rotate_private_infos
 
             # Add storage format if specified
             if config.storage_format is not None:
