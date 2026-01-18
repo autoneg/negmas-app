@@ -901,7 +901,7 @@ class TournamentStorageService:
 
         # Load scenario info to get issue names (for offer parsing order validation)
         scenario_info = cls.get_scenario_info(tournament_id, scenario_name)
-        issue_names = scenario_info.get("issue_names", []) if scenario_info else []
+        _issue_names = scenario_info.get("issue_names", []) if scenario_info else []
 
         # Calculate utilities for each offer
         for row in trace_data.get("trace", []):
@@ -1068,7 +1068,7 @@ class TournamentStorageService:
                         headers = row
                     elif idx == 1:
                         # Second row is stat names (count, mean, std, etc.)
-                        stats = row
+                        _stats = row
                     else:
                         # Data rows: index (strategy name), then values
                         rows.append({"strategy": row[0], "values": row[1:]})
@@ -1504,7 +1504,7 @@ class TournamentStorageService:
                 print(f"Error loading scenario {scenario_name}: {e}")
 
         # Load the negotiation trace from negotiations folder
-        trace = []
+        _trace = []
         history = []  # History in UI format
 
         if run_id:
@@ -1767,7 +1767,7 @@ class TournamentStorageService:
             parts = filename.rsplit("_", 2)  # Split from right to get runid, rep, rest
 
             scenario_name = "Unknown"
-            negotiator_types = list(negotiator_ids)
+            _negotiator_types = list(negotiator_ids)
 
             if len(parts) >= 3:
                 # Try to extract scenario and negotiators from the prefix

@@ -542,7 +542,6 @@ class ScenarioLoader:
             IdentityFun,
         )
 
-        from ..models.scenario import ScenarioDefinition
 
         try:
             # 1. Create issues

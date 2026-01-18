@@ -31,7 +31,6 @@ from ..models.tournament import (
     CellUpdate,
     LeaderboardEntry,
     TournamentGridInit,
-    TournamentOffer,
 )
 from .scenario_loader import ScenarioLoader
 from .negotiator_factory import _get_class_for_type

@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
