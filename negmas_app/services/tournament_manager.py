@@ -36,6 +36,46 @@ from .scenario_loader import ScenarioLoader
 from .negotiator_factory import _get_class_for_type
 
 
+def _get_unique_name_from_type(type_name: str) -> str:
+    """
+    Extract a unique display name from a type_name string.
+
+    Handles formats like:
+    - "negmas.genius.gnegotiators.y2014.Atlas#140cd0ce" → "y2014.Atlas"
+    - "negmas_genius_agents.Atlas" → "atlas.Atlas"
+    - "virtual:uuid" → "virtual:uuid"
+    """
+    # Remove hash suffix if present
+    if "#" in type_name:
+        type_name = type_name.split("#")[0]
+
+    # Handle virtual negotiators
+    if type_name.startswith("virtual:"):
+        return type_name
+
+    # Extract meaningful parts from module path
+    parts = type_name.split(".")
+    if len(parts) >= 2:
+        # For genius: "negmas.genius.gnegotiators.y2014.Atlas" → "y2014.Atlas"
+        if "gnegotiators" in parts:
+            idx = parts.index("gnegotiators")
+            if idx + 2 < len(parts):
+                return f"{parts[idx + 1]}.{parts[-1]}"
+
+        # For negmas_genius_agents: "negmas_genius_agents.Atlas" → "atlas.Atlas"
+        if parts[0] == "negmas_genius_agents":
+            return f"atlas.{parts[-1]}"
+
+        # For negmas_negolog: "negmas_negolog.agents.Atlas3Agent" → "negolog.Atlas3Agent"
+        if parts[0] == "negmas_negolog":
+            return f"negolog.{parts[-1]}"
+
+        # Default: last two parts
+        return f"{parts[-2]}.{parts[-1]}"
+
+    return type_name
+
+
 @dataclass
 class TournamentState:
     """Shared state for a running tournament, updated by callbacks."""
@@ -623,7 +663,8 @@ class TournamentManager:
                 cls = _get_class_for_type(type_name)
                 if cls is not None:
                     competitors.append(cls)  # type: ignore[arg-type]
-                    competitor_names.append(cls.__name__)
+                    # Use unique name derived from type_name instead of just cls.__name__
+                    competitor_names.append(_get_unique_name_from_type(type_name))
 
             if len(competitors) < 1:
                 state.status = TournamentStatus.FAILED
@@ -665,7 +706,7 @@ class TournamentManager:
                     cls = _get_class_for_type(type_name)
                     if cls is not None:
                         opponents.append(cls)  # type: ignore[arg-type]
-                        opponent_names.append(cls.__name__)
+                        opponent_names.append(_get_unique_name_from_type(type_name))
                 if len(opponents) < 1:
                     state.status = TournamentStatus.FAILED
                     state.error = "At least 1 valid opponent required"
