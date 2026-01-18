@@ -2,28 +2,7 @@
 <div class="panel panel-compact panel-histogram" x-ref="panelHistogram" :class="{'collapsed': panelCollapsed.histogram}" x-data="{ activeHistogramTab: 'histogram' }">
     <span class="panel-collapsed-label" x-show="panelCollapsed.histogram">HISTOGRAM</span>
     
-    <!-- Tab Buttons -->
-    <div class="panel-tabs" x-show="!panelCollapsed.histogram" style="display: flex; gap: 2px; padding: 2px 4px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color);">
-        <button 
-            class="panel-tab-btn" 
-            :class="{ 'active': activeHistogramTab === 'histogram' }"
-            @click="activeHistogramTab = 'histogram'; initHistogramPlot();"
-            style="flex: 1; padding: 4px 8px; font-size: 11px; background: transparent; border: none; cursor: pointer; border-radius: 4px; transition: background 0.2s;"
-            :style="activeHistogramTab === 'histogram' ? 'background: var(--bg-secondary); font-weight: 500;' : ''">
-            Histogram
-        </button>
-        <button 
-            class="panel-tab-btn" 
-            :class="{ 'active': activeHistogramTab === 'issueSpace' }"
-            @click="activeHistogramTab = 'issueSpace'; renderIssueSpacePlot();"
-            style="flex: 1; padding: 4px 8px; font-size: 11px; background: transparent; border: none; cursor: pointer; border-radius: 4px; transition: background 0.2s;"
-            :style="activeHistogramTab === 'issueSpace' ? 'background: var(--bg-secondary); font-weight: 500;' : ''"
-            :disabled="!currentNegotiation?.issue_names || currentNegotiation.issue_names.length < 2">
-            Issue Space 2D
-        </button>
-    </div>
-    
-    <!-- Floating Actions -->
+    <!-- Floating Actions (Left side) -->
     <div class="panel-floating-actions panel-floating-actions-left">
         <!-- Histogram controls -->
         <template x-if="activeHistogramTab === 'histogram' && !panelCollapsed.histogram">
@@ -79,6 +58,29 @@
         <button class="panel-btn panel-collapse-btn" title="Toggle panel" @click="panelCollapsed.histogram = !panelCollapsed.histogram">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
         </button>
+    </div>
+    
+    <!-- Tab Buttons (Right side) -->
+    <div class="panel-floating-actions" style="right: 4px; left: auto;" x-show="!panelCollapsed.histogram">
+        <div style="display: flex; gap: 2px; padding: 2px; background: var(--bg-tertiary); border-radius: 4px;">
+            <button 
+                class="panel-tab-btn" 
+                :class="{ 'active': activeHistogramTab === 'histogram' }"
+                @click="activeHistogramTab = 'histogram'; initHistogramPlot();"
+                style="padding: 4px 8px; font-size: 11px; background: transparent; border: none; cursor: pointer; border-radius: 3px; transition: background 0.2s;"
+                :style="activeHistogramTab === 'histogram' ? 'background: var(--bg-secondary); font-weight: 500;' : ''">
+                Histogram
+            </button>
+            <button 
+                class="panel-tab-btn" 
+                :class="{ 'active': activeHistogramTab === 'issueSpace' }"
+                @click="activeHistogramTab = 'issueSpace'; renderIssueSpacePlot();"
+                style="padding: 4px 8px; font-size: 11px; background: transparent; border: none; cursor: pointer; border-radius: 3px; transition: background 0.2s;"
+                :style="activeHistogramTab === 'issueSpace' ? 'background: var(--bg-secondary); font-weight: 500;' : ''"
+                :disabled="!currentNegotiation?.issue_names || currentNegotiation.issue_names.length < 2">
+                Issue Space 2D
+            </button>
+        </div>
     </div>
     
     <div class="panel-content panel-content-compact" style="padding: 0; position: relative; overflow: hidden;" x-show="!panelCollapsed.histogram">

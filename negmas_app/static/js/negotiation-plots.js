@@ -753,7 +753,7 @@ app = function() {
             
             if (this.resizeState.type === 'column') {
                 const delta = event.clientX - this.resizeState.startX;
-                const newWidth = Math.max(200, Math.min(window.innerWidth * 0.7, this.resizeState.startWidth + delta));
+                const newWidth = Math.max(200, Math.min(window.innerWidth * 0.85, this.resizeState.startWidth + delta));
                 const leftCol = this.$refs.leftColumn;
                 if (leftCol) {
                     leftCol.style.flex = `0 0 ${newWidth}px`;
