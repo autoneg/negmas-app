@@ -748,6 +748,19 @@ class TournamentManager:
             # Get mechanism class
             mechanism_class = self._get_mechanism_class(config.mechanism_type)
 
+            # Disable save_stats if ignore_discount or ignore_reserved is True
+            # because calc_stats() fails with modified utility functions
+            save_stats = config.save_stats
+            if (config.ignore_discount or config.ignore_reserved) and save_stats:
+                save_stats = False
+                # Log warning through event queue
+                state.event_queue.put(
+                    (
+                        "warning",
+                        "Scenario stats disabled when ignoring discount/reserved values",
+                    )
+                )
+
             # Build tournament kwargs
             tournament_kwargs: dict[str, Any] = {
                 "competitors": competitors,
@@ -767,7 +780,7 @@ class TournamentManager:
                 "mask_scenario_names": config.mask_scenario_names,
                 "only_failures_on_self_play": config.only_failures_on_self_play,
                 "final_score": (config.final_score_metric, config.final_score_stat),
-                "save_stats": config.save_stats,
+                "save_stats": save_stats,
                 "save_scenario_figs": config.save_scenario_figs,
                 "save_every": config.save_every,
                 "verbosity": config.verbosity,
