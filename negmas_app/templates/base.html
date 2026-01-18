@@ -432,7 +432,16 @@
                 panels: {
                     adjustable: true,
                     utilityView: { xAxis: 0, yAxis: 1 },
-                    timeline: { xAxis: 'relative_time' }
+                    timeline: { xAxis: 'relative_time' },
+                    visible: {
+                        info: true,
+                        history: true,
+                        result: true,
+                        utility2d: true,
+                        issueSpace2d: true,
+                        timeline: true,
+                        histogram: false
+                    }
                 }
             },
             
@@ -1702,6 +1711,15 @@
                         },
                         timeline: {
                             xAxis: 'step'
+                        },
+                        visible: {
+                            info: true,
+                            history: true,
+                            result: true,
+                            utility2d: true,
+                            issueSpace2d: true,
+                            timeline: true,
+                            histogram: false
                         }
                     }
                 };

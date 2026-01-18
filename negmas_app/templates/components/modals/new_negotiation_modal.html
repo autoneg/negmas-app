@@ -885,6 +885,45 @@
                         </label>
                         <div class="form-inline-hint">Save results to disk when negotiation completes</div>
                     </div>
+                    
+                    <div class="param-group" style="margin-top: 16px;">
+                        <div class="param-group-header">
+                            <span class="param-group-title">Visible Panels</span>
+                        </div>
+                        <div class="param-group-content">
+                            <div class="form-row" style="flex-wrap: wrap; gap: 12px 24px;">
+                                <label class="form-checkbox" style="min-width: 120px;">
+                                    <input type="checkbox" x-model="newNeg.panels.visible.info">
+                                    <span>Info</span>
+                                </label>
+                                <label class="form-checkbox" style="min-width: 120px;">
+                                    <input type="checkbox" x-model="newNeg.panels.visible.history">
+                                    <span>Offer History</span>
+                                </label>
+                                <label class="form-checkbox" style="min-width: 120px;">
+                                    <input type="checkbox" x-model="newNeg.panels.visible.result">
+                                    <span>Result</span>
+                                </label>
+                                <label class="form-checkbox" style="min-width: 120px;">
+                                    <input type="checkbox" x-model="newNeg.panels.visible.utility2d">
+                                    <span>2D Utility</span>
+                                </label>
+                                <label class="form-checkbox" style="min-width: 120px;">
+                                    <input type="checkbox" x-model="newNeg.panels.visible.issueSpace2d">
+                                    <span>Issue Space</span>
+                                </label>
+                                <label class="form-checkbox" style="min-width: 120px;">
+                                    <input type="checkbox" x-model="newNeg.panels.visible.timeline">
+                                    <span>Timeline</span>
+                                </label>
+                                <label class="form-checkbox" style="min-width: 120px;">
+                                    <input type="checkbox" x-model="newNeg.panels.visible.histogram">
+                                    <span>Histogram</span>
+                                </label>
+                            </div>
+                            <div class="form-hint" style="margin-top: 8px;">Select which panels to show when viewing this negotiation</div>
+                        </div>
+                    </div>
                 </div>
                     </div><!-- end wizard-content -->
                 </div><!-- end wizard-layout -->

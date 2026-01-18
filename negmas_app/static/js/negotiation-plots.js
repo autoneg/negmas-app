@@ -2799,6 +2799,18 @@ app = function() {
             this.panelState.utilityView.yAxis = actualNeg?.panelSettings?.utilityView?.yAxis ?? Math.min(1, numAgents - 1);
             this.panelState.timeline.xAxis = actualNeg?.panelSettings?.timeline?.xAxis ?? 'step';
             
+            // Apply panel visibility settings (visible=true means collapsed=false)
+            if (actualNeg?.panelSettings?.visible) {
+                const visible = actualNeg.panelSettings.visible;
+                this.panelCollapsed.info = !visible.info;
+                this.panelCollapsed.history = !visible.history;
+                this.panelCollapsed.result = !visible.result;
+                this.panelCollapsed.utility2d = !visible.utility2d;
+                this.panelCollapsed.issueSpace2d = !visible.issueSpace2d;
+                this.panelCollapsed.timeline = !visible.timeline;
+                this.panelCollapsed.histogram = !visible.histogram;
+            }
+            
             window.outcomeSpacePlotInitialized = false;
             window.timelinePlotsInitialized = false;
             window.histogramPlotInitialized = false;
