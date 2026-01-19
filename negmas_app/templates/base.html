@@ -211,6 +211,7 @@
                 competitor_types: [],
                 opponent_types: [],
                 opponents_same_as_competitors: true,  // When true, opponents = null (competitors play each other)
+                competitor_params: {},  // Map of competitor type_name -> params object (for custom params)
                 scenario_paths: [],
                 n_repetitions: 1,
                 rotate_ufuns: true,
@@ -2454,6 +2455,22 @@
                     delete config.time_limit_min;
                     delete config.time_limit_max;
                     
+                    // Convert competitor_params from object to array (one dict per competitor in order)
+                    // The API expects: [params_for_comp_0, params_for_comp_1, ...]
+                    if (config.competitor_params && Object.keys(config.competitor_params).length > 0) {
+                        const paramsArray = config.competitor_types.map(typeName => {
+                            return config.competitor_params[typeName] || {};
+                        });
+                        // Only include if at least one competitor has custom params
+                        if (paramsArray.some(p => Object.keys(p).length > 0)) {
+                            config.competitor_params = paramsArray;
+                        } else {
+                            config.competitor_params = null;
+                        }
+                    } else {
+                        config.competitor_params = null;
+                    }
+                    
                     const res = await fetch('/api/tournament/start', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -3153,6 +3170,8 @@
                 const idx = this.newTournament.competitor_types.indexOf(typeName);
                 if (idx >= 0) {
                     this.newTournament.competitor_types.splice(idx, 1);
+                    // Also remove any custom params for this competitor
+                    delete this.newTournament.competitor_params[typeName];
                 }
             },
             
@@ -3561,6 +3580,11 @@
                     }
                 }
                 
+                // Also load any previously set tournament-specific params
+                if (this.newTournament.competitor_params[typeName]) {
+                    this.competitorConfigValues = { ...this.competitorConfigValues, ...this.newTournament.competitor_params[typeName] };
+                }
+                
                 try {
                     const res = await fetch(`/api/negotiators/${encodeURIComponent(baseType)}/parameters`);
                     const data = await res.json();
@@ -3589,9 +3613,24 @@
             
             async saveCompetitorConfig() {
                 if (!this.competitorConfigSaveAsVirtual) {
-                    // Just close without saving - params are stored in tournament config
-                    // For now, we don't persist per-competitor params in tournament
-                    // This would require extending the tournament data model
+                    // Save params to tournament config for this competitor
+                    // Filter out params that are at their default values to keep it clean
+                    const nonDefaultParams = {};
+                    for (const param of this.competitorConfigParams) {
+                        const value = this.competitorConfigValues[param.name];
+                        // Include if value is set and differs from default
+                        if (value !== undefined && value !== null && value !== param.default) {
+                            nonDefaultParams[param.name] = value;
+                        }
+                    }
+                    
+                    if (Object.keys(nonDefaultParams).length > 0) {
+                        this.newTournament.competitor_params[this.competitorConfigTypeName] = nonDefaultParams;
+                    } else {
+                        // Remove if no custom params
+                        delete this.newTournament.competitor_params[this.competitorConfigTypeName];
+                    }
+                    
                     this.closeCompetitorConfig();
                     return;
                 }
@@ -3664,11 +3703,17 @@
                 return this.newTournament.competitor_types.includes(typeName);
             },
             
+            hasCustomCompetitorParams(typeName) {
+                const params = this.newTournament.competitor_params[typeName];
+                return params && Object.keys(params).length > 0;
+            },
+            
             resetTournamentForm() {
                 this.newTournament = {
                     competitor_types: [],
                     opponent_types: [],
                     opponents_same_as_competitors: true,
+                    competitor_params: {},  // Reset custom params
                     scenario_paths: [],
                     n_repetitions: 1,
                     rotate_ufuns: true,

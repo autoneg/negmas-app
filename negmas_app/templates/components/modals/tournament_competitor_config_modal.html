@@ -137,6 +137,23 @@
                         </div>
                     </div>
                     
+                    <!-- Info about tournament-specific params -->
+                    <div x-show="!competitorConfigSaveAsVirtual && hasCustomCompetitorParams(competitorConfigTypeName)" 
+                         style="margin-top: 16px; padding: 12px; background: var(--warning-bg); border-radius: 8px; border: 1px solid var(--warning); font-size: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                            <span>This competitor has custom parameters set for this tournament.</span>
+                        </div>
+                        <button class="btn btn-sm btn-secondary" style="margin-top: 8px;" 
+                                @click="delete newTournament.competitor_params[competitorConfigTypeName]; closeCompetitorConfig();">
+                            Clear Custom Params
+                        </button>
+                    </div>
+                    
                     <!-- Show complex parameters as info -->
                     <template x-if="competitorConfigParams.some(p => p.is_complex)">
                         <details style="margin-top: 16px;">
@@ -162,7 +179,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
-                    <span x-text="competitorConfigSaveAsVirtual ? 'Create Virtual Negotiator' : 'Close'"></span>
+                    <span x-text="competitorConfigSaveAsVirtual ? 'Create Virtual Negotiator' : 'Apply Parameters'"></span>
                 </button>
             </div>
         </div>

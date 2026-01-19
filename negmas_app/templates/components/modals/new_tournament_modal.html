@@ -386,13 +386,15 @@
                                                     <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
                                                         <span x-text="negotiatorTypes.find(n => n.type_name === typeName)?.source || ''"></span>
                                                         <span x-show="isVirtualNegotiator(typeName)" class="badge badge-info" style="font-size: 9px; padding: 1px 4px;">Virtual</span>
+                                                        <span x-show="hasCustomCompetitorParams(typeName)" class="badge badge-warning" style="font-size: 9px; padding: 1px 4px;" title="Has custom parameters">Params</span>
                                                     </div>
                                                 </div>
                                                 <div style="display: flex; gap: 4px; align-items: center;">
                                                     <!-- Configure button - opens parameter editor modal -->
-                                                    <button class="btn btn-sm" style="padding: 4px; background: transparent; color: var(--text-muted);"
+                                                    <button class="btn btn-sm" 
+                                                            :style="'padding: 4px; background: ' + (hasCustomCompetitorParams(typeName) ? 'var(--warning-bg)' : 'transparent') + '; color: ' + (hasCustomCompetitorParams(typeName) ? 'var(--warning)' : 'var(--text-muted)') + ';'"
                                                             @click.stop="openCompetitorConfig(typeName)"
-                                                            title="Configure parameters">
+                                                            :title="hasCustomCompetitorParams(typeName) ? 'Edit custom parameters' : 'Configure parameters'">
                                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                                                             <circle cx="12" cy="12" r="3"></circle>
                                                             <path d="M12 1v4m0 14v4m-7.07-15.07l2.83 2.83m8.48 8.48l2.83 2.83M1 12h4m14 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"></path>
