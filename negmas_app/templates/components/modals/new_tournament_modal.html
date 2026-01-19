@@ -255,6 +255,27 @@
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- Opposition vs Outcomes Graph (collapsible) -->
+                            <div class="scenario-stats-graph" style="margin-top: 12px; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;"
+                                 x-show="newTournament.scenario_paths.length > 0">
+                                <div style="padding: 8px 12px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); cursor: pointer; display: flex; align-items: center; justify-content: space-between;"
+                                     @click="showOppositionGraph = !showOppositionGraph">
+                                    <span style="font-weight: 600; font-size: 12px;">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="margin-right: 4px; vertical-align: middle;"
+                                             :style="showOppositionGraph ? 'transform: rotate(0deg)' : 'transform: rotate(-90deg)'" >
+                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                        Opposition vs Outcomes
+                                    </span>
+                                    <span class="text-muted" style="font-size: 11px;" x-text="newTournament.scenario_paths.length + ' scenarios'"></span>
+                                </div>
+                                <div x-show="showOppositionGraph" x-collapse>
+                                    <div id="opposition-outcomes-chart" style="height: 200px; padding: 8px;"
+                                         x-effect="if (showOppositionGraph && newTournament.scenario_paths.length > 0) { $nextTick(() => renderOppositionOutcomesChart()) }">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         <!-- Competitors Tab -->
