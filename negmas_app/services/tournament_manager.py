@@ -886,6 +886,18 @@ class TournamentManager:
             session.status = TournamentStatus.RUNNING
             session.start_time = datetime.now()
 
+            # Emit initial progress event before negotiations start
+            state.event_queue.put(
+                (
+                    "tournament_progress",
+                    {
+                        "message": "Starting negotiations",
+                        "completed": 0,
+                        "total": total_negotiations,
+                    },
+                )
+            )
+
             # Run the tournament (blocking in this thread)
             results = cartesian_tournament(**tournament_kwargs)  # type: ignore[arg-type]
 
