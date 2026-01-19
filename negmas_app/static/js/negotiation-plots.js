@@ -1529,9 +1529,9 @@ app = function() {
             // But retry a few times with delay in case the panel is still being rendered
             if (container.offsetParent === null || container.clientWidth === 0) {
                 window.histogramPlotInitialized = false;
-                // Retry up to 3 times with increasing delay
-                if (retryCount < 3) {
-                    setTimeout(() => this.initHistogramPlot(retryCount + 1), 100 * (retryCount + 1));
+                // Retry up to 5 times with increasing delay (longer delays for later retries)
+                if (retryCount < 5) {
+                    setTimeout(() => this.initHistogramPlot(retryCount + 1), 150 * (retryCount + 1));
                 }
                 return;
             }
@@ -1772,6 +1772,13 @@ app = function() {
                 }
                 
                 window.histogramPlotInitialized = true;
+                
+                // Force Plotly to resize to container dimensions after initialization
+                this.$nextTick(() => {
+                    if (plotDiv && window.Plotly) {
+                        Plotly.Plots.resize(plotDiv);
+                    }
+                });
             } catch (e) {
                 console.warn('Failed to initialize histogram plot:', e);
                 window.histogramPlotInitialized = false;
