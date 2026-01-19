@@ -236,3 +236,7 @@ scenarios/**/_stats.yaml
 ISSUES.md
 SESSION.md
 OLD_TASKS.md
+SUMMARY.md
+
+# Planning and documentation files
+docs/*_PLAN.md
