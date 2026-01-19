@@ -1800,6 +1800,8 @@ app = function() {
                             this.initUtilityTimelinePlotsToElement(zoomedContainerId);
                         } else if (plotId === 'issue-frequency-container') {
                             this.initHistogramPlotToElement(zoomedContainerId);
+                        } else if (plotId === 'issue-space-plot') {
+                            this.renderIssueSpacePlotToElement(zoomedContainerId);
                         }
                     }
                 });
@@ -2440,6 +2442,182 @@ app = function() {
         // Render Issue Space 2D plot (issues as axes instead of utilities)
         renderIssueSpacePlot() {
             const plotDiv = document.getElementById('issue-space-plot');
+            if (!plotDiv) return;
+            
+            const neg = this.currentNegotiation;
+            if (!neg || !neg.issue_names || neg.issue_names.length < 2) {
+                return;
+            }
+            
+            const xIssueIdx = this.panelState.issueSpace.xAxis;
+            const yIssueIdx = this.panelState.issueSpace.yAxis;
+            const xIssueName = neg.issue_names[xIssueIdx];
+            const yIssueName = neg.issue_names[yIssueIdx];
+            
+            const colors = this.getPlotColors();
+            const negColors = this.getNegotiatorColors();
+            const offers = neg.offers || [];
+            
+            // Get issue values from outcomes or offers
+            const outcomeData = neg.outcome_space_data;
+            const traces = [];
+            
+            // Plot all outcomes as background scatter (if available)
+            if (outcomeData && outcomeData.outcomes) {
+                const outcomes = outcomeData.outcomes;
+                const xValues = [];
+                const yValues = [];
+                const hoverTexts = [];
+                
+                for (const outcome of outcomes) {
+                    // outcome could be array or object
+                    const xVal = Array.isArray(outcome) ? outcome[xIssueIdx] : outcome[xIssueName];
+                    const yVal = Array.isArray(outcome) ? outcome[yIssueIdx] : outcome[yIssueName];
+                    if (xVal !== undefined && yVal !== undefined) {
+                        xValues.push(xVal);
+                        yValues.push(yVal);
+                        hoverTexts.push(`${xIssueName}: ${xVal}<br>${yIssueName}: ${yVal}`);
+                    }
+                }
+                
+                if (xValues.length > 0) {
+                    traces.push({
+                        x: xValues,
+                        y: yValues,
+                        mode: 'markers',
+                        type: xValues.length > 5000 ? 'scattergl' : 'scatter',
+                        name: 'All Outcomes',
+                        marker: {
+                            size: 6,
+                            color: colors.gridColor,
+                            opacity: 0.3
+                        },
+                        hoverinfo: 'text',
+                        text: hoverTexts,
+                        showlegend: false
+                    });
+                }
+            }
+            
+            // Plot offers by each negotiator
+            const offersByAgent = {};
+            for (const offer of offers) {
+                const agentIdx = offer.proposer_index;
+                if (!offersByAgent[agentIdx]) {
+                    offersByAgent[agentIdx] = [];
+                }
+                offersByAgent[agentIdx].push(offer);
+            }
+            
+            for (const [agentIdxStr, agentOffers] of Object.entries(offersByAgent)) {
+                const agentIdx = parseInt(agentIdxStr);
+                const agentName = neg.negotiator_names?.[agentIdx] || `Agent ${agentIdx + 1}`;
+                const agentColor = negColors[agentIdx] || colors.textColor;
+                
+                const xValues = [];
+                const yValues = [];
+                const hoverTexts = [];
+                
+                for (const offer of agentOffers) {
+                    const offerData = offer.offer;
+                    if (!offerData) continue;
+                    
+                    const xVal = typeof offerData === 'object' && !Array.isArray(offerData) 
+                        ? offerData[xIssueName] 
+                        : (Array.isArray(offerData) ? offerData[xIssueIdx] : undefined);
+                    const yVal = typeof offerData === 'object' && !Array.isArray(offerData) 
+                        ? offerData[yIssueName] 
+                        : (Array.isArray(offerData) ? offerData[yIssueIdx] : undefined);
+                    
+                    if (xVal !== undefined && yVal !== undefined) {
+                        xValues.push(xVal);
+                        yValues.push(yVal);
+                        hoverTexts.push(`${agentName} (step ${offer.step})<br>${xIssueName}: ${xVal}<br>${yIssueName}: ${yVal}`);
+                    }
+                }
+                
+                if (xValues.length > 0) {
+                    traces.push({
+                        x: xValues,
+                        y: yValues,
+                        mode: 'lines+markers',
+                        type: 'scatter',
+                        name: agentName,
+                        line: {
+                            color: agentColor,
+                            width: 2
+                        },
+                        marker: {
+                            size: 8,
+                            color: agentColor,
+                            opacity: 0.5,
+                            line: { width: 1, color: colors.isDark ? '#fff' : '#000' }
+                        },
+                        hoverinfo: 'text',
+                        text: hoverTexts
+                    });
+                }
+            }
+            
+            // Mark agreement if present
+            if (neg.agreement) {
+                const xVal = neg.agreement[xIssueName];
+                const yVal = neg.agreement[yIssueName];
+                if (xVal !== undefined && yVal !== undefined) {
+                    traces.push({
+                        x: [xVal],
+                        y: [yVal],
+                        mode: 'markers',
+                        type: 'scatter',
+                        name: 'Agreement',
+                        marker: {
+                            size: 18,
+                            color: 'gold',
+                            symbol: 'star',
+                            line: { width: 2, color: '#000' }
+                        },
+                        hoverinfo: 'text',
+                        text: [`Agreement<br>${xIssueName}: ${xVal}<br>${yIssueName}: ${yVal}`]
+                    });
+                }
+            }
+            
+            const layout = {
+                margin: { t: 20, r: 20, b: 45, l: 50 },
+                xaxis: {
+                    title: { text: xIssueName, font: { size: 11, color: colors.textColor } },
+                    gridcolor: colors.gridColor,
+                    tickfont: { color: colors.textColor, size: 10 }
+                },
+                yaxis: {
+                    title: { text: yIssueName, font: { size: 11, color: colors.textColor } },
+                    gridcolor: colors.gridColor,
+                    tickfont: { color: colors.textColor, size: 10 }
+                },
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                legend: {
+                    orientation: 'h',
+                    y: 1.05,
+                    x: 0.5,
+                    xanchor: 'center',
+                    font: { color: colors.textColor, size: 9 }
+                },
+                hovermode: 'closest'
+            };
+            
+            const config = {
+                responsive: true,
+                displayModeBar: 'hover',
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
+            };
+            
+            Plotly.react(plotDiv, traces, layout, config);
+        },
+        
+        // Render Issue Space 2D plot to a specific element (for zoom modal)
+        renderIssueSpacePlotToElement(elementId) {
+            const plotDiv = document.getElementById(elementId);
             if (!plotDiv) return;
             
             const neg = this.currentNegotiation;
