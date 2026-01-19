@@ -477,16 +477,49 @@ class TournamentManager:
             )
             state.event_queue.put(("progress", state.progress))
 
-        def progress_callback(message: str, current: int, total: int) -> None:
+        def progress_callback(
+            message: str,
+            current: int,
+            total: int,
+            config_dict: dict[str, Any] | None = None,
+        ) -> None:
             """Called during tournament setup to report progress.
 
             Args:
                 message: Description of current setup phase.
                 current: Current step (1-3 typically).
                 total: Total steps (3 typically).
+                config_dict: Optional config dict with competitor_names/opponent_names (from negmas).
             """
             if self._cancel_flags.get(session_id, False):
                 return
+
+            # On first call with config, extract competitor/opponent names
+            # This happens during setup (step 1 of 3) before negotiations start
+            if config_dict and current == 1:
+                competitor_names = config_dict.get("competitor_names")
+                opponent_names = config_dict.get("opponent_names")
+
+                # Update state with real names (replacing placeholders)
+                if competitor_names:
+                    state.competitor_names = competitor_names
+                if opponent_names:
+                    state.opponent_names = opponent_names
+                elif competitor_names and not config.opponent_types:
+                    # When no explicit opponents, opponents = competitors
+                    state.opponent_names = competitor_names
+
+                # Emit updated grid_init with real names
+                if state.grid_init and competitor_names:
+                    state.grid_init = TournamentGridInit(
+                        competitors=state.competitor_names,
+                        opponents=state.opponent_names,
+                        scenarios=state.scenario_names,
+                        n_repetitions=state.grid_init.n_repetitions,
+                        rotate_ufuns=state.grid_init.rotate_ufuns,
+                        total_negotiations=state.grid_init.total_negotiations,
+                    )
+                    state.event_queue.put(("grid_init", state.grid_init))
 
             # Emit a setup_progress event
             state.event_queue.put(
