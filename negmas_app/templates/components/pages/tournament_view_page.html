@@ -212,25 +212,37 @@
         </div>
     </div>
     
-    <!-- Config Section -->
-    <div class="tournament-config-section" x-show="selectedTournament?.config && selectedTournament?.config.competitor_types?.length > 0">
-        <h4>Configuration</h4>
-        <div class="config-grid">
-            <div class="config-item">
-                <span class="config-label">Competitors:</span>
-                <span x-text="selectedTournament?.config?.competitor_types?.join(', ') || '-'"></span>
-            </div>
-            <div class="config-item">
-                <span class="config-label">Scenarios:</span>
-                <span x-text="(selectedTournament?.config?.scenario_paths?.length || 0) + ' selected'"></span>
-            </div>
-            <div class="config-item">
-                <span class="config-label">Repetitions:</span>
-                <span x-text="selectedTournament?.config?.n_repetitions || 1"></span>
-            </div>
-            <div class="config-item">
-                <span class="config-label">Mechanism:</span>
-                <span x-text="selectedTournament?.config?.mechanism_type || 'SAOMechanism'"></span>
+    <!-- Config Section (collapsible, collapsed by default) -->
+    <div class="tournament-detail-panel" 
+         :class="{ collapsed: tournamentPanelCollapsed.config }" 
+         x-show="selectedTournament?.config && selectedTournament?.config.competitor_types?.length > 0">
+        <div class="tournament-panel-header" @click="tournamentPanelCollapsed.config = !tournamentPanelCollapsed.config">
+            <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                     :style="{ transform: tournamentPanelCollapsed.config ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+                Tournament Configuration
+            </h3>
+        </div>
+        <div class="tournament-panel-content" x-show="!tournamentPanelCollapsed.config" x-collapse>
+            <div class="config-grid">
+                <div class="config-item">
+                    <span class="config-label">Competitors:</span>
+                    <span x-text="selectedTournament?.config?.competitor_types?.join(', ') || '-'"></span>
+                </div>
+                <div class="config-item">
+                    <span class="config-label">Scenarios:</span>
+                    <span x-text="(selectedTournament?.config?.scenario_paths?.length || 0) + ' selected'"></span>
+                </div>
+                <div class="config-item">
+                    <span class="config-label">Repetitions:</span>
+                    <span x-text="selectedTournament?.config?.n_repetitions || 1"></span>
+                </div>
+                <div class="config-item">
+                    <span class="config-label">Mechanism:</span>
+                    <span x-text="selectedTournament?.config?.mechanism_type || 'SAOMechanism'"></span>
+                </div>
             </div>
         </div>
     </div>
