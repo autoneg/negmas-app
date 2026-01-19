@@ -800,7 +800,7 @@ class TournamentManager:
             tournament_kwargs: dict[str, Any] = {
                 "competitors": competitors,
                 "scenarios": scenarios,
-                "competitor_params": None,
+                "competitor_params": config.competitor_params,
                 "rotate_ufuns": config.rotate_ufuns,
                 "n_repetitions": config.n_repetitions,
                 "njobs": -1,  # Serial for callbacks to work properly
@@ -1196,7 +1196,7 @@ class TournamentManager:
             tournament_kwargs: dict[str, Any] = {
                 "competitors": competitors,
                 "scenarios": scenarios,
-                "competitor_params": None,
+                "competitor_params": config.competitor_params,
                 "rotate_ufuns": config.rotate_ufuns,
                 "n_repetitions": config.n_repetitions,
                 "njobs": config.njobs,
