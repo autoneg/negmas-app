@@ -76,9 +76,8 @@ class TournamentConfigRequest(BaseModel):
     save_every: int = 0
 
     # Scenario options
-    normalize: bool = (
-        True  # Normalize utility functions (recommended for fair aggregation)
-    )
+    # Normalization mode: "none", "scale_min", "scale_max", "normalize"
+    normalization: str = "normalize"
     ignore_discount: bool = False  # Ignore discounting in utility functions
     ignore_reserved: bool = False  # Ignore reserved values in utility functions
     pass_opponent_ufun: bool = False  # Pass opponent utility function to negotiators
@@ -147,7 +146,7 @@ async def start_tournament(request: TournamentConfigRequest):
         save_stats=request.save_stats,
         save_scenario_figs=request.save_scenario_figs,
         save_every=request.save_every,
-        normalize=request.normalize,
+        normalization=request.normalization,
         ignore_discount=request.ignore_discount,
         ignore_reserved=request.ignore_reserved,
         pass_opponent_ufun=request.pass_opponent_ufun,
