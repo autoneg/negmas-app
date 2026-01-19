@@ -44,6 +44,21 @@ class NegotiationEndReason(str, Enum):
     BROKEN = "broken"  # A negotiator raised an exception
 
 
+class NormalizationMode(str, Enum):
+    """Mode for normalizing utility functions in tournaments.
+
+    - none: No normalization applied
+    - scale_min: Scale so minimum utility = 1.0
+    - scale_max: Scale so maximum utility = 1.0
+    - normalize: Normalize to [0, 1] range (recommended)
+    """
+
+    NONE = "none"
+    SCALE_MIN = "scale_min"
+    SCALE_MAX = "scale_max"
+    NORMALIZE = "normalize"
+
+
 class CellStatus(str, Enum):
     """Status of a cell in the tournament grid."""
 
@@ -120,9 +135,12 @@ class TournamentConfig:
     )
 
     # Scenario options
-    normalize: bool = (
-        True  # Normalize utility functions (recommended for fair aggregation)
-    )
+    # Normalization mode: "none", "scale_min", "scale_max", "normalize"
+    # - none: No normalization
+    # - scale_min: Scale so minimum utility = 1.0
+    # - scale_max: Scale so maximum utility = 1.0
+    # - normalize: Normalize to [0, 1] range (default, recommended)
+    normalization: str = NormalizationMode.NORMALIZE
     ignore_discount: bool = False  # Ignore discounting in utility functions
     ignore_reserved: bool = False  # Ignore reserved values in utility functions
     pass_opponent_ufun: bool = False  # Pass opponent utility function to negotiators
