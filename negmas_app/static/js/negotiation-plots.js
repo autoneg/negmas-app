@@ -267,15 +267,25 @@ app = function() {
                     }, headerSort: false },
                     { title: "Progress", field: "relative_time", width: 130, resizable: false, formatter: (cell) => {
                         const row = cell.getRow().getData();
-                        const progress = Math.min(100, (row.relative_time || 0) * 100);
+                        // For background negotiations, use the progress field directly
+                        const progress = row.background 
+                            ? Math.min(100, row.progress || 0) 
+                            : Math.min(100, (row.relative_time || 0) * 100);
+                        const statusText = row.background 
+                            ? (row.step ? 'Step ' + row.step : 'Running...')
+                            : (row.step ? 'Step ' + row.step : 'Starting...');
                         return `<div style="display: flex; align-items: center; gap: 8px;">
                             <div class="progress" style="width: 60px; height: 6px;">
                                 <div class="progress-bar" style="width: ${progress}%"></div>
                             </div>
-                            <span style="font-size: 11px;">${row.step ? 'Step ' + row.step : 'Starting...'}</span>
+                            <span style="font-size: 11px;">${statusText}</span>
                         </div>`;
                     }, headerSort: false },
-                    { title: "Status", field: "paused", width: 75, hozAlign: "center", resizable: false, formatter: (cell) => {
+                    { title: "Status", field: "paused", width: 85, hozAlign: "center", resizable: false, formatter: (cell) => {
+                        const row = cell.getRow().getData();
+                        if (row.background) {
+                            return `<span class="badge badge-info badge-sm">Background</span>`;
+                        }
                         const paused = cell.getValue();
                         return `<span class="badge badge-primary badge-sm">${paused ? 'Paused' : 'Running'}</span>`;
                     } }

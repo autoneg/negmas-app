@@ -45,9 +45,15 @@
                 <div class="negotiation-item" :class="{ active: currentNegotiation?.id === neg.id }" @click="selectNegotiation(neg)">
                     <div class="negotiation-item-title" x-text="neg.scenario"></div>
                     <div class="negotiation-item-meta">
-                        <span class="badge badge-primary">Running</span>
+                        <span class="badge badge-primary" x-text="neg.background ? 'Background' : 'Running'"></span>
                         <span x-text="'Step ' + neg.step"></span>
                     </div>
+                    <!-- Progress bar for background negotiations -->
+                    <template x-if="neg.background && neg.progress !== undefined">
+                        <div class="progress-mini" style="margin-top: 4px; height: 3px; background: var(--border-color); border-radius: 2px; overflow: hidden;">
+                            <div class="progress-bar-mini" :style="'width: ' + neg.progress + '%; background: var(--primary-color); height: 100%; transition: width 0.3s;'"></div>
+                        </div>
+                    </template>
                 </div>
             </template>
         </div>
