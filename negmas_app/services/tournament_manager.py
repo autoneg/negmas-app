@@ -79,11 +79,6 @@ class TournamentState:
     competitor_names: list[str] = field(default_factory=list)
     opponent_names: list[str] = field(default_factory=list)
 
-    # Mapping from actual negmas partner names to indices
-    # This gets built dynamically as we see new names in callbacks
-    competitor_name_to_idx: dict[str, int] = field(default_factory=dict)
-    opponent_name_to_idx: dict[str, int] = field(default_factory=dict)
-
 
 class TournamentManager:
     """Manage tournament sessions with real-time progress updates via callbacks."""
@@ -258,7 +253,10 @@ class TournamentManager:
         state = self._tournament_states[session_id]
 
         def before_start_callback(info: Any) -> None:
-            """Called before each negotiation starts."""
+            """Called before each negotiation starts.
+
+            Uses info.config to get competitor_names/opponent_names for index lookup.
+            """
             if self._cancel_flags.get(session_id, False):
                 return
 
@@ -266,6 +264,32 @@ class TournamentManager:
             scenario_name = info.s.outcome_space.name or "unknown"
             partner_names = list(info.partner_names) if info.partner_names else []
             rep = info.rep
+
+            # Get name lists from config (negmas passes this with correct order)
+            run_config = getattr(info, "config", {}) or {}
+            config_competitor_names = run_config.get("competitor_names", [])
+            config_opponent_names = run_config.get("opponent_names", [])
+
+            # Update state names from config on first callback (replaces placeholders)
+            if config_competitor_names and state.competitor_names[0].startswith(
+                "Competitor "
+            ):
+                state.competitor_names = config_competitor_names
+                # Emit updated grid_init with actual names
+                if state.grid_init:
+                    state.grid_init = TournamentGridInit(
+                        competitors=config_competitor_names,
+                        opponents=config_opponent_names or config_competitor_names,
+                        scenarios=state.scenario_names,
+                        n_repetitions=state.grid_init.n_repetitions,
+                        rotate_ufuns=state.grid_init.rotate_ufuns,
+                        total_negotiations=state.grid_init.total_negotiations,
+                    )
+                    state.event_queue.put(("grid_init", state.grid_init))
+            if config_opponent_names and state.opponent_names[0].startswith(
+                ("Opponent ", "Competitor ")
+            ):
+                state.opponent_names = config_opponent_names
 
             # Parse scenario name for rotation suffix (e.g., "domain-1" -> base="domain", rotated=True)
             base_scenario_name = scenario_name
@@ -278,20 +302,17 @@ class TournamentManager:
                         rotated = True
                         base_scenario_name = parts[0]
 
-            # Determine competitor/opponent indices using dynamic name mapping
+            # Determine competitor/opponent indices using config name lists
             comp_idx = 0
             opp_idx = 0
 
             if len(partner_names) >= 2:
                 p0, p1 = partner_names[0], partner_names[1]
-                # Build mapping dynamically as we see new names
-                # The order negmas calls callbacks matches the order we passed competitors
-                if p0 not in state.competitor_name_to_idx:
-                    state.competitor_name_to_idx[p0] = len(state.competitor_name_to_idx)
-                if p1 not in state.opponent_name_to_idx:
-                    state.opponent_name_to_idx[p1] = len(state.opponent_name_to_idx)
-                comp_idx = state.competitor_name_to_idx[p0]
-                opp_idx = state.opponent_name_to_idx[p1]
+                # Use config names for lookup (they're in the same order as types)
+                if config_competitor_names and p0 in config_competitor_names:
+                    comp_idx = config_competitor_names.index(p0)
+                if config_opponent_names and p1 in config_opponent_names:
+                    opp_idx = config_opponent_names.index(p1)
 
             scenario_idx = 0
             if base_scenario_name in state.scenario_names:
@@ -317,8 +338,13 @@ class TournamentManager:
             # Can be used for additional setup if needed
             pass
 
-        def after_end_callback(record: dict[str, Any]) -> None:
-            """Called after each negotiation ends with full results."""
+        def after_end_callback(
+            record: dict[str, Any], run_config: dict[str, Any] | None = None
+        ) -> None:
+            """Called after each negotiation ends with full results.
+
+            Uses run_config to get competitor_names/opponent_names for index lookup.
+            """
             if self._cancel_flags.get(session_id, False):
                 return
 
@@ -332,6 +358,11 @@ class TournamentManager:
             n_steps = record.get("last_step", 0)
             broken = record.get("broken", False)
             timedout = record.get("timedout", False)
+
+            # Get name lists from config (negmas passes this with correct order)
+            run_config = run_config or {}
+            config_competitor_names = run_config.get("competitor_names", [])
+            config_opponent_names = run_config.get("opponent_names", [])
 
             # Determine end reason
             if has_error or broken:
@@ -355,7 +386,7 @@ class TournamentManager:
                         rotated = True
                         base_scenario_name = parts[0]
 
-            # Get indices using dynamic name mapping
+            # Get indices using config name lists
             comp_idx = 0
             opp_idx = 0
             scenario_idx = 0
@@ -363,13 +394,11 @@ class TournamentManager:
 
             if len(partners) >= 2:
                 p0, p1 = partners[0], partners[1]
-                # Build mapping dynamically as we see new names
-                if p0 not in state.competitor_name_to_idx:
-                    state.competitor_name_to_idx[p0] = len(state.competitor_name_to_idx)
-                if p1 not in state.opponent_name_to_idx:
-                    state.opponent_name_to_idx[p1] = len(state.opponent_name_to_idx)
-                comp_idx = state.competitor_name_to_idx[p0]
-                opp_idx = state.opponent_name_to_idx[p1]
+                # Use config names for lookup (they're in the same order as types)
+                if config_competitor_names and p0 in config_competitor_names:
+                    comp_idx = config_competitor_names.index(p0)
+                if config_opponent_names and p1 in config_opponent_names:
+                    opp_idx = config_opponent_names.index(p1)
 
             # Try to match the base scenario name to our list
             if base_scenario_name in state.scenario_names:
