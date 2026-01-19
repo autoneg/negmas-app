@@ -15,7 +15,7 @@ from negmas.inout import (
 )
 from negmas.preferences.ops import is_rational
 
-from ..models import ScenarioInfo, IssueInfo, ScenarioStatsInfo
+from ..models import ScenarioInfo, IssueInfo, ScenarioStatsInfo, ScenarioDefinition
 from .settings_service import SettingsService
 
 
@@ -521,7 +521,7 @@ class ScenarioLoader:
 
     def create_scenario(
         self,
-        definition: "ScenarioDefinition",
+        definition: ScenarioDefinition,
         save_path: Path | None = None,
     ) -> tuple[Scenario | None, Path | None, str | None]:
         """Create a new scenario from a definition.
@@ -541,7 +541,6 @@ class ScenarioLoader:
             LinearFun,
             IdentityFun,
         )
-
 
         try:
             # 1. Create issues

@@ -695,7 +695,6 @@ class TournamentManager:
 
             # Get opponent classes if specified
             opponents: list[type[SAONegotiator]] | None = None
-            opponent_names: list[str] = []
 
             if config.opponent_types is not None:
                 # Emit progress for opponent loading

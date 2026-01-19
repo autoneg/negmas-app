@@ -119,7 +119,6 @@ def _discover_genius_negotiators() -> list[NegotiatorEntry]:
         return entries
 
     try:
-        from negmas.genius import gnegotiators
         from negmas.genius.gnegotiators.basic import GeniusNegotiator
     except ImportError:
         return entries
