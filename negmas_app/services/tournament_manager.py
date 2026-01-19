@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any
 
 from negmas import Scenario
-from negmas.helpers import shortest_unique_names
 from negmas.sao import SAOMechanism, SAONegotiator
 from negmas.tournaments.neg import cartesian_tournament
 
@@ -624,18 +623,12 @@ class TournamentManager:
                 )
             )
 
-            # Get competitor classes and compute unique short names
+            # Get competitor classes
             competitors: list[type[SAONegotiator]] = []
-            competitor_type_names: list[str] = []  # Store original type names
             for type_name in config.competitor_types:
                 cls = _get_class_for_type(type_name)
                 if cls is not None:
                     competitors.append(cls)  # type: ignore[arg-type]
-                    # Remove hash suffix for unique name computation
-                    clean_type_name = (
-                        type_name.split("#")[0] if "#" in type_name else type_name
-                    )
-                    competitor_type_names.append(clean_type_name)
 
             if len(competitors) < 1:
                 state.status = TournamentStatus.FAILED
@@ -645,19 +638,20 @@ class TournamentManager:
                 state.event_queue.put(("error", state.error))
                 return
 
-            # Generate shortest unique names for all competitors
-            competitor_names = shortest_unique_names(competitor_type_names, sep=".")
+            # DON'T generate names here - let negmas do it and get them from results.config
+            # after tournament completes. This ensures compatibility across tournaments.
+            # We'll use placeholder names for the grid_init and update after first callback.
+            # Names will be populated from results.config["competitor_names"] after tournament.
 
-            state.competitor_names = competitor_names
+            # Use indices as temporary names for grid display before tournament starts
+            # These will be replaced with actual names from results.config after tournament
+            placeholder_competitor_names = [
+                f"Competitor {i + 1}" for i in range(len(competitors))
+            ]
+            state.competitor_names = placeholder_competitor_names
 
-            # Initialize competitor stats
-            for name in competitor_names:
-                state.competitor_stats[name] = {
-                    "utilities": [],
-                    "advantages": [],
-                    "n_negotiations": 0,
-                    "n_agreements": 0,
-                }
+            # DON'T initialize stats here - we'll create entries dynamically as callbacks arrive
+            # with the actual names negmas generates
 
             # Get opponent classes if specified
             opponents: list[type[SAONegotiator]] | None = None
@@ -676,15 +670,10 @@ class TournamentManager:
                     )
                 )
                 opponents = []
-                opponent_type_names: list[str] = []
                 for type_name in config.opponent_types:
                     cls = _get_class_for_type(type_name)
                     if cls is not None:
                         opponents.append(cls)  # type: ignore[arg-type]
-                        clean_type_name = (
-                            type_name.split("#")[0] if "#" in type_name else type_name
-                        )
-                        opponent_type_names.append(clean_type_name)
 
                 if len(opponents) < 1:
                     state.status = TournamentStatus.FAILED
@@ -694,18 +683,13 @@ class TournamentManager:
                     state.event_queue.put(("error", state.error))
                     return
 
-                # Generate shortest unique names for opponents
-                opponent_names = shortest_unique_names(opponent_type_names, sep=".")
-                state.opponent_names = opponent_names
-                # Add opponent stats too if they're also being scored
-                for name in opponent_names:
-                    if name not in state.competitor_stats:
-                        state.competitor_stats[name] = {
-                            "utilities": [],
-                            "advantages": [],
-                            "n_negotiations": 0,
-                            "n_agreements": 0,
-                        }
+                # DON'T generate opponent names - let negmas do it
+                # Use placeholder names for grid display
+                placeholder_opponent_names = [
+                    f"Opponent {i + 1}" for i in range(len(opponents))
+                ]
+                state.opponent_names = placeholder_opponent_names
+                # DON'T initialize stats - will be created dynamically in callbacks
             else:
                 if len(competitors) < 2:
                     state.status = TournamentStatus.FAILED
@@ -714,7 +698,8 @@ class TournamentManager:
                     session.error = state.error
                     state.event_queue.put(("error", state.error))
                     return
-                state.opponent_names = competitor_names
+                # When no explicit opponents, opponents = competitors
+                state.opponent_names = placeholder_competitor_names
 
             # Emit progress for building tournament configuration
             state.event_queue.put(
@@ -746,8 +731,9 @@ class TournamentManager:
             total_negotiations = n_scenarios * n_pairings * config.n_repetitions
 
             # Initialize grid and progress
+            # Use placeholder names for initial display - will be updated after tournament
             grid_init = TournamentGridInit(
-                competitors=competitor_names,
+                competitors=placeholder_competitor_names,
                 opponents=state.opponent_names,
                 scenarios=scenario_names,
                 n_repetitions=config.n_repetitions,
@@ -841,6 +827,31 @@ class TournamentManager:
 
             # Run the tournament (blocking in this thread)
             results = cartesian_tournament(**tournament_kwargs)  # type: ignore[arg-type]
+
+            # Extract actual competitor/opponent names from results.config
+            # These are the standardized names negmas generated, in the same order as we passed the types
+            if results.config:
+                actual_competitor_names = results.config.get("competitor_names", [])
+                actual_opponent_names = results.config.get("opponent_names", [])
+                if actual_competitor_names:
+                    state.competitor_names = actual_competitor_names
+                if actual_opponent_names:
+                    state.opponent_names = actual_opponent_names
+                elif not config.opponent_types:
+                    # When no explicit opponents, opponents = competitors
+                    state.opponent_names = actual_competitor_names
+
+                # Emit updated grid_init with actual names
+                updated_grid_init = TournamentGridInit(
+                    competitors=state.competitor_names,
+                    opponents=state.opponent_names,
+                    scenarios=scenario_names,
+                    n_repetitions=config.n_repetitions,
+                    rotate_ufuns=config.rotate_ufuns,
+                    total_negotiations=total_negotiations,
+                )
+                state.grid_init = updated_grid_init
+                state.event_queue.put(("grid_init", updated_grid_init))
 
             # Check if cancelled
             if self._cancel_flags.get(session_id, False):
