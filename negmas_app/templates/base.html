@@ -2506,22 +2506,31 @@
                     const data = JSON.parse(event.data);
                     // Clear setup progress when grid is initialized
                     this.tournamentSetupProgress = null;
+                    
+                    // Check if this is an update to existing grid (e.g., with actual names after tournament)
+                    // If cells already exist, preserve them and just update names
+                    const hasExistingCells = Object.keys(this.tournamentGrid.cells).length > 0;
+                    
                     this.tournamentGrid.competitors = data.competitors;
                     this.tournamentGrid.opponents = data.opponents;
                     this.tournamentGrid.scenarios = data.scenarios;
                     this.tournamentGrid.n_repetitions = data.n_repetitions;
                     this.tournamentGrid.rotate_ufuns = data.rotate_ufuns;
-                    this.tournamentGrid.cells = {};
-                    // Initialize all cells as pending
-                    for (let i = 0; i < data.competitors.length; i++) {
-                        for (let j = 0; j < data.opponents.length; j++) {
-                            for (let s = 0; s < data.scenarios.length; s++) {
-                                for (let r = 0; r < data.n_repetitions; r++) {
-                                    const key = `${i}-${j}-${s}-${r}-false`;
-                                    this.tournamentGrid.cells[key] = { status: 'pending' };
-                                    if (data.rotate_ufuns) {
-                                        const keyRot = `${i}-${j}-${s}-${r}-true`;
-                                        this.tournamentGrid.cells[keyRot] = { status: 'pending' };
+                    
+                    // Only initialize cells if this is the first grid_init (no existing cells)
+                    if (!hasExistingCells) {
+                        this.tournamentGrid.cells = {};
+                        // Initialize all cells as pending
+                        for (let i = 0; i < data.competitors.length; i++) {
+                            for (let j = 0; j < data.opponents.length; j++) {
+                                for (let s = 0; s < data.scenarios.length; s++) {
+                                    for (let r = 0; r < data.n_repetitions; r++) {
+                                        const key = `${i}-${j}-${s}-${r}-false`;
+                                        this.tournamentGrid.cells[key] = { status: 'pending' };
+                                        if (data.rotate_ufuns) {
+                                            const keyRot = `${i}-${j}-${s}-${r}-true`;
+                                            this.tournamentGrid.cells[keyRot] = { status: 'pending' };
+                                        }
                                     }
                                 }
                             }
