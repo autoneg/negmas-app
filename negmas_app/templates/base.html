@@ -152,6 +152,15 @@
             showArchivedTournaments: false,
             tournamentTagFilter: '',
             availableTournamentTags: [],
+            // Combine tournaments state
+            selectedTournamentIds: [],  // IDs selected for combining
+            showCombineModal: false,
+            combineMode: 'selected',  // 'selected' or 'paths'
+            combinePaths: '',  // Newline-separated paths for path mode
+            combineOutputName: '',
+            combineRecursive: true,
+            combineLoading: false,
+            combinePreview: null,  // Preview of tournaments found in paths
             // Loading states
             loadingTraceIndex: null,  // Index of negotiation being loaded, null if not loading
             // Tournament panel collapse state
@@ -4380,6 +4389,30 @@
                     placeholder: "No saved tournaments",
                     selectableRows: 1,
                     columns: [
+                        { title: "", field: "_select", width: 32, hozAlign: "center", headerSort: false, resizable: false, 
+                          headerClick: (e) => {
+                              if (self.selectedTournamentIds.length === self.savedTournaments.length) {
+                                  self.deselectAllTournaments();
+                              } else {
+                                  self.selectAllTournaments();
+                              }
+                          },
+                          titleFormatter: () => {
+                              const allSelected = self.selectedTournamentIds.length === self.savedTournaments.length && self.savedTournaments.length > 0;
+                              return `<input type="checkbox" ${allSelected ? 'checked' : ''} style="cursor: pointer;">`;
+                          },
+                          formatter: (cell) => {
+                              const row = cell.getRow().getData();
+                              const checked = self.selectedTournamentIds.includes(row.id);
+                              return `<input type="checkbox" class="select-checkbox" ${checked ? 'checked' : ''} style="cursor: pointer;">`;
+                          },
+                          cellClick: (e, cell) => {
+                              e.stopPropagation();
+                              if (e.target.classList.contains('select-checkbox')) {
+                                  self.toggleTournamentSelection(cell.getRow().getData().id);
+                              }
+                          }
+                        },
                         { title: "Name/ID", field: "id", widthGrow: 2, minWidth: 120, sorter: "string", formatter: (cell) => {
                             const row = cell.getRow().getData();
                             return row.name || `<code style="font-size: 11px;">${cell.getValue()}</code>`;
@@ -4445,7 +4478,7 @@
                     }
                 });
                 this._savedTournamentsTable.on("rowClick", function(e, row) {
-                    if (!e.target.closest('.actions')) {
+                    if (!e.target.closest('.actions') && !e.target.classList.contains('select-checkbox')) {
                         self.loadAndSelectSavedTournament(row.getData().id);
                     }
                 });
@@ -4518,6 +4551,126 @@
                     }
                 } catch (e) {
                     console.error('Failed to clear tournaments:', e);
+                }
+            },
+            
+            // Combine tournaments methods
+            toggleTournamentSelection(tournamentId) {
+                const idx = this.selectedTournamentIds.indexOf(tournamentId);
+                if (idx >= 0) {
+                    this.selectedTournamentIds.splice(idx, 1);
+                } else {
+                    this.selectedTournamentIds.push(tournamentId);
+                }
+                // Refresh table to update checkboxes
+                if (this._savedTournamentsTable) {
+                    this._savedTournamentsTable.redraw();
+                }
+            },
+            
+            selectAllTournaments() {
+                this.selectedTournamentIds = this.savedTournaments.map(t => t.id);
+                if (this._savedTournamentsTable) {
+                    this._savedTournamentsTable.redraw();
+                }
+            },
+            
+            deselectAllTournaments() {
+                this.selectedTournamentIds = [];
+                if (this._savedTournamentsTable) {
+                    this._savedTournamentsTable.redraw();
+                }
+            },
+            
+            openCombineModal(mode = 'selected') {
+                this.combineMode = mode;
+                this.combineOutputName = '';
+                this.combinePaths = '';
+                this.combineRecursive = true;
+                this.combinePreview = null;
+                this.showCombineModal = true;
+            },
+            
+            closeCombineModal() {
+                this.showCombineModal = false;
+                this.combinePreview = null;
+            },
+            
+            async previewCombinePaths() {
+                const paths = this.combinePaths.split('\n').map(p => p.trim()).filter(p => p);
+                if (paths.length === 0) {
+                    alert('Please enter at least one path');
+                    return;
+                }
+                
+                this.combineLoading = true;
+                try {
+                    const res = await fetch('/api/tournament/find_in_paths', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ paths, recursive: this.combineRecursive })
+                    });
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.detail || 'Failed to find tournaments');
+                    }
+                    const data = await res.json();
+                    this.combinePreview = data;
+                } catch (e) {
+                    console.error('Failed to preview paths:', e);
+                    alert('Failed to find tournaments: ' + e.message);
+                } finally {
+                    this.combineLoading = false;
+                }
+            },
+            
+            async combineTournaments() {
+                let request = {
+                    output_name: this.combineOutputName || null,
+                    recursive: this.combineRecursive
+                };
+                
+                if (this.combineMode === 'selected') {
+                    if (this.selectedTournamentIds.length < 2) {
+                        alert('Please select at least 2 tournaments to combine');
+                        return;
+                    }
+                    request.tournament_ids = this.selectedTournamentIds;
+                } else {
+                    const paths = this.combinePaths.split('\n').map(p => p.trim()).filter(p => p);
+                    if (paths.length === 0) {
+                        alert('Please enter at least one path');
+                        return;
+                    }
+                    request.input_paths = paths;
+                }
+                
+                this.combineLoading = true;
+                try {
+                    const res = await fetch('/api/tournament/combine', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(request)
+                    });
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.detail || 'Failed to combine tournaments');
+                    }
+                    const data = await res.json();
+                    
+                    // Show success and refresh list
+                    alert(`Successfully combined ${data.n_tournaments} tournaments!\n\n` +
+                          `Combined ${data.n_negotiations} negotiations from ${data.n_scenarios} scenarios.\n` +
+                          `Output: ${data.output_id}`);
+                    
+                    this.closeCombineModal();
+                    this.selectedTournamentIds = [];
+                    await this.loadSavedTournaments();
+                } catch (e) {
+                    console.error('Failed to combine tournaments:', e);
+                    alert('Failed to combine tournaments: ' + e.message);
+                } finally {
+                    this.combineLoading = false;
                 }
             },
             

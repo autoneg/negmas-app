@@ -4,7 +4,8 @@ import ast
 import csv
 import json
 import math
-from dataclasses import dataclass
+import shutil
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,21 @@ import pandas as pd
 import yaml
 
 from negmas.tournaments.neg import SimpleTournamentResults
+
+
+@dataclass
+class CombineResult:
+    """Result of combining tournaments."""
+
+    success: bool
+    output_path: str | None = None
+    output_id: str | None = None
+    n_tournaments: int = 0
+    n_negotiations: int = 0
+    n_scenarios: int = 0
+    n_competitors: int = 0
+    loaded_paths: list[str] = field(default_factory=list)
+    error: str | None = None
 
 
 @dataclass
@@ -935,8 +951,6 @@ class TournamentStorageService:
         Returns:
             True if deleted, False if not found.
         """
-        import shutil
-
         path = cls.TOURNAMENTS_DIR / tournament_id
         if not path.exists():
             return False
@@ -1812,3 +1826,262 @@ class TournamentStorageService:
         except Exception as e:
             print(f"Error loading negotiation from {csv_path}: {e}")
             return None
+
+    @classmethod
+    def combine_tournaments(
+        cls,
+        tournament_ids: list[str] | None = None,
+        input_paths: list[str] | None = None,
+        output_name: str | None = None,
+        output_path: str | None = None,
+        recursive: bool = True,
+        metadata: dict[str, Any] | None = None,
+    ) -> CombineResult:
+        """Combine multiple tournaments into a single result.
+
+        This method supports two modes:
+        1. Combine by tournament IDs (from saved tournaments table)
+        2. Combine by filesystem paths (recursively finds all tournaments)
+
+        Args:
+            tournament_ids: List of tournament IDs from saved tournaments
+            input_paths: List of filesystem paths to search for tournaments
+            output_name: Name for the combined tournament (used as folder name)
+            output_path: Custom output path (if None, saves to tournaments dir)
+            recursive: If True, recursively search input_paths for tournaments
+            metadata: Additional metadata to save in config.json
+
+        Returns:
+            CombineResult with success status, output location, and statistics.
+        """
+        try:
+            # Collect tournament paths
+            paths_to_combine: list[Path] = []
+
+            # Mode 1: Combine by tournament IDs
+            if tournament_ids:
+                for tid in tournament_ids:
+                    tpath = cls.TOURNAMENTS_DIR / tid
+                    if tpath.exists() and cls._check_tournament_files_exist(tpath):
+                        paths_to_combine.append(tpath)
+
+            # Mode 2: Combine by filesystem paths
+            if input_paths:
+                for input_path in input_paths:
+                    p = Path(input_path)
+                    if not p.exists():
+                        continue
+                    if p.is_file():
+                        # Skip files
+                        continue
+                    # Check if it's a tournament directory itself
+                    if cls._check_tournament_files_exist(p):
+                        paths_to_combine.append(p)
+                    elif recursive:
+                        # Recursively find tournaments
+                        for child in p.rglob("*"):
+                            if child.is_dir() and cls._check_tournament_files_exist(
+                                child
+                            ):
+                                paths_to_combine.append(child)
+
+            if not paths_to_combine:
+                return CombineResult(
+                    success=False,
+                    error="No valid tournament directories found",
+                )
+
+            # Remove duplicates while preserving order
+            seen: set[str] = set()
+            unique_paths: list[Path] = []
+            for p in paths_to_combine:
+                ps = str(p.absolute())
+                if ps not in seen:
+                    seen.add(ps)
+                    unique_paths.append(p)
+
+            # Use negmas SimpleTournamentResults.combine()
+            combined_results, loaded_paths = SimpleTournamentResults.combine(
+                unique_paths,
+                recursive=False,  # We already did the recursion
+                recalc_details=False,
+                recalc_scores=False,
+                must_have_details=True,
+                verbosity=0,
+                add_tournament_column=True,
+                complete_only=True,
+            )
+
+            if combined_results is None or len(loaded_paths) == 0:
+                return CombineResult(
+                    success=False,
+                    error="Failed to combine tournaments - no valid results found",
+                )
+
+            # Generate output path
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            if output_name:
+                # Sanitize name for filesystem
+                safe_name = "".join(
+                    c if c.isalnum() or c in "-_" else "_" for c in output_name
+                )
+                output_id = f"{safe_name}_{timestamp}"
+            else:
+                output_id = f"combined_{timestamp}"
+
+            if output_path:
+                final_output_path = Path(output_path)
+            else:
+                final_output_path = cls.TOURNAMENTS_DIR / output_id
+
+            # Create output directory
+            final_output_path.mkdir(parents=True, exist_ok=True)
+
+            # Save combined results
+            # Save details
+            details_df = combined_results.details
+            if details_df is not None and len(details_df) > 0:
+                details_df.to_csv(
+                    final_output_path / "details.csv", index_label="index"
+                )
+
+            # Save scores
+            scores_df = combined_results.scores
+            if scores_df is not None and len(scores_df) > 0:
+                scores_df.to_csv(
+                    final_output_path / "all_scores.csv", index_label="index"
+                )
+
+            # Save final scores
+            final_scores_df = combined_results.final_scores
+            if final_scores_df is not None and len(final_scores_df) > 0:
+                final_scores_df.to_csv(final_output_path / "scores.csv", index=False)
+
+            # Save type scores summary
+            scores_summary_df = combined_results.scores_summary
+            if scores_summary_df is not None and len(scores_summary_df) > 0:
+                scores_summary_df.to_csv(
+                    final_output_path / "type_scores.csv", index_label="index"
+                )
+
+            # Compute statistics
+            n_negotiations = len(details_df) if details_df is not None else 0
+            n_scenarios = 0
+            n_competitors = 0
+
+            if details_df is not None and len(details_df) > 0:
+                if "scenario" in details_df.columns:
+                    n_scenarios = int(details_df["scenario"].nunique())
+                if "partners" in details_df.columns:
+                    all_partners: set[str] = set()
+                    for partners_val in details_df["partners"].dropna():
+                        if isinstance(partners_val, (list, tuple)):
+                            all_partners.update(partners_val)
+                        elif isinstance(partners_val, str):
+                            try:
+                                parsed = ast.literal_eval(partners_val)
+                                if isinstance(parsed, (list, tuple)):
+                                    all_partners.update(parsed)
+                            except (ValueError, SyntaxError):
+                                pass
+                    n_competitors = len(all_partners)
+
+            # Save config with metadata
+            config: dict[str, Any] = {
+                "combined": True,
+                "combined_from": [str(p) for p in loaded_paths],
+                "combined_at": datetime.now().isoformat(),
+                "n_source_tournaments": len(loaded_paths),
+                "n_negotiations": n_negotiations,
+                "n_scenarios": n_scenarios,
+                "n_competitors": n_competitors,
+            }
+
+            # Add metadata from original tournaments if available
+            if combined_results.config:
+                config["competitor_types"] = combined_results.config.get(
+                    "competitor_types", []
+                )
+                config["competitor_names"] = combined_results.config.get(
+                    "competitor_names", []
+                )
+                config["opponent_types"] = combined_results.config.get("opponent_types")
+                config["opponent_names"] = combined_results.config.get("opponent_names")
+
+            # Add custom metadata
+            if metadata:
+                config["metadata"] = metadata
+
+            with open(final_output_path / "config.json", "w") as f:
+                json.dump(config, f, indent=2)
+
+            # Clear cache for the new tournament
+            cls.clear_cache(output_id)
+
+            return CombineResult(
+                success=True,
+                output_path=str(final_output_path),
+                output_id=output_id,
+                n_tournaments=len(loaded_paths),
+                n_negotiations=n_negotiations,
+                n_scenarios=n_scenarios,
+                n_competitors=n_competitors,
+                loaded_paths=[str(p) for p in loaded_paths],
+            )
+
+        except FileNotFoundError as e:
+            return CombineResult(
+                success=False,
+                error=f"No tournaments found: {e}",
+            )
+        except Exception as e:
+            import traceback
+
+            traceback.print_exc()
+            return CombineResult(
+                success=False,
+                error=f"Failed to combine tournaments: {e}",
+            )
+
+    @classmethod
+    def find_tournaments_in_paths(
+        cls, paths: list[str], recursive: bool = True
+    ) -> list[dict]:
+        """Find all tournament directories in the given paths.
+
+        Args:
+            paths: List of filesystem paths to search
+            recursive: If True, search recursively
+
+        Returns:
+            List of dicts with tournament info (path, id, n_negotiations, etc.)
+        """
+        found: list[dict] = []
+        seen: set[str] = set()
+
+        for input_path in paths:
+            p = Path(input_path)
+            if not p.exists():
+                continue
+
+            # Check if it's a tournament directory itself
+            if cls._check_tournament_files_exist(p):
+                ps = str(p.absolute())
+                if ps not in seen:
+                    seen.add(ps)
+                    summary = cls._load_tournament_summary(p)
+                    if summary:
+                        found.append(summary)
+
+            elif recursive and p.is_dir():
+                # Recursively find tournaments
+                for child in p.rglob("*"):
+                    if child.is_dir():
+                        cs = str(child.absolute())
+                        if cs not in seen and cls._check_tournament_files_exist(child):
+                            seen.add(cs)
+                            summary = cls._load_tournament_summary(child)
+                            if summary:
+                                found.append(summary)
+
+        return found

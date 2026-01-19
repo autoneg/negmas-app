@@ -942,3 +942,91 @@ async def load_negotiation_from_file(request: LoadNegotiationRequest):
             status_code=404, detail="Could not load negotiation from path"
         )
     return negotiation
+
+
+# =============================================================================
+# Combine Tournaments Endpoints
+# =============================================================================
+
+
+class CombineTournamentsRequest(BaseModel):
+    """Request model for combining tournaments."""
+
+    tournament_ids: list[str] | None = None  # Combine by saved tournament IDs
+    input_paths: list[str] | None = None  # Combine by filesystem paths
+    output_name: str | None = None  # Name for combined tournament
+    output_path: str | None = None  # Custom output path (optional)
+    recursive: bool = True  # Recursively search paths
+    metadata: dict | None = None  # Additional metadata
+
+
+@router.post("/combine")
+async def combine_tournaments(request: CombineTournamentsRequest):
+    """Combine multiple tournaments into a single result.
+
+    Supports two modes:
+    1. Combine by tournament IDs: Select tournaments from saved tournaments list
+    2. Combine by paths: Specify filesystem paths to search for tournaments
+
+    Args:
+        request: CombineTournamentsRequest with tournament_ids or input_paths
+
+    Returns:
+        CombineResult with success status, output location, and statistics.
+    """
+    if not request.tournament_ids and not request.input_paths:
+        raise HTTPException(
+            status_code=400,
+            detail="Must provide either tournament_ids or input_paths",
+        )
+
+    result = await asyncio.to_thread(
+        TournamentStorageService.combine_tournaments,
+        tournament_ids=request.tournament_ids,
+        input_paths=request.input_paths,
+        output_name=request.output_name,
+        output_path=request.output_path,
+        recursive=request.recursive,
+        metadata=request.metadata,
+    )
+
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.error or "Combine failed")
+
+    return {
+        "success": True,
+        "output_path": result.output_path,
+        "output_id": result.output_id,
+        "n_tournaments": result.n_tournaments,
+        "n_negotiations": result.n_negotiations,
+        "n_scenarios": result.n_scenarios,
+        "n_competitors": result.n_competitors,
+        "loaded_paths": result.loaded_paths,
+    }
+
+
+class FindTournamentsRequest(BaseModel):
+    """Request model for finding tournaments in paths."""
+
+    paths: list[str]
+    recursive: bool = True
+
+
+@router.post("/find_in_paths")
+async def find_tournaments_in_paths(request: FindTournamentsRequest):
+    """Find all tournament directories in the given paths.
+
+    Use this to preview which tournaments will be combined before calling /combine.
+
+    Args:
+        request: FindTournamentsRequest with paths to search
+
+    Returns:
+        List of tournament summaries found in the paths.
+    """
+    tournaments = await asyncio.to_thread(
+        TournamentStorageService.find_tournaments_in_paths,
+        request.paths,
+        request.recursive,
+    )
+    return {"tournaments": tournaments, "count": len(tournaments)}
