@@ -84,8 +84,9 @@ class TournamentConfig:
     # If specified, competitors play against opponents but only competitors are scored
     opponent_types: list[str] | None = None
 
-    # Optional negotiator parameters (one dict per competitor or None for defaults)
+    # Optional negotiator parameters (one dict per competitor/opponent or None for defaults)
     competitor_params: list[dict] | None = None
+    opponent_params: list[dict] | None = None
 
     # Tournament settings
     n_repetitions: int = 1

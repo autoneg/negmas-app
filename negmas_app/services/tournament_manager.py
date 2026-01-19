@@ -202,6 +202,7 @@ class TournamentManager:
             "scenario_paths": config.scenario_paths,
             "opponent_types": config.opponent_types,
             "competitor_params": config.competitor_params,
+            "opponent_params": config.opponent_params,
             "n_repetitions": config.n_repetitions,
             "rotate_ufuns": config.rotate_ufuns,
             "self_play": config.self_play,
@@ -821,6 +822,7 @@ class TournamentManager:
                 "competitors": competitors,
                 "scenarios": scenarios,
                 "competitor_params": config.competitor_params,
+                "opponent_params": config.opponent_params,
                 "rotate_ufuns": config.rotate_ufuns,
                 "n_repetitions": config.n_repetitions,
                 "njobs": -1,  # Serial for callbacks to work properly
@@ -1217,6 +1219,7 @@ class TournamentManager:
                 "competitors": competitors,
                 "scenarios": scenarios,
                 "competitor_params": config.competitor_params,
+                "opponent_params": config.opponent_params,
                 "rotate_ufuns": config.rotate_ufuns,
                 "n_repetitions": config.n_repetitions,
                 "njobs": config.njobs,

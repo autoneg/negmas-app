@@ -37,6 +37,7 @@ class TournamentConfigRequest(BaseModel):
     scenario_paths: list[str]
     opponent_types: list[str] | None = None  # If None, competitors play each other
     competitor_params: list[dict] | None = None
+    opponent_params: list[dict] | None = None
     n_repetitions: int = 1
     rotate_ufuns: bool = True
     self_play: bool = True
