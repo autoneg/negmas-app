@@ -194,6 +194,23 @@ app = function() {
                         if (this._completedTable) this._completedTable.redraw(true);
                         if (this._savedTable) this._savedTable.redraw(true);
                     });
+                } else if (newVal !== null) {
+                    // Selecting a negotiation - sync panel state from negotiation's panel settings
+                    if (newVal.panelSettings) {
+                        if (newVal.panelSettings.timeline) {
+                            this.panelState.timeline = { ...newVal.panelSettings.timeline };
+                            // Sync timelineSimplifiedView from settings if available
+                            if ('simplified' in newVal.panelSettings.timeline) {
+                                this.timelineSimplifiedView = newVal.panelSettings.timeline.simplified;
+                            }
+                        }
+                        if (newVal.panelSettings.issueSpace) {
+                            this.panelState.issueSpace = { ...newVal.panelSettings.issueSpace };
+                        }
+                        if (newVal.panelSettings.utilityView) {
+                            this.panelState.utilityView = { ...newVal.panelSettings.utilityView };
+                        }
+                    }
                 }
             });
             

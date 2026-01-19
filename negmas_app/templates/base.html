@@ -446,7 +446,8 @@
                 panels: {
                     adjustable: true,
                     utilityView: { xAxis: 0, yAxis: 1 },
-                    timeline: { xAxis: 'relative_time' },
+                    timeline: { xAxis: 'relative_time', simplified: false },
+                    issueSpace: { xAxis: 0, yAxis: 1 },
                     visible: {
                         info: true,
                         history: true,
@@ -2101,7 +2102,8 @@
                         panelSettings: {
                             adjustable: this.newNeg.panels.adjustable,
                             utilityView: { ...this.newNeg.panels.utilityView },
-                            timeline: { ...this.newNeg.panels.timeline }
+                            timeline: { ...this.newNeg.panels.timeline },
+                            issueSpace: { ...this.newNeg.panels.issueSpace }
                         },
                         mode: this.newNeg.mode,
                         show_plot: this.newNeg.show_plot,

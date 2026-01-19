@@ -816,8 +816,41 @@
                                 <select class="form-select" x-model="newNeg.panels.timeline.xAxis" style="max-width: 200px;">
                                     <option value="step">Step</option>
                                     <option value="time">Time</option>
+                                    <option value="relative_time">Relative Time</option>
                                 </select>
                             </div>
+                            <div class="form-group">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" x-model="newNeg.panels.timeline.simplified">
+                                    <span>Simplified View</span>
+                                </label>
+                                <div class="form-inline-hint">Show single plot instead of per-agent plots</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="param-group">
+                        <div class="param-group-header">
+                            <span class="param-group-title">Issue Space 2D</span>
+                        </div>
+                        <div class="param-group-content">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">X-Axis (Issue)</label>
+                                    <select class="form-select" x-model.number="newNeg.panels.issueSpace.xAxis">
+                                        <option value="0">First Issue</option>
+                                        <option value="1">Second Issue</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Y-Axis (Issue)</label>
+                                    <select class="form-select" x-model.number="newNeg.panels.issueSpace.yAxis">
+                                        <option value="0">First Issue</option>
+                                        <option value="1">Second Issue</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-inline-hint">Only applies to scenarios with 2+ issues</div>
                         </div>
                     </div>
                 </div>
