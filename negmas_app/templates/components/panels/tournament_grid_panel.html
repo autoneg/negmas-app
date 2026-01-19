@@ -42,19 +42,24 @@
                 <div class="tournament-grid"
                      :style="'grid-template-columns: auto repeat(' + tournamentGrid.opponents.length + ', 1fr)'">
                     <!-- Header Row -->
-                    <div class="tournament-grid-header-cell"></div>
+                    <div class="tournament-grid-header-cell corner-cell"></div>
                     <template x-for="(opponent, j) in tournamentGrid.opponents" :key="'sh-'+j">
-                        <div class="tournament-grid-header-cell" :title="opponent" x-text="opponent.slice(0, 12)"></div>
+                        <div class="tournament-grid-header-cell column-header" :title="opponent">
+                            <span class="header-name" x-text="opponent.slice(0, 12)"></span>
+                        </div>
                     </template>
                     
                     <!-- Data Rows -->
                     <template x-for="(competitor, i) in tournamentGrid.competitors" :key="'sr-'+i">
                         <div class="tournament-grid-row" style="display: contents;">
-                            <div class="tournament-grid-row-header" :title="competitor" x-text="competitor.slice(0, 12)"></div>
+                            <div class="tournament-grid-row-header" :title="competitor">
+                                <span class="row-header-name" x-text="competitor.slice(0, 12)"></span>
+                            </div>
                             <template x-for="(opponent, j) in tournamentGrid.opponents" :key="'sc-'+i+'-'+j">
                                 <div class="tournament-cell summary-cell" 
                                      :class="{ 'self-play': i === j && !newTournament.self_play }"
-                                     :style="getSummaryCellStyle(i, j)">
+                                     :style="getSummaryCellStyle(i, j)"
+                                     :title="competitor + ' vs ' + opponent">
                                     <span class="summary-percent" x-text="getSummaryCellPercent(i, j)"></span>
                                 </div>
                             </template>
@@ -68,15 +73,19 @@
                 <div class="tournament-grid"
                      :style="'grid-template-columns: auto repeat(' + tournamentGrid.opponents.length + ', 1fr)'">
                     <!-- Header Row -->
-                    <div class="tournament-grid-header-cell"></div>
+                    <div class="tournament-grid-header-cell corner-cell"></div>
                     <template x-for="(opponent, j) in tournamentGrid.opponents" :key="'h-'+j">
-                        <div class="tournament-grid-header-cell" :title="opponent" x-text="opponent.slice(0, 12)"></div>
+                        <div class="tournament-grid-header-cell column-header" :title="opponent">
+                            <span class="header-name" x-text="opponent.slice(0, 12)"></span>
+                        </div>
                     </template>
                     
                     <!-- Data Rows -->
                     <template x-for="(competitor, i) in tournamentGrid.competitors" :key="'r-'+i">
                         <div class="tournament-grid-row" style="display: contents;">
-                            <div class="tournament-grid-row-header" :title="competitor" x-text="competitor.slice(0, 12)"></div>
+                            <div class="tournament-grid-row-header" :title="competitor">
+                                <span class="row-header-name" x-text="competitor.slice(0, 12)"></span>
+                            </div>
                             <template x-for="(opponent, j) in tournamentGrid.opponents" :key="'c-'+i+'-'+j">
                                 <div class="tournament-cell" :class="getScenarioCellClass(i, j)" :title="getScenarioCellTooltip(i, j)">
                                     <!-- Icon based on state -->
