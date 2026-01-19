@@ -15,9 +15,6 @@ const originalApp = app;
 app = function() {
     const base = originalApp();
     
-    // Create extended object that properly inherits from base
-    const extended = Object.create(base);
-    
     // Color-blind friendly palette (Okabe-Ito)
     const COLORBLIND_COLORS = [
         '#0072B2',  // Blue
@@ -48,8 +45,8 @@ app = function() {
     // Marker symbols
     const MARKER_SYMBOLS = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'triangle-down', 'star'];
     
-    // Add our custom properties/methods
-    Object.assign(extended, {
+    // Add our custom properties/methods by merging with base
+    const plotExtensions = {
         // Panel state for controls
         zoomedPanel: null,
         showIssueFrequency: false,  // Hidden feature for now
@@ -2856,7 +2853,8 @@ app = function() {
                 console.error('Failed to cancel negotiation:', e);
             }
         }
-    });
+    };
     
-    return extended;
+    // Merge base with plot extensions, base properties first so extensions can override
+    return { ...base, ...plotExtensions };
 };
