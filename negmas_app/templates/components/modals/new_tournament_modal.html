@@ -695,15 +695,18 @@
                                 <div class="form-hint">Allow competitors to play against themselves</div>
                             </div>
                             
-                            <!-- Normalize scenarios -->
+                            <!-- Normalization mode -->
                             <div class="form-group" style="margin-top: 16px;">
-                                <label class="form-checkbox">
-                                    <input type="checkbox" x-model="newTournament.normalize">
-                                    <span>Normalize Utility Functions</span>
-                                </label>
-                                <div class="form-hint">Scale utilities to [0, 1] for fair cross-scenario comparison</div>
+                                <label class="form-label">Utility Function Normalization</label>
+                                <select class="form-select" x-model="newTournament.normalization">
+                                    <option value="normalize">Normalize to [0, 1] (recommended)</option>
+                                    <option value="scale_max">Scale so max = 1.0</option>
+                                    <option value="scale_min">Scale so min = 1.0</option>
+                                    <option value="none">No normalization</option>
+                                </select>
+                                <div class="form-hint">How to transform utility values for fair cross-scenario comparison</div>
                                 <!-- Warning when normalization is disabled -->
-                                <div x-show="!newTournament.normalize" 
+                                <div x-show="newTournament.normalization === 'none'" 
                                      style="margin-top: 8px; padding: 8px 12px; background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.5); border-radius: 6px; font-size: 12px; color: var(--text-warning);">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align: -2px; margin-right: 4px;">
                                         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
