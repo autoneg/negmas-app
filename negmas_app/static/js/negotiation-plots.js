@@ -2531,13 +2531,17 @@ app = function() {
                     traces.push({
                         x: xValues,
                         y: yValues,
-                        mode: 'markers',
+                        mode: 'lines+markers',
                         type: 'scatter',
                         name: agentName,
-                        marker: {
-                            size: 10,
+                        line: {
                             color: agentColor,
-                            opacity: 0.8,
+                            width: 2
+                        },
+                        marker: {
+                            size: 8,
+                            color: agentColor,
+                            opacity: 0.5,
                             line: { width: 1, color: colors.isDark ? '#fff' : '#000' }
                         },
                         hoverinfo: 'text',
