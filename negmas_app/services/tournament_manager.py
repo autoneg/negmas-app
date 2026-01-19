@@ -79,6 +79,11 @@ class TournamentState:
     competitor_names: list[str] = field(default_factory=list)
     opponent_names: list[str] = field(default_factory=list)
 
+    # Mapping from actual negmas partner names to indices
+    # This gets built dynamically as we see new names in callbacks
+    competitor_name_to_idx: dict[str, int] = field(default_factory=dict)
+    opponent_name_to_idx: dict[str, int] = field(default_factory=dict)
+
 
 class TournamentManager:
     """Manage tournament sessions with real-time progress updates via callbacks."""
@@ -273,17 +278,20 @@ class TournamentManager:
                         rotated = True
                         base_scenario_name = parts[0]
 
-            # Determine competitor/opponent indices
+            # Determine competitor/opponent indices using dynamic name mapping
             comp_idx = 0
             opp_idx = 0
 
             if len(partner_names) >= 2:
                 p0, p1 = partner_names[0], partner_names[1]
-                # Find indices in our lists
-                if p0 in state.competitor_names:
-                    comp_idx = state.competitor_names.index(p0)
-                if p1 in state.opponent_names:
-                    opp_idx = state.opponent_names.index(p1)
+                # Build mapping dynamically as we see new names
+                # The order negmas calls callbacks matches the order we passed competitors
+                if p0 not in state.competitor_name_to_idx:
+                    state.competitor_name_to_idx[p0] = len(state.competitor_name_to_idx)
+                if p1 not in state.opponent_name_to_idx:
+                    state.opponent_name_to_idx[p1] = len(state.opponent_name_to_idx)
+                comp_idx = state.competitor_name_to_idx[p0]
+                opp_idx = state.opponent_name_to_idx[p1]
 
             scenario_idx = 0
             if base_scenario_name in state.scenario_names:
@@ -347,7 +355,7 @@ class TournamentManager:
                         rotated = True
                         base_scenario_name = parts[0]
 
-            # Get indices
+            # Get indices using dynamic name mapping
             comp_idx = 0
             opp_idx = 0
             scenario_idx = 0
@@ -355,10 +363,13 @@ class TournamentManager:
 
             if len(partners) >= 2:
                 p0, p1 = partners[0], partners[1]
-                if p0 in state.competitor_names:
-                    comp_idx = state.competitor_names.index(p0)
-                if p1 in state.opponent_names:
-                    opp_idx = state.opponent_names.index(p1)
+                # Build mapping dynamically as we see new names
+                if p0 not in state.competitor_name_to_idx:
+                    state.competitor_name_to_idx[p0] = len(state.competitor_name_to_idx)
+                if p1 not in state.opponent_name_to_idx:
+                    state.opponent_name_to_idx[p1] = len(state.opponent_name_to_idx)
+                comp_idx = state.competitor_name_to_idx[p0]
+                opp_idx = state.opponent_name_to_idx[p1]
 
             # Try to match the base scenario name to our list
             if base_scenario_name in state.scenario_names:
