@@ -18,11 +18,43 @@
         </div>
         
         <nav class="header-nav">
-          <router-link to="/negotiations" class="header-nav-btn" active-class="active">Negotiations</router-link>
-          <router-link to="/tournaments" class="header-nav-btn" active-class="active">Tournaments</router-link>
-          <router-link to="/scenarios" class="header-nav-btn" active-class="active">Scenarios</router-link>
-          <router-link to="/negotiators" class="header-nav-btn" active-class="active">Negotiators</router-link>
-          <button class="header-nav-btn" @click="showSettings = true">Settings</button>
+          <router-link to="/negotiations" class="header-nav-btn" active-class="active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>Negotiations</span>
+          </router-link>
+          <router-link to="/tournaments" class="header-nav-btn" active-class="active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <circle cx="12" cy="8" r="5"></circle>
+              <path d="M12 13v7"></path>
+              <path d="M9 20h6"></path>
+            </svg>
+            <span>Tournaments</span>
+          </router-link>
+          <router-link to="/scenarios" class="header-nav-btn" active-class="active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <span>Scenarios</span>
+          </router-link>
+          <router-link to="/negotiators" class="header-nav-btn" active-class="active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <span>Negotiators</span>
+          </router-link>
+          <button class="header-nav-btn" @click="showSettings = true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M12 1v6m0 6v6m5.657-13.657l-4.243 4.243m-2.828 2.828l-4.243 4.243M23 12h-6m-6 0H1m18.364-5.657l-4.243 4.243m-2.828 2.828l-4.243 4.243"></path>
+            </svg>
+            <span>Settings</span>
+          </button>
         </nav>
         
         <div class="header-spacer"></div>
@@ -100,14 +132,38 @@
 
     <!-- Settings Modal -->
     <SettingsModal :show="showSettings" @close="showSettings = false" />
+    
+    <!-- Keyboard Help Modal -->
+    <KeyboardHelpModal :show="showKeyboardHelp" @close="showKeyboardHelp = false" />
+    
+    <!-- New Negotiation Modal -->
+    <NewNegotiationModal 
+      :show="showNewNegotiationModal" 
+      @close="showNewNegotiationModal = false"
+      @start="onNegotiationStart"
+    />
+    
+    <!-- New Tournament Modal -->
+    <NewTournamentModal
+      :show="showNewTournamentModal"
+      @close="showNewTournamentModal = false"
+      @start="onTournamentStart"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useSettingsStore } from './stores/settings'
 import SettingsModal from './components/SettingsModal.vue'
+import KeyboardHelpModal from './components/KeyboardHelpModal.vue'
+import NewNegotiationModal from './components/NewNegotiationModal.vue'
+import NewTournamentModal from './components/NewTournamentModal.vue'
+import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
+
+const router = useRouter()
 
 // Settings store
 const settingsStore = useSettingsStore()
@@ -119,6 +175,9 @@ const sidebarCollapsed = ref(true)
 // Modal states
 const showSettings = ref(false)
 const showLoadNegotiation = ref(false)
+const showKeyboardHelp = ref(false)
+const showNewNegotiationModal = ref(false)
+const showNewTournamentModal = ref(false)
 
 // Global loading states
 const scenariosLoading = ref(false)
@@ -132,6 +191,9 @@ const toastVisible = ref(false)
 const toastMessage = ref('')
 const toastType = ref('success')
 
+// Initialize keyboard shortcuts
+useKeyboardShortcuts()
+
 onMounted(async () => {
   // Load settings from backend
   await settingsStore.loadSettings()
@@ -141,6 +203,30 @@ onMounted(async () => {
   
   // Load sidebar state from localStorage
   sidebarCollapsed.value = localStorage.getItem('sidebarCollapsed') !== 'false'
+  
+  // Listen for keyboard shortcut events
+  window.addEventListener('keyboard-open-settings', () => {
+    showSettings.value = true
+  })
+  
+  window.addEventListener('keyboard-new-negotiation', () => {
+    openNewNegotiation()
+  })
+  
+  window.addEventListener('keyboard-new-tournament', () => {
+    openNewTournament()
+  })
+  
+  window.addEventListener('keyboard-show-help', () => {
+    showKeyboardHelp.value = true
+  })
+  
+  window.addEventListener('keyboard-escape', () => {
+    showSettings.value = false
+    showKeyboardHelp.value = false
+    showNewNegotiationModal.value = false
+    showNewTournamentModal.value = false
+  })
 })
 
 // Watch for settings changes to apply theme
@@ -168,13 +254,27 @@ function toggleSidebar() {
 }
 
 function openNewNegotiation() {
-  // TODO: Open new negotiation modal
-  window.showToast('New Negotiation modal - TODO', 'info')
+  showNewNegotiationModal.value = true
 }
 
 function openNewTournament() {
-  // TODO: Open new tournament modal
-  window.showToast('New Tournament modal - TODO', 'info')
+  showNewTournamentModal.value = true
+}
+
+function onNegotiationStart(data) {
+  // Navigate to negotiations view with the session
+  router.push({
+    name: 'negotiations',
+    query: { session_id: data.session_id }
+  })
+}
+
+function onTournamentStart(data) {
+  // Navigate to tournaments view with the session
+  router.push({
+    name: 'tournaments',
+    query: { session_id: data.session_id }
+  })
 }
 
 // Global toast notification function

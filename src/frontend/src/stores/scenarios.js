@@ -105,10 +105,33 @@ export const useScenariosStore = defineStore('scenarios', () => {
     }
   }
 
-  function selectScenario(scenario) {
+  async function selectScenario(scenario) {
     selectedScenario.value = scenario
     selectedScenarioStats.value = null
     selectedScenarioPlotData.value = null
+    
+    // If scenario is missing quick info (n_outcomes or opposition), fetch it
+    if (scenario && (scenario.n_outcomes === null || scenario.opposition === null)) {
+      try {
+        const response = await fetch(`/api/scenarios/${encodeURIComponent(scenario.path)}/quick-info`)
+        const data = await response.json()
+        
+        // Update the scenario object with the quick info
+        if (data) {
+          scenario.n_outcomes = data.n_outcomes ?? scenario.n_outcomes
+          scenario.opposition = data.opposition ?? scenario.opposition
+          scenario.rational_fraction = data.rational_fraction ?? scenario.rational_fraction
+          
+          // Also update in the scenarios array to persist the data
+          const index = scenarios.value.findIndex(s => s.path === scenario.path)
+          if (index !== -1) {
+            scenarios.value[index] = { ...scenarios.value[index], ...data }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load quick info:', error)
+      }
+    }
   }
 
   function updateFilter(newFilter) {

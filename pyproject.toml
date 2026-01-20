@@ -44,6 +44,7 @@ docs = [
 
 [project.scripts]
 negmas-app = "negmas_app.main:cli"
+negmas-legacy = "negmas_app.legacy_main:cli"
 
 
 [tool.hatch.build.targets.wheel]

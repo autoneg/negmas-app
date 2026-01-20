@@ -8,6 +8,7 @@ from .genius import router as genius_router
 from .mechanisms import router as mechanisms_router
 from .tournament import router as tournament_router
 from .sources import router as sources_router
+from .components import router as components_router
 
 __all__ = [
     "scenarios_router",
@@ -18,4 +19,5 @@ __all__ = [
     "mechanisms_router",
     "tournament_router",
     "sources_router",
+    "components_router",
 ]

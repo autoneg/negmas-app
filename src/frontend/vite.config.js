@@ -7,11 +7,11 @@ export default defineConfig({
     port: 5174,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8020',
+        target: 'http://127.0.0.1:8019',
         changeOrigin: true,
       },
       '/sse': {
-        target: 'http://127.0.0.1:8020',
+        target: 'http://127.0.0.1:8019',
         changeOrigin: true,
         ws: true,
       },

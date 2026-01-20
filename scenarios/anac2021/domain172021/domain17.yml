@@ -41,4 +41,5 @@ issues:
   - valueF
   - valueG
 name: domain17
+path: __PATH__:/Users/yasser/code/projects/negmas-app/scenarios/anac2021/domain172021/domain17.yml
 type: DiscreteCartesianOutcomeSpace

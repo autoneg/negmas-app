@@ -158,10 +158,10 @@
           </div>
         </div>
         
-        <!-- Scrollable content with stacked panels -->
+        <!-- Scrollable content with panels -->
         <div class="details-content">
-          <!-- Info Panel -->
-          <div class="panel">
+          <!-- Info Panel (Full Width) -->
+          <div class="panel panel-full">
             <h3 class="panel-title">Information</h3>
             <div class="info-grid">
               <div class="info-item">
@@ -219,18 +219,20 @@
             </div>
           </div>
           
-          <!-- Stats Panel -->
-          <div class="panel">
-            <div class="panel-header">
-              <h3 class="panel-title">Statistics</h3>
-              <button 
-                v-if="!selectedScenario.has_stats && !loadingStats" 
-                class="btn-secondary btn-sm" 
-                @click="calculateStats"
-              >
-                Calculate Stats
-              </button>
-            </div>
+          <!-- Stats and Plot Side by Side -->
+          <div class="panel-row">
+            <!-- Stats Panel -->
+            <div class="panel panel-half">
+              <div class="panel-header">
+                <h3 class="panel-title">Statistics</h3>
+                <button 
+                  v-if="!selectedScenario.has_stats && !loadingStats" 
+                  class="btn-secondary btn-sm" 
+                  @click="calculateStats"
+                >
+                  Calculate Stats
+                </button>
+              </div>
             
             <div v-if="!statsLoaded && !loadingStats" class="panel-empty">
               <p>Statistics not calculated yet</p>
@@ -279,10 +281,10 @@
                 <span>{{ formatUtilityList(selectedScenarioStats.max_welfare_utils[0]) }}</span>
               </div>
             </div>
-          </div>
+            </div>
           
-          <!-- Visualization Panel -->
-          <div class="panel">
+            <!-- Visualization Panel -->
+          <div class="panel panel-half">
             <div class="panel-header">
               <h3 class="panel-title">Utility Space Visualization</h3>
               <button 
@@ -321,6 +323,7 @@
               </div>
               <div ref="plotDiv" class="plot"></div>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -578,13 +581,59 @@ function renderPlot() {
     })
   }
   
+  // Add reservation value lines if available
+  const shapes = []
+  if (data.reserved_values && data.reserved_values.length > 0) {
+    const reservedVal1 = data.reserved_values[idx1]
+    const reservedVal2 = data.reserved_values[idx2]
+    
+    // Vertical line for negotiator 1's reservation value
+    if (reservedVal1 !== null && reservedVal1 !== undefined) {
+      shapes.push({
+        type: 'line',
+        x0: reservedVal1,
+        x1: reservedVal1,
+        y0: 0,
+        y1: 1,
+        yref: 'paper',
+        line: {
+          color: 'rgba(128, 128, 128, 0.5)',
+          width: 2,
+          dash: 'dash'
+        }
+      })
+    }
+    
+    // Horizontal line for negotiator 2's reservation value
+    if (reservedVal2 !== null && reservedVal2 !== undefined) {
+      shapes.push({
+        type: 'line',
+        x0: 0,
+        x1: 1,
+        xref: 'paper',
+        y0: reservedVal2,
+        y1: reservedVal2,
+        line: {
+          color: 'rgba(128, 128, 128, 0.5)',
+          width: 2,
+          dash: 'dash'
+        }
+      })
+    }
+  }
+  
   const layout = {
     xaxis: { title: names[idx1] || `Negotiator ${idx1}` },
-    yaxis: { title: names[idx2] || `Negotiator ${idx2}` },
+    yaxis: { 
+      title: names[idx2] || `Negotiator ${idx2}`,
+      scaleanchor: 'x',
+      scaleratio: 1
+    },
     hovermode: 'closest',
     margin: { l: 60, r: 20, t: 30, b: 60 },
     showlegend: true,
-    legend: { x: 1, y: 1, xanchor: 'right' }
+    legend: { x: 1, y: 1, xanchor: 'right' },
+    shapes: shapes
   }
   
   Plotly.newPlot(plotDiv.value, traces, layout, { responsive: true })
@@ -808,6 +857,14 @@ function formatNumber(num) {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding-right: 8px; /* Space for scrollbar */
+}
+
+/* Panel row for side-by-side layout */
+.panel-row {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
 }
 
 .panel {
@@ -815,6 +872,19 @@ function formatNumber(num) {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Full width panel */
+.panel-full {
+  width: 100%;
+}
+
+/* Half width panels for side-by-side */
+.panel-half {
+  flex: 1;
+  min-width: 0; /* Allow flex shrinking */
 }
 
 .panel-header {

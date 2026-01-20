@@ -18,4 +18,5 @@ issues:
   - 20'' LCD
   - 23'' LCD
 name: laptop_domain
+path: __PATH__:/Users/yasser/code/projects/negmas-app/scenarios/anac2019/Laptop/laptop_domain.yml
 type: DiscreteCartesianOutcomeSpace
