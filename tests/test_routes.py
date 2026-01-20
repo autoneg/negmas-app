@@ -318,17 +318,20 @@ class TestNegotiatorRoutes:
         assert data["type_name"] == type_name
         assert "parameters" in data
 
-    def test_get_negotiator_info(
-        self, client: TestClient, native_negotiator_types: list[str]
-    ):
+    def test_get_negotiator_info(self, client: TestClient):
         """Test getting info for a specific negotiator type."""
-        type_name = native_negotiator_types[0]
+        # First get list of available negotiators
+        list_response = client.get("/api/negotiators")
+        assert list_response.status_code == 200
+        negotiators = list_response.json()
+        assert len(negotiators) > 0, "No negotiators available for testing"
+
+        # Use the first available negotiator
+        type_name = negotiators[0]["type_name"]
         response = client.get(f"/api/negotiators/{type_name}")
         assert response.status_code == 200
         data = response.json()
-        # Check it's not an error response (API returns tuple for 404)
-        if isinstance(data, dict) and "type_name" in data:
-            assert data["type_name"] == type_name
+        assert data["type_name"] == type_name
 
     def test_refresh_negotiators(self, client: TestClient):
         """Test refreshing negotiator list."""
