@@ -323,15 +323,16 @@ class TestNegotiatorRoutes:
         # First get list of available negotiators
         list_response = client.get("/api/negotiators")
         assert list_response.status_code == 200
-        negotiators = list_response.json()
+        data = list_response.json()
+        negotiators = data["negotiators"]
         assert len(negotiators) > 0, "No negotiators available for testing"
 
         # Use the first available negotiator
         type_name = negotiators[0]["type_name"]
         response = client.get(f"/api/negotiators/{type_name}")
         assert response.status_code == 200
-        data = response.json()
-        assert data["type_name"] == type_name
+        info = response.json()
+        assert info["type_name"] == type_name
 
     def test_refresh_negotiators(self, client: TestClient):
         """Test refreshing negotiator list."""
