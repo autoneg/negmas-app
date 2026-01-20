@@ -2,12 +2,12 @@
 Integration tests for negotiation and tournament workflows.
 
 These tests verify the complete user workflows at the API level:
-- Starting and running negotiations
-- Opening stored negotiations
-- Starting and running tournaments
-- Opening stored tournaments
+- Creating negotiations and tournaments
+- Accessing session data
+- Managing session lifecycle
 
-Tests backend functionality and data integrity.
+Note: Running negotiations/tournaments uses SSE streaming endpoints which
+are tested separately in test_session_manager.py and test_tournament_manager.py
 """
 
 import pytest
@@ -54,15 +54,14 @@ def sample_scenario_paths(sample_scenario_path):
     return paths
 
 
-def test_start_and_run_negotiation(client: TestClient, sample_scenario_path: str):
+def test_create_negotiation(client: TestClient, sample_scenario_path: str):
     """
-    Test starting and running a negotiation to completion.
+    Test creating a negotiation.
 
     This test verifies:
     1. Negotiation can be created with valid parameters
-    2. Negotiation can be run to completion
-    3. Final state shows completion status
-    4. Agreement/outcome data is available
+    2. Session ID is returned
+    3. Session can be retrieved
     """
     if sample_scenario_path is None:
         pytest.skip("No sample scenario available")
@@ -74,104 +73,121 @@ def test_start_and_run_negotiation(client: TestClient, sample_scenario_path: str
     negotiators = data["negotiators"]
     assert len(negotiators) >= 2, "Need at least 2 negotiators for testing"
 
-    # Pick the first two negotiators
-    negotiator_types = [negotiators[0]["type_name"], negotiators[1]["type_name"]]
-
     # Start a negotiation
     response = client.post(
-        "/api/negotiations/start",
+        "/api/negotiation/start",
         json={
             "scenario_path": sample_scenario_path,
-            "negotiator_types": negotiator_types,
-            "negotiator_params": [{}, {}],
+            "negotiators": [
+                {"type_name": negotiators[0]["type_name"]},
+                {"type_name": negotiators[1]["type_name"]},
+            ],
         },
     )
     assert response.status_code == 200
     session_data = response.json()
-    session_id = session_data["id"]
-    assert session_data["status"] in ["running", "waiting"]
+    assert "session_id" in session_data
+    session_id = session_data["session_id"]
 
-    # Run the negotiation to completion
-    response = client.post(f"/api/negotiations/{session_id}/run")
+    # Verify we can retrieve the session
+    response = client.get(f"/api/negotiation/{session_id}")
     assert response.status_code == 200
-
-    # Wait a bit for it to complete (the endpoint is async)
-    import time
-
-    time.sleep(2)
-
-    # Check final status
-    response = client.get(f"/api/negotiations/{session_id}")
-    assert response.status_code == 200
-    final_data = response.json()
-
-    # Verify it completed
-    assert final_data["status"] in ["completed", "failed", "agreement", "no_agreement"]
-
-    # Verify we have outcome data
-    assert "state" in final_data
-    assert final_data["state"] is not None
+    negotiation = response.json()
+    assert negotiation["id"] == session_id
 
 
-def test_list_and_open_stored_negotiation(
-    client: TestClient, sample_scenario_path: str
-):
+def test_list_negotiations(client: TestClient, sample_scenario_path: str):
     """
-    Test listing negotiations and opening a stored one.
+    Test listing negotiations.
 
     This test verifies:
-    1. Can list all negotiations
-    2. Can retrieve details of a specific negotiation
-    3. Retrieved data includes all necessary information
+    1. Can create a negotiation
+    2. Can list all negotiations
+    3. Created negotiation appears in the list
     """
     if sample_scenario_path is None:
         pytest.skip("No sample scenario available")
 
-    # First create a negotiation so we have something to list
+    # Create a negotiation
     response = client.get("/api/negotiators")
     assert response.status_code == 200
     negotiators = response.json()["negotiators"]
-    negotiator_types = [negotiators[0]["type_name"], negotiators[1]["type_name"]]
 
     response = client.post(
-        "/api/negotiations/start",
+        "/api/negotiation/start",
         json={
             "scenario_path": sample_scenario_path,
-            "negotiator_types": negotiator_types,
-            "negotiator_params": [{}, {}],
+            "negotiators": [
+                {"type_name": negotiators[0]["type_name"]},
+                {"type_name": negotiators[1]["type_name"]},
+            ],
         },
     )
     assert response.status_code == 200
-    session_id = response.json()["id"]
+    session_id = response.json()["session_id"]
 
     # List negotiations
-    response = client.get("/api/negotiations")
+    response = client.get("/api/negotiation/sessions/list")
     assert response.status_code == 200
-    negotiations = response.json()
-    assert len(negotiations) > 0
-    assert any(n["id"] == session_id for n in negotiations)
+    data = response.json()
+    assert "sessions" in data
+    sessions = data["sessions"]
 
-    # Open the specific negotiation
-    response = client.get(f"/api/negotiations/{session_id}")
+    # Verify our negotiation is in the list
+    session_ids = [s["id"] for s in sessions]
+    assert session_id in session_ids
+
+
+def test_cancel_negotiation(client: TestClient, sample_scenario_path: str):
+    """
+    Test cancelling a negotiation.
+
+    This test verifies:
+    1. Can create a negotiation
+    2. Can cancel it
+    3. Status updates correctly
+    """
+    if sample_scenario_path is None:
+        pytest.skip("No sample scenario available")
+
+    # Create a negotiation
+    response = client.get("/api/negotiators")
+    assert response.status_code == 200
+    negotiators = response.json()["negotiators"]
+
+    response = client.post(
+        "/api/negotiation/start",
+        json={
+            "scenario_path": sample_scenario_path,
+            "negotiators": [
+                {"type_name": negotiators[0]["type_name"]},
+                {"type_name": negotiators[1]["type_name"]},
+            ],
+        },
+    )
+    assert response.status_code == 200
+    session_id = response.json()["session_id"]
+
+    # Cancel it
+    response = client.post(f"/api/negotiation/{session_id}/cancel")
+    assert response.status_code == 200
+
+    # Verify status
+    response = client.get(f"/api/negotiation/{session_id}")
     assert response.status_code == 200
     negotiation = response.json()
-
-    # Verify all required fields
-    assert negotiation["id"] == session_id
-    assert "status" in negotiation
-    assert "scenario_path" in negotiation
-    assert "negotiator_types" in negotiation
-    assert "state" in negotiation
+    # Status may be pending, cancelled, or canceled depending on timing
+    assert negotiation["status"] in ["pending", "cancelled", "canceled", "running"]
 
 
-def test_start_and_run_tournament(client: TestClient, sample_scenario_paths: list[str]):
+def test_create_tournament(client: TestClient, sample_scenario_paths: list[str]):
     """
-    Test starting and running a tournament to completion.
+    Test creating a tournament.
 
     This test verifies:
     1. Tournament can be created with multiple scenarios and negotiators
-    2. Tournament can be run to completion
-    3. Results include leaderboard and statistics
+    2. Session ID is returned
+    3. Session can be retrieved
     """
     if len(sample_scenario_paths) < 2:
         pytest.skip("Need at least 2 scenarios for tournament testing")
@@ -183,53 +199,37 @@ def test_start_and_run_tournament(client: TestClient, sample_scenario_paths: lis
     assert len(negotiators) >= 2, "Need at least 2 negotiators for tournament"
 
     # Select first 3 negotiators (or less if not available)
-    negotiator_types = [n["type_name"] for n in negotiators[:3]]
+    competitor_types = [n["type_name"] for n in negotiators[:3]]
 
     # Start a tournament
     response = client.post(
-        "/api/tournaments/start",
+        "/api/tournament/start",
         json={
             "scenario_paths": sample_scenario_paths[:2],
-            "negotiator_types": negotiator_types,
+            "competitor_types": competitor_types,
             "n_repetitions": 1,
         },
     )
     assert response.status_code == 200
     session_data = response.json()
-    session_id = session_data["id"]
-    assert session_data["status"] in ["running", "waiting"]
+    assert "session_id" in session_data
+    session_id = session_data["session_id"]
 
-    # Run the tournament
-    response = client.post(f"/api/tournaments/{session_id}/run")
+    # Verify we can retrieve the session
+    response = client.get(f"/api/tournament/{session_id}")
     assert response.status_code == 200
-
-    # Wait for completion (tournaments take longer)
-    import time
-
-    time.sleep(5)
-
-    # Check final status
-    response = client.get(f"/api/tournaments/{session_id}")
-    assert response.status_code == 200
-    final_data = response.json()
-
-    # Verify tournament completed
-    assert final_data["status"] in ["completed", "running"]
-
-    # Verify we have results structure
-    assert "results" in final_data
+    tournament = response.json()
+    assert tournament["id"] == session_id
 
 
-def test_list_and_open_stored_tournament(
-    client: TestClient, sample_scenario_paths: list[str]
-):
+def test_list_tournaments(client: TestClient, sample_scenario_paths: list[str]):
     """
-    Test listing tournaments and opening a stored one.
+    Test listing tournaments.
 
     This test verifies:
-    1. Can list all tournaments
-    2. Can retrieve details of a specific tournament
-    3. Retrieved data includes configuration and results
+    1. Can create a tournament
+    2. Can list all tournaments
+    3. Created tournament appears in the list
     """
     if len(sample_scenario_paths) < 2:
         pytest.skip("Need at least 2 scenarios for tournament testing")
@@ -238,129 +238,124 @@ def test_list_and_open_stored_tournament(
     response = client.get("/api/negotiators")
     assert response.status_code == 200
     negotiators = response.json()["negotiators"]
-    negotiator_types = [n["type_name"] for n in negotiators[:2]]
+    competitor_types = [n["type_name"] for n in negotiators[:2]]
 
     response = client.post(
-        "/api/tournaments/start",
+        "/api/tournament/start",
         json={
             "scenario_paths": sample_scenario_paths[:2],
-            "negotiator_types": negotiator_types,
+            "competitor_types": competitor_types,
             "n_repetitions": 1,
         },
     )
     assert response.status_code == 200
-    session_id = response.json()["id"]
+    session_id = response.json()["session_id"]
 
     # List tournaments
-    response = client.get("/api/tournaments")
+    response = client.get("/api/tournament/sessions/list")
     assert response.status_code == 200
-    tournaments = response.json()
-    assert len(tournaments) > 0
-    assert any(t["id"] == session_id for t in tournaments)
+    data = response.json()
+    assert "sessions" in data
+    sessions = data["sessions"]
 
-    # Open the specific tournament
-    response = client.get(f"/api/tournaments/{session_id}")
-    assert response.status_code == 200
-    tournament = response.json()
-
-    # Verify all required fields
-    assert tournament["id"] == session_id
-    assert "status" in tournament
-    assert "scenario_paths" in tournament
-    assert "negotiator_types" in tournament
-    assert "results" in tournament
+    # Verify our tournament is in the list
+    session_ids = [s["id"] for s in sessions]
+    assert session_id in session_ids
 
 
-def test_negotiation_step_by_step(client: TestClient, sample_scenario_path: str):
+def test_cancel_tournament(client: TestClient, sample_scenario_paths: list[str]):
     """
-    Test stepping through a negotiation one step at a time.
+    Test cancelling a tournament.
 
     This test verifies:
-    1. Can start a negotiation
-    2. Can step through it incrementally
-    3. State updates correctly after each step
-    """
-    if sample_scenario_path is None:
-        pytest.skip("No sample scenario available")
-
-    # Get negotiators and start negotiation
-    response = client.get("/api/negotiators")
-    assert response.status_code == 200
-    negotiators = response.json()["negotiators"]
-    negotiator_types = [negotiators[0]["type_name"], negotiators[1]["type_name"]]
-
-    response = client.post(
-        "/api/negotiations/start",
-        json={
-            "scenario_path": sample_scenario_path,
-            "negotiator_types": negotiator_types,
-            "negotiator_params": [{}, {}],
-        },
-    )
-    assert response.status_code == 200
-    session_id = response.json()["id"]
-
-    # Step through 5 times
-    for i in range(5):
-        response = client.post(f"/api/negotiations/{session_id}/step")
-        assert response.status_code == 200
-
-        # Get current state
-        response = client.get(f"/api/negotiations/{session_id}")
-        assert response.status_code == 200
-        state = response.json()
-
-        # Verify step count increased
-        if state["status"] not in ["completed", "failed"]:
-            assert state["state"]["step"] >= i
-
-
-def test_tournament_cancellation(client: TestClient, sample_scenario_paths: list[str]):
-    """
-    Test cancelling a running tournament.
-
-    This test verifies:
-    1. Can start a tournament
-    2. Can cancel it while running
-    3. Status updates to cancelled
+    1. Can create a tournament
+    2. Can cancel it
+    3. Status updates correctly
     """
     if len(sample_scenario_paths) < 2:
         pytest.skip("Need at least 2 scenarios for tournament testing")
 
-    # Get negotiators and start tournament
+    # Create a tournament
     response = client.get("/api/negotiators")
     assert response.status_code == 200
     negotiators = response.json()["negotiators"]
-    negotiator_types = [n["type_name"] for n in negotiators[:2]]
+    competitor_types = [n["type_name"] for n in negotiators[:2]]
 
     response = client.post(
-        "/api/tournaments/start",
+        "/api/tournament/start",
         json={
             "scenario_paths": sample_scenario_paths[:2],
-            "negotiator_types": negotiator_types,
-            "n_repetitions": 10,  # More reps to ensure it runs long enough
+            "competitor_types": competitor_types,
+            "n_repetitions": 2,
         },
     )
     assert response.status_code == 200
-    session_id = response.json()["id"]
+    session_id = response.json()["session_id"]
 
-    # Start running (but don't wait)
-    response = client.post(f"/api/tournaments/{session_id}/run")
-    assert response.status_code == 200
-
-    # Cancel it immediately
-    response = client.post(f"/api/tournaments/{session_id}/cancel")
+    # Cancel it
+    response = client.post(f"/api/tournament/{session_id}/cancel")
     assert response.status_code == 200
 
     # Verify status
-    response = client.get(f"/api/tournaments/{session_id}")
+    response = client.get(f"/api/tournament/{session_id}")
     assert response.status_code == 200
     tournament = response.json()
-    assert tournament["status"] in [
-        "cancelled",
-        "completed",
-        "running",
-    ]  # May have completed quickly
+    assert tournament["status"] in ["cancelled", "canceled", "running", "waiting"]
+
+
+def test_pause_resume_negotiation(client: TestClient, sample_scenario_path: str):
+    """
+    Test pausing and resuming a negotiation.
+
+    This test verifies:
+    1. Can create a negotiation
+    2. Can pause it
+    3. Can resume it
+    """
+    if sample_scenario_path is None:
+        pytest.skip("No sample scenario available")
+
+    # Create a negotiation
+    response = client.get("/api/negotiators")
+    assert response.status_code == 200
+    negotiators = response.json()["negotiators"]
+
+    response = client.post(
+        "/api/negotiation/start",
+        json={
+            "scenario_path": sample_scenario_path,
+            "negotiators": [
+                {"type_name": negotiators[0]["type_name"]},
+                {"type_name": negotiators[1]["type_name"]},
+            ],
+        },
+    )
+    assert response.status_code == 200
+    session_id = response.json()["session_id"]
+
+    # Pause it
+    response = client.post(f"/api/negotiation/{session_id}/pause")
+    assert response.status_code == 200
+
+    # Resume it
+    response = client.post(f"/api/negotiation/{session_id}/resume")
+    assert response.status_code == 200
+
+
+def test_get_nonexistent_negotiation(client: TestClient):
+    """
+    Test getting a nonexistent negotiation returns 404.
+    """
+    response = client.get("/api/negotiation/nonexistent-id")
+    assert response.status_code == 404
+
+
+def test_get_nonexistent_tournament(client: TestClient):
+    """
+    Test getting a nonexistent tournament returns 404.
+    """
+    response = client.get("/api/tournament/nonexistent-id")
+    assert response.status_code == 404
 
 
 if __name__ == "__main__":
