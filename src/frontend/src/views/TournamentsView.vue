@@ -292,29 +292,12 @@
       </div>
     </div>
     
-    <!-- New Tournament Modal (Placeholder) -->
-    <div v-if="showNewTournamentModal" class="modal-overlay" @click="showNewTournamentModal = false">
-      <div class="modal-content large" @click.stop>
-        <div class="modal-header">
-          <h3>New Tournament</h3>
-          <button class="btn-icon" @click="showNewTournamentModal = false">×</button>
-        </div>
-        <div class="modal-body">
-          <p>TODO: Implement tournament creation wizard</p>
-          <p>This will include:</p>
-          <ul>
-            <li>Competitor selection and configuration</li>
-            <li>Scenario selection</li>
-            <li>Mechanism parameters</li>
-            <li>Tournament settings (repetitions, rotation, etc.)</li>
-            <li>Execution settings (parallelization, save options)</li>
-          </ul>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-secondary" @click="showNewTournamentModal = false">Cancel</button>
-        </div>
-      </div>
-    </div>
+    <!-- New Tournament Modal -->
+    <NewTournamentModal
+      :show="showNewTournamentModal"
+      @close="showNewTournamentModal = false"
+      @start="onTournamentStart"
+    />
   </div>
 </template>
 
@@ -323,6 +306,7 @@ import { ref, onMounted, watch, nextTick, onUnmounted, computed } from 'vue'
 import { useTournamentsStore } from '../stores/tournaments'
 import { storeToRefs } from 'pinia'
 import Chart from 'chart.js/auto'
+import NewTournamentModal from '../components/NewTournamentModal.vue'
 
 const tournamentsStore = useTournamentsStore()
 const {
@@ -381,6 +365,13 @@ async function cancelTournament() {
   if (confirm('Are you sure you want to cancel this tournament?')) {
     await tournamentsStore.cancelSession(currentSession.value.id)
   }
+}
+
+function onTournamentStart(data) {
+  // Start streaming the new tournament
+  showNewTournamentModal.value = false
+  tournamentsStore.startStreaming(data.session_id)
+  activeTab.value = 'grid'
 }
 
 function getCellKey(competitor, scenario) {
