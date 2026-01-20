@@ -305,16 +305,16 @@
             
             <div v-else-if="selectedScenarioPlotData" class="plot-container">
               <!-- Negotiator Selection -->
-              <div class="plot-controls" v-if="selectedScenarioStats && selectedScenarioStats.negotiator_names && selectedScenarioStats.negotiator_names.length > 1">
+              <div class="plot-controls" v-if="negotiatorNamesForPlot && negotiatorNamesForPlot.length > 1">
                 <label>X-Axis:</label>
                 <select v-model="plotNegotiator1" @change="renderPlot" class="input-select">
-                  <option v-for="(name, idx) in selectedScenarioStats.negotiator_names" :key="idx" :value="idx">
+                  <option v-for="(name, idx) in negotiatorNamesForPlot" :key="idx" :value="idx">
                     {{ name }}
                   </option>
                 </select>
                 <label>Y-Axis:</label>
                 <select v-model="plotNegotiator2" @change="renderPlot" class="input-select">
-                  <option v-for="(name, idx) in selectedScenarioStats.negotiator_names" :key="idx" :value="idx">
+                  <option v-for="(name, idx) in negotiatorNamesForPlot" :key="idx" :value="idx">
                     {{ name }}
                   </option>
                 </select>
@@ -367,6 +367,16 @@ const plotNegotiator2 = ref(1)
 // Computed properties
 const statsLoaded = computed(() => selectedScenarioStats.value !== null)
 const plotDataLoaded = computed(() => selectedScenarioPlotData.value !== null)
+const negotiatorNamesForPlot = computed(() => {
+  // Prefer stats negotiator_names, fallback to plot data negotiator_names
+  if (selectedScenarioStats.value?.negotiator_names) {
+    return selectedScenarioStats.value.negotiator_names
+  }
+  if (selectedScenarioPlotData.value?.negotiator_names) {
+    return selectedScenarioPlotData.value.negotiator_names
+  }
+  return []
+})
 
 // Load data on mount
 onMounted(async () => {
@@ -417,6 +427,8 @@ async function selectScenario(scenario) {
   if (scenario.has_stats) {
     await scenariosStore.loadScenarioStats(scenario.path)
   }
+  // Auto-load plot data
+  await scenariosStore.loadScenarioPlotData(scenario.path)
 }
 
 async function loadStats() {
@@ -433,8 +445,6 @@ async function calculateStats() {
 
 async function loadPlotData() {
   if (!selectedScenario.value) return
-  if (selectedScenarioPlotData.value) return // Already loaded
-  
   await scenariosStore.loadScenarioPlotData(selectedScenario.value.path)
 }
 
@@ -460,6 +470,7 @@ function renderPlot() {
   
   const utilities = data.outcome_utilities
   const stats = selectedScenarioStats.value
+  const names = negotiatorNamesForPlot.value
   
   // Use selected negotiators for axes
   const idx1 = plotNegotiator1.value
@@ -477,8 +488,8 @@ function renderPlot() {
     type: 'scatter',
     marker: { size: 3, color: 'rgba(59, 130, 246, 0.3)' },
     name: 'Outcomes',
-    hovertemplate: `${stats?.negotiator_names?.[idx1] || 'N1'}: %{x:.3f}<br>` +
-                   `${stats?.negotiator_names?.[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
+    hovertemplate: `${names[idx1] || 'N1'}: %{x:.3f}<br>` +
+                   `${names[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
   }
   
   const traces = [trace]
@@ -494,8 +505,8 @@ function renderPlot() {
       type: 'scatter',
       marker: { size: 5, color: 'red', symbol: 'diamond' },
       name: 'Pareto Frontier',
-      hovertemplate: `Pareto<br>${stats.negotiator_names?.[idx1] || 'N1'}: %{x:.3f}<br>` +
-                     `${stats.negotiator_names?.[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
+      hovertemplate: `Pareto<br>${names[idx1] || 'N1'}: %{x:.3f}<br>` +
+                     `${names[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
     })
   }
   
@@ -508,8 +519,8 @@ function renderPlot() {
       type: 'scatter',
       marker: { size: 10, color: 'green', symbol: 'star' },
       name: 'Nash',
-      hovertemplate: `Nash<br>${stats.negotiator_names?.[idx1] || 'N1'}: %{x:.3f}<br>` +
-                     `${stats.negotiator_names?.[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
+      hovertemplate: `Nash<br>${names[idx1] || 'N1'}: %{x:.3f}<br>` +
+                     `${names[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
     })
   }
   
@@ -522,8 +533,8 @@ function renderPlot() {
       type: 'scatter',
       marker: { size: 10, color: 'orange', symbol: 'square' },
       name: 'Kalai',
-      hovertemplate: `Kalai<br>${stats.negotiator_names?.[idx1] || 'N1'}: %{x:.3f}<br>` +
-                     `${stats.negotiator_names?.[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
+      hovertemplate: `Kalai<br>${names[idx1] || 'N1'}: %{x:.3f}<br>` +
+                     `${names[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
     })
   }
   
@@ -536,8 +547,8 @@ function renderPlot() {
       type: 'scatter',
       marker: { size: 10, color: 'purple', symbol: 'cross' },
       name: 'KS',
-      hovertemplate: `KS<br>${stats.negotiator_names?.[idx1] || 'N1'}: %{x:.3f}<br>` +
-                     `${stats.negotiator_names?.[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
+      hovertemplate: `KS<br>${names[idx1] || 'N1'}: %{x:.3f}<br>` +
+                     `${names[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
     })
   }
   
@@ -550,14 +561,14 @@ function renderPlot() {
       type: 'scatter',
       marker: { size: 10, color: 'blue', symbol: 'diamond-open' },
       name: 'Max Welfare',
-      hovertemplate: `Max Welfare<br>${stats.negotiator_names?.[idx1] || 'N1'}: %{x:.3f}<br>` +
-                     `${stats.negotiator_names?.[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
+      hovertemplate: `Max Welfare<br>${names[idx1] || 'N1'}: %{x:.3f}<br>` +
+                     `${names[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
     })
   }
   
   const layout = {
-    xaxis: { title: stats?.negotiator_names?.[idx1] || `Negotiator ${idx1}` },
-    yaxis: { title: stats?.negotiator_names?.[idx2] || `Negotiator ${idx2}` },
+    xaxis: { title: names[idx1] || `Negotiator ${idx1}` },
+    yaxis: { title: names[idx2] || `Negotiator ${idx2}` },
     hovermode: 'closest',
     margin: { l: 60, r: 20, t: 30, b: 60 },
     showlegend: true,
