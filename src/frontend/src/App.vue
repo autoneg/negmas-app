@@ -98,41 +98,22 @@
       </div>
     </div>
 
-    <!-- Settings Modal (placeholder for now) -->
-    <div v-if="showSettings" class="modal-overlay" @click.self="showSettings = false">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>Settings</h2>
-          <button class="modal-close" @click="showSettings = false">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>
-              <input type="checkbox" v-model="isDarkMode" @change="toggleDarkMode" />
-              Dark Mode
-            </label>
-          </div>
-          <div class="form-group">
-            <label>
-              <input type="checkbox" v-model="isColorBlindMode" @change="toggleColorBlindMode" />
-              Color Blind Mode
-            </label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn" @click="showSettings = false">Close</button>
-        </div>
-      </div>
-    </div>
+    <!-- Settings Modal -->
+    <SettingsModal :show="showSettings" @close="showSettings = false" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useSettingsStore } from './stores/settings'
+import SettingsModal from './components/SettingsModal.vue'
 
-// Settings state
-const isDarkMode = ref(false)
-const isColorBlindMode = ref(false)
+// Settings store
+const settingsStore = useSettingsStore()
+const { settings } = storeToRefs(settingsStore)
+
+// UI state
 const sidebarCollapsed = ref(true)
 
 // Modal states
@@ -151,42 +132,39 @@ const toastVisible = ref(false)
 const toastMessage = ref('')
 const toastType = ref('success')
 
-onMounted(() => {
-  // Load settings from localStorage
-  isDarkMode.value = localStorage.getItem('darkMode') === 'true'
-  isColorBlindMode.value = localStorage.getItem('colorBlindMode') === 'true'
+onMounted(async () => {
+  // Load settings from backend
+  await settingsStore.loadSettings()
+  
+  // Apply theme immediately
+  applyTheme()
+  
+  // Load sidebar state from localStorage
   sidebarCollapsed.value = localStorage.getItem('sidebarCollapsed') !== 'false'
-
-  // Apply classes immediately to prevent flash
-  if (isDarkMode.value) {
-    document.documentElement.classList.add('dark-mode')
-  }
-  if (isColorBlindMode.value) {
-    document.documentElement.classList.add('color-blind-mode')
-  }
 })
 
-function toggleSidebar() {
-  sidebarCollapsed.value = !sidebarCollapsed.value
-  localStorage.setItem('sidebarCollapsed', sidebarCollapsed.value.toString())
-}
+// Watch for settings changes to apply theme
+watch(() => settings.value, () => {
+  applyTheme()
+}, { deep: true })
 
-function toggleDarkMode() {
-  localStorage.setItem('darkMode', isDarkMode.value.toString())
-  if (isDarkMode.value) {
+function applyTheme() {
+  if (settings.value?.general?.dark_mode) {
     document.documentElement.classList.add('dark-mode')
   } else {
     document.documentElement.classList.remove('dark-mode')
   }
-}
-
-function toggleColorBlindMode() {
-  localStorage.setItem('colorBlindMode', isColorBlindMode.value.toString())
-  if (isColorBlindMode.value) {
+  
+  if (settings.value?.general?.color_blind_mode) {
     document.documentElement.classList.add('color-blind-mode')
   } else {
     document.documentElement.classList.remove('color-blind-mode')
   }
+}
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  localStorage.setItem('sidebarCollapsed', sidebarCollapsed.value.toString())
 }
 
 function openNewNegotiation() {
