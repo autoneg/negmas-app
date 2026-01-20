@@ -436,7 +436,7 @@ async def get_negotiator(type_name: str):
     """
     info = await asyncio.to_thread(NegotiatorFactory.get_info, type_name)
     if info is None:
-        return {"error": "Negotiator not found"}, 404
+        raise HTTPException(status_code=404, detail="Negotiator not found")
     return {
         "type_name": info.type_name,
         "name": info.name,
