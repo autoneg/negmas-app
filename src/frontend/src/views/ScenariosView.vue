@@ -325,14 +325,24 @@
         </div>
       </div>
     </div>
+    
+    <!-- New Negotiation Modal -->
+    <NewNegotiationModal
+      :show="showNewNegotiationModal"
+      :preselected-scenario="selectedScenario"
+      @close="showNewNegotiationModal = false"
+      @start="onNegotiationStart"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { useScenariosStore } from '../stores/scenarios'
 import { storeToRefs } from 'pinia'
 import Plotly from 'plotly.js-dist-min'
+import NewNegotiationModal from '../components/NewNegotiationModal.vue'
 
 const scenariosStore = useScenariosStore()
 const {
@@ -363,6 +373,8 @@ const localFilters = ref({
 const plotDiv = ref(null)
 const plotNegotiator1 = ref(0)
 const plotNegotiator2 = ref(1)
+const showNewNegotiationModal = ref(false)
+const router = useRouter()
 
 // Computed properties
 const statsLoaded = computed(() => selectedScenarioStats.value !== null)
@@ -584,8 +596,15 @@ function formatUtilityList(utils) {
 }
 
 function openNewNegotiation() {
-  // TODO: Emit event or navigate to negotiations with this scenario selected
-  console.log('Open new negotiation with scenario:', selectedScenario.value)
+  showNewNegotiationModal.value = true
+}
+
+function onNegotiationStart(data) {
+  // Navigate to negotiations view and start streaming
+  router.push({
+    name: 'negotiations',
+    query: { session_id: data.session_id }
+  })
 }
 
 function formatNumber(num) {
