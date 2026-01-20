@@ -488,15 +488,18 @@
 }
 
 /* Stacked panel resize handle */
-.stacked-resize-h {
+.stacked-resize-h,
+.stack-resize-handle {
     height: 6px;
     cursor: row-resize;
     background: transparent;
     position: relative;
     flex-shrink: 0;
+    z-index: 5;
 }
 
-.stacked-resize-h::after {
+.stacked-resize-h::after,
+.stack-resize-handle::after {
     content: '';
     position: absolute;
     top: 50%;
@@ -510,7 +513,9 @@
     transition: opacity 0.15s;
 }
 
-.stacked-resize-h:hover::after {
+.stacked-resize-h:hover::after,
+.stack-resize-handle:hover::after,
+.stack-resize-handle.dragging::after {
     opacity: 1;
 }
 

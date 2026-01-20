@@ -209,6 +209,10 @@ const LayoutRenderer = {
                     handle.dataset.zoneId = zoneId;
                     handle.dataset.above = panelId;
                     handle.dataset.below = zoneConfig.panels[idx + 1];
+                    
+                    // Add mousedown event listener for resizing
+                    handle.addEventListener('mousedown', (e) => this._startStackResize(e, handle, zoneId, panelId, zoneConfig.panels[idx + 1]));
+                    
                     panelContainer.appendChild(handle);
                 }
             });
@@ -557,6 +561,77 @@ const LayoutRenderer = {
         
         document.removeEventListener('mousemove', this._boundOnResize);
         document.removeEventListener('mouseup', this._boundEndResize);
+        
+        // Trigger resize event for Plotly charts
+        window.dispatchEvent(new Event('resize'));
+    },
+    
+    /**
+     * Start resizing stacked panels
+     */
+    _startStackResize(e, handle, zoneId, abovePanelId, belowPanelId) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const abovePanel = this._container.querySelector(`[data-zone-id="${zoneId}"] [data-panel-id="${abovePanelId}"]`);
+        const belowPanel = this._container.querySelector(`[data-zone-id="${zoneId}"] [data-panel-id="${belowPanelId}"]`);
+        
+        if (!abovePanel || !belowPanel) return;
+        
+        this._stackResizing = {
+            handle,
+            zoneId,
+            abovePanel,
+            belowPanel,
+            startY: e.clientY,
+            startAboveHeight: abovePanel.offsetHeight,
+            startBelowHeight: belowPanel.offsetHeight,
+            totalHeight: abovePanel.offsetHeight + belowPanel.offsetHeight
+        };
+        
+        handle.classList.add('dragging');
+        document.body.classList.add('resizing');
+        document.body.style.cursor = 'row-resize';
+        
+        this._boundOnStackResize = this._onStackResize.bind(this);
+        this._boundEndStackResize = this._endStackResize.bind(this);
+        
+        document.addEventListener('mousemove', this._boundOnStackResize);
+        document.addEventListener('mouseup', this._boundEndStackResize);
+    },
+    
+    /**
+     * Handle stack resize movement
+     */
+    _onStackResize(e) {
+        if (!this._stackResizing) return;
+        
+        const { abovePanel, belowPanel, startY, totalHeight } = this._stackResizing;
+        const deltaY = e.clientY - startY;
+        
+        // Calculate new heights
+        const aboveHeight = Math.max(50, this._stackResizing.startAboveHeight + deltaY);
+        const belowHeight = Math.max(50, totalHeight - aboveHeight);
+        
+        // Apply new heights
+        abovePanel.style.flex = `0 0 ${aboveHeight}px`;
+        belowPanel.style.flex = `0 0 ${belowHeight}px`;
+    },
+    
+    /**
+     * End stack resize operation
+     */
+    _endStackResize() {
+        if (this._stackResizing) {
+            this._stackResizing.handle.classList.remove('dragging');
+            this._stackResizing = null;
+        }
+        
+        document.body.classList.remove('resizing');
+        document.body.style.cursor = '';
+        
+        document.removeEventListener('mousemove', this._boundOnStackResize);
+        document.removeEventListener('mouseup', this._boundEndStackResize);
         
         // Trigger resize event for Plotly charts
         window.dispatchEvent(new Event('resize'));
