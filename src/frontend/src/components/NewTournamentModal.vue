@@ -20,7 +20,9 @@
               <label class="form-label">Load Preset</label>
               <select v-model="selectedPreset" class="form-select" @change="loadPreset">
                 <option value="">-- Select preset --</option>
-                <option v-for="preset in presets" :key="preset" :value="preset">{{ preset }}</option>
+                <option v-for="preset in tournamentsStore.tournamentPresets" :key="preset.name" :value="preset.name">
+                  {{ preset.name }}
+                </option>
               </select>
             </div>
             
@@ -816,8 +818,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import DualListSelector from './DualListSelector.vue'
+import { useTournamentsStore } from '../stores/tournaments'
+
+const tournamentsStore = useTournamentsStore()
 
 const props = defineProps({
   show: Boolean,
@@ -1045,14 +1050,141 @@ const goToReview = () => {
   currentTab.value = 'review'
 }
 
-const loadPreset = () => {
-  // TODO: Load preset configuration
-  console.log('Load preset:', selectedPreset.value)
+const loadPreset = async () => {
+  if (!selectedPreset.value) return
+  
+  const preset = tournamentsStore.tournamentPresets.find(p => p.name === selectedPreset.value)
+  if (!preset) return
+  
+  // Load scenarios
+  selectedScenarios.value = scenarios.value.filter(s => 
+    preset.scenario_paths.includes(s.path)
+  )
+  
+  // Load competitors
+  selectedCompetitors.value = negotiators.value.filter(n => 
+    preset.competitor_types.includes(n.type_name)
+  )
+  
+  // Load opponents
+  if (preset.opponents_same_as_competitors) {
+    opponentsSameAsCompetitors.value = true
+    selectedOpponents.value = []
+  } else {
+    opponentsSameAsCompetitors.value = false
+    selectedOpponents.value = negotiators.value.filter(n => 
+      preset.opponent_types && preset.opponent_types.includes(n.type_name)
+    )
+  }
+  
+  // Load settings
+  settings.value.nRepetitions = preset.n_repetitions || 1
+  settings.value.mechanismType = preset.mechanism_type || 'SAOMechanism'
+  settings.value.rotateUfuns = preset.rotate_ufuns ?? true
+  settings.value.selfPlay = preset.self_play ?? true
+  settings.value.finalScoreMetric = preset.final_score_metric || 'advantage'
+  settings.value.finalScoreStat = preset.final_score_stat || 'mean'
+  settings.value.normalization = preset.normalization || 'normalize'
+  settings.value.ignoreDiscount = preset.ignore_discount ?? false
+  settings.value.ignoreReserved = preset.ignore_reserved ?? false
+  
+  // Steps/time limits
+  if (preset.n_steps_min && preset.n_steps_max) {
+    settings.value.nStepsRangeEnabled = true
+    settings.value.nStepsMin = preset.n_steps_min
+    settings.value.nStepsMax = preset.n_steps_max
+  } else {
+    settings.value.nStepsRangeEnabled = false
+    settings.value.nSteps = preset.n_steps || 100
+  }
+  
+  if (preset.time_limit_min && preset.time_limit_max) {
+    settings.value.timeLimitRangeEnabled = true
+    settings.value.timeLimitMin = preset.time_limit_min
+    settings.value.timeLimitMax = preset.time_limit_max
+  } else {
+    settings.value.timeLimitRangeEnabled = false
+    settings.value.timeLimit = preset.time_limit || 0
+  }
+  
+  // Advanced settings
+  settings.value.stepTimeLimit = preset.step_time_limit
+  settings.value.negotiatorTimeLimit = preset.negotiator_time_limit
+  settings.value.hiddenTimeLimit = preset.hidden_time_limit
+  settings.value.pend = preset.pend || 0
+  settings.value.pendPerSecond = preset.pend_per_second || 0
+  settings.value.idRevealsType = preset.id_reveals_type ?? false
+  settings.value.nameRevealsType = preset.name_reveals_type ?? true
+  settings.value.maskScenarioNames = preset.mask_scenario_names ?? false
+  settings.value.randomizeRuns = preset.randomize_runs ?? false
+  settings.value.sortRuns = preset.sort_runs ?? true
+  settings.value.onlyFailuresOnSelfPlay = preset.only_failures_on_self_play ?? false
+  settings.value.saveStats = preset.save_stats ?? true
+  settings.value.saveScenarioFigs = preset.save_scenario_figs ?? true
+  settings.value.saveEvery = preset.save_every || 0
+  settings.value.passOpponentUfun = preset.pass_opponent_ufun ?? false
+  settings.value.raiseExceptions = preset.raise_exceptions ?? false
+  settings.value.storageOptimization = preset.storage_optimization || 'balanced'
+  settings.value.memoryOptimization = preset.memory_optimization || 'balanced'
+  settings.value.storageFormat = preset.storage_format || ''
 }
 
-const savePreset = () => {
-  // TODO: Save current configuration as preset
-  console.log('Save preset:', presetName.value)
+function buildTournamentPreset(name) {
+  return {
+    name,
+    scenario_paths: selectedScenarios.value.map(s => s.path),
+    competitor_types: selectedCompetitors.value.map(c => c.type_name),
+    competitor_configs: {}, // TODO: Handle custom params
+    opponent_types: opponentsSameAsCompetitors.value ? null : selectedOpponents.value.map(o => o.type_name),
+    opponents_same_as_competitors: opponentsSameAsCompetitors.value,
+    n_repetitions: settings.value.nRepetitions,
+    rotate_ufuns: settings.value.rotateUfuns,
+    self_play: settings.value.selfPlay,
+    mechanism_type: settings.value.mechanismType,
+    n_steps: settings.value.nStepsRangeEnabled ? null : settings.value.nSteps,
+    n_steps_min: settings.value.nStepsRangeEnabled ? settings.value.nStepsMin : null,
+    n_steps_max: settings.value.nStepsRangeEnabled ? settings.value.nStepsMax : null,
+    time_limit: settings.value.timeLimitRangeEnabled ? null : (settings.value.timeLimit || null),
+    time_limit_min: settings.value.timeLimitRangeEnabled ? settings.value.timeLimitMin : null,
+    time_limit_max: settings.value.timeLimitRangeEnabled ? settings.value.timeLimitMax : null,
+    step_time_limit: settings.value.stepTimeLimit,
+    negotiator_time_limit: settings.value.negotiatorTimeLimit,
+    hidden_time_limit: settings.value.hiddenTimeLimit,
+    pend: settings.value.pend,
+    pend_per_second: settings.value.pendPerSecond,
+    final_score_metric: settings.value.finalScoreMetric,
+    final_score_stat: settings.value.finalScoreStat,
+    randomize_runs: settings.value.randomizeRuns,
+    sort_runs: settings.value.sortRuns,
+    id_reveals_type: settings.value.idRevealsType,
+    name_reveals_type: settings.value.nameRevealsType,
+    mask_scenario_names: settings.value.maskScenarioNames,
+    only_failures_on_self_play: settings.value.onlyFailuresOnSelfPlay,
+    save_stats: settings.value.saveStats,
+    save_scenario_figs: settings.value.saveScenarioFigs,
+    save_every: settings.value.saveEvery,
+    pass_opponent_ufun: settings.value.passOpponentUfun,
+    raise_exceptions: settings.value.raiseExceptions,
+    storage_optimization: settings.value.storageOptimization,
+    memory_optimization: settings.value.memoryOptimization,
+    storage_format: settings.value.storageFormat,
+    normalization: settings.value.normalization,
+    ignore_discount: settings.value.ignoreDiscount,
+    ignore_reserved: settings.value.ignoreReserved,
+  }
+}
+
+const savePreset = async () => {
+  if (!presetName.value.trim()) return
+  
+  const preset = buildTournamentPreset(presetName.value.trim())
+  await tournamentsStore.saveTournamentPreset(preset)
+  
+  // Refresh presets list
+  await tournamentsStore.loadTournamentPresets()
+  
+  // Clear preset name
+  presetName.value = ''
 }
 
 const startTournament = async () => {
@@ -1156,6 +1288,13 @@ watch(() => props.show, (newShow) => {
     selectedOpponents.value = []
     opponentsSameAsCompetitors.value = true
     loadData()
+    tournamentsStore.loadTournamentPresets()
+  }
+})
+
+onMounted(() => {
+  if (props.show) {
+    tournamentsStore.loadTournamentPresets()
   }
 })
 </script>

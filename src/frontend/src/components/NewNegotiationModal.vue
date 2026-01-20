@@ -5,16 +5,75 @@
         <h2 class="modal-title">Start New Negotiation</h2>
         <div class="modal-header-actions">
           <!-- Recent Sessions Dropdown -->
-          <div class="dropdown" v-if="false">
-            <button class="btn btn-sm btn-secondary">
+          <div class="dropdown">
+            <button class="btn btn-sm btn-secondary" @click="recentDropdownOpen = !recentDropdownOpen; loadRecentSessions()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                 <circle cx="12" cy="12" r="10"></circle>
                 <polyline points="12 6 12 12 16 14"></polyline>
               </svg>
               Recent
             </button>
+            <div v-if="recentDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
+              <div v-if="negotiationsStore.recentSessions.length === 0" class="dropdown-item text-muted">
+                No recent sessions
+              </div>
+              <div
+                v-for="session in negotiationsStore.recentSessions"
+                :key="session.name + session.last_used_at"
+                class="dropdown-item"
+                @click="loadFullSession(session); recentDropdownOpen = false"
+              >
+                <div class="font-medium">{{ session.scenario_name }}</div>
+                <div class="text-muted" style="font-size: 11px;">
+                  {{ session.negotiators.map(n => n.name).join(' vs ') }}
+                </div>
+              </div>
+            </div>
           </div>
-          <!-- TODO: Session management -->
+          
+          <!-- Saved Sessions Dropdown -->
+          <div class="dropdown">
+            <button class="btn btn-sm btn-secondary" @click="savedDropdownOpen = !savedDropdownOpen; loadSessionPresets()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              Load
+            </button>
+            <div v-if="savedDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
+              <div v-if="negotiationsStore.sessionPresets.length === 0" class="dropdown-item text-muted">
+                No saved sessions
+              </div>
+              <div
+                v-for="preset in negotiationsStore.sessionPresets"
+                :key="preset.name"
+                class="dropdown-item"
+                style="display: flex; justify-content: space-between; align-items: center;"
+              >
+                <div @click="loadFullSession(preset); savedDropdownOpen = false" style="flex: 1; cursor: pointer;">
+                  <div class="font-medium">{{ preset.name }}</div>
+                  <div class="text-muted" style="font-size: 11px;">{{ preset.scenario_name }}</div>
+                </div>
+                <button class="btn-icon-sm" @click.stop="deleteSessionPreset(preset.name)" title="Delete">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Save Session Button -->
+          <button class="btn btn-sm btn-primary" @click="showSaveModal = true" :disabled="!selectedScenario">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            Save
+          </button>
         </div>
         <button class="modal-close" @click="$emit('close')">×</button>
       </div>
@@ -980,11 +1039,42 @@
         <button v-if="currentTab !== 'display'" class="btn btn-primary" @click="nextTab" :disabled="!canProceed">
           Next
         </button>
+        <button v-if="currentTab === 'display'" class="btn btn-secondary" @click="startWithoutMonitoring" :disabled="starting">
+          Start without Monitoring
+        </button>
         <button v-if="currentTab === 'display'" class="btn btn-primary" @click="startNegotiation" :disabled="starting">
           {{ starting ? 'Starting...' : 'Start Negotiation' }}
         </button>
-        <button v-if="currentTab === 'display'" class="btn btn-secondary" @click="startWithoutMonitoring" :disabled="starting">
-          Start without Monitoring
+      </div>
+    </div>
+  </div>
+  
+  <!-- Save Session Modal -->
+  <div v-if="showSaveModal" class="modal-overlay active" @click.self="showSaveModal = false">
+    <div class="modal small">
+      <div class="modal-header">
+        <h2 class="modal-title">Save Session Configuration</h2>
+        <button class="modal-close" @click="showSaveModal = false">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Configuration Name</label>
+          <input
+            type="text"
+            class="form-input"
+            v-model="savePresetName"
+            placeholder="e.g., My Default Setup"
+            @keyup.enter="saveFullSession"
+          />
+          <div class="form-hint">
+            Give this configuration a memorable name so you can easily load it later
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="showSaveModal = false">Cancel</button>
+        <button class="btn btn-primary" @click="saveFullSession" :disabled="!savePresetName.trim()">
+          Save Configuration
         </button>
       </div>
     </div>
@@ -992,7 +1082,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useNegotiationsStore } from '../stores/negotiations'
+
+const negotiationsStore = useNegotiationsStore()
 
 const props = defineProps({
   show: Boolean,
@@ -1134,6 +1227,12 @@ const displayOptions = ref({
 })
 const autoSave = ref(true)
 const starting = ref(false)
+
+// Session preset management
+const showSaveModal = ref(false)
+const savePresetName = ref('')
+const recentDropdownOpen = ref(false)
+const savedDropdownOpen = ref(false)
 
 // Computed
 const filteredScenarios = computed(() => {
@@ -1420,6 +1519,10 @@ async function startNegotiation() {
 
     const data = await response.json()
     
+    // Add to recent sessions
+    const preset = buildSessionPreset(selectedScenario.value.name)
+    await negotiationsStore.addToRecentSessions(preset)
+    
     // TODO: Store mode and panels in session/local storage for UI state
     // These don't need to be sent to backend
     
@@ -1481,6 +1584,109 @@ async function loadNegotiators() {
   }
 }
 
+// Session preset management functions
+async function loadRecentSessions() {
+  await negotiationsStore.loadRecentSessions()
+}
+
+async function loadSessionPresets() {
+  await negotiationsStore.loadSessionPresets()
+}
+
+function buildSessionPreset(name) {
+  return {
+    name,
+    scenario_path: selectedScenario.value?.path,
+    scenario_name: selectedScenario.value?.name,
+    negotiators: negotiators.value.map(n => ({
+      type_name: n.type_name,
+      name: n.name,
+      source: n.source || 'native',
+      requires_bridge: n.requires_bridge || false,
+      params: n.params || {}
+    })),
+    mechanism_type: mechanismType.value,
+    mechanism_params: mechanismParams.value,
+    share_ufuns: shareUfuns.value,
+    mode: runMode.value,
+    step_delay: stepDelay.value,
+    show_plot: displayOptions.value.showPlot,
+    show_offers: displayOptions.value.showOffers,
+    panels: panels.value
+  }
+}
+
+async function saveFullSession() {
+  if (!savePresetName.value.trim() || !selectedScenario.value) return
+  
+  const preset = buildSessionPreset(savePresetName.value.trim())
+  await negotiationsStore.saveSessionPreset(preset)
+  
+  showSaveModal.value = false
+  savePresetName.value = ''
+}
+
+async function deleteSessionPreset(name) {
+  if (confirm(`Delete preset "${name}"?`)) {
+    await negotiationsStore.deleteSessionPreset(name)
+    await loadSessionPresets()
+  }
+}
+
+function loadFullSession(session) {
+  // Find the scenario in the loaded scenarios
+  const scenario = scenarios.value.find(s => s.path === session.scenario_path)
+  
+  // Set scenario
+  selectedScenario.value = scenario || { 
+    path: session.scenario_path, 
+    name: session.scenario_name,
+    n_negotiators: session.negotiators?.length || 2
+  }
+  
+  // Set negotiators
+  negotiators.value = (session.negotiators || []).map((n, i) => ({
+    type_name: n.type_name,
+    name: n.name || `Agent${i + 1}`,
+    source: n.source || 'native',
+    requires_bridge: n.requires_bridge || false,
+    params: n.params || {}
+  }))
+  
+  // Ensure we have the right number of slots
+  const requiredSlots = selectedScenario.value.n_negotiators || 2
+  while (negotiators.value.length < requiredSlots) {
+    negotiators.value.push(null)
+  }
+  
+  // Set mechanism
+  mechanismType.value = session.mechanism_type || 'SAOMechanism'
+  shareUfuns.value = session.share_ufuns ?? false
+  
+  // Set mechanism params
+  if (session.mechanism_params) {
+    Object.assign(mechanismParams.value, session.mechanism_params)
+  }
+  
+  // Set display options
+  runMode.value = session.mode || 'realtime'
+  stepDelay.value = session.step_delay ?? 100
+  displayOptions.value.showPlot = session.show_plot ?? true
+  displayOptions.value.showOffers = session.show_offers ?? true
+  
+  // Set panels
+  if (session.panels) {
+    Object.assign(panels.value, session.panels)
+  }
+  
+  // Jump to display tab
+  currentTab.value = 'display'
+  
+  // Close dropdown
+  recentDropdownOpen.value = false
+  savedDropdownOpen.value = false
+}
+
 // Watch for modal open/close
 watch(() => props.show, (newShow) => {
   if (newShow) {
@@ -1490,6 +1696,8 @@ watch(() => props.show, (newShow) => {
     negotiators.value = []
     loadScenarios()
     loadNegotiators()
+    loadRecentSessions()
+    loadSessionPresets()
   }
 })
 
@@ -1498,6 +1706,18 @@ onMounted(() => {
     loadScenarios()
     loadNegotiators()
   }
+  
+  // Close dropdowns on outside click
+  document.addEventListener('click', closeDropdowns)
+})
+
+function closeDropdowns() {
+  recentDropdownOpen.value = false
+  savedDropdownOpen.value = false
+}
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeDropdowns)
 })
 </script>
 
@@ -1529,6 +1749,10 @@ onMounted(() => {
 
 .modal.large {
   max-width: 1400px;
+}
+
+.modal.small {
+  max-width: 500px;
 }
 
 .modal-header {

@@ -74,7 +74,78 @@
         </div>
       </div>
       
-      <div v-if="sessions.length === 0 && !loading" class="empty-state-sm">
+      <!-- Saved Tournaments Section -->
+      <div class="session-group" style="margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h4>Saved ({{ savedTournaments.length }})</h4>
+          <div style="display: flex; gap: 4px;">
+            <button 
+              class="btn-sm btn-secondary" 
+              @click="loadSavedTourn" 
+              :disabled="savedTournamentsLoading"
+              title="Load saved tournaments"
+            >
+              {{ savedTournamentsLoading ? '⟳' : '↻' }}
+            </button>
+          </div>
+        </div>
+        
+        <!-- Filters -->
+        <div style="display: flex; gap: 4px; margin-bottom: 8px;" v-if="savedTournaments.length > 0">
+          <select 
+            class="form-select-sm" 
+            v-model="tournamentTagFilter" 
+            @change="filterSavedTournaments"
+            style="flex: 1; font-size: 0.75rem;"
+          >
+            <option value="">All tags</option>
+            <option v-for="tag in availableTournamentTags" :key="tag" :value="tag">{{ tag }}</option>
+          </select>
+          <label style="display: flex; align-items: center; gap: 4px; font-size: 0.7rem; white-space: nowrap;">
+            <input type="checkbox" v-model="showArchivedTournaments" @change="loadSavedTourn">
+            <span>Archived</span>
+          </label>
+        </div>
+        
+        <!-- Saved tournaments list -->
+        <div class="session-list" style="max-height: 400px; overflow-y: auto;" v-if="filteredSavedTournaments.length > 0">
+          <div
+            v-for="tourn in filteredSavedTournaments"
+            :key="tourn.id"
+            class="session-item saved"
+            :class="{ active: currentSession?.id === tourn.id }"
+          >
+            <div class="session-name" @click="viewSavedTournament(tourn)">{{ tourn.name || tourn.id.slice(0, 8) }}</div>
+            <div class="session-meta" style="font-size: 0.7rem;">
+              <span class="text-muted">{{ tourn.n_competitors }} competitors</span>
+              <span class="text-muted">{{ tourn.n_scenarios }} scenarios</span>
+            </div>
+            <div v-if="tourn.tags && tourn.tags.length > 0" style="display: flex; gap: 2px; flex-wrap: wrap; margin-top: 4px;">
+              <span 
+                v-for="tag in tourn.tags" 
+                :key="tag" 
+                class="badge badge-sm badge-neutral"
+                style="font-size: 0.65rem;"
+              >
+                {{ tag }}
+              </span>
+            </div>
+            <div style="display: flex; gap: 4px; margin-top: 6px;">
+              <button class="btn-xs btn-ghost" @click.stop="editTournamentTags(tourn)" title="Edit tags">🏷️</button>
+              <button class="btn-xs btn-ghost" @click.stop="deleteSavedTourn(tourn.id)" title="Delete">🗑️</button>
+            </div>
+          </div>
+        </div>
+        
+        <div v-else-if="savedTournamentsLoading" class="empty-state-sm">
+          Loading...
+        </div>
+        <div v-else class="empty-state-sm">
+          No saved tournaments
+        </div>
+      </div>
+      
+      <div v-if="sessions.length === 0 && !loading && savedTournaments.length === 0" class="empty-state-sm">
         No tournaments yet
       </div>
     </div>
@@ -292,6 +363,92 @@
       </div>
     </div>
     
+    <!-- Tag Editor Modal -->
+    <Teleport to="body">
+      <div 
+        v-if="tagEditorTournament" 
+        class="modal-overlay active"
+        @click.self="closeTournamentTagEditor"
+      >
+        <div class="modal" style="max-width: 400px;">
+          <div class="modal-header">
+            <h2 class="modal-title">Edit Tags</h2>
+            <button class="btn btn-ghost btn-sm" @click="closeTournamentTagEditor">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body" style="padding: 16px;">
+            <div class="text-muted" style="font-size: 12px; margin-bottom: 8px;">
+              Tournament: <code>{{ tagEditorTournament?.id?.slice(0, 12) }}</code>
+            </div>
+            
+            <!-- Current tags -->
+            <div style="margin-bottom: 16px;">
+              <div style="display: flex; flex-wrap: wrap; gap: 4px; min-height: 32px; padding: 8px; background: var(--bg-secondary); border-radius: 4px;">
+                <span 
+                  v-for="tag in tagEditorTags" 
+                  :key="tag" 
+                  class="badge badge-primary" 
+                  style="display: flex; align-items: center; gap: 4px;"
+                >
+                  <span>{{ tag }}</span>
+                  <button 
+                    @click="removeTagFromTournamentEditor(tag)" 
+                    style="background: none; border: none; padding: 0; cursor: pointer; color: inherit; opacity: 0.7;"
+                  >
+                    ×
+                  </button>
+                </span>
+                <span v-if="tagEditorTags.length === 0" class="text-muted">No tags</span>
+              </div>
+            </div>
+            
+            <!-- Add new tag -->
+            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+              <input 
+                type="text" 
+                class="form-input" 
+                placeholder="Add new tag..." 
+                v-model="newTournamentTagInput" 
+                @keydown.enter.prevent="addNewTournamentTag"
+                style="flex: 1;"
+              >
+              <button 
+                class="btn btn-secondary btn-sm" 
+                @click="addNewTournamentTag" 
+                :disabled="!newTournamentTagInput.trim()"
+              >
+                Add
+              </button>
+            </div>
+            
+            <!-- Existing tags suggestions -->
+            <div v-if="availableTournamentTags.length > 0" style="margin-bottom: 16px;">
+              <div class="text-muted" style="font-size: 11px; margin-bottom: 4px;">Quick add:</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                <button 
+                  v-for="tag in availableTournamentTags.filter(t => !tagEditorTags.includes(t)).slice(0, 10)" 
+                  :key="tag" 
+                  class="badge badge-neutral" 
+                  style="cursor: pointer; border: none;"
+                  @click="tagEditorTags.push(tag)"
+                >
+                  {{ tag }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="closeTournamentTagEditor">Cancel</button>
+            <button class="btn btn-primary" @click="saveTournamentTagsFromEditor">Save Tags</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+    
     <!-- New Tournament Modal (teleported to body to avoid overflow clipping) -->
     <Teleport to="body">
       <NewTournamentModal
@@ -324,6 +481,11 @@ const {
   runningSessions,
   completedSessions,
   failedSessions,
+  savedTournaments,
+  savedTournamentsLoading,
+  showArchivedTournaments,
+  tournamentTagFilter,
+  availableTournamentTags,
 } = storeToRefs(tournamentsStore)
 
 const activeTab = ref('grid')
@@ -332,6 +494,20 @@ const scoresChart = ref(null)
 const agreementsChart = ref(null)
 let scoresChartInstance = null
 let agreementsChartInstance = null
+
+// Tag editor for tournaments
+const tagEditorTournament = ref(null)
+const tagEditorTags = ref([])
+const newTournamentTagInput = ref('')
+
+// Filtered saved tournaments
+const filteredSavedTournaments = computed(() => {
+  let result = savedTournaments.value
+  if (tournamentTagFilter.value) {
+    result = result.filter(t => t.tags && t.tags.includes(tournamentTagFilter.value))
+  }
+  return result
+})
 
 onMounted(async () => {
   await loadData()
@@ -345,6 +521,80 @@ onUnmounted(() => {
 
 async function loadData() {
   await tournamentsStore.loadSessions()
+  await tournamentsStore.loadSavedTournaments(showArchivedTournaments.value)
+}
+
+async function loadSavedTourn() {
+  await tournamentsStore.loadSavedTournaments(showArchivedTournaments.value)
+}
+
+function filterSavedTournaments() {
+  // Filtering is done via computed property
+}
+
+async function viewSavedTournament(tourn) {
+  // Load the full saved tournament data
+  const data = await tournamentsStore.loadSavedTournament(tourn.id)
+  if (data) {
+    // Create a session-like object and select it
+    const session = {
+      id: data.id,
+      name: data.name || data.id,
+      status: 'completed',
+      n_competitors: data.n_competitors,
+      n_scenarios: data.n_scenarios,
+      isSaved: true,
+    }
+    
+    tournamentsStore.selectSession(session)
+    
+    // TODO: Populate grid and leaderboard data from saved tournament
+    // For now, we'll need to fetch the scores and details
+    activeTab.value = 'leaderboard'
+  }
+}
+
+async function deleteSavedTourn(tournamentId) {
+  if (confirm('Are you sure you want to delete this saved tournament?')) {
+    await tournamentsStore.deleteSavedTournament(tournamentId)
+  }
+}
+
+function editTournamentTags(tourn) {
+  tagEditorTournament.value = tourn
+  tagEditorTags.value = [...(tourn.tags || [])]
+  newTournamentTagInput.value = ''
+}
+
+function closeTournamentTagEditor() {
+  tagEditorTournament.value = null
+  tagEditorTags.value = []
+  newTournamentTagInput.value = ''
+}
+
+function removeTagFromTournamentEditor(tag) {
+  const index = tagEditorTags.value.indexOf(tag)
+  if (index > -1) {
+    tagEditorTags.value.splice(index, 1)
+  }
+}
+
+function addNewTournamentTag() {
+  const tag = newTournamentTagInput.value.trim()
+  if (tag && !tagEditorTags.value.includes(tag)) {
+    tagEditorTags.value.push(tag)
+    newTournamentTagInput.value = ''
+  }
+}
+
+async function saveTournamentTagsFromEditor() {
+  if (tagEditorTournament.value) {
+    await tournamentsStore.updateTournamentTags(
+      tagEditorTournament.value.id,
+      tagEditorTags.value
+    )
+    closeTournamentTagEditor()
+  }
 }
 
 function selectAndViewSession(session) {

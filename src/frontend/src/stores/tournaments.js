@@ -14,6 +14,16 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   const leaderboard = ref([])
   const progress = ref(null)
   const tournamentComplete = ref(null)
+  
+  // Tournament presets (saved configurations)
+  const tournamentPresets = ref([])
+  
+  // Saved tournaments
+  const savedTournaments = ref([])
+  const savedTournamentsLoading = ref(false)
+  const showArchivedTournaments = ref(false)
+  const tournamentTagFilter = ref('')
+  const availableTournamentTags = ref([])
 
   async function loadSessions() {
     loading.value = true
@@ -157,6 +167,130 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     currentSession.value = session
   }
 
+  // Tournament preset management
+  async function loadTournamentPresets() {
+    try {
+      const response = await fetch('/api/settings/presets/tournaments')
+      if (response.ok) {
+        const data = await response.json()
+        tournamentPresets.value = data.presets || []
+      }
+    } catch (error) {
+      console.error('Failed to load tournament presets:', error)
+      tournamentPresets.value = []
+    }
+  }
+
+  async function saveTournamentPreset(preset) {
+    try {
+      const response = await fetch('/api/settings/presets/tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(preset)
+      })
+      if (response.ok) {
+        await loadTournamentPresets()
+        return await response.json()
+      }
+    } catch (error) {
+      console.error('Failed to save tournament preset:', error)
+      return null
+    }
+  }
+
+  async function deleteTournamentPreset(name) {
+    try {
+      const response = await fetch(`/api/settings/presets/tournaments/${encodeURIComponent(name)}`, {
+        method: 'DELETE'
+      })
+      if (response.ok) {
+        await loadTournamentPresets()
+        return await response.json()
+      }
+    } catch (error) {
+      console.error('Failed to delete tournament preset:', error)
+      return null
+    }
+  }
+
+  // Saved tournaments management
+  async function loadSavedTournaments(includeArchived = false) {
+    savedTournamentsLoading.value = true
+    try {
+      const params = new URLSearchParams()
+      if (includeArchived !== null) {
+        params.append('archived', includeArchived)
+      }
+      if (tournamentTagFilter.value) {
+        params.append('tags', tournamentTagFilter.value)
+      }
+
+      const response = await fetch(`/api/tournament/saved/list?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        savedTournaments.value = data.tournaments || []
+        
+        // Extract unique tags
+        const tags = new Set()
+        savedTournaments.value.forEach(t => {
+          if (t.tags) {
+            t.tags.forEach(tag => tags.add(tag))
+          }
+        })
+        availableTournamentTags.value = Array.from(tags)
+        
+        return data
+      }
+      savedTournaments.value = []
+      return null
+    } catch (error) {
+      console.error('Failed to load saved tournaments:', error)
+      savedTournaments.value = []
+      return null
+    } finally {
+      savedTournamentsLoading.value = false
+    }
+  }
+
+  async function loadSavedTournament(tournamentId) {
+    try {
+      const response = await fetch(`/api/tournament/saved/${tournamentId}`)
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Failed to load saved tournament:', error)
+      return null
+    }
+  }
+
+  async function deleteSavedTournament(tournamentId) {
+    try {
+      const response = await fetch(`/api/tournament/saved/${tournamentId}`, {
+        method: 'DELETE'
+      })
+      await loadSavedTournaments(showArchivedTournaments.value)
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to delete saved tournament:', error)
+      return null
+    }
+  }
+
+  async function updateTournamentTags(tournamentId, tags) {
+    try {
+      const response = await fetch(`/api/tournament/saved/${tournamentId}/tags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags })
+      })
+      await loadSavedTournaments(showArchivedTournaments.value)
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to update tournament tags:', error)
+      return null
+    }
+  }
+
   // Computed: Group sessions by status
   const runningSessions = computed(() => {
     return sessions.value.filter(s => s.status === 'running' || s.status === 'pending')
@@ -180,6 +314,12 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     leaderboard,
     progress,
     tournamentComplete,
+    tournamentPresets,
+    savedTournaments,
+    savedTournamentsLoading,
+    showArchivedTournaments,
+    tournamentTagFilter,
+    availableTournamentTags,
     runningSessions,
     completedSessions,
     failedSessions,
@@ -192,5 +332,12 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     getProgress,
     getResults,
     selectSession,
+    loadTournamentPresets,
+    saveTournamentPreset,
+    deleteTournamentPreset,
+    loadSavedTournaments,
+    loadSavedTournament,
+    deleteSavedTournament,
+    updateTournamentTags,
   }
 })
