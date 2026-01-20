@@ -1,5 +1,5 @@
 <template>
-  <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
+  <div v-if="show" class="modal-overlay active" @click.self="$emit('close')">
     <div class="modal large">
       <div class="modal-header">
         <h2 class="modal-title">Start New Negotiation</h2>
@@ -1004,6 +1004,23 @@ const emit = defineEmits(['close', 'start'])
 // Debug: Watch show prop
 watch(() => props.show, (newVal, oldVal) => {
   console.log('NewNegotiationModal show prop changed:', { from: oldVal, to: newVal })
+  if (newVal) {
+    // Check if modal actually renders
+    setTimeout(() => {
+      const overlay = document.querySelector('.modal-overlay')
+      console.log('Modal overlay in DOM?', overlay ? 'YES' : 'NO')
+      if (overlay) {
+        const styles = window.getComputedStyle(overlay)
+        console.log('Modal overlay computed styles:', {
+          display: styles.display,
+          position: styles.position,
+          zIndex: styles.zIndex,
+          visibility: styles.visibility,
+          opacity: styles.opacity
+        })
+      }
+    }, 100)
+  }
 })
 
 // Tab management

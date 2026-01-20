@@ -1,5 +1,5 @@
 <template>
-  <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
+  <div v-if="show" class="modal-overlay active" @click.self="$emit('close')">
     <div class="modal large">
       <div class="modal-header">
         <h2>New Tournament</h2>
