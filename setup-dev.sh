@@ -31,13 +31,13 @@ done
 echo ""
 echo "Step 3: Installing Vue.js frontend dependencies..."
 echo "------------------------------------------"
-if [ -d "negmas_vue/frontend" ]; then
-    cd negmas_vue/frontend
+if [ -d "src/frontend" ]; then
+    cd src/frontend
     npm install
     cd ../..
     echo "✓ Vue.js frontend dependencies installed"
 else
-    echo "Warning: negmas_vue/frontend not found, skipping"
+    echo "Warning: src/frontend not found, skipping"
 fi
 
 echo ""
@@ -52,7 +52,7 @@ echo "  negmas-app run"
 echo "  → http://127.0.0.1:8019"
 echo ""
 echo "Vue.js version (in development):"
-echo "  python -m negmas_vue.backend.main dev"
+echo "  python -m src.backend.main dev"
 echo "  → http://127.0.0.1:5174"
 echo ""
 echo "=========================================="
