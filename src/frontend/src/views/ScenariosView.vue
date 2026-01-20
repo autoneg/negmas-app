@@ -158,126 +158,169 @@
           </div>
         </div>
         
-        <!-- Tabs -->
-        <div class="tabs">
-          <button
-            class="tab"
-            :class="{ active: activeTab === 'info' }"
-            @click="activeTab = 'info'"
-          >
-            Info
-          </button>
-          <button
-            class="tab"
-            :class="{ active: activeTab === 'stats' }"
-            @click="activeTab = 'stats'; loadStats()"
-          >
-            Stats
-          </button>
-          <button
-            class="tab"
-            :class="{ active: activeTab === 'plot' }"
-            @click="activeTab = 'plot'; loadPlotData()"
-          >
-            Visualization
-          </button>
-        </div>
-        
-        <!-- Info Tab -->
-        <div v-if="activeTab === 'info'" class="tab-content">
-          <div class="info-grid">
-            <div class="info-item">
-              <label>Source</label>
-              <span>{{ selectedScenario.source }}</span>
+        <!-- Scrollable content with stacked panels -->
+        <div class="details-content">
+          <!-- Info Panel -->
+          <div class="panel">
+            <h3 class="panel-title">Information</h3>
+            <div class="info-grid">
+              <div class="info-item">
+                <label>Source</label>
+                <span>{{ selectedScenario.source }}</span>
+              </div>
+              <div class="info-item">
+                <label>Negotiators</label>
+                <span>{{ selectedScenario.n_negotiators }}</span>
+              </div>
+              <div class="info-item">
+                <label>Issues</label>
+                <span>{{ selectedScenario.n_issues }}</span>
+              </div>
+              <div class="info-item">
+                <label>Outcomes</label>
+                <span>{{ formatNumber(selectedScenario.n_outcomes) }}</span>
+              </div>
+              <div class="info-item" v-if="selectedScenario.rational_fraction !== null">
+                <label>Rational Fraction</label>
+                <span>{{ selectedScenario.rational_fraction.toFixed(3) }}</span>
+              </div>
+              <div class="info-item" v-if="selectedScenario.opposition !== null">
+                <label>Opposition</label>
+                <span>{{ selectedScenario.opposition.toFixed(3) }}</span>
+              </div>
             </div>
-            <div class="info-item">
-              <label>Negotiators</label>
-              <span>{{ selectedScenario.n_negotiators }}</span>
+            
+            <!-- Description -->
+            <div v-if="selectedScenario.description" class="description-section">
+              <h4>Description</h4>
+              <div class="description-text">{{ selectedScenario.description }}</div>
             </div>
-            <div class="info-item">
-              <label>Issues</label>
-              <span>{{ selectedScenario.n_issues }}</span>
-            </div>
-            <div class="info-item">
-              <label>Outcomes</label>
-              <span>{{ formatNumber(selectedScenario.n_outcomes) }}</span>
-            </div>
-            <div class="info-item" v-if="selectedScenario.rational_fraction !== null">
-              <label>Rational Fraction</label>
-              <span>{{ selectedScenario.rational_fraction.toFixed(3) }}</span>
-            </div>
-            <div class="info-item" v-if="selectedScenario.opposition !== null">
-              <label>Opposition</label>
-              <span>{{ selectedScenario.opposition.toFixed(3) }}</span>
-            </div>
-          </div>
-          
-          <!-- Issues -->
-          <div v-if="selectedScenario.issues && selectedScenario.issues.length > 0" class="issues-section">
-            <h3>Issues</h3>
-            <div class="issues-list">
-              <div v-for="(issue, idx) in selectedScenario.issues" :key="idx" class="issue-item">
-                <div class="issue-name">{{ issue.name }}</div>
-                <div class="issue-type">{{ issue.type }}</div>
-                <div class="issue-values" v-if="issue.values && issue.values.length > 0">
-                  {{ issue.values.length }} values
+            
+            <!-- Issues -->
+            <div v-if="selectedScenario.issues && selectedScenario.issues.length > 0" class="issues-section">
+              <h4>Issues</h4>
+              <div class="issues-list">
+                <div v-for="(issue, idx) in selectedScenario.issues" :key="idx" class="issue-item">
+                  <div class="issue-name">{{ issue.name }}</div>
+                  <div class="issue-type">{{ issue.type }}</div>
+                  <div class="issue-values" v-if="issue.values && issue.values.length > 0">
+                    {{ issue.values.length }} values
+                  </div>
                 </div>
+              </div>
+            </div>
+            
+            <!-- Tags -->
+            <div v-if="selectedScenario.tags && selectedScenario.tags.length > 0" class="tags-section">
+              <h4>Tags</h4>
+              <div class="tags">
+                <span v-for="tag in selectedScenario.tags" :key="tag" class="badge">{{ tag }}</span>
               </div>
             </div>
           </div>
           
-          <!-- Tags -->
-          <div v-if="selectedScenario.tags && selectedScenario.tags.length > 0" class="tags-section">
-            <h3>Tags</h3>
-            <div class="tags">
-              <span v-for="tag in selectedScenario.tags" :key="tag" class="badge">{{ tag }}</span>
+          <!-- Stats Panel -->
+          <div class="panel">
+            <div class="panel-header">
+              <h3 class="panel-title">Statistics</h3>
+              <button 
+                v-if="!selectedScenario.has_stats && !loadingStats" 
+                class="btn-secondary btn-sm" 
+                @click="calculateStats"
+              >
+                Calculate Stats
+              </button>
             </div>
-          </div>
-        </div>
-        
-        <!-- Stats Tab -->
-        <div v-if="activeTab === 'stats'" class="tab-content">
-          <div v-if="loadingStats" class="loading-state">
-            <span class="spinner"></span> Loading stats...
+            
+            <div v-if="!statsLoaded && !loadingStats" class="panel-empty">
+              <p>Statistics not calculated yet</p>
+              <button class="btn-primary btn-sm" @click="calculateStats">Calculate Stats</button>
+            </div>
+            
+            <div v-else-if="loadingStats" class="loading-state">
+              <span class="spinner"></span> Loading stats...
+            </div>
+            
+            <div v-else-if="selectedScenarioStats" class="stats-grid">
+              <div class="stat-item" v-if="selectedScenarioStats.n_pareto_outcomes">
+                <label>Pareto Outcomes</label>
+                <span>{{ formatNumber(selectedScenarioStats.n_pareto_outcomes) }}</span>
+              </div>
+              <div class="stat-item" v-if="selectedScenarioStats.opposition !== null && selectedScenarioStats.opposition !== undefined">
+                <label>Opposition</label>
+                <span>{{ selectedScenarioStats.opposition.toFixed(3) }}</span>
+              </div>
+              <div class="stat-item" v-if="selectedScenarioStats.rational_fraction !== null && selectedScenarioStats.rational_fraction !== undefined">
+                <label>Rational Fraction</label>
+                <span>{{ selectedScenarioStats.rational_fraction.toFixed(3) }}</span>
+              </div>
+              
+              <!-- Nash Point -->
+              <div class="stat-item full-width" v-if="selectedScenarioStats.nash_utils && selectedScenarioStats.nash_utils.length > 0">
+                <label>Nash Point</label>
+                <span>{{ formatUtilityList(selectedScenarioStats.nash_utils[0]) }}</span>
+              </div>
+              
+              <!-- Kalai Point -->
+              <div class="stat-item full-width" v-if="selectedScenarioStats.kalai_utils && selectedScenarioStats.kalai_utils.length > 0">
+                <label>Kalai Point</label>
+                <span>{{ formatUtilityList(selectedScenarioStats.kalai_utils[0]) }}</span>
+              </div>
+              
+              <!-- KS Point -->
+              <div class="stat-item full-width" v-if="selectedScenarioStats.ks_utils && selectedScenarioStats.ks_utils.length > 0">
+                <label>KS Point</label>
+                <span>{{ formatUtilityList(selectedScenarioStats.ks_utils[0]) }}</span>
+              </div>
+              
+              <!-- Max Welfare Point -->
+              <div class="stat-item full-width" v-if="selectedScenarioStats.max_welfare_utils && selectedScenarioStats.max_welfare_utils.length > 0">
+                <label>Max Welfare</label>
+                <span>{{ formatUtilityList(selectedScenarioStats.max_welfare_utils[0]) }}</span>
+              </div>
+            </div>
           </div>
           
-          <div v-else-if="!selectedScenarioStats" class="empty-state">
-            <p>No stats available</p>
-            <button class="btn-primary btn-sm" @click="calculateStats">Calculate Stats</button>
-          </div>
-          
-          <div v-else class="stats-grid">
-            <div class="stat-item" v-if="selectedScenarioStats.pareto_n_outcomes">
-              <label>Pareto Outcomes</label>
-              <span>{{ formatNumber(selectedScenarioStats.pareto_n_outcomes) }}</span>
+          <!-- Visualization Panel -->
+          <div class="panel">
+            <div class="panel-header">
+              <h3 class="panel-title">Utility Space Visualization</h3>
+              <button 
+                v-if="plotDataLoaded" 
+                class="btn-secondary btn-sm" 
+                @click="loadPlotData"
+              >
+                Refresh
+              </button>
             </div>
-            <div class="stat-item" v-if="selectedScenarioStats.pareto_volume !== null">
-              <label>Pareto Volume</label>
-              <span>{{ selectedScenarioStats.pareto_volume.toFixed(3) }}</span>
+            
+            <div v-if="!plotDataLoaded && !loadingPlotData" class="panel-empty">
+              <p>Click to load visualization</p>
+              <button class="btn-primary btn-sm" @click="loadPlotData">Load Visualization</button>
             </div>
-            <div class="stat-item" v-if="selectedScenarioStats.nash_optimality !== null">
-              <label>Nash Optimality</label>
-              <span>{{ selectedScenarioStats.nash_optimality.toFixed(3) }}</span>
+            
+            <div v-else-if="loadingPlotData" class="loading-state">
+              <span class="spinner"></span> Loading visualization...
             </div>
-            <div class="stat-item" v-if="selectedScenarioStats.kalai_optimality !== null">
-              <label>Kalai Optimality</label>
-              <span>{{ selectedScenarioStats.kalai_optimality.toFixed(3) }}</span>
+            
+            <div v-else-if="selectedScenarioPlotData" class="plot-container">
+              <!-- Negotiator Selection -->
+              <div class="plot-controls" v-if="selectedScenarioStats && selectedScenarioStats.negotiator_names && selectedScenarioStats.negotiator_names.length > 1">
+                <label>X-Axis:</label>
+                <select v-model="plotNegotiator1" @change="renderPlot" class="input-select">
+                  <option v-for="(name, idx) in selectedScenarioStats.negotiator_names" :key="idx" :value="idx">
+                    {{ name }}
+                  </option>
+                </select>
+                <label>Y-Axis:</label>
+                <select v-model="plotNegotiator2" @change="renderPlot" class="input-select">
+                  <option v-for="(name, idx) in selectedScenarioStats.negotiator_names" :key="idx" :value="idx">
+                    {{ name }}
+                  </option>
+                </select>
+              </div>
+              <div ref="plotDiv" class="plot"></div>
             </div>
-          </div>
-        </div>
-        
-        <!-- Plot Tab -->
-        <div v-if="activeTab === 'plot'" class="tab-content">
-          <div v-if="loadingPlotData" class="loading-state">
-            <span class="spinner"></span> Loading plot data...
-          </div>
-          
-          <div v-else-if="!selectedScenarioPlotData" class="empty-state">
-            <p>No plot data available</p>
-          </div>
-          
-          <div v-else class="plot-container">
-            <div ref="plotDiv" class="plot"></div>
           </div>
         </div>
       </div>
@@ -317,8 +360,13 @@ const localFilters = ref({
   maxRationalFraction: null,
 })
 
-const activeTab = ref('info')
 const plotDiv = ref(null)
+const plotNegotiator1 = ref(0)
+const plotNegotiator2 = ref(1)
+
+// Computed properties
+const statsLoaded = computed(() => selectedScenarioStats.value !== null)
+const plotDataLoaded = computed(() => selectedScenarioPlotData.value !== null)
 
 // Load data on mount
 onMounted(async () => {
@@ -363,9 +411,12 @@ function clearFilters() {
   })
 }
 
-function selectScenario(scenario) {
+async function selectScenario(scenario) {
   scenariosStore.selectScenario(scenario)
-  activeTab.value = 'info'
+  // Auto-load stats when selecting a scenario
+  if (scenario.has_stats) {
+    await scenariosStore.loadScenarioStats(scenario.path)
+  }
 }
 
 async function loadStats() {
@@ -391,65 +442,134 @@ async function loadPlotData() {
 watch(selectedScenarioPlotData, async (data) => {
   if (data && plotDiv.value) {
     await nextTick()
-    renderPlot(data)
+    renderPlot()
   }
 })
 
-function renderPlot(data) {
-  if (!plotDiv.value || !data.outcome_utilities) return
+// Watch for stats changes and render plot if plot data is loaded
+watch(selectedScenarioStats, async (stats) => {
+  if (stats && selectedScenarioPlotData.value && plotDiv.value) {
+    await nextTick()
+    renderPlot()
+  }
+})
+
+function renderPlot() {
+  const data = selectedScenarioPlotData.value
+  if (!plotDiv.value || !data || !data.outcome_utilities) return
   
   const utilities = data.outcome_utilities
-  const names = data.negotiator_names
+  const stats = selectedScenarioStats.value
   
-  // Create traces for 2D or 3D plot
-  if (names.length === 2) {
-    // 2D scatter plot
-    const trace = {
-      x: utilities.map(u => u[0]),
-      y: utilities.map(u => u[1]),
+  // Use selected negotiators for axes
+  const idx1 = plotNegotiator1.value
+  const idx2 = plotNegotiator2.value
+  
+  // Extract utilities for selected negotiators
+  const x = utilities.map(u => u[idx1])
+  const y = utilities.map(u => u[idx2])
+  
+  // Create main scatter trace
+  const trace = {
+    x: x,
+    y: y,
+    mode: 'markers',
+    type: 'scatter',
+    marker: { size: 3, color: 'rgba(59, 130, 246, 0.3)' },
+    name: 'Outcomes',
+    hovertemplate: `${stats?.negotiator_names?.[idx1] || 'N1'}: %{x:.3f}<br>` +
+                   `${stats?.negotiator_names?.[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
+  }
+  
+  const traces = [trace]
+  
+  // Add Pareto frontier if available in stats
+  if (stats?.pareto_utils && stats.pareto_utils.length > 0) {
+    const paretoX = stats.pareto_utils.map(u => u[idx1])
+    const paretoY = stats.pareto_utils.map(u => u[idx2])
+    traces.push({
+      x: paretoX,
+      y: paretoY,
       mode: 'markers',
       type: 'scatter',
-      marker: {
-        size: 4,
-        color: 'rgba(59, 130, 246, 0.6)',
-      },
-      name: 'Outcomes',
-    }
-    
-    const layout = {
-      xaxis: { title: names[0] },
-      yaxis: { title: names[1] },
-      hovermode: 'closest',
-      margin: { l: 50, r: 20, t: 30, b: 50 },
-    }
-    
-    Plotly.newPlot(plotDiv.value, [trace], layout, { responsive: true })
-  } else if (names.length === 3) {
-    // 3D scatter plot
-    const trace = {
-      x: utilities.map(u => u[0]),
-      y: utilities.map(u => u[1]),
-      z: utilities.map(u => u[2]),
-      mode: 'markers',
-      type: 'scatter3d',
-      marker: {
-        size: 3,
-        color: 'rgba(59, 130, 246, 0.6)',
-      },
-      name: 'Outcomes',
-    }
-    
-    const layout = {
-      scene: {
-        xaxis: { title: names[0] },
-        yaxis: { title: names[1] },
-        zaxis: { title: names[2] },
-      },
-      margin: { l: 0, r: 0, t: 0, b: 0 },
-    }
-    
-    Plotly.newPlot(plotDiv.value, [trace], layout, { responsive: true })
+      marker: { size: 5, color: 'red', symbol: 'diamond' },
+      name: 'Pareto Frontier',
+      hovertemplate: `Pareto<br>${stats.negotiator_names?.[idx1] || 'N1'}: %{x:.3f}<br>` +
+                     `${stats.negotiator_names?.[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
+    })
   }
+  
+  // Add Nash point if available
+  if (stats?.nash_utils && stats.nash_utils.length > 0) {
+    traces.push({
+      x: stats.nash_utils.map(u => u[idx1]),
+      y: stats.nash_utils.map(u => u[idx2]),
+      mode: 'markers',
+      type: 'scatter',
+      marker: { size: 10, color: 'green', symbol: 'star' },
+      name: 'Nash',
+      hovertemplate: `Nash<br>${stats.negotiator_names?.[idx1] || 'N1'}: %{x:.3f}<br>` +
+                     `${stats.negotiator_names?.[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
+    })
+  }
+  
+  // Add Kalai point if available
+  if (stats?.kalai_utils && stats.kalai_utils.length > 0) {
+    traces.push({
+      x: stats.kalai_utils.map(u => u[idx1]),
+      y: stats.kalai_utils.map(u => u[idx2]),
+      mode: 'markers',
+      type: 'scatter',
+      marker: { size: 10, color: 'orange', symbol: 'square' },
+      name: 'Kalai',
+      hovertemplate: `Kalai<br>${stats.negotiator_names?.[idx1] || 'N1'}: %{x:.3f}<br>` +
+                     `${stats.negotiator_names?.[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
+    })
+  }
+  
+  // Add KS point if available
+  if (stats?.ks_utils && stats.ks_utils.length > 0) {
+    traces.push({
+      x: stats.ks_utils.map(u => u[idx1]),
+      y: stats.ks_utils.map(u => u[idx2]),
+      mode: 'markers',
+      type: 'scatter',
+      marker: { size: 10, color: 'purple', symbol: 'cross' },
+      name: 'KS',
+      hovertemplate: `KS<br>${stats.negotiator_names?.[idx1] || 'N1'}: %{x:.3f}<br>` +
+                     `${stats.negotiator_names?.[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
+    })
+  }
+  
+  // Add Max Welfare point if available
+  if (stats?.max_welfare_utils && stats.max_welfare_utils.length > 0) {
+    traces.push({
+      x: stats.max_welfare_utils.map(u => u[idx1]),
+      y: stats.max_welfare_utils.map(u => u[idx2]),
+      mode: 'markers',
+      type: 'scatter',
+      marker: { size: 10, color: 'blue', symbol: 'diamond-open' },
+      name: 'Max Welfare',
+      hovertemplate: `Max Welfare<br>${stats.negotiator_names?.[idx1] || 'N1'}: %{x:.3f}<br>` +
+                     `${stats.negotiator_names?.[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
+    })
+  }
+  
+  const layout = {
+    xaxis: { title: stats?.negotiator_names?.[idx1] || `Negotiator ${idx1}` },
+    yaxis: { title: stats?.negotiator_names?.[idx2] || `Negotiator ${idx2}` },
+    hovermode: 'closest',
+    margin: { l: 60, r: 20, t: 30, b: 60 },
+    showlegend: true,
+    legend: { x: 1, y: 1, xanchor: 'right' }
+  }
+  
+  Plotly.newPlot(plotDiv.value, traces, layout, { responsive: true })
+}
+
+function formatUtilityList(utils) {
+  if (!utils || !Array.isArray(utils)) return 'N/A'
+  return '(' + utils.map(u => u.toFixed(3)).join(', ') + ')'
 }
 
 function openNewNegotiation() {
@@ -652,36 +772,85 @@ function formatNumber(num) {
   gap: 8px;
 }
 
-.tabs {
+.details-content {
+  flex: 1;
+  overflow-y: auto;
   display: flex;
-  gap: 4px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
+  flex-direction: column;
+  gap: 16px;
 }
 
-.tab {
-  padding: 8px 16px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
+.panel {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
 }
 
-.tab:hover {
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.panel-title {
+  margin: 0 0 12px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
-.tab.active {
-  color: var(--primary-color);
-  border-bottom-color: var(--primary-color);
+.panel-empty {
+  text-align: center;
+  padding: 32px;
+  color: var(--text-secondary);
 }
 
-.tab-content {
+.description-section,
+.issues-section,
+.tags-section {
+  margin-top: 16px;
+}
+
+.description-section h4,
+.issues-section h4,
+.tags-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.description-text {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.stat-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.plot-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+}
+
+.plot-controls label {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.plot-controls .input-select {
   flex: 1;
-  overflow-y: auto;
+  max-width: 200px;
 }
 
 .info-grid,
