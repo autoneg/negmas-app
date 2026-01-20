@@ -66,5 +66,6 @@ omit = ["negmas_app/static/*", "negmas_app/templates/*"]
 [dependency-groups]
 dev = [
     "playwright>=1.57.0",
+    "pytest-playwright>=0.7.2",
 ]
 
