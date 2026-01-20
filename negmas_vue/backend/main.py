@@ -1,7 +1,10 @@
 """NegMAS Vue App - FastAPI backend entry point."""
 
+import os
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Annotated
 
@@ -108,6 +111,133 @@ def run(
         workers=workers,
         access_log=access_log,
     )
+
+
+@cli.command()
+def dev(
+    backend_port: Annotated[int, typer.Option(help="Backend port")] = 8020,
+    frontend_port: Annotated[int, typer.Option(help="Frontend port")] = 5174,
+    host: Annotated[str, typer.Option(help="Host to bind servers to")] = "127.0.0.1",
+    log_level: Annotated[
+        str,
+        typer.Option(help="Backend log level (debug, info, warning, error, critical)"),
+    ] = "info",
+) -> None:
+    """Run both backend and frontend servers together (development mode).
+
+    This command starts:
+    - FastAPI backend on port 8020 (with auto-reload)
+    - Vite frontend dev server on port 5174
+
+    Press Ctrl+C to stop both servers.
+    """
+    import atexit
+
+    # Get the project root directory
+    project_root = Path(__file__).parent.parent.parent
+    frontend_dir = project_root / "negmas_vue" / "frontend"
+
+    if not frontend_dir.exists():
+        typer.echo(f"Error: Frontend directory not found at {frontend_dir}", err=True)
+        sys.exit(1)
+
+    # Check if npm is installed
+    npm_check = subprocess.run(["which", "npm"], capture_output=True)
+    if npm_check.returncode != 0:
+        typer.echo("Error: npm not found. Please install Node.js and npm.", err=True)
+        sys.exit(1)
+
+    # Check if node_modules exists, if not run npm install
+    if not (frontend_dir / "node_modules").exists():
+        typer.echo("Installing frontend dependencies (first time only)...")
+        install_result = subprocess.run(
+            ["npm", "install"],
+            cwd=frontend_dir,
+            capture_output=False,
+        )
+        if install_result.returncode != 0:
+            typer.echo("Error: npm install failed", err=True)
+            sys.exit(1)
+
+    processes = []
+
+    def cleanup():
+        """Kill all child processes on exit."""
+        for proc in processes:
+            try:
+                proc.terminate()
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+            except Exception:
+                pass
+
+    atexit.register(cleanup)
+
+    try:
+        typer.echo(f"Starting NegMAS Vue App in development mode...")
+        typer.echo(f"Backend: http://{host}:{backend_port}")
+        typer.echo(f"Frontend: http://{host}:{frontend_port}")
+        typer.echo("Press Ctrl+C to stop both servers\n")
+
+        # Start backend server
+        typer.echo("Starting backend server...")
+        backend_proc = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "uvicorn",
+                "negmas_vue.backend.main:app",
+                "--host",
+                host,
+                "--port",
+                str(backend_port),
+                "--reload",
+                "--log-level",
+                log_level,
+            ],
+            cwd=project_root,
+        )
+        processes.append(backend_proc)
+
+        # Give backend a moment to start
+        time.sleep(1)
+
+        # Start frontend server
+        typer.echo("Starting frontend server...")
+        frontend_proc = subprocess.Popen(
+            ["npm", "run", "dev", "--", "--port", str(frontend_port), "--host", host],
+            cwd=frontend_dir,
+        )
+        processes.append(frontend_proc)
+
+        # Wait a moment for frontend to start
+        time.sleep(2)
+
+        typer.echo(f"\n✓ Both servers are running!")
+        typer.echo(f"✓ Open your browser to: http://{host}:{frontend_port}\n")
+
+        # Wait for processes
+        while True:
+            # Check if any process has died
+            for proc in processes:
+                if proc.poll() is not None:
+                    typer.echo(
+                        f"\nError: A server process stopped unexpectedly", err=True
+                    )
+                    cleanup()
+                    sys.exit(1)
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        typer.echo("\n\nStopping servers...")
+        cleanup()
+        typer.echo("All servers stopped.")
+        sys.exit(0)
+    except Exception as e:
+        typer.echo(f"\nError: {e}", err=True)
+        cleanup()
+        sys.exit(1)
 
 
 @cli.command()
