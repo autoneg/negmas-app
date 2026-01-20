@@ -123,29 +123,23 @@ def _discover_genius_negotiators() -> list[NegotiatorEntry]:
     except ImportError:
         return entries
 
-    # Year-based modules
-    year_modules = [
-        ("y2010", "ANAC 2010"),
-        ("y2011", "ANAC 2011"),
-        ("y2012", "ANAC 2012"),
-        ("y2013", "ANAC 2013"),
-        ("y2014", "ANAC 2014"),
-        ("y2015", "ANAC 2015"),
-        ("y2016", "ANAC 2016"),
-        ("y2017", "ANAC 2017"),
-        ("y2018", "ANAC 2018"),
-        ("y2019", "ANAC 2019"),
+    # Module names to scan
+    modules = [
+        "y2010",
+        "y2011",
+        "y2012",
+        "y2013",
+        "y2014",
+        "y2015",
+        "y2016",
+        "y2017",
+        "y2018",
+        "y2019",
+        "basic",
+        "others",
     ]
 
-    # Other modules
-    other_modules = [
-        ("basic", "Basic Agents"),
-        ("others", "Other Agents"),
-    ]
-
-    all_modules = year_modules + other_modules
-
-    for module_name, group_label in all_modules:
+    for module_name in modules:
         try:
             mod = importlib.import_module(f"negmas.genius.gnegotiators.{module_name}")
 
@@ -154,13 +148,16 @@ def _discover_genius_negotiators() -> list[NegotiatorEntry]:
                 if name == "GeniusNegotiator" or not issubclass(cls, GeniusNegotiator):
                     continue
 
+                # Extract description from docstring
+                description = cls.__doc__.strip() if cls.__doc__ else ""
+
                 type_name = f"negmas.genius.gnegotiators.{module_name}.{name}"
                 info = NegotiatorInfo(
                     type_name=type_name,
                     name=name,
                     source="genius",
                     group=module_name,
-                    description=f"{group_label} agent",
+                    description=description,
                     tags=["genius", "bridge", module_name],
                     mechanisms=["SAO"],
                     requires_bridge=True,

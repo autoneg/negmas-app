@@ -504,7 +504,11 @@ class ScenarioLoader:
             settings = SettingsService.load_general()
             if settings.cache_scenario_stats:
                 try:
-                    scenario.dumpas(path, save_stats=True, save_info=True)
+                    # Use save_info and save_stats to avoid rewriting original scenario files
+                    if needs_info and scenario.info:
+                        scenario.save_info(path)
+                    if needs_stats and can_calc_stats and scenario.stats:
+                        scenario.save_stats(path)
                 except Exception:
                     pass  # Ignore save errors (e.g., read-only filesystem)
 

@@ -89,10 +89,11 @@ export const useScenariosStore = defineStore('scenarios', () => {
     }
   }
 
-  async function loadScenarioPlotData(path, maxSamples = 10000) {
+  async function loadScenarioPlotData(path, maxSamples = 10000, forceRegenerate = false) {
     loadingPlotData.value = true
     try {
-      const response = await fetch(`/api/scenarios/${encodeURIComponent(path)}/plot-data?max_samples=${maxSamples}`)
+      const url = `/api/scenarios/${encodeURIComponent(path)}/plot-data?max_samples=${maxSamples}&force_regenerate=${forceRegenerate}`
+      const response = await fetch(url)
       const data = await response.json()
       selectedScenarioPlotData.value = data
       return data

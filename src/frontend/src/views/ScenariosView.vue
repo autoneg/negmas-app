@@ -287,13 +287,20 @@
           <div class="panel panel-half">
             <div class="panel-header">
               <h3 class="panel-title">Utility Space Visualization</h3>
-              <button 
-                v-if="plotDataLoaded" 
-                class="btn-secondary btn-sm" 
-                @click="loadPlotData"
-              >
-                Refresh
-              </button>
+              <div class="panel-header-actions">
+                <label v-if="plotDataLoaded" class="plot-mode-toggle">
+                  <input type="checkbox" v-model="useInteractivePlot" />
+                  <span>Interactive</span>
+                </label>
+                <button 
+                  v-if="plotDataLoaded" 
+                  class="btn-secondary btn-sm" 
+                  @click="refreshPlot"
+                  :title="useInteractivePlot ? 'Regenerate interactive plot' : 'Regenerate cached image'"
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
             
             <div v-if="!plotDataLoaded && !loadingPlotData" class="panel-empty">
@@ -306,22 +313,31 @@
             </div>
             
             <div v-else-if="selectedScenarioPlotData" class="plot-container">
-              <!-- Negotiator Selection -->
-              <div class="plot-controls" v-if="negotiatorNamesForPlot && negotiatorNamesForPlot.length > 1">
-                <label>X-Axis:</label>
-                <select v-model="plotNegotiator1" @change="renderPlot" class="input-select">
-                  <option v-for="(name, idx) in negotiatorNamesForPlot" :key="idx" :value="idx">
-                    {{ name }}
-                  </option>
-                </select>
-                <label>Y-Axis:</label>
-                <select v-model="plotNegotiator2" @change="renderPlot" class="input-select">
-                  <option v-for="(name, idx) in negotiatorNamesForPlot" :key="idx" :value="idx">
-                    {{ name }}
-                  </option>
-                </select>
+              <!-- Cached WebP Image (default) -->
+              <div v-if="!useInteractivePlot && plotImageUrl" class="plot-image-container">
+                <img :src="plotImageUrl" alt="Scenario Plot" class="plot-image" />
+                <p class="plot-hint">Toggle "Interactive" for customizable Plotly visualization</p>
               </div>
-              <div ref="plotDiv" class="plot"></div>
+              
+              <!-- Interactive Plotly Plot -->
+              <div v-else class="plot-interactive-container">
+                <!-- Negotiator Selection -->
+                <div class="plot-controls" v-if="negotiatorNamesForPlot && negotiatorNamesForPlot.length > 1">
+                  <label>X-Axis:</label>
+                  <select v-model="plotNegotiator1" @change="renderPlot" class="input-select">
+                    <option v-for="(name, idx) in negotiatorNamesForPlot" :key="idx" :value="idx">
+                      {{ name }}
+                    </option>
+                  </select>
+                  <label>Y-Axis:</label>
+                  <select v-model="plotNegotiator2" @change="renderPlot" class="input-select">
+                    <option v-for="(name, idx) in negotiatorNamesForPlot" :key="idx" :value="idx">
+                      {{ name }}
+                    </option>
+                  </select>
+                </div>
+                <div ref="plotDiv" class="plot"></div>
+              </div>
             </div>
           </div>
           </div>
@@ -376,6 +392,11 @@ const localFilters = ref({
 const plotDiv = ref(null)
 const plotNegotiator1 = ref(0)
 const plotNegotiator2 = ref(1)
+const useInteractivePlot = ref(false) // Default to cached PNG
+const plotImageUrl = computed(() => {
+  if (!selectedScenario.value) return null
+  return `/api/scenarios/${encodeURIComponent(selectedScenario.value.path)}/plot-image`
+})
 const showNewNegotiationModal = ref(false)
 const router = useRouter()
 
@@ -458,14 +479,27 @@ async function calculateStats() {
   await scenariosStore.calculateScenarioStats(selectedScenario.value.path, true)
 }
 
-async function loadPlotData() {
+async function loadPlotData(forceRegenerate = false) {
   if (!selectedScenario.value) return
-  await scenariosStore.loadScenarioPlotData(selectedScenario.value.path)
+  await scenariosStore.loadScenarioPlotData(selectedScenario.value.path, 10000, forceRegenerate)
+}
+
+async function refreshPlot() {
+  // Force regenerate the plot (both cached image and interactive data)
+  await loadPlotData(true)
 }
 
 // Watch for plot data changes and render plot
 watch(selectedScenarioPlotData, async (data) => {
-  if (data && plotDiv.value) {
+  if (data && plotDiv.value && useInteractivePlot.value) {
+    await nextTick()
+    renderPlot()
+  }
+})
+
+// Watch for interactive mode changes
+watch(useInteractivePlot, async (isInteractive) => {
+  if (isInteractive && selectedScenarioPlotData.value && plotDiv.value) {
     await nextTick()
     renderPlot()
   }
@@ -1112,5 +1146,54 @@ function formatNumber(num) {
 .btn-icon:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Plot visualization styles */
+.plot-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.plot-mode-toggle input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.plot-image-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+.plot-image {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: white;
+}
+
+.plot-hint {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0;
+  font-style: italic;
+}
+
+.plot-interactive-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 </style>

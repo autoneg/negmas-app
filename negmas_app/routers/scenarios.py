@@ -7,10 +7,16 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from ..services import ScenarioLoader, compute_outcome_utilities
+from ..services.plot_service import (
+    generate_and_save_plot,
+    get_plot_path,
+    has_cached_plot,
+)
 from ..models.scenario import (
     IssueDefinition,
     ValueFunctionDefinition,
@@ -128,22 +134,49 @@ async def calculate_scenario_stats(path: str, force: bool = False):
 
 
 @router.get("/{path:path}/plot-data")
-async def get_scenario_plot_data(path: str, max_samples: int = 10000):
-    """Get outcome utilities for plotting.
+async def get_scenario_plot_data(
+    path: str, max_samples: int = 10000, force_regenerate: bool = False
+):
+    """Get outcome utilities for plotting and generate/cache plot image.
 
     Args:
         path: Full path to scenario directory.
         max_samples: Maximum number of outcomes to sample.
+        force_regenerate: If True, regenerate plot even if cached version exists.
 
     Returns:
-        Outcome utilities and negotiator names for plotting.
+        Outcome utilities and negotiator names for plotting, plus plot metadata.
     """
 
     def _compute():
-        scenario = _loader.load_scenario(path, load_stats=True)
+        scenario = _loader.load_scenario(path, load_stats=True, load_info=True)
         if scenario is None:
             return None
 
+        # Check if we have a cached plot and should use it
+        plot_path = get_plot_path(path)
+        has_cached = has_cached_plot(path)
+
+        # Generate plot if needed (doesn't exist or force regenerate)
+        if not has_cached or force_regenerate:
+            plot_metadata = generate_and_save_plot(
+                scenario, path, max_samples=max_samples
+            )
+        else:
+            # Just get metadata without regenerating
+            negotiator_names = []
+            for i, ufun in enumerate(scenario.ufuns):
+                name = getattr(ufun, "name", None) or f"Negotiator {i + 1}"
+                negotiator_names.append(name)
+
+            plot_metadata = {
+                "plot_path": str(plot_path),
+                "exists": True,
+                "negotiator_names": negotiator_names,
+                "cached": True,
+            }
+
+        # Compute utilities for interactive Plotly plot
         outcomes = list(
             scenario.outcome_space.enumerate_or_sample(max_cardinality=max_samples * 2)
         )
@@ -151,24 +184,43 @@ async def get_scenario_plot_data(path: str, max_samples: int = 10000):
             scenario.ufuns, outcomes, max_samples
         )
 
-        # Get negotiator names
-        negotiator_names = []
-        for i, ufun in enumerate(scenario.ufuns):
-            name = getattr(ufun, "name", None) or f"Negotiator {i + 1}"
-            negotiator_names.append(name)
-
         return {
             "outcome_utilities": utilities,
-            "negotiator_names": negotiator_names,
+            "negotiator_names": plot_metadata["negotiator_names"],
             "n_outcomes": scenario.outcome_space.cardinality,
             "sampled": sampled,
             "sample_size": sample_size,
+            "plot_cached": has_cached and not force_regenerate,
+            "plot_path": str(plot_path),
         }
 
     result = await asyncio.to_thread(_compute)
     if result is None:
         raise HTTPException(status_code=404, detail="Scenario not found")
     return result
+
+
+@router.get("/{path:path}/plot-image")
+async def get_scenario_plot_image(path: str):
+    """Serve the cached plot image for a scenario.
+
+    Args:
+        path: Full path to scenario directory.
+
+    Returns:
+        WebP image file.
+    """
+    plot_path = get_plot_path(path)
+
+    if not plot_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Plot image not found. Call /plot-data first to generate it.",
+        )
+
+    return FileResponse(
+        plot_path, media_type="image/webp", filename=f"{Path(path).name}_plot.webp"
+    )
 
 
 @router.get("/{path:path}")

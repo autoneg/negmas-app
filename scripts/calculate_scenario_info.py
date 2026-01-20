@@ -14,24 +14,25 @@ Options:
 
 import argparse
 from pathlib import Path
-import yaml
 from typing import Any
 
 from negmas import Scenario
 from negmas.preferences.ops import is_rational, opposition_level
 
 
-def calculate_scenario_info(
+def calculate_and_save_scenario_info(
     scenario_path: Path, force: bool = False
-) -> dict[str, Any] | None:
-    """Calculate scenario info and return as dict.
+) -> dict[str, Any] | None | bool:
+    """Calculate scenario info and save using Scenario.save_info().
 
     Args:
         scenario_path: Path to scenario directory
         force: Recalculate even if _info.yaml exists
 
     Returns:
-        Info dict if calculated, None if skipped
+        Info dict if calculated successfully
+        None if skipped (already exists and not force)
+        False if error occurred
     """
     info_file = scenario_path / "_info.yaml"
 
@@ -40,8 +41,8 @@ def calculate_scenario_info(
         return None
 
     try:
-        # Load scenario
-        scenario = Scenario.load(scenario_path)
+        # Load scenario (with existing info if available)
+        scenario = Scenario.load(scenario_path, load_info=True)
 
         # Calculate n_outcomes
         outcomes = list(
@@ -62,54 +63,31 @@ def calculate_scenario_info(
             n_rational = sum(1 for o in outcomes if is_rational(scenario.ufuns, o))
             rational_fraction = n_rational / n_outcomes
 
-        # Build info dict
-        info = {
-            "n_outcomes": n_outcomes,
-            "opposition": opposition,
-            "rational_fraction": rational_fraction,
-        }
+        # Update scenario.info dict (preserving existing info)
+        if scenario.info is None:
+            scenario.info = {}
+
+        scenario.info["n_outcomes"] = n_outcomes
+        scenario.info["opposition"] = opposition
+        scenario.info["rational_fraction"] = rational_fraction
 
         # Add description if it doesn't exist
-        if not info_file.exists():
+        if "description" not in scenario.info:
             # Try to infer a description from scenario name
             name = scenario_path.name
             category = scenario_path.parent.name
-            info["description"] = (
+            scenario.info["description"] = (
                 f"{name.replace('_', ' ').title()} scenario from {category}"
             )
 
-        return info
+        # Save using Scenario's save_info method (doesn't rewrite scenario files)
+        scenario.save_info(scenario_path)
+
+        return scenario.info
 
     except Exception as e:
         print(f"  ERROR: Failed to calculate info for {scenario_path.name}: {e}")
-        return None
-
-
-def save_scenario_info(scenario_path: Path, info: dict[str, Any]) -> None:
-    """Save info dict to _info.yaml file.
-
-    Args:
-        scenario_path: Path to scenario directory
-        info: Info dictionary to save
-    """
-    info_file = scenario_path / "_info.yaml"
-
-    # If file exists, load it and merge with new info
-    if info_file.exists():
-        try:
-            with open(info_file, "r") as f:
-                existing_info = yaml.safe_load(f) or {}
-        except Exception:
-            existing_info = {}
-
-        # Merge: new info takes precedence
-        merged_info = {**existing_info, **info}
-    else:
-        merged_info = info
-
-    # Save to file
-    with open(info_file, "w") as f:
-        yaml.dump(merged_info, f, default_flow_style=False, sort_keys=False)
+        return False
 
 
 def main():
@@ -157,21 +135,22 @@ def main():
         rel_path = scenario_path.relative_to(scenarios_root)
         print(f"[{i}/{len(scenario_paths)}] {rel_path}...")
 
-        info = calculate_scenario_info(scenario_path, force=args.force)
+        result = calculate_and_save_scenario_info(scenario_path, force=args.force)
 
-        if info is None:
+        if result is None:
             print(f"  SKIPPED: _info.yaml already exists")
             skipped += 1
-        elif info:
-            save_scenario_info(scenario_path, info)
+        elif result is False:
+            # Error occurred
+            errors += 1
+        elif result:
+            # Success - result is the info dict
             print(
-                f"  SUCCESS: n_outcomes={info['n_outcomes']}, "
-                f"opposition={info['opposition']:.3f}, "
-                f"rational_fraction={info['rational_fraction']:.3f}"
+                f"  SUCCESS: n_outcomes={result['n_outcomes']}, "
+                f"opposition={result['opposition']:.3f}, "
+                f"rational_fraction={result['rational_fraction']:.3f}"
             )
             processed += 1
-        else:
-            errors += 1
 
     print()
     print("=" * 60)

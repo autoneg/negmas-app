@@ -533,7 +533,7 @@
 
               <div class="form-group">
                 <label class="checkbox-label">
-                  <input type="checkbox" v-model="mechanismParams.share_ufuns" />
+                  <input type="checkbox" v-model="shareUfuns" />
                   <span>Share utility functions</span>
                 </label>
                 <div class="form-hint">Give each negotiator access to opponent's utility function</div>
@@ -1060,8 +1060,8 @@ const selectedMapModel = ref('')
 
 // Mechanism params
 const mechanismType = ref('SAOMechanism')
+const shareUfuns = ref(false) // Session-level parameter, not mechanism param
 const mechanismParams = ref({
-  share_ufuns: false,
   n_steps: null,
   time_limit: null,
   step_time_limit: null,
@@ -1372,6 +1372,7 @@ async function startNegotiation() {
   starting.value = true
 
   try {
+    // Only send fields that backend expects
     const request = {
       scenario_path: selectedScenario.value.path,
       negotiators: negotiators.value.map(n => ({
@@ -1385,9 +1386,8 @@ async function startNegotiation() {
       ignore_reserved: options.value.ignoreReserved,
       normalize: options.value.normalize,
       step_delay: stepDelay.value / 1000, // Convert ms to seconds
-      mode: runMode.value,
+      share_ufuns: shareUfuns.value,
       auto_save: autoSave.value,
-      panels: panels.value,
     }
 
     const response = await fetch('/api/negotiation/start', {
@@ -1397,6 +1397,10 @@ async function startNegotiation() {
     })
 
     const data = await response.json()
+    
+    // TODO: Store mode and panels in session/local storage for UI state
+    // These don't need to be sent to backend
+    
     emit('start', data)
     emit('close')
   } catch (error) {
