@@ -130,25 +130,25 @@ export const useScenariosStore = defineStore('scenarios', () => {
       if (filter.value.source && scenario.source !== filter.value.source) {
         return false
       }
-      // Outcomes filter
-      if (filter.value.minOutcomes !== null && scenario.n_outcomes < filter.value.minOutcomes) {
+      // Outcomes filter - only filter if value is not null
+      if (filter.value.minOutcomes !== null && scenario.n_outcomes !== null && scenario.n_outcomes < filter.value.minOutcomes) {
         return false
       }
-      if (filter.value.maxOutcomes !== null && scenario.n_outcomes > filter.value.maxOutcomes) {
+      if (filter.value.maxOutcomes !== null && scenario.n_outcomes !== null && scenario.n_outcomes > filter.value.maxOutcomes) {
         return false
       }
-      // Opposition filter
-      if (filter.value.minOpposition !== null && scenario.opposition < filter.value.minOpposition) {
+      // Opposition filter - only filter if value is not null
+      if (filter.value.minOpposition !== null && scenario.opposition !== null && scenario.opposition < filter.value.minOpposition) {
         return false
       }
-      if (filter.value.maxOpposition !== null && scenario.opposition > filter.value.maxOpposition) {
+      if (filter.value.maxOpposition !== null && scenario.opposition !== null && scenario.opposition > filter.value.maxOpposition) {
         return false
       }
-      // Rational fraction filter
-      if (filter.value.minRationalFraction !== null && scenario.rational_fraction < filter.value.minRationalFraction) {
+      // Rational fraction filter - only filter if value is not null
+      if (filter.value.minRationalFraction !== null && scenario.rational_fraction !== null && scenario.rational_fraction < filter.value.minRationalFraction) {
         return false
       }
-      if (filter.value.maxRationalFraction !== null && scenario.rational_fraction > filter.value.maxRationalFraction) {
+      if (filter.value.maxRationalFraction !== null && scenario.rational_fraction !== null && scenario.rational_fraction > filter.value.maxRationalFraction) {
         return false
       }
       return true
