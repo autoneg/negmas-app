@@ -1,26 +1,28 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-export const useNegotiationsStore = defineStore('negotiations', () => {
+export const useTournamentsStore = defineStore('tournaments', () => {
   const sessions = ref([])
   const currentSession = ref(null)
   const loading = ref(false)
   const streamingSession = ref(null)
   const eventSource = ref(null)
   
-  // Current session state (updated via SSE)
-  const sessionInit = ref(null)
-  const offers = ref([])
-  const sessionComplete = ref(null)
+  // Current tournament state (updated via SSE)
+  const gridInit = ref(null)
+  const cellStates = ref({}) // Map of cell_id -> state
+  const leaderboard = ref([])
+  const progress = ref(null)
+  const tournamentComplete = ref(null)
 
   async function loadSessions() {
     loading.value = true
     try {
-      const response = await fetch('/api/negotiation/sessions/list')
+      const response = await fetch('/api/tournament/sessions/list')
       const data = await response.json()
       sessions.value = data.sessions || []
     } catch (error) {
-      console.error('Failed to load negotiation sessions:', error)
+      console.error('Failed to load tournament sessions:', error)
       sessions.value = []
     } finally {
       loading.value = false
@@ -29,18 +31,18 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
 
   async function getSession(sessionId) {
     try {
-      const response = await fetch(`/api/negotiation/${sessionId}`)
+      const response = await fetch(`/api/tournament/${sessionId}`)
       const data = await response.json()
       return data
     } catch (error) {
-      console.error('Failed to get session:', error)
+      console.error('Failed to get tournament session:', error)
       return null
     }
   }
 
-  async function startNegotiation(config) {
+  async function startTournament(config) {
     try {
-      const response = await fetch('/api/negotiation/start', {
+      const response = await fetch('/api/tournament/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
@@ -48,59 +50,61 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
       const data = await response.json()
       return data
     } catch (error) {
-      console.error('Failed to start negotiation:', error)
+      console.error('Failed to start tournament:', error)
       return null
     }
   }
 
-  async function startNegotiationBackground(config) {
-    try {
-      const response = await fetch('/api/negotiation/start_background', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      })
-      const data = await response.json()
-      return data
-    } catch (error) {
-      console.error('Failed to start background negotiation:', error)
-      return null
-    }
-  }
-
-  function startStreaming(sessionId, stepDelay = 0.1, shareUfuns = false) {
+  function startStreaming(sessionId) {
     // Close existing stream if any
     stopStreaming()
     
     streamingSession.value = sessionId
-    sessionInit.value = null
-    offers.value = []
-    sessionComplete.value = null
+    gridInit.value = null
+    cellStates.value = {}
+    leaderboard.value = []
+    progress.value = null
+    tournamentComplete.value = null
     
-    const url = `/api/negotiation/${sessionId}/stream?step_delay=${stepDelay}&share_ufuns=${shareUfuns}`
+    const url = `/api/tournament/${sessionId}/stream`
     eventSource.value = new EventSource(url)
     
-    eventSource.value.addEventListener('init', (event) => {
+    eventSource.value.addEventListener('grid_init', (event) => {
       const data = JSON.parse(event.data)
-      sessionInit.value = data
+      gridInit.value = data
     })
     
-    eventSource.value.addEventListener('offer', (event) => {
+    eventSource.value.addEventListener('cell_start', (event) => {
       const data = JSON.parse(event.data)
-      offers.value.push(data)
+      cellStates.value[data.cell_id] = { status: 'running', ...data }
+    })
+    
+    eventSource.value.addEventListener('cell_complete', (event) => {
+      const data = JSON.parse(event.data)
+      cellStates.value[data.cell_id] = { status: 'complete', ...data }
+    })
+    
+    eventSource.value.addEventListener('leaderboard', (event) => {
+      const data = JSON.parse(event.data)
+      leaderboard.value = data.leaderboard || []
+    })
+    
+    eventSource.value.addEventListener('progress', (event) => {
+      const data = JSON.parse(event.data)
+      progress.value = data
     })
     
     eventSource.value.addEventListener('complete', (event) => {
       const data = JSON.parse(event.data)
-      sessionComplete.value = data
+      tournamentComplete.value = data
       stopStreaming()
       loadSessions() // Refresh sessions list
     })
     
     eventSource.value.addEventListener('error', (event) => {
-      console.error('SSE error:', event)
+      console.error('Tournament SSE error:', event)
       const data = event.data ? JSON.parse(event.data) : { error: 'Unknown error' }
-      sessionComplete.value = { error: data.error, status: 'failed' }
+      tournamentComplete.value = { error: data.error, status: 'failed' }
       stopStreaming()
     })
   }
@@ -115,53 +119,36 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
 
   async function cancelSession(sessionId) {
     try {
-      const response = await fetch(`/api/negotiation/${sessionId}/cancel`, {
+      const response = await fetch(`/api/tournament/${sessionId}/cancel`, {
         method: 'POST',
       })
       const data = await response.json()
       await loadSessions()
       return data
     } catch (error) {
-      console.error('Failed to cancel session:', error)
-      return null
-    }
-  }
-
-  async function pauseSession(sessionId) {
-    try {
-      const response = await fetch(`/api/negotiation/${sessionId}/pause`, {
-        method: 'POST',
-      })
-      const data = await response.json()
-      await loadSessions()
-      return data
-    } catch (error) {
-      console.error('Failed to pause session:', error)
-      return null
-    }
-  }
-
-  async function resumeSession(sessionId) {
-    try {
-      const response = await fetch(`/api/negotiation/${sessionId}/resume`, {
-        method: 'POST',
-      })
-      const data = await response.json()
-      await loadSessions()
-      return data
-    } catch (error) {
-      console.error('Failed to resume session:', error)
+      console.error('Failed to cancel tournament:', error)
       return null
     }
   }
 
   async function getProgress(sessionId) {
     try {
-      const response = await fetch(`/api/negotiation/${sessionId}/progress`)
+      const response = await fetch(`/api/tournament/${sessionId}/progress`)
       const data = await response.json()
       return data
     } catch (error) {
-      console.error('Failed to get progress:', error)
+      console.error('Failed to get tournament progress:', error)
+      return null
+    }
+  }
+
+  async function getResults(sessionId) {
+    try {
+      const response = await fetch(`/api/tournament/${sessionId}/results`)
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Failed to get tournament results:', error)
       return null
     }
   }
@@ -188,22 +175,22 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     currentSession,
     loading,
     streamingSession,
-    sessionInit,
-    offers,
-    sessionComplete,
+    gridInit,
+    cellStates,
+    leaderboard,
+    progress,
+    tournamentComplete,
     runningSessions,
     completedSessions,
     failedSessions,
     loadSessions,
     getSession,
-    startNegotiation,
-    startNegotiationBackground,
+    startTournament,
     startStreaming,
     stopStreaming,
     cancelSession,
-    pauseSession,
-    resumeSession,
     getProgress,
+    getResults,
     selectSession,
   }
 })
