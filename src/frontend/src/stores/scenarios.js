@@ -117,9 +117,14 @@ export const useScenariosStore = defineStore('scenarios', () => {
 
   const filteredScenarios = computed(() => {
     return scenarios.value.filter(scenario => {
-      // Search filter
-      if (filter.value.search && !scenario.name.toLowerCase().includes(filter.value.search.toLowerCase())) {
-        return false
+      // Search filter - search in name and tags
+      if (filter.value.search) {
+        const searchLower = filter.value.search.toLowerCase()
+        const nameMatch = scenario.name.toLowerCase().includes(searchLower)
+        const tagsMatch = scenario.tags && scenario.tags.some(tag => tag.toLowerCase().includes(searchLower))
+        if (!nameMatch && !tagsMatch) {
+          return false
+        }
       }
       // Source filter
       if (filter.value.source && scenario.source !== filter.value.source) {
