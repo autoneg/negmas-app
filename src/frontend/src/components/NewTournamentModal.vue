@@ -1160,7 +1160,8 @@ watch(() => props.show, (newShow) => {
 })
 </script>
 
-<style scoped>
+<style>
+/* Modal styles - Not scoped because modal is teleported to body */
 .modal-overlay {
   position: fixed;
   top: 0;

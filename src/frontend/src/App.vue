@@ -254,11 +254,15 @@ function toggleSidebar() {
 }
 
 function openNewNegotiation() {
+  console.log('[App.vue] Opening negotiation modal, current:', showNewNegotiationModal.value)
   showNewNegotiationModal.value = true
+  console.log('[App.vue] Set to:', showNewNegotiationModal.value)
 }
 
 function openNewTournament() {
+  console.log('[App.vue] Opening tournament modal, current:', showNewTournamentModal.value)
   showNewTournamentModal.value = true
+  console.log('[App.vue] Set to:', showNewTournamentModal.value)
 }
 
 function onNegotiationStart(data) {

@@ -1484,8 +1484,8 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
-/* Base Modal Styles */
+<style>
+/* Base Modal Styles - Not scoped because modal is teleported to body */
 .modal-overlay {
   position: fixed;
   top: 0;

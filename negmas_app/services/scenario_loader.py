@@ -258,8 +258,9 @@ class ScenarioLoader:
                 return cached_info
 
         try:
-            # Read _info.yml for n_outcomes and rational_fraction (small file, full YAML is fine)
+            # Read _info.yml for n_outcomes, n_issues, and rational_fraction (small file, full YAML is fine)
             n_outcomes = None
+            n_issues = None
             rational_fraction = None
             description = ""
             info_file = path / "_info.yml"
@@ -267,6 +268,7 @@ class ScenarioLoader:
                 with open(info_file) as f:
                     info_data = yaml.safe_load(f) or {}
                     n_outcomes = info_data.get("n_outcomes")
+                    n_issues = info_data.get("n_issues")
                     rational_fraction = info_data.get("rational_fraction")
                     # Try both 'description' and 'desc' fields
                     description = (
@@ -486,12 +488,13 @@ class ScenarioLoader:
             pass
 
         if needs_info:
-            # Calculate and store n_outcomes and rational_fraction in info
+            # Calculate and store n_outcomes, n_issues, and rational_fraction in info
             if scenario.info is None:
                 scenario.info = {}
 
-            # Always set n_outcomes (this is cheap)
+            # Always set n_outcomes and n_issues (these are cheap)
             scenario.info["n_outcomes"] = n_outcomes
+            scenario.info["n_issues"] = len(scenario.outcome_space.issues)
 
             # Only calculate rational_fraction if within info limits
             if can_calc_info:
