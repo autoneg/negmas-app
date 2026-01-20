@@ -1,42 +1,94 @@
 <template>
-  <div id="app" :class="{ 'dark-mode': isDarkMode, 'color-blind-mode': isColorBlindMode }">
+  <div id="app">
     <!-- Toast Notification -->
-    <div v-if="toastVisible" :class="['toast', `toast-${toastType}`]">
+    <div v-if="toastVisible" 
+         :class="['toast-container', `toast-${toastType}`]"
+         style="position: fixed; top: 20px; right: 20px; z-index: 10000; padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-weight: 500;">
       {{ toastMessage }}
     </div>
 
     <div class="app-container">
       <!-- Header -->
-      <header class="app-header">
-        <div class="header-left">
-          <button class="sidebar-toggle" @click="toggleSidebar">
-            ☰
-          </button>
-          <h1 class="app-title">NegMAS Vue</h1>
+      <header class="header">
+        <div class="header-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+          <span>NegMAS Vue</span>
         </div>
-        <div class="header-right">
-          <button class="btn btn-sm" @click="showSettings = true">⚙️ Settings</button>
+        
+        <nav class="header-nav">
+          <router-link to="/negotiations" class="header-nav-btn" active-class="active">Negotiations</router-link>
+          <router-link to="/tournaments" class="header-nav-btn" active-class="active">Tournaments</router-link>
+          <router-link to="/scenarios" class="header-nav-btn" active-class="active">Scenarios</router-link>
+          <router-link to="/negotiators" class="header-nav-btn" active-class="active">Negotiators</router-link>
+          <button class="header-nav-btn" @click="showSettings = true">Settings</button>
+        </nav>
+        
+        <div class="header-spacer"></div>
+        
+        <!-- Loading Indicator -->
+        <div class="header-status header-loading" v-if="scenariosLoading || negotiatorsLoading">
+          <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"></circle>
+          </svg>
+          <span>{{ scenariosLoading && negotiatorsLoading ? 'Loading data...' : (scenariosLoading ? 'Loading scenarios...' : 'Loading negotiators...') }}</span>
+        </div>
+        
+        <div class="header-status">
+          <span class="status-dot" :class="{ 'disconnected': !connected }"></span>
+          <span>{{ connected ? 'Connected' : 'Disconnected' }}</span>
+        </div>
+        
+        <div class="header-actions">
+          <button class="btn btn-primary" @click="openNewNegotiation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            New Negotiation
+          </button>
         </div>
       </header>
 
       <!-- Main Layout -->
       <div class="main-layout">
         <!-- Sidebar -->
-        <aside :class="['sidebar', { collapsed: sidebarCollapsed }]">
-          <nav class="sidebar-nav">
-            <router-link to="/negotiations" class="sidebar-item">
-              🤝 Negotiations
-            </router-link>
-            <router-link to="/scenarios" class="sidebar-item">
-              📊 Scenarios
-            </router-link>
-            <router-link to="/negotiators" class="sidebar-item">
-              🤖 Negotiators
-            </router-link>
-            <router-link to="/tournaments" class="sidebar-item">
-              🏆 Tournaments
-            </router-link>
-          </nav>
+        <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+          <button class="sidebar-toggle" @click="toggleSidebar" :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <polyline :points="sidebarCollapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6'"></polyline>
+            </svg>
+          </button>
+          <div class="sidebar-section">
+            <div class="sidebar-section-title" v-show="!sidebarCollapsed">Quick Actions</div>
+            <button class="sidebar-btn primary" @click="openNewNegotiation()" :title="sidebarCollapsed ? 'Start Negotiation' : ''">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span v-show="!sidebarCollapsed">Start Negotiation</span>
+            </button>
+            <button class="sidebar-btn" @click="showLoadNegotiation = true" :title="sidebarCollapsed ? 'Load from File' : ''">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                <polyline points="12 11 12 17"/>
+                <polyline points="9 14 12 11 15 14"/>
+              </svg>
+              <span v-show="!sidebarCollapsed">Load from File</span>
+            </button>
+            <button class="sidebar-btn" @click="openNewTournament()" :title="sidebarCollapsed ? 'Start Tournament' : ''">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="8" r="5"></circle>
+                <path d="M12 13v7"></path>
+                <path d="M9 20h6"></path>
+              </svg>
+              <span v-show="!sidebarCollapsed">Start Tournament</span>
+            </button>
+          </div>
+          
+          <!-- Sidebar sections will be managed by individual page components -->
+          <slot name="sidebar"></slot>
         </aside>
 
         <!-- Content Area -->
@@ -46,7 +98,7 @@
       </div>
     </div>
 
-    <!-- Settings Modal -->
+    <!-- Settings Modal (placeholder for now) -->
     <div v-if="showSettings" class="modal-overlay" @click.self="showSettings = false">
       <div class="modal">
         <div class="modal-header">
@@ -78,11 +130,23 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 
+// Settings state
 const isDarkMode = ref(false)
 const isColorBlindMode = ref(false)
 const sidebarCollapsed = ref(true)
-const showSettings = ref(false)
 
+// Modal states
+const showSettings = ref(false)
+const showLoadNegotiation = ref(false)
+
+// Global loading states
+const scenariosLoading = ref(false)
+const negotiatorsLoading = ref(false)
+
+// Connection status
+const connected = ref(true)
+
+// Toast notification state
 const toastVisible = ref(false)
 const toastMessage = ref('')
 const toastType = ref('success')
@@ -93,7 +157,7 @@ onMounted(() => {
   isColorBlindMode.value = localStorage.getItem('colorBlindMode') === 'true'
   sidebarCollapsed.value = localStorage.getItem('sidebarCollapsed') !== 'false'
 
-  // Apply dark mode class immediately
+  // Apply classes immediately to prevent flash
   if (isDarkMode.value) {
     document.documentElement.classList.add('dark-mode')
   }
@@ -125,6 +189,16 @@ function toggleColorBlindMode() {
   }
 }
 
+function openNewNegotiation() {
+  // TODO: Open new negotiation modal
+  window.showToast('New Negotiation modal - TODO', 'info')
+}
+
+function openNewTournament() {
+  // TODO: Open new tournament modal
+  window.showToast('New Tournament modal - TODO', 'info')
+}
+
 // Global toast notification function
 window.showToast = (message, type = 'success') => {
   toastMessage.value = message
@@ -137,125 +211,6 @@ window.showToast = (message, type = 'success') => {
 </script>
 
 <style>
+@import './assets/css/styles.css';
 @import './assets/css/layout.css';
-
-.toast {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  padding: 15px 20px;
-  border-radius: 4px;
-  color: white;
-  z-index: 10000;
-  animation: slideIn 0.3s ease-out;
-}
-
-.toast-success {
-  background-color: #22c55e;
-}
-
-.toast-error {
-  background-color: #ef4444;
-}
-
-.toast-info {
-  background-color: #3b82f6;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-
-.modal {
-  background: white;
-  border-radius: 8px;
-  max-width: 600px;
-  width: 90%;
-  max-height: 90vh;
-  overflow: auto;
-}
-
-.dark-mode .modal {
-  background: #1f2937;
-  color: #f3f4f6;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.dark-mode .modal-header {
-  border-bottom-color: #374151;
-}
-
-.modal-header h2 {
-  margin: 0;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 28px;
-  cursor: pointer;
-  color: #6b7280;
-}
-
-.modal-close:hover {
-  color: #111827;
-}
-
-.dark-mode .modal-close:hover {
-  color: #f3f4f6;
-}
-
-.modal-body {
-  padding: 20px;
-}
-
-.modal-footer {
-  padding: 20px;
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.dark-mode .modal-footer {
-  border-top-color: #374151;
-}
-
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
 </style>
