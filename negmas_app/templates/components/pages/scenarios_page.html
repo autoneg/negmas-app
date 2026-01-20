@@ -22,8 +22,8 @@
                             <div class="form-group">
                                 <select class="form-select" x-model="explorerSourceFilter" @change="filterExplorerScenarios()">
                                     <option value="">All Sources</option>
-                                    <template x-for="(source, idx) in (sources || [])" :key="source?.id || idx">
-                                        <option :value="source.id" x-text="source.name + ' (' + source.count + ')'"></option>
+                                    <template x-for="(source, idx) in (sources || [])" :key="idx">
+                                        <option :value="source" x-text="source + ' (' + (explorerScenarios.filter(s => s.source === source).length) + ')'"></option>
                                     </template>
                                 </select>
                             </div>
@@ -41,7 +41,7 @@
                             </div>
                             
                             <!-- Advanced Filters Panel -->
-                            <div class="form-group" x-show="explorerFilters.showAdvanced" x-collapse style="margin-top: 0;">
+                            <div class="form-group" x-show="explorerFilters.showAdvanced" x-transition style="margin-top: 0;">
                                 <div style="background: var(--bg-secondary); padding: 10px; border-radius: 6px; font-size: 12px;">
                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
                                         <div>
@@ -304,6 +304,12 @@
                                                 </div>
                                             </div>
                                         </div>
+                                    </div>
+                                    
+                                    <!-- Utility Space Visualization -->
+                                    <div class="scenario-detail-section" x-show="scenarioStats && scenarioStats.has_stats && selectedScenario.n_negotiators === 2">
+                                        <h3>Utility Space</h3>
+                                        <div id="scenario-utility-plot" style="width: 100%; height: 400px;"></div>
                                     </div>
                                     
                                     <div class="scenario-detail-section">

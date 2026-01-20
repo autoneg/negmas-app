@@ -111,6 +111,74 @@ async def check_for_console_errors(page: Page):
 
 
 @pytest.mark.asyncio
+async def test_negotiators_appear_in_ui(page: Page, test_server: str):
+    """
+    Test that negotiators actually appear in the negotiator selection dropdown.
+
+    This is a critical UI test that verifies:
+    1. Negotiator API returns data
+    2. Negotiators are rendered in the UI dropdown
+    3. At least some negotiators are available for selection
+    """
+    # Navigate to the app
+    await page.goto(test_server, wait_until="networkidle")
+    await page.wait_for_timeout(2000)
+
+    # Check negotiators API first
+    negotiators_response = await page.evaluate("""
+        async () => {
+            const res = await fetch('/api/negotiators');
+            return await res.json();
+        }
+    """)
+
+    assert len(negotiators_response) > 0, "API /api/negotiators returned no negotiators"
+
+    # Click on Scenarios tab
+    await page.click("text=Scenarios", timeout=5000)
+    await page.wait_for_timeout(500)
+
+    # Wait for scenarios to load
+    await page.wait_for_selector("[data-scenario-id]", timeout=10000)
+
+    # Click on first scenario
+    first_scenario = page.locator("[data-scenario-id]").first
+    await first_scenario.click()
+    await page.wait_for_timeout(1000)
+
+    # Wait for negotiator selectors
+    await page.wait_for_selector(".negotiator-selector", timeout=5000)
+
+    # Get all negotiator select dropdowns
+    negotiator_selects = page.locator(".negotiator-selector select")
+    count = await negotiator_selects.count()
+
+    assert count > 0, "No negotiator selectors found"
+
+    # Check that each dropdown has options (more than just the placeholder)
+    for i in range(count):
+        select = negotiator_selects.nth(i)
+        options = await select.locator("option").count()
+
+        # Should have at least 2 options: 1 placeholder + 1+ actual negotiators
+        assert options >= 2, (
+            f"Negotiator select {i} has {options} options, expected at least 2 "
+            "(1 placeholder + negotiators)"
+        )
+
+        # Verify options have non-empty values
+        option_values = await select.locator("option[value]:not([value=''])").count()
+        assert option_values >= 1, (
+            f"Negotiator select {i} has no selectable negotiators "
+            f"(found {option_values} non-empty options)"
+        )
+
+    # Check for console errors
+    errors = await check_for_console_errors(page)
+    assert not errors, f"Console errors occurred: {errors}"
+
+
+@pytest.mark.asyncio
 async def test_start_new_negotiation(page: Page, test_server: str):
     """
     Test starting a new negotiation from the UI.

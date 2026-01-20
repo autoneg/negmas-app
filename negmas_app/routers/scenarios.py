@@ -145,6 +145,7 @@ def _scenario_to_dict(info) -> dict:
         "rational_fraction": info.rational_fraction,
         "opposition": info.opposition,
         "source": info.source,
+        "tags": info.tags,
         "has_stats": info.has_stats,
         "has_info": info.has_info,
         "issues": [

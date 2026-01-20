@@ -906,12 +906,89 @@
                     if (this.selectedScenario) {
                         this.selectedScenario.has_stats = true;
                     }
+                    // Plot utility space if 2-party scenario
+                    this.$nextTick(() => {
+                        this.plotScenarioUtilitySpace();
+                    });
                 } catch (e) {
                     console.error('Failed to calculate scenario stats:', e);
                     this.scenarioStatsError = 'Failed to calculate stats';
                 } finally {
                     this.scenarioStatsLoading = false;
                 }
+            },
+            
+            plotScenarioUtilitySpace() {
+                if (!this.scenarioStats || !this.scenarioStats.has_stats || this.selectedScenario?.n_negotiators !== 2) {
+                    return;
+                }
+                
+                const plotDiv = document.getElementById('scenario-utility-plot');
+                if (!plotDiv) return;
+                
+                const stats = this.scenarioStats;
+                const traces = [];
+                
+                // Plot all outcomes as scatter
+                if (stats.outcome_utils && stats.outcome_utils.length > 0) {
+                    const x = stats.outcome_utils.map(u => u[0]);
+                    const y = stats.outcome_utils.map(u => u[1]);
+                    traces.push({
+                        x: x,
+                        y: y,
+                        mode: 'markers',
+                        type: 'scatter',
+                        name: 'All Outcomes',
+                        marker: { size: 4, color: 'rgba(100, 100, 100, 0.3)' }
+                    });
+                }
+                
+                // Plot Pareto frontier
+                if (stats.pareto_utils && stats.pareto_utils.length > 0) {
+                    const x = stats.pareto_utils.map(u => u[0]);
+                    const y = stats.pareto_utils.map(u => u[1]);
+                    traces.push({
+                        x: x,
+                        y: y,
+                        mode: 'markers',
+                        type: 'scatter',
+                        name: 'Pareto Frontier',
+                        marker: { size: 6, color: 'rgba(59, 130, 246, 0.8)' }
+                    });
+                }
+                
+                // Plot special points
+                const specialPoints = [
+                    { name: 'Nash', utils: stats.nash_utils, color: 'red' },
+                    { name: 'Kalai', utils: stats.kalai_utils, color: 'green' },
+                    { name: 'KS', utils: stats.ks_utils, color: 'orange' },
+                    { name: 'Max Welfare', utils: stats.max_welfare_utils, color: 'purple' }
+                ];
+                
+                for (const point of specialPoints) {
+                    if (point.utils && point.utils.length > 0) {
+                        traces.push({
+                            x: [point.utils[0][0]],
+                            y: [point.utils[0][1]],
+                            mode: 'markers',
+                            type: 'scatter',
+                            name: point.name,
+                            marker: { size: 12, color: point.color, symbol: 'star' }
+                        });
+                    }
+                }
+                
+                const layout = {
+                    title: 'Utility Space',
+                    xaxis: { title: stats.negotiator_names?.[0] || 'Party 1' },
+                    yaxis: { title: stats.negotiator_names?.[1] || 'Party 2' },
+                    hovermode: 'closest',
+                    showlegend: true,
+                    legend: { x: 1.05, y: 1 },
+                    margin: { l: 60, r: 150, t: 40, b: 60 }
+                };
+                
+                Plotly.newPlot(plotDiv, traces, layout, { responsive: true });
             },
             
             async bulkCalculateStats(force = false) {

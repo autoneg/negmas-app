@@ -303,23 +303,32 @@ def _discover_from_negmas_registry() -> list[NegotiatorEntry]:
     try:
         from negmas import negotiator_registry
 
-        for key in negotiator_registry.keys():
-            info = negotiator_registry.get(key)
+        for key, info in negotiator_registry.items():
             if info is None:
                 continue
 
             # Determine source based on tags
             tags = list(info.tags) if info.tags else []
-            anac_year = getattr(info, "anac_year", None)  # Old API compatibility
 
+            # Extract ANAC year from tags (format: "anac-2019")
+            anac_year = None
+            for tag in tags:
+                if tag.startswith("anac-"):
+                    try:
+                        anac_year = int(tag.split("-")[1])
+                    except (IndexError, ValueError):
+                        pass
+
+            # Determine source based on tags
             if "genius" in tags:
                 source = "genius"
                 group = f"y{anac_year}" if anac_year else "other"
-            elif "builtin" in tags:
+            elif "builtin" in tags or "native" in tags:
                 source = "native"
                 group = "core"
             else:
-                source = "native"
+                # Use the info.source field from the registry
+                source = info.source if info.source != "unknown" else "native"
                 group = ""
 
             # Determine module_path from full_type_name
@@ -327,19 +336,25 @@ def _discover_from_negmas_registry() -> list[NegotiatorEntry]:
             if info.full_type_name:
                 module_path = info.full_type_name.rsplit(".", 1)[0]
 
-            # Use the registry key to construct type_name to handle aliases properly
-            # For example, both NaiveTitForTatNegotiator and SimpleTitForTatNegotiator
-            # have the same full_type_name, but different registry keys
-            # We use module_path + key to create a unique, importable type_name
-            type_name = f"{module_path}.{key}" if module_path else f"negmas.{key}"
+            # Use full_type_name as the primary type_name (this is correct and importable)
+            type_name = info.full_type_name
+
+            # Extract description
+            description = ""
+            if anac_year:
+                description = f"ANAC {anac_year}"
+            elif hasattr(info.cls, "__doc__") and info.cls.__doc__:
+                # Get first line of docstring
+                description = info.cls.__doc__.split("\n")[0].strip()
 
             # Create our NegotiatorInfo from negmas RegistryInfo
             neg_info = NegotiatorInfo(
                 type_name=type_name,
-                name=info.short_name or key,
+                name=info.short_name
+                or key.split("#")[0],  # Remove hash suffix for display
                 source=source,
                 group=group,
-                description=f"ANAC {anac_year}" if anac_year else "",
+                description=description,
                 tags=tags,
                 mechanisms=["SAO", "TAU", "GAO"] if "sao" in tags else ["SAO"],
                 requires_bridge="genius" in tags and "builtin" not in tags,
@@ -352,6 +367,9 @@ def _discover_from_negmas_registry() -> list[NegotiatorEntry]:
     except Exception as e:
         # Log but don't fail - fall back to manual discovery
         print(f"Warning: Failed to load from negmas registry: {e}")
+        import traceback
+
+        traceback.print_exc()
 
     return entries
 

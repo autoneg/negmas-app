@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 
-from negmas import Scenario
+from negmas import Scenario, scenario_registry, register_all_scenarios
 from negmas.inout import (
     find_domain_and_utility_files_geniusweb,
     find_domain_and_utility_files_xml,
@@ -77,98 +77,165 @@ class ScenarioLoader:
             # Default: scenarios folder at same level as negmas_app package
             scenarios_root = Path(__file__).parent.parent.parent / "scenarios"
         self.scenarios_root = Path(scenarios_root)
+        self._registered = False
 
-    def list_sources(self) -> list[str]:
-        """List available scenario sources (e.g., anac2019, anac2020, user)."""
-        sources = []
-        if self.scenarios_root.exists():
-            sources.extend(
-                d.name
-                for d in self.scenarios_root.iterdir()
-                if d.is_dir() and not d.name.startswith(".")
-            )
+    def ensure_scenarios_registered(self) -> int:
+        """Register all scenarios with negmas scenario_registry if not already done.
 
-        # Also check user scenarios directory
-        settings = SettingsService.load_paths()
-        user_scenarios = Path(settings.user_scenarios).expanduser()
-        if user_scenarios.exists():
-            # Add "user" as a source if there are any scenarios
-            has_user_scenarios = any(
-                d.is_dir() and not d.name.startswith(".")
-                for d in user_scenarios.iterdir()
-            )
-            if has_user_scenarios and "user" not in sources:
-                sources.append("user")
-
-        return sorted(sources)
-
-    def list_scenarios(self, source: str | None = None) -> list[ScenarioInfo]:
-        """List all scenarios, optionally filtered by source.
-
-        Args:
-            source: Filter by source (e.g., "anac2019", "user"). None returns all.
+        Returns:
+            Number of scenarios registered.
         """
-        scenarios = []
+        if self._registered:
+            return len(scenario_registry)
 
-        # Get user scenarios directory
-        settings = SettingsService.load_paths()
-        user_scenarios = Path(settings.user_scenarios).expanduser()
+        from negmas import register_scenario
 
-        if source:
-            if source == "user":
-                # Only user scenarios
-                if user_scenarios.exists():
-                    for scenario_dir in sorted(user_scenarios.iterdir()):
-                        if scenario_dir.is_dir() and not scenario_dir.name.startswith(
-                            "."
-                        ):
-                            info = self._load_scenario_info_lightweight(
-                                scenario_dir, "user"
-                            )
-                            if info:
-                                scenarios.append(info)
-            else:
-                # Built-in source
-                if (self.scenarios_root / source).exists():
-                    src_path = self.scenarios_root / source
-                    for scenario_dir in sorted(src_path.iterdir()):
-                        if scenario_dir.is_dir() and not scenario_dir.name.startswith(
-                            "."
-                        ):
-                            info = self._load_scenario_info_lightweight(
-                                scenario_dir, source
-                            )
-                            if info:
-                                scenarios.append(info)
-        else:
-            # All sources
-            sources = self.list_sources()
-            for src in sources:
-                if src == "user":
-                    # User scenarios
-                    if user_scenarios.exists():
-                        for scenario_dir in sorted(user_scenarios.iterdir()):
+        # Register built-in scenarios with source="app"
+        # Add all folder names from scenarios_root to scenario as tags
+        total_registered = 0
+        if self.scenarios_root.exists():
+            for category_dir in self.scenarios_root.iterdir():
+                if category_dir.is_dir() and not category_dir.name.startswith("."):
+                    try:
+                        # Find all scenario directories
+                        for scenario_dir in category_dir.iterdir():
                             if (
                                 scenario_dir.is_dir()
                                 and not scenario_dir.name.startswith(".")
                             ):
-                                info = self._load_scenario_info_lightweight(
-                                    scenario_dir, "user"
-                                )
-                                if info:
-                                    scenarios.append(info)
-                else:
-                    # Built-in source
-                    src_path = self.scenarios_root / src
-                    for scenario_dir in sorted(src_path.iterdir()):
-                        if scenario_dir.is_dir() and not scenario_dir.name.startswith(
-                            "."
-                        ):
-                            info = self._load_scenario_info_lightweight(
-                                scenario_dir, src
-                            )
-                            if info:
-                                scenarios.append(info)
+                                try:
+                                    # Extract tags: all folder names from scenarios/ onwards
+                                    tags = {category_dir.name}  # e.g., "anac2019"
+                                    register_scenario(
+                                        scenario_dir,
+                                        source="app",
+                                        tags=tags,
+                                    )
+                                    total_registered += 1
+                                except Exception as e:
+                                    # Silently skip scenarios that can't be registered
+                                    pass
+                    except Exception as e:
+                        print(
+                            f"Warning: Failed to register scenarios from {category_dir}: {e}"
+                        )
+
+        # Register from custom scenario_paths
+        # Each path gets scanned recursively, and scenarios use the folder name as source
+        # TODO: Update PathSettings.scenario_paths to be list[ScenarioSource] with explicit names
+        settings = SettingsService.load_paths()
+        for path_str in settings.scenario_paths:
+            path = Path(path_str).expanduser()
+            if path.exists():
+                # Use the folder name as the source name
+                source_name = path.name
+                total_registered += self._register_scenarios_from_path(
+                    path, source=source_name
+                )
+
+        self._registered = True
+        return total_registered
+
+    def _register_scenarios_from_path(self, base_path: Path, source: str) -> int:
+        """Recursively register all scenarios found under base_path with given source.
+
+        Args:
+            base_path: Directory to scan for scenarios
+            source: Source name to use for all scenarios found
+
+        Returns:
+            Number of scenarios registered
+        """
+        from negmas import register_scenario
+
+        count = 0
+        try:
+            for item in base_path.rglob("*"):
+                if item.is_dir() and not any(
+                    p.name.startswith(".") for p in item.parents
+                ):
+                    # Check if this looks like a scenario directory
+                    # (has domain/utility files)
+                    try:
+                        # Build tags from ALL folder names in path relative to base_path
+                        # This includes all subfolders leading to the scenario
+                        rel_path = item.relative_to(base_path)
+                        tags = set()
+                        # Add all parent folder names as tags
+                        for parent in rel_path.parents:
+                            if parent != Path("."):
+                                tags.add(parent.name)
+
+                        register_scenario(
+                            item,
+                            source=source,
+                            tags=tags,
+                        )
+                        count += 1
+                    except Exception:
+                        # Not a valid scenario, skip
+                        pass
+        except Exception as e:
+            print(f"Warning: Failed to scan {base_path} for scenarios: {e}")
+
+        return count
+
+    def list_sources(self) -> list[str]:
+        """List available scenario sources (app, user, etc.) from negmas registry."""
+        self.ensure_scenarios_registered()
+
+        # Get unique actual sources from registry
+        sources = set()
+        for info in scenario_registry.values():
+            if info.source:
+                sources.add(info.source)
+
+        return sorted(sources)
+
+    def _convert_registry_info(self, reg_info: Any) -> ScenarioInfo | None:
+        """Convert negmas ScenarioInfo to our ScenarioInfo model."""
+        try:
+            # Use tags directly from registry
+            tags = list(reg_info.tags) if reg_info.tags else []
+
+            # negmas ScenarioInfo has: name, path, source, tags, n_outcomes, n_negotiators, opposition_level
+            return ScenarioInfo(
+                path=str(reg_info.path),
+                name=reg_info.name,
+                n_negotiators=reg_info.n_negotiators or 2,
+                issues=[],  # Will be loaded on detail request
+                n_outcomes=reg_info.n_outcomes,
+                rational_fraction=None,  # Not in registry, loaded from _info.yaml on detail
+                opposition=reg_info.opposition_level,
+                source=reg_info.source or "unknown",  # Use actual source from registry
+                tags=tags,  # All tags from registry (includes folder names)
+                has_stats="has-stats" in reg_info.tags if reg_info.tags else False,
+                has_info=False,  # Will check on detail load
+            )
+        except Exception as e:
+            print(f"Warning: Failed to convert registry info: {e}")
+            return None
+
+    def list_scenarios(self, source: str | None = None) -> list[ScenarioInfo]:
+        """List all scenarios from negmas registry, optionally filtered by source.
+
+        Args:
+            source: Filter by actual source (e.g., "app", "user"). None returns all.
+        """
+        self.ensure_scenarios_registered()
+
+        # Query registry by actual source
+        if source:
+            results = scenario_registry.query(source=source)
+        else:
+            results = dict(scenario_registry.items())
+
+        # Convert negmas ScenarioInfo to our ScenarioInfo model
+        scenarios = []
+        for path_str, reg_info in results.items():
+            info = self._convert_registry_info(reg_info)
+            if info:
+                scenarios.append(info)
 
         return scenarios
 
