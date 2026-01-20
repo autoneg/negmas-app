@@ -1001,6 +1001,11 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'start'])
 
+// Debug: Watch show prop
+watch(() => props.show, (newVal, oldVal) => {
+  console.log('NewNegotiationModal show prop changed:', { from: oldVal, to: newVal })
+})
+
 // Tab management
 const currentTab = ref('scenario')
 const negotiatorSubTab = ref('preset')

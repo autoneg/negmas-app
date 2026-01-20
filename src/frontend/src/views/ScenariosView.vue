@@ -345,13 +345,15 @@
       </div>
     </div>
     
-    <!-- New Negotiation Modal -->
-    <NewNegotiationModal
-      :show="showNewNegotiationModal"
-      :preselected-scenario="selectedScenario"
-      @close="showNewNegotiationModal = false"
-      @start="onNegotiationStart"
-    />
+    <!-- New Negotiation Modal (teleported to body to avoid overflow clipping) -->
+    <Teleport to="body">
+      <NewNegotiationModal
+        :show="showNewNegotiationModal"
+        :preselected-scenario="selectedScenario"
+        @close="showNewNegotiationModal = false"
+        @start="onNegotiationStart"
+      />
+    </Teleport>
   </div>
 </template>
 
@@ -679,7 +681,9 @@ function formatUtilityList(utils) {
 }
 
 function openNewNegotiation() {
+  console.log('openNewNegotiation called, current value:', showNewNegotiationModal.value)
   showNewNegotiationModal.value = true
+  console.log('openNewNegotiation set to:', showNewNegotiationModal.value)
 }
 
 function onNegotiationStart(data) {

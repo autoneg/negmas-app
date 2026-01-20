@@ -292,12 +292,14 @@
       </div>
     </div>
     
-    <!-- New Tournament Modal -->
-    <NewTournamentModal
-      :show="showNewTournamentModal"
-      @close="showNewTournamentModal = false"
-      @start="onTournamentStart"
-    />
+    <!-- New Tournament Modal (teleported to body to avoid overflow clipping) -->
+    <Teleport to="body">
+      <NewTournamentModal
+        :show="showNewTournamentModal"
+        @close="showNewTournamentModal = false"
+        @start="onTournamentStart"
+      />
+    </Teleport>
   </div>
 </template>
 
