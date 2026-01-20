@@ -124,6 +124,9 @@
           <div class="scenario-name">{{ scenario.name }}</div>
           <div class="scenario-meta">
             <span class="badge">{{ scenario.source }}</span>
+            <span v-if="scenario.tags && scenario.tags.length > 0" class="tags">
+              <span v-for="tag in scenario.tags.slice(0, 3)" :key="tag" class="tag">{{ tag }}</span>
+            </span>
             <span v-if="scenario.n_outcomes">{{ formatNumber(scenario.n_outcomes) }} outcomes</span>
           </div>
           <div class="scenario-stats" v-if="scenario.rational_fraction !== null || scenario.opposition !== null">
@@ -594,6 +597,22 @@ function formatNumber(num) {
   border-radius: 4px;
   background: var(--bg-tertiary);
   font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--primary-light);
+  color: var(--primary-color);
+  font-size: 0.7rem;
   font-weight: 500;
 }
 

@@ -46,6 +46,9 @@ class ScenarioInfo:
     # Tags
     tags: list[str] = field(default_factory=list)
 
+    # Description (markdown or Google-style docstring from _info.yaml)
+    description: str = ""
+
     # Whether stats are cached
     has_stats: bool = False
 

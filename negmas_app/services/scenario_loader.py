@@ -198,7 +198,7 @@ class ScenarioLoader:
             # Use tags directly from registry
             tags = list(reg_info.tags) if reg_info.tags else []
 
-            # negmas ScenarioInfo has: name, path, source, tags, n_outcomes, n_negotiators, opposition_level
+            # negmas ScenarioInfo has: name, path, source, tags, n_outcomes, n_negotiators, opposition_level, description
             return ScenarioInfo(
                 path=str(reg_info.path),
                 name=reg_info.name,
@@ -209,6 +209,7 @@ class ScenarioLoader:
                 opposition=reg_info.opposition_level,
                 source=reg_info.source or "unknown",  # Use actual source from registry
                 tags=tags,  # All tags from registry (includes folder names)
+                description=reg_info.description or "",  # Description from registry
                 has_stats="has-stats" in reg_info.tags if reg_info.tags else False,
                 has_info=False,  # Will check on detail load
             )
@@ -260,12 +261,17 @@ class ScenarioLoader:
             # Read _info.yml for n_outcomes and rational_fraction (small file, full YAML is fine)
             n_outcomes = None
             rational_fraction = None
+            description = ""
             info_file = path / "_info.yml"
             if info_file.exists():
                 with open(info_file) as f:
                     info_data = yaml.safe_load(f) or {}
                     n_outcomes = info_data.get("n_outcomes")
                     rational_fraction = info_data.get("rational_fraction")
+                    # Try both 'description' and 'desc' fields
+                    description = (
+                        info_data.get("description") or info_data.get("desc") or ""
+                    )
 
             # Extract opposition from _stats.yaml using regex (fast, avoids full YAML parsing)
             # The _stats.yaml files can be large (2MB+) due to pareto data
@@ -297,6 +303,7 @@ class ScenarioLoader:
                 rational_fraction=rational_fraction,
                 opposition=opposition,
                 source=source,
+                description=description,
                 has_stats=has_stats,
                 has_info=rational_fraction is not None,
             )
