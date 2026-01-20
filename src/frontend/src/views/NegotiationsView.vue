@@ -285,37 +285,28 @@
       </div>
     </div>
     
-    <!-- New Negotiation Modal (Placeholder) -->
-    <div v-if="showNewNegotiationModal" class="modal-overlay" @click="showNewNegotiationModal = false">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>New Negotiation</h3>
-          <button class="btn-icon" @click="showNewNegotiationModal = false">×</button>
-        </div>
-        <div class="modal-body">
-          <p>TODO: Implement negotiation creation form</p>
-          <p>This will include:</p>
-          <ul>
-            <li>Scenario selection</li>
-            <li>Negotiator selection and configuration</li>
-            <li>Mechanism parameters</li>
-          </ul>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-secondary" @click="showNewNegotiationModal = false">Cancel</button>
-        </div>
-      </div>
-    </div>
+    <!-- New Negotiation Modal (teleported to body) -->
+    <Teleport to="body">
+      <NewNegotiationModal
+        :show="showNewNegotiationModal"
+        @close="showNewNegotiationModal = false"
+        @start="onNegotiationStart"
+      />
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, watch, nextTick, onUnmounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useNegotiationsStore } from '../stores/negotiations'
 import { storeToRefs } from 'pinia'
 import Chart from 'chart.js/auto'
 import Plotly from 'plotly.js-dist-min'
+import NewNegotiationModal from '../components/NewNegotiationModal.vue'
 
+const router = useRouter()
+const route = useRoute()
 const negotiationsStore = useNegotiationsStore()
 const {
   sessions,
@@ -338,6 +329,13 @@ let chartInstance = null
 
 onMounted(async () => {
   await loadData()
+  
+  // Check if we should start streaming a specific session from query params
+  if (route.query.session_id) {
+    const sessionId = route.query.session_id
+    negotiationsStore.startStreaming(sessionId)
+    activeTab.value = 'offers'
+  }
 })
 
 onUnmounted(() => {
@@ -349,6 +347,16 @@ onUnmounted(() => {
 
 async function loadData() {
   await negotiationsStore.loadSessions()
+}
+
+function onNegotiationStart(data) {
+  // Close modal
+  showNewNegotiationModal.value = false
+  // Start streaming the new negotiation
+  if (data.session_id) {
+    negotiationsStore.startStreaming(data.session_id)
+    activeTab.value = 'offers'
+  }
 }
 
 function selectAndViewSession(session) {
