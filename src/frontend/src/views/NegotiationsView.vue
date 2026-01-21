@@ -543,11 +543,6 @@ async function saveTagsFromEditor() {
   }
 }
 
-async function loadData() {
-  await negotiationsStore.loadSessions()
-  await negotiationsStore.loadSavedNegotiations(showArchived.value)
-}
-
 function onNegotiationStart(data) {
   // Close modal
   showNewNegotiationModal.value = false
