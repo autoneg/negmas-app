@@ -271,6 +271,9 @@ function switchTab(tab) {
 
 // Initialize histogram
 async function initHistogram(retryCount = 0) {
+  // Early exit if collapsed - performance optimization
+  if (collapsed.value) return
+  
   const container = histogramContainer.value
   if (!container) return
   
@@ -524,6 +527,9 @@ async function initHistogram(retryCount = 0) {
 
 // Render issue space 2D plot
 async function renderIssueSpacePlot() {
+  // Early exit if collapsed - performance optimization
+  if (collapsed.value) return
+  
   const plotDiv = issueSpaceDiv.value
   if (!plotDiv || issueNames.value.length < 2) return
   
@@ -683,23 +689,53 @@ function onImageError() {
   showInteractive.value = true
 }
 
-// Watch for offer changes - throttled for smooth updates
+// Watch for offer changes - throttled and incremental for smooth updates
 let updateScheduled = false
-function scheduleUpdate() {
+let lastRenderedOfferCount = 0
+const INCREMENTAL_UPDATE_INTERVAL = 10 // Update every 10 offers
+
+function scheduleUpdate(force = false) {
+  // Skip if panel is collapsed - major performance optimization
+  if (collapsed.value) return
+  
+  const currentOfferCount = props.negotiation?.offers?.length || 0
+  
+  // Incremental updates: only render every N offers or on force
+  if (!force && currentOfferCount > 0) {
+    const offersSinceLastRender = currentOfferCount - lastRenderedOfferCount
+    if (offersSinceLastRender < INCREMENTAL_UPDATE_INTERVAL) {
+      return // Skip update
+    }
+  }
+  
   if (updateScheduled) return
   updateScheduled = true
   requestAnimationFrame(() => {
     if (hasOffers.value && !collapsed.value && activeTab.value === 'histogram') {
       nextTick(() => {
         initHistogram()
+        lastRenderedOfferCount = props.negotiation?.offers?.length || 0
       })
     }
     updateScheduled = false
   })
 }
 
-watch(() => props.negotiation?.offers?.length, () => {
+watch(() => props.negotiation?.offers?.length, (newCount, oldCount) => {
   scheduleUpdate()
+})
+
+// Force update when negotiation completes
+watch(() => props.negotiation?.agreement, (newAgreement) => {
+  if (newAgreement !== undefined && newAgreement !== null) {
+    scheduleUpdate(true) // Force final render with agreement
+  }
+})
+
+watch(() => props.negotiation?.end_reason, (newEndReason) => {
+  if (newEndReason) {
+    scheduleUpdate(true) // Force final render on completion
+  }
 })
 
 watch(collapsed, (newVal) => {
