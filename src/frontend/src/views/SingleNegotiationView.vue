@@ -117,6 +117,13 @@
         @close="showNewNegotiationModal = false"
         @start="onNegotiationStart"
       />
+      
+      <!-- Stats Modal -->
+      <StatsModal
+        :show="showStatsModal"
+        :negotiation="negotiation"
+        @close="showStatsModal = false"
+      />
     </Teleport>
   </div>
 </template>
@@ -127,6 +134,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useNegotiationsStore } from '../stores/negotiations'
 import { storeToRefs } from 'pinia'
 import NewNegotiationModal from '../components/NewNegotiationModal.vue'
+import StatsModal from '../components/StatsModal.vue'
 import PanelLayout from '../components/panels/PanelLayout.vue'
 import InfoPanel from '../components/panels/InfoPanel.vue'
 import OfferHistoryPanel from '../components/panels/OfferHistoryPanel.vue'
@@ -148,6 +156,7 @@ const {
 } = storeToRefs(negotiationsStore)
 
 const showNewNegotiationModal = ref(false)
+const showStatsModal = ref(false)
 const loading = ref(true)
 const error = ref(null)
 
@@ -344,8 +353,8 @@ async function handleStopNegotiation() {
 }
 
 function handleShowStats() {
-  // Show scenario stats
-  console.log('Show stats')
+  // Show scenario stats modal
+  showStatsModal.value = true
 }
 
 function handleSaveResults() {
