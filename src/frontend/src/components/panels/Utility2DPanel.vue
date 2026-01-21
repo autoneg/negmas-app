@@ -464,12 +464,16 @@ function resetView() {
 async function saveAsImage() {
   if (plotDiv.value && plotInitialized.value && window.Plotly) {
     try {
-      await Plotly.downloadImage(plotDiv.value, {
+      const imgData = await Plotly.toImage(plotDiv.value, {
         format: 'png',
         width: 1200,
-        height: 1000,
-        filename: 'utility-2d'
+        height: 1000
       })
+      // Create download link
+      const link = document.createElement('a')
+      link.download = 'utility-2d.png'
+      link.href = imgData
+      link.click()
     } catch (err) {
       console.error('Failed to download image:', err)
     }

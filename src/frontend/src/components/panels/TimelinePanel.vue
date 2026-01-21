@@ -526,20 +526,27 @@ async function saveAsImage() {
     try {
       // If single plot (simplified view), download it directly
       if (simplified.value && plots.length === 1) {
-        await Plotly.downloadImage(plots[0], {
+        const imgData = await Plotly.toImage(plots[0], {
           format: 'png',
           width: 1200,
-          height: 800,
-          filename: 'timeline-utility'
+          height: 800
         })
+        // Create download link
+        const link = document.createElement('a')
+        link.download = 'timeline-utility.png'
+        link.href = imgData
+        link.click()
       } else {
-        // For multiple plots, download the first one (or we could combine them)
-        await Plotly.downloadImage(plots[0], {
+        // For multiple plots, download the first one
+        const imgData = await Plotly.toImage(plots[0], {
           format: 'png',
           width: 1200,
-          height: 600,
-          filename: 'timeline-utility'
+          height: 600
         })
+        const link = document.createElement('a')
+        link.download = 'timeline-utility.png'
+        link.href = imgData
+        link.click()
       }
     } catch (err) {
       console.error('Failed to download image:', err)
