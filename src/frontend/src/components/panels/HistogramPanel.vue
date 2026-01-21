@@ -527,9 +527,147 @@ async function renderIssueSpacePlot() {
   const plotDiv = issueSpaceDiv.value
   if (!plotDiv || issueNames.value.length < 2) return
   
-  // TODO: Implement Issue Space 2D visualization
-  // This would show a 2D scatter plot of offers in issue space
-  console.log('Issue Space 2D plot - to be implemented')
+  // Don't render if panel is collapsed or hidden
+  if (plotDiv.offsetParent === null || plotDiv.clientWidth === 0) {
+    issueSpaceInitialized.value = false
+    return
+  }
+  
+  const neg = props.negotiation
+  if (!neg || !neg.offers || neg.offers.length === 0) {
+    plotDiv.innerHTML = ''
+    issueSpaceInitialized.value = false
+    return
+  }
+  
+  try {
+    const colors = getPlotColors()
+    const negColors = getNegotiatorColors()
+    const numAgents = neg.negotiator_names?.length || 2
+    const issues = issueNames.value
+    
+    // Ensure valid axis selection
+    const xIdx = Math.min(issueXAxis.value, issues.length - 1)
+    const yIdx = Math.min(issueYAxis.value, issues.length - 1)
+    
+    // Collect data points by agent
+    const dataByAgent = []
+    for (let i = 0; i < numAgents; i++) {
+      dataByAgent.push({ x: [], y: [], text: [] })
+    }
+    
+    neg.offers.forEach((offer, offerIdx) => {
+      const offerData = offer.offer
+      if (typeof offerData === 'object' && offerData !== null && !Array.isArray(offerData)) {
+        const xValue = offerData[issues[xIdx]]
+        const yValue = offerData[issues[yIdx]]
+        
+        if (xValue !== undefined && yValue !== undefined) {
+          const agentIdx = offer.proposer_index
+          dataByAgent[agentIdx].x.push(xValue)
+          dataByAgent[agentIdx].y.push(yValue)
+          dataByAgent[agentIdx].text.push(`Step ${offerIdx + 1}<br>${issues[xIdx]}: ${xValue}<br>${issues[yIdx]}: ${yValue}`)
+        }
+      }
+    })
+    
+    // Create traces
+    const traces = []
+    for (let agentIdx = 0; agentIdx < numAgents; agentIdx++) {
+      if (dataByAgent[agentIdx].x.length > 0) {
+        traces.push({
+          x: dataByAgent[agentIdx].x,
+          y: dataByAgent[agentIdx].y,
+          text: dataByAgent[agentIdx].text,
+          type: 'scatter',
+          mode: 'markers',
+          name: neg.negotiator_names?.[agentIdx] || `Agent ${agentIdx + 1}`,
+          marker: {
+            color: negColors[agentIdx % negColors.length],
+            size: 6,
+            opacity: 0.7,
+            line: {
+              color: colors.textColor,
+              width: 0.5
+            }
+          },
+          hovertemplate: '%{text}<extra></extra>'
+        })
+      }
+    }
+    
+    // Add agreement marker if available
+    if (neg.agreement && typeof neg.agreement === 'object' && !Array.isArray(neg.agreement)) {
+      const agreementX = neg.agreement[issues[xIdx]]
+      const agreementY = neg.agreement[issues[yIdx]]
+      
+      if (agreementX !== undefined && agreementY !== undefined) {
+        traces.push({
+          x: [agreementX],
+          y: [agreementY],
+          type: 'scatter',
+          mode: 'markers',
+          name: 'Agreement',
+          marker: {
+            color: '#10b981',
+            size: 14,
+            symbol: 'star',
+            line: {
+              color: colors.textColor,
+              width: 1.5
+            }
+          },
+          hovertemplate: `Agreement<br>${issues[xIdx]}: ${agreementX}<br>${issues[yIdx]}: ${agreementY}<extra></extra>`
+        })
+      }
+    }
+    
+    const layout = {
+      margin: { t: 10, r: 10, b: 40, l: 50 },
+      paper_bgcolor: 'transparent',
+      plot_bgcolor: 'transparent',
+      font: { 
+        family: '-apple-system, BlinkMacSystemFont, sans-serif', 
+        size: 10, 
+        color: colors.textColor 
+      },
+      legend: { 
+        orientation: 'h', 
+        y: 1.02,
+        x: 0.5,
+        xanchor: 'center',
+        font: { color: colors.textColor, size: 9 } 
+      },
+      xaxis: {
+        title: { text: issues[xIdx], font: { size: 10, color: colors.textColor } },
+        tickfont: { color: colors.textColor, size: 9 },
+        gridcolor: colors.gridColor,
+        zeroline: false
+      },
+      yaxis: {
+        title: { text: issues[yIdx], font: { size: 10, color: colors.textColor } },
+        tickfont: { color: colors.textColor, size: 9 },
+        gridcolor: colors.gridColor,
+        zeroline: false
+      }
+    }
+    
+    await Plotly.newPlot(plotDiv, traces, layout, {
+      responsive: true,
+      displayModeBar: 'hover',
+      modeBarButtonsToRemove: ['lasso2d', 'select2d']
+    })
+    
+    issueSpaceInitialized.value = true
+    nextTick(() => {
+      if (plotDiv && window.Plotly) {
+        Plotly.Plots.resize(plotDiv)
+      }
+    })
+  } catch (e) {
+    console.warn('Failed to render issue space plot:', e)
+    issueSpaceInitialized.value = false
+  }
 }
 
 // Reset issue space view
