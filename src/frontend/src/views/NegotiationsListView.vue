@@ -257,7 +257,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch, shallowRef } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNegotiationsStore } from '../stores/negotiations'
 import { storeToRefs } from 'pinia'
