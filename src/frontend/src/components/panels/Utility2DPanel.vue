@@ -451,8 +451,12 @@ async function updatePlot() {
 
 // Reset view
 function resetView() {
-  if (plotDiv.value && plotInitialized.value) {
-    Plotly.Plots.resize(plotDiv.value)
+  if (plotDiv.value && plotInitialized.value && window.Plotly) {
+    // Reset zoom/pan to original view
+    Plotly.relayout(plotDiv.value, {
+      'xaxis.autorange': true,
+      'yaxis.autorange': true
+    })
   }
 }
 
