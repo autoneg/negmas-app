@@ -122,6 +122,12 @@
     min-height: 200px;
 }
 
+/* Compact panel for preview/list views - fills available height */
+.panel-compact {
+    height: 100%;
+    min-height: 0;
+}
+
 .panel-header {
     display: flex;
     align-items: center;

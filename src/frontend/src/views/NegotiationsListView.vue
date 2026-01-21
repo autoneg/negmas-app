@@ -168,11 +168,11 @@
         <div v-if="!selectedNegotiation" class="preview-empty">
           <p>Select a negotiation to preview</p>
         </div>
-        <div v-else class="preview-content" style="display: flex; flex-direction: column; height: 100%;">
+        <div v-else class="preview-content">
           <!-- Always show Result Panel at top when previewing other panels -->
           <div 
             v-if="selectedPreview !== 'result' && previewData" 
-            style="flex-shrink: 0; max-height: 200px; overflow: auto; border-bottom: 1px solid var(--border-color); margin-bottom: 1rem;"
+            class="preview-result-header"
           >
             <ResultPanel 
               :negotiation="previewData"
@@ -181,10 +181,11 @@
           </div>
           
           <!-- Selected preview panel below (or full height if Result is selected) -->
-          <div style="flex: 1; min-height: 0; overflow: auto;">
+          <div class="preview-panel-main">
             <component 
               :is="previewComponent" 
               v-if="previewComponent && previewData"
+              :key="`${selectedNegotiation?.id}-${selectedPreview}`"
               :negotiation="previewData"
               :compact="true"
             />
@@ -887,6 +888,24 @@ function onNegotiationStart(data) {
 
 .preview-content {
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-result-header {
+  flex-shrink: 0;
+  max-height: 200px;
+  overflow: auto;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 1rem;
+}
+
+.preview-panel-main {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
   overflow: auto;
 }
 
