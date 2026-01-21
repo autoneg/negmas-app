@@ -2,8 +2,10 @@
 
 import asyncio
 import json
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
@@ -572,3 +574,40 @@ async def remove_tag(session_id: str, tag: str):
     if not success:
         raise HTTPException(status_code=404, detail="Negotiation not found")
     return {"status": "removed", "tag": tag}
+
+
+@router.get("/saved/{session_id}/preview/{panel_type}")
+async def get_negotiation_preview(session_id: str, panel_type: str):
+    """Get cached WebP preview for a specific panel type.
+
+    Panel types: utility2d, timeline, histogram, result
+
+    If the preview doesn't exist, returns 404.
+    """
+    # Validate panel type
+    valid_types = ["utility2d", "timeline", "histogram", "result"]
+    if panel_type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid panel type. Must be one of: {', '.join(valid_types)}",
+        )
+
+    # Get session directory
+    session_dir = NegotiationStorageService.get_session_dir(session_id)
+    preview_file = session_dir / f"{panel_type}_preview.webp"
+
+    # Check if preview exists
+    if not preview_file.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Preview '{panel_type}' not found for negotiation '{session_id}'",
+        )
+
+    # Return the WebP file
+    return FileResponse(
+        preview_file,
+        media_type="image/webp",
+        headers={
+            "Cache-Control": "public, max-age=31536000",  # Cache for 1 year
+        },
+    )

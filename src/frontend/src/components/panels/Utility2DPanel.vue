@@ -104,8 +104,26 @@
       style="padding: 0; position: relative;" 
       v-show="!collapsed"
     >
-      <!-- Plotly Chart Container -->
+      <!-- WebP Preview Mode (for compact list view) -->
+      <div v-if="compact && previewImageUrl && !showInteractive" style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg-secondary);">
+        <img 
+          :src="previewImageUrl" 
+          alt="2D Utility Preview" 
+          style="max-width: 100%; max-height: calc(100% - 40px); object-fit: contain;"
+          @error="onImageError"
+        />
+        <button 
+          class="btn btn-sm btn-secondary mt-2" 
+          @click="showInteractive = true"
+          style="margin-top: 8px;"
+        >
+          View Interactive
+        </button>
+      </div>
+      
+      <!-- Plotly Chart Container (Full or after clicking "View Interactive") -->
       <div 
+        v-show="!compact || !previewImageUrl || showInteractive"
         ref="plotDiv" 
         style="width: 100%; height: 100%;"
       ></div>
@@ -144,6 +162,10 @@ const props = defineProps({
   adjustable: {
     type: Boolean,
     default: false
+  },
+  compact: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -153,6 +175,7 @@ const emit = defineEmits(['saveAsImage', 'zoom'])
 const plotDiv = ref(null)
 const collapsed = ref(false)
 const plotInitialized = ref(false)
+const showInteractive = ref(false)
 
 // Axis indices
 const xAxisIndex = ref(0)
@@ -161,6 +184,14 @@ const yAxisIndex = ref(1)
 // Computed
 const negotiatorNames = computed(() => props.negotiation?.negotiator_names || [])
 const hasData = computed(() => !!props.negotiation?.outcome_space_data)
+
+// Preview image URL for compact mode
+const previewImageUrl = computed(() => {
+  if (props.compact && props.negotiation?.id && props.negotiation?.source === 'saved') {
+    return `/api/negotiation/saved/${props.negotiation.id}/preview/utility2d`
+  }
+  return null
+})
 
 // Colors
 const LINE_DASHES = ['solid', 'dash', 'dot', 'dashdot']
@@ -433,6 +464,12 @@ function onAxisChange() {
   })
 }
 
+// Image error handler for preview mode
+function onImageError() {
+  console.warn('Failed to load preview image, falling back to interactive mode')
+  showInteractive.value = true
+}
+
 // Watch for data changes - throttled for smooth updates
 let updateScheduled = false
 function scheduleUpdate() {
@@ -460,6 +497,15 @@ watch(() => props.negotiation?.outcome_space_data, () => {
 
 watch(collapsed, (newVal) => {
   if (!newVal && hasData.value) {
+    nextTick(() => {
+      initPlot()
+    })
+  }
+})
+
+// Watch for switching from preview to interactive mode
+watch(showInteractive, (newVal) => {
+  if (newVal && hasData.value) {
     nextTick(() => {
       initPlot()
     })

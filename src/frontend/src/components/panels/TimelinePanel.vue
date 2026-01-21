@@ -110,8 +110,26 @@
       style="padding: 0; position: relative; overflow: hidden;" 
       v-show="!collapsed"
     >
-      <!-- Timeline Container -->
+      <!-- WebP Preview Mode (for compact list view) -->
+      <div v-if="compact && previewImageUrl && !showInteractive" style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg-secondary);">
+        <img 
+          :src="previewImageUrl" 
+          alt="Timeline Preview" 
+          style="max-width: 100%; max-height: calc(100% - 40px); object-fit: contain;"
+          @error="onImageError"
+        />
+        <button 
+          class="btn btn-sm btn-secondary mt-2" 
+          @click="showInteractive = true"
+          style="margin-top: 8px;"
+        >
+          View Interactive
+        </button>
+      </div>
+      
+      <!-- Timeline Container (Full or after clicking "View Interactive") -->
       <div 
+        v-show="!compact || !previewImageUrl || showInteractive"
         ref="timelineContainer" 
         style="width: 100%; height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px;"
       ></div>
@@ -149,6 +167,10 @@ const props = defineProps({
   adjustable: {
     type: Boolean,
     default: false
+  },
+  compact: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -160,10 +182,19 @@ const collapsed = ref(false)
 const plotsInitialized = ref(false)
 const xAxisType = ref('step')
 const simplified = ref(true)
+const showInteractive = ref(false)
 
 // Computed
 const hasOffers = computed(() => {
   return props.negotiation?.offers && props.negotiation.offers.length > 0
+})
+
+// Preview image URL for compact mode
+const previewImageUrl = computed(() => {
+  if (props.compact && props.negotiation?.id && props.negotiation?.source === 'saved') {
+    return `/api/negotiation/saved/${props.negotiation.id}/preview/timeline`
+  }
+  return null
 })
 
 // Colors
@@ -482,6 +513,12 @@ function resetView() {
   }
 }
 
+// Image error handler for preview mode
+function onImageError() {
+  console.warn('Failed to load preview image, falling back to interactive mode')
+  showInteractive.value = true
+}
+
 // Watch for offer changes - throttled for smooth updates
 let updateScheduled = false
 function scheduleUpdate() {
@@ -503,6 +540,15 @@ watch(() => props.negotiation?.offers?.length, () => {
 
 watch(collapsed, (newVal) => {
   if (!newVal && hasOffers.value) {
+    nextTick(() => {
+      initPlots()
+    })
+  }
+})
+
+// Watch for switching from preview to interactive mode
+watch(showInteractive, (newVal) => {
+  if (newVal && hasOffers.value) {
     nextTick(() => {
       initPlots()
     })

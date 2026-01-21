@@ -15,6 +15,7 @@ from ..models.session import (
     SessionNegotiatorInfo,
 )
 from ..models.negotiator import NegotiatorConfig
+from .negotiation_preview_service import NegotiationPreviewService
 
 # Storage directory paths
 NEGOTIATIONS_DIR = Path.home() / "negmas" / "app" / "negotiations"
@@ -152,6 +153,13 @@ class NegotiationStorageService:
             NegotiationStorageService._save_outcome_space(
                 session_dir / "outcome_space.json", session.outcome_space_data
             )
+
+        # Generate preview images for panels
+        try:
+            NegotiationPreviewService.generate_all_previews(session, session_dir)
+        except Exception as e:
+            print(f"Warning: Failed to generate preview images: {e}")
+            # Continue even if preview generation fails - not critical
 
         return session_dir
 

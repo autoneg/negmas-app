@@ -39,6 +39,25 @@
     
     <!-- Panel Content -->
     <div class="panel-content-ultra-compact" v-show="!collapsed" style="overflow-y: auto;">
+      <!-- WebP Preview Mode (for compact list view) -->
+      <div v-if="compact && previewImageUrl && !showInteractive" style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg-secondary); padding: 8px;">
+        <img 
+          :src="previewImageUrl" 
+          alt="Result Preview" 
+          style="max-width: 100%; max-height: calc(100% - 40px); object-fit: contain;"
+          @error="onImageError"
+        />
+        <button 
+          class="btn btn-sm btn-secondary mt-2" 
+          @click="showInteractive = true"
+          style="margin-top: 8px;"
+        >
+          View Full Result
+        </button>
+      </div>
+      
+      <!-- Full Result Content -->
+      <div v-show="!compact || !previewImageUrl || showInteractive">
       <!-- Agreement Display -->
       <div v-if="negotiation?.agreement" class="result-row result-agreement-display">
         <span class="result-state-badge agreement">Agreement</span>
@@ -190,6 +209,7 @@
       >
         <span class="text-muted">Ready</span>
       </div>
+      </div> <!-- End of full result content wrapper -->
     </div>
   </div>
 </template>
@@ -201,6 +221,10 @@ const props = defineProps({
   negotiation: {
     type: Object,
     default: null
+  },
+  compact: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -208,6 +232,21 @@ const emit = defineEmits(['saveResults'])
 
 // Collapse state
 const collapsed = ref(false)
+const showInteractive = ref(false)
+
+// Preview image URL for compact mode
+const previewImageUrl = computed(() => {
+  if (props.compact && props.negotiation?.id && props.negotiation?.source === 'saved') {
+    return `/api/negotiation/saved/${props.negotiation.id}/preview/result`
+  }
+  return null
+})
+
+// Image error handler for preview mode
+function onImageError() {
+  console.warn('Failed to load preview image, falling back to full result')
+  showInteractive.value = true
+}
 
 // Check if optimality stats exist
 const hasOptimalityStats = computed(() => {

@@ -130,21 +130,40 @@
       style="padding: 0; position: relative; overflow: hidden;" 
       v-show="!collapsed"
     >
-      <!-- Histogram View -->
-      <div v-show="activeTab === 'histogram'" style="width: 100%; height: 100%;">
-        <div ref="histogramContainer" style="width: 100%; height: 100%;"></div>
-        <div 
-          v-show="!hasOffers" 
-          class="empty-state-mini" 
-          style="position: absolute; inset: 0; background: var(--bg-secondary);"
+      <!-- WebP Preview Mode (for compact list view) -->
+      <div v-if="compact && previewImageUrl && !showInteractive" style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg-secondary);">
+        <img 
+          :src="previewImageUrl" 
+          alt="Histogram Preview" 
+          style="max-width: 100%; max-height: calc(100% - 40px); object-fit: contain;"
+          @error="onImageError"
+        />
+        <button 
+          class="btn btn-sm btn-secondary mt-2" 
+          @click="showInteractive = true"
+          style="margin-top: 8px;"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px; opacity: 0.4;">
-            <rect x="3" y="3" width="18" height="18" rx="2"/>
-            <path d="M3 9h18M9 21V9"/>
-          </svg>
-          <span class="text-muted">Waiting...</span>
-        </div>
+          View Interactive
+        </button>
       </div>
+      
+      <!-- Full Content (after clicking "View Interactive" or in full view) -->
+      <div v-show="!compact || !previewImageUrl || showInteractive" style="width: 100%; height: 100%;">
+        <!-- Histogram View -->
+        <div v-show="activeTab === 'histogram'" style="width: 100%; height: 100%;">
+          <div ref="histogramContainer" style="width: 100%; height: 100%;"></div>
+          <div 
+            v-show="!hasOffers" 
+            class="empty-state-mini" 
+            style="position: absolute; inset: 0; background: var(--bg-secondary);"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px; opacity: 0.4;">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="M3 9h18M9 21V9"/>
+            </svg>
+            <span class="text-muted">Waiting...</span>
+          </div>
+        </div>
       
       <!-- Issue Space 2D View -->
       <div v-show="activeTab === 'issueSpace'" style="width: 100%; height: 100%;">
@@ -161,6 +180,7 @@
           <span class="text-muted">Need 2+ issues</span>
         </div>
       </div>
+      </div> <!-- End of full content wrapper -->
     </div>
   </div>
 </template>
@@ -173,6 +193,10 @@ const props = defineProps({
   negotiation: {
     type: Object,
     default: null
+  },
+  compact: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -187,10 +211,19 @@ const histogramInitialized = ref(false)
 const issueSpaceInitialized = ref(false)
 const issueXAxis = ref(0)
 const issueYAxis = ref(1)
+const showInteractive = ref(false)
 
 // Computed
 const hasOffers = computed(() => {
   return props.negotiation?.offers && props.negotiation.offers.length > 0
+})
+
+// Preview image URL for compact mode
+const previewImageUrl = computed(() => {
+  if (props.compact && props.negotiation?.id && props.negotiation?.source === 'saved') {
+    return `/api/negotiation/saved/${props.negotiation.id}/preview/histogram`
+  }
+  return null
 })
 
 const issueNames = computed(() => {
@@ -506,6 +539,12 @@ function resetIssueSpaceView() {
   }
 }
 
+// Image error handler for preview mode
+function onImageError() {
+  console.warn('Failed to load preview image, falling back to interactive mode')
+  showInteractive.value = true
+}
+
 // Watch for offer changes - throttled for smooth updates
 let updateScheduled = false
 function scheduleUpdate() {
@@ -527,6 +566,19 @@ watch(() => props.negotiation?.offers?.length, () => {
 
 watch(collapsed, (newVal) => {
   if (!newVal && hasOffers.value) {
+    nextTick(() => {
+      if (activeTab.value === 'histogram') {
+        initHistogram()
+      } else {
+        renderIssueSpacePlot()
+      }
+    })
+  }
+})
+
+// Watch for switching from preview to interactive mode
+watch(showInteractive, (newVal) => {
+  if (newVal && hasOffers.value) {
     nextTick(() => {
       if (activeTab.value === 'histogram') {
         initHistogram()
