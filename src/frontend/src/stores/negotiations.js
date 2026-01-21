@@ -235,7 +235,7 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
   async function loadSavedNegotiations(includeArchived = false) {
     savedNegotiationsLoading.value = true
     try {
-      const url = `/api/negotiation/saved?include_archived=${includeArchived ? 'true' : 'false'}`
+      const url = `/api/negotiation/saved/list?include_archived=${includeArchived ? 'true' : 'false'}`
       const response = await fetch(url)
       const data = await response.json()
       savedNegotiations.value = data.negotiations || []
@@ -285,8 +285,8 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
 
   async function clearAllSavedNegotiations(includeArchived = false) {
     try {
-      const response = await fetch(`/api/negotiation/saved/clear?include_archived=${includeArchived}`, {
-        method: 'POST'
+      const response = await fetch(`/api/negotiation/saved?include_archived=${includeArchived}`, {
+        method: 'DELETE'
       })
       await loadSavedNegotiations(showArchived.value)
       return await response.json()

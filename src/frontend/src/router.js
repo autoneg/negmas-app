@@ -1,8 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import NegotiationsView from './views/NegotiationsView.vue'
+import NegotiationsListView from './views/NegotiationsListView.vue'
+import SingleNegotiationView from './views/SingleNegotiationView.vue'
 import ScenariosView from './views/ScenariosView.vue'
 import NegotiatorsView from './views/NegotiatorsView.vue'
-import TournamentsView from './views/TournamentsView.vue'
+import TournamentsListView from './views/TournamentsListView.vue'
+import SingleTournamentView from './views/SingleTournamentView.vue'
 
 const routes = [
   {
@@ -11,8 +13,13 @@ const routes = [
   },
   {
     path: '/negotiations',
-    name: 'negotiations',
-    component: NegotiationsView,
+    name: 'NegotiationsList',
+    component: NegotiationsListView,
+  },
+  {
+    path: '/negotiations/:id',
+    name: 'SingleNegotiation',
+    component: SingleNegotiationView,
   },
   {
     path: '/scenarios',
@@ -26,8 +33,13 @@ const routes = [
   },
   {
     path: '/tournaments',
-    name: 'tournaments',
-    component: TournamentsView,
+    name: 'TournamentsList',
+    component: TournamentsListView,
+  },
+  {
+    path: '/tournaments/:id',
+    name: 'SingleTournament',
+    component: SingleTournamentView,
   },
 ]
 

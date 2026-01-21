@@ -1,0 +1,844 @@
+<template>
+  <div class="negotiations-list-container">
+    <!-- Header -->
+    <div class="list-header">
+      <div class="header-left">
+        <h2>Negotiations</h2>
+        <button class="btn btn-primary" @click="showNewNegotiationModal = true">
+          + New Negotiation
+        </button>
+      </div>
+      <div class="header-right">
+        <!-- Preview Selector -->
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+          <span>Preview:</span>
+          <select v-model="selectedPreview" class="form-select">
+            <option value="none">None</option>
+            <option value="utility2d">2D Utility Space</option>
+            <option value="timeline">Timeline</option>
+            <option value="histogram">Histogram</option>
+            <option value="result">Result</option>
+          </select>
+        </label>
+        
+        <!-- Filters -->
+        <select v-model="tagFilter" class="form-select" style="width: 150px;">
+          <option value="">All Tags</option>
+          <option v-for="tag in availableTags" :key="tag" :value="tag">{{ tag }}</option>
+        </select>
+        
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 14px;">
+          <input type="checkbox" v-model="showArchived" @change="loadData">
+          <span>Archived</span>
+        </label>
+        
+        <button class="btn btn-secondary" @click="loadData" :disabled="loading" title="Refresh">
+          <span v-if="loading">⟳</span>
+          <span v-else>↻</span>
+        </button>
+      </div>
+    </div>
+    
+    <!-- Content Area -->
+    <div class="content-area" :class="{ 'with-preview': selectedPreview !== 'none' }">
+      <!-- Table -->
+      <div class="table-container" :style="{ width: selectedPreview === 'none' ? '100%' : '66.67%' }">
+        <!-- Search -->
+        <div class="search-bar">
+          <input 
+            v-model="searchQuery" 
+            type="text" 
+            placeholder="Search by scenario name, negotiators, or ID..."
+            class="search-input"
+          >
+        </div>
+        
+        <!-- Table -->
+        <div class="table-wrapper">
+          <table class="negotiations-table">
+            <thead>
+              <tr>
+                <th style="width: 160px;" @click="sortBy('date')">
+                  Date
+                  <span v-if="sortColumn === 'date'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                </th>
+                <th @click="sortBy('scenario')">
+                  Scenario
+                  <span v-if="sortColumn === 'scenario'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                </th>
+                <th @click="sortBy('negotiators')">
+                  Negotiators
+                  <span v-if="sortColumn === 'negotiators'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                </th>
+                <th style="width: 140px;" @click="sortBy('result')">
+                  Result
+                  <span v-if="sortColumn === 'result'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                </th>
+                <th style="width: 100px;">Tags</th>
+                <th style="width: 100px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr 
+                v-for="neg in filteredAndSortedNegotiations" 
+                :key="neg.id"
+                @click="selectNegotiation(neg)"
+                :class="{ 'selected': selectedNegotiation?.id === neg.id }"
+                class="clickable-row"
+              >
+                <td class="date-cell">{{ formatDate(neg.timestamp || neg.created_at) }}</td>
+                <td class="scenario-cell">{{ neg.scenario_name || 'Unknown' }}</td>
+                <td class="negotiators-cell">
+                  <div class="negotiators-list">
+                    <span 
+                      v-for="(name, idx) in neg.negotiator_names" 
+                      :key="idx"
+                      class="negotiator-badge"
+                      :style="{ background: getNegotiatorColor(idx, neg.negotiator_colors) }"
+                    >
+                      {{ name }}
+                    </span>
+                  </div>
+                </td>
+                <td class="result-cell">
+                  <span v-if="neg.status === 'running'" class="badge badge-running">Running</span>
+                  <span v-else-if="neg.status === 'pending'" class="badge badge-pending">Pending</span>
+                  <span v-else-if="neg.status === 'failed'" class="badge badge-failed">Failed</span>
+                  <span v-else-if="neg.agreement" class="badge badge-agreement">Agreement</span>
+                  <span v-else-if="neg.end_reason === 'timedout'" class="badge badge-timeout">Timeout</span>
+                  <span v-else class="badge badge-disagreement">Disagreement</span>
+                </td>
+                <td class="tags-cell">
+                  <div class="tags-list">
+                    <span 
+                      v-for="tag in (neg.tags || []).slice(0, 2)" 
+                      :key="tag"
+                      class="tag-badge"
+                    >
+                      {{ tag }}
+                    </span>
+                    <span v-if="(neg.tags || []).length > 2" class="tag-more">
+                      +{{ (neg.tags || []).length - 2 }}
+                    </span>
+                  </div>
+                </td>
+                <td class="actions-cell" @click.stop>
+                  <button 
+                    class="btn-icon-small" 
+                    @click="viewNegotiation(neg.id)" 
+                    title="View full details"
+                  >
+                    👁️
+                  </button>
+                  <button 
+                    class="btn-icon-small" 
+                    @click="editTags(neg)" 
+                    title="Edit tags"
+                  >
+                    🏷️
+                  </button>
+                  <button 
+                    class="btn-icon-small" 
+                    @click="deleteSaved(neg.id)" 
+                    title="Delete"
+                  >
+                    🗑️
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          
+          <!-- Empty State -->
+          <div v-if="filteredAndSortedNegotiations.length === 0 && !loading" class="empty-state">
+            <p v-if="searchQuery">No negotiations match your search</p>
+            <p v-else-if="tagFilter">No negotiations with tag "{{ tagFilter }}"</p>
+            <p v-else>No negotiations yet. Start a new one!</p>
+          </div>
+          
+          <!-- Loading State -->
+          <div v-if="loading" class="loading-state">
+            <p>Loading negotiations...</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Preview Panel -->
+      <div v-if="selectedPreview !== 'none'" class="preview-container">
+        <div v-if="!selectedNegotiation" class="preview-empty">
+          <p>Select a negotiation to preview</p>
+        </div>
+        <div v-else class="preview-content">
+          <!-- Preview panels will be loaded here -->
+          <component 
+            :is="previewComponent" 
+            v-if="previewComponent && previewData"
+            :negotiation="previewData"
+            :compact="true"
+          />
+          <div v-else class="preview-loading">
+            <p>Loading preview...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- New Negotiation Modal -->
+    <NewNegotiationModal 
+      v-if="showNewNegotiationModal"
+      :show="showNewNegotiationModal"
+      @close="showNewNegotiationModal = false"
+      @start="onNegotiationStart"
+    />
+    
+    <!-- Tag Editor Modal -->
+    <Teleport to="body">
+      <div v-if="tagEditorNegotiation" class="modal-overlay active" @click.self="closeTagEditor">
+        <div class="modal" style="max-width: 500px;">
+          <div class="modal-header">
+            <h3>Edit Tags</h3>
+            <button class="modal-close" @click="closeTagEditor">×</button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted" style="margin-bottom: 12px;">
+              {{ tagEditorNegotiation.scenario_name }}
+            </p>
+            
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; min-height: 40px; padding: 8px; background: var(--bg-secondary); border-radius: 6px;">
+              <span 
+                v-for="tag in tagEditorTags" 
+                :key="tag"
+                class="badge badge-primary"
+                style="display: flex; align-items: center; gap: 6px; cursor: pointer;"
+                @click="removeTagFromEditor(tag)"
+              >
+                {{ tag }}
+                <span style="font-weight: bold;">×</span>
+              </span>
+              <span v-if="tagEditorTags.length === 0" class="text-muted">
+                No tags yet
+              </span>
+            </div>
+            
+            <div style="display: flex; gap: 8px;">
+              <input 
+                type="text" 
+                v-model="newTagInput" 
+                @keyup.enter="addNewTag"
+                placeholder="Add new tag..."
+                class="form-input"
+                style="flex: 1;"
+              >
+              <button class="btn btn-secondary" @click="addNewTag">Add</button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="closeTagEditor">Cancel</button>
+            <button class="btn btn-primary" @click="saveTagsFromEditor">Save</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, computed, watch, shallowRef } from 'vue'
+import { useRouter } from 'vue-router'
+import { useNegotiationsStore } from '../stores/negotiations'
+import { storeToRefs } from 'pinia'
+import NewNegotiationModal from '../components/NewNegotiationModal.vue'
+import Utility2DPanel from '../components/panels/Utility2DPanel.vue'
+import TimelinePanel from '../components/panels/TimelinePanel.vue'
+import HistogramPanel from '../components/panels/HistogramPanel.vue'
+import ResultPanel from '../components/panels/ResultPanel.vue'
+
+const router = useRouter()
+const negotiationsStore = useNegotiationsStore()
+const {
+  sessions,
+  loading,
+  savedNegotiations,
+  savedNegotiationsLoading,
+  tagFilter,
+  showArchived,
+  availableTags,
+} = storeToRefs(negotiationsStore)
+
+const showNewNegotiationModal = ref(false)
+const searchQuery = ref('')
+const selectedPreview = ref('none')
+const selectedNegotiation = ref(null)
+const previewData = ref(null)
+const previewComponent = shallowRef(null)
+
+// Sorting
+const sortColumn = ref('date')
+const sortDirection = ref('desc')
+
+// Tag editor state
+const tagEditorNegotiation = ref(null)
+const tagEditorTags = ref([])
+const newTagInput = ref('')
+
+// Combine all negotiations (sessions + saved)
+const allNegotiations = computed(() => {
+  const combined = [
+    ...sessions.value.map(s => ({
+      ...s,
+      source: 'session',
+      timestamp: s.created_at || s.started_at || Date.now()
+    })),
+    ...savedNegotiations.value.map(s => ({
+      ...s,
+      source: 'saved',
+      timestamp: s.created_at || s.completed_at || Date.now()
+    }))
+  ]
+  return combined
+})
+
+// Filter by search query and tags
+const filteredAndSortedNegotiations = computed(() => {
+  let result = allNegotiations.value
+  
+  // Filter by tag
+  if (tagFilter.value) {
+    result = result.filter(neg => neg.tags && neg.tags.includes(tagFilter.value))
+  }
+  
+  // Filter by search query
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(neg => {
+      const scenarioMatch = (neg.scenario_name || '').toLowerCase().includes(query)
+      const negotiatorsMatch = (neg.negotiator_names || []).some(name => 
+        name.toLowerCase().includes(query)
+      )
+      const idMatch = (neg.id || '').toLowerCase().includes(query)
+      return scenarioMatch || negotiatorsMatch || idMatch
+    })
+  }
+  
+  // Sort
+  result.sort((a, b) => {
+    let aVal, bVal
+    
+    switch (sortColumn.value) {
+      case 'date':
+        aVal = new Date(a.timestamp || 0)
+        bVal = new Date(b.timestamp || 0)
+        break
+      case 'scenario':
+        aVal = (a.scenario_name || '').toLowerCase()
+        bVal = (b.scenario_name || '').toLowerCase()
+        break
+      case 'negotiators':
+        aVal = (a.negotiator_names || []).join(',').toLowerCase()
+        bVal = (b.negotiator_names || []).join(',').toLowerCase()
+        break
+      case 'result':
+        aVal = getResultText(a)
+        bVal = getResultText(b)
+        break
+      default:
+        return 0
+    }
+    
+    if (aVal < bVal) return sortDirection.value === 'asc' ? -1 : 1
+    if (aVal > bVal) return sortDirection.value === 'asc' ? 1 : -1
+    return 0
+  })
+  
+  return result
+})
+
+onMounted(async () => {
+  await loadData()
+})
+
+// Watch for preview selection changes
+watch(selectedPreview, (newVal) => {
+  if (newVal === 'none') {
+    previewComponent.value = null
+    previewData.value = null
+  } else if (selectedNegotiation.value) {
+    loadPreviewData(selectedNegotiation.value)
+  }
+})
+
+// Watch for negotiation selection changes
+watch(selectedNegotiation, (newVal) => {
+  if (newVal && selectedPreview.value !== 'none') {
+    loadPreviewData(newVal)
+  } else {
+    previewData.value = null
+  }
+})
+
+async function loadData() {
+  await negotiationsStore.loadSessions()
+  await negotiationsStore.loadSavedNegotiations(showArchived.value)
+}
+
+async function selectNegotiation(neg) {
+  selectedNegotiation.value = neg
+  
+  if (selectedPreview.value !== 'none') {
+    await loadPreviewData(neg)
+  }
+}
+
+async function loadPreviewData(neg) {
+  try {
+    // Load full negotiation data if not already loaded
+    let fullData
+    
+    if (neg.source === 'saved') {
+      fullData = await negotiationsStore.loadSavedNegotiation(neg.id)
+    } else {
+      // For running/completed sessions, get from session
+      fullData = neg
+    }
+    
+    if (!fullData) {
+      previewData.value = null
+      return
+    }
+    
+    // Format data for preview panels
+    previewData.value = {
+      id: fullData.id,
+      scenario_name: fullData.scenario_name,
+      negotiator_names: fullData.negotiator_names,
+      negotiator_colors: fullData.negotiator_colors,
+      issue_names: fullData.issue_names,
+      n_steps: fullData.n_steps,
+      step: fullData.current_step || fullData.step,
+      offers: fullData.offers || [],
+      outcome_space_data: fullData.outcome_space_data,
+      agreement: fullData.agreement,
+      final_utilities: fullData.final_utilities,
+      optimality_stats: fullData.optimality_stats,
+      end_reason: fullData.end_reason,
+      status: fullData.status,
+      isSaved: neg.source === 'saved'
+    }
+    
+    // Set preview component based on selection
+    switch (selectedPreview.value) {
+      case 'utility2d':
+        previewComponent.value = Utility2DPanel
+        break
+      case 'timeline':
+        previewComponent.value = TimelinePanel
+        break
+      case 'histogram':
+        previewComponent.value = HistogramPanel
+        break
+      case 'result':
+        previewComponent.value = ResultPanel
+        break
+      default:
+        previewComponent.value = null
+    }
+  } catch (error) {
+    console.error('Failed to load preview data:', error)
+    previewData.value = null
+  }
+}
+
+function sortBy(column) {
+  if (sortColumn.value === column) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortColumn.value = column
+    sortDirection.value = 'asc'
+  }
+}
+
+function formatDate(timestamp) {
+  if (!timestamp) return 'Unknown'
+  
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diff = now - date
+  
+  // Less than 1 minute
+  if (diff < 60000) return 'Just now'
+  
+  // Less than 1 hour
+  if (diff < 3600000) {
+    const mins = Math.floor(diff / 60000)
+    return `${mins}m ago`
+  }
+  
+  // Less than 24 hours
+  if (diff < 86400000) {
+    const hours = Math.floor(diff / 3600000)
+    return `${hours}h ago`
+  }
+  
+  // Less than 7 days
+  if (diff < 604800000) {
+    const days = Math.floor(diff / 86400000)
+    return `${days}d ago`
+  }
+  
+  // Format as date
+  return date.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric',
+    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+  })
+}
+
+function getResultText(neg) {
+  if (neg.status === 'running') return 'Running'
+  if (neg.status === 'pending') return 'Pending'
+  if (neg.status === 'failed') return 'Failed'
+  if (neg.agreement) return 'Agreement'
+  if (neg.end_reason === 'timedout') return 'Timeout'
+  return 'Disagreement'
+}
+
+function getNegotiatorColor(index, colors) {
+  if (colors && colors[index]) return colors[index]
+  
+  const fallbackColors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899']
+  return fallbackColors[index % fallbackColors.length]
+}
+
+function viewNegotiation(sessionId) {
+  router.push({ name: 'SingleNegotiation', params: { id: sessionId } })
+}
+
+async function deleteSaved(sessionId) {
+  if (confirm('Are you sure you want to delete this saved negotiation?')) {
+    await negotiationsStore.deleteSavedNegotiation(sessionId)
+    
+    // Clear selection if deleted
+    if (selectedNegotiation.value?.id === sessionId) {
+      selectedNegotiation.value = null
+      previewData.value = null
+    }
+  }
+}
+
+function editTags(neg) {
+  tagEditorNegotiation.value = neg
+  tagEditorTags.value = [...(neg.tags || [])]
+  newTagInput.value = ''
+}
+
+function closeTagEditor() {
+  tagEditorNegotiation.value = null
+  tagEditorTags.value = []
+  newTagInput.value = ''
+}
+
+function removeTagFromEditor(tag) {
+  const index = tagEditorTags.value.indexOf(tag)
+  if (index > -1) {
+    tagEditorTags.value.splice(index, 1)
+  }
+}
+
+function addNewTag() {
+  const tag = newTagInput.value.trim()
+  if (tag && !tagEditorTags.value.includes(tag)) {
+    tagEditorTags.value.push(tag)
+    newTagInput.value = ''
+  }
+}
+
+async function saveTagsFromEditor() {
+  if (tagEditorNegotiation.value) {
+    await negotiationsStore.updateNegotiationTags(
+      tagEditorNegotiation.value.id,
+      tagEditorTags.value
+    )
+    closeTagEditor()
+  }
+}
+
+function onNegotiationStart(data) {
+  showNewNegotiationModal.value = false
+  
+  if (data.session_id) {
+    router.push({ name: 'SingleNegotiation', params: { id: data.session_id } })
+  }
+}
+</script>
+
+<style scoped>
+.negotiations-list-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-primary);
+}
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-left h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.content-area {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.table-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border-right: 1px solid var(--border-color);
+  transition: width 0.3s ease;
+}
+
+.search-bar {
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.table-wrapper {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.negotiations-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.negotiations-table thead {
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary);
+  z-index: 10;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.negotiations-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.negotiations-table th:hover {
+  background: var(--bg-hover);
+}
+
+.negotiations-table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.2s;
+}
+
+.negotiations-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.negotiations-table tbody tr.selected {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.negotiations-table tbody tr.clickable-row {
+  cursor: pointer;
+}
+
+.negotiations-table td {
+  padding: 12px 16px;
+}
+
+.date-cell {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.scenario-cell {
+  font-weight: 500;
+}
+
+.negotiators-list {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.negotiator-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: white;
+}
+
+.result-cell .badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badge-running {
+  background: rgba(59, 130, 246, 0.2);
+  color: rgb(59, 130, 246);
+}
+
+.badge-pending {
+  background: rgba(245, 158, 11, 0.2);
+  color: rgb(245, 158, 11);
+}
+
+.badge-agreement {
+  background: rgba(16, 185, 129, 0.2);
+  color: rgb(16, 185, 129);
+}
+
+.badge-timeout {
+  background: rgba(245, 158, 11, 0.2);
+  color: rgb(245, 158, 11);
+}
+
+.badge-disagreement {
+  background: rgba(239, 68, 68, 0.2);
+  color: rgb(239, 68, 68);
+}
+
+.badge-failed {
+  background: rgba(239, 68, 68, 0.2);
+  color: rgb(239, 68, 68);
+}
+
+.tags-list {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tag-badge {
+  padding: 2px 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.tag-more {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.actions-cell {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-icon-small {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.btn-icon-small:hover {
+  background: var(--bg-hover);
+  border-color: var(--primary-color);
+}
+
+.empty-state,
+.loading-state {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.preview-container {
+  width: 33.33%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.preview-empty,
+.preview-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.preview-content {
+  flex: 1;
+  overflow: auto;
+}
+
+.form-select {
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+</style>
