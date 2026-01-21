@@ -48,7 +48,7 @@
       <button 
         class="panel-btn" 
         title="Save as Image" 
-        @click="$emit('saveAsImage')" 
+        @click="saveAsImage" 
         v-show="!collapsed"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -457,6 +457,22 @@ function resetView() {
       'xaxis.autorange': true,
       'yaxis.autorange': true
     })
+  }
+}
+
+// Download plot as image
+async function saveAsImage() {
+  if (plotDiv.value && plotInitialized.value && window.Plotly) {
+    try {
+      await Plotly.downloadImage(plotDiv.value, {
+        format: 'png',
+        width: 1200,
+        height: 1000,
+        filename: 'utility-2d'
+      })
+    } catch (err) {
+      console.error('Failed to download image:', err)
+    }
   }
 }
 
