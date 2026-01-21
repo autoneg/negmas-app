@@ -665,6 +665,7 @@ function onNegotiationStart(data) {
 
 .content-area {
   display: flex;
+  flex-direction: row;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -675,9 +676,7 @@ function onNegotiationStart(data) {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  min-width: 400px;
   border-right: 1px solid var(--border-color);
-  transition: flex 0.3s ease;
 }
 
 .table-container.with-preview {
@@ -870,7 +869,6 @@ function onNegotiationStart(data) {
 
 .preview-container {
   flex: 0 0 33.33%;
-  min-width: 300px;
   max-width: 33.33%;
   display: flex;
   flex-direction: column;
