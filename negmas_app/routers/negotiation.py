@@ -169,6 +169,7 @@ async def stream_negotiation(
                         osd_data = {
                             "outcome_utilities": osd.outcome_utilities,
                             "pareto_utilities": osd.pareto_utilities,
+                            "reserved_values": osd.reserved_values,
                             "nash_point": osd.nash_point.utilities
                             if osd.nash_point
                             else None,
@@ -373,6 +374,7 @@ async def get_session(session_id: str):
         "outcome_space_data": {
             "outcome_utilities": session.outcome_space_data.outcome_utilities,
             "pareto_utilities": session.outcome_space_data.pareto_utilities,
+            "reserved_values": session.outcome_space_data.reserved_values,
             "nash_point": session.outcome_space_data.nash_point.utilities
             if session.outcome_space_data.nash_point
             else None,
@@ -466,6 +468,7 @@ async def get_saved_negotiation(session_id: str):
         "outcome_space_data": {
             "outcome_utilities": session.outcome_space_data.outcome_utilities,
             "pareto_utilities": session.outcome_space_data.pareto_utilities,
+            "reserved_values": session.outcome_space_data.reserved_values,
             "nash_point": session.outcome_space_data.nash_point.utilities
             if session.outcome_space_data.nash_point
             else None,

@@ -118,6 +118,9 @@ class OutcomeSpaceData:
     kalai_smorodinsky_point: AnalysisPoint | None = None
     max_welfare_point: AnalysisPoint | None = None
 
+    # Reserved values for each negotiator
+    reserved_values: list[float] = field(default_factory=list)
+
     # Metadata
     total_outcomes: int = 0
     sampled: bool = False

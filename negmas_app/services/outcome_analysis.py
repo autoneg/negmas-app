@@ -102,9 +102,16 @@ def _from_cached_stats(scenario: Scenario, max_samples: int) -> OutcomeSpaceData
         for utils in stats.pareto_utils:
             pareto_utilities.append(tuple(float(u) for u in utils))
 
+    # Extract reserved values
+    reserved_values = []
+    for ufun in ufuns:
+        rv = getattr(ufun, "reserved_value", None)
+        reserved_values.append(float(rv) if rv is not None else 0.0)
+
     data = OutcomeSpaceData(
         outcome_utilities=outcome_utilities,
         pareto_utilities=pareto_utilities,
+        reserved_values=reserved_values,
         total_outcomes=total_outcomes if isinstance(total_outcomes, int) else 0,
         sampled=sampled,
         sample_size=sample_size,
@@ -162,10 +169,17 @@ def _compute_from_scratch(scenario: Scenario, max_samples: int) -> OutcomeSpaceD
     except Exception:
         pareto_utilities = []
 
+    # Extract reserved values
+    reserved_values = []
+    for ufun in ufuns:
+        rv = getattr(ufun, "reserved_value", None)
+        reserved_values.append(float(rv) if rv is not None else 0.0)
+
     # Compute special points using the Pareto frontier
     data = OutcomeSpaceData(
         outcome_utilities=outcome_utilities,
         pareto_utilities=pareto_utilities,
+        reserved_values=reserved_values,
         total_outcomes=total_outcomes if isinstance(total_outcomes, int) else 0,
         sampled=sampled,
         sample_size=sample_size,

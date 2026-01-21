@@ -390,7 +390,91 @@ async function initPlot() {
       })
     }
     
+    // 9. Reserved value lines
+    const reservedValues = osd.reserved_values || []
+    const shapes = []
+    if (reservedValues[xIdx] > 0) {
+      // Vertical line for X-axis negotiator's reserved value
+      shapes.push({
+        type: 'line',
+        xref: 'x',
+        yref: 'paper',
+        x0: reservedValues[xIdx],
+        y0: 0,
+        x1: reservedValues[xIdx],
+        y1: 1,
+        line: {
+          color: colors.textColor,
+          width: 2,
+          dash: 'dash'
+        },
+        opacity: 0.5
+      })
+    }
+    if (reservedValues[yIdx] > 0) {
+      // Horizontal line for Y-axis negotiator's reserved value
+      shapes.push({
+        type: 'line',
+        xref: 'paper',
+        yref: 'y',
+        x0: 0,
+        y0: reservedValues[yIdx],
+        x1: 1,
+        y1: reservedValues[yIdx],
+        line: {
+          color: colors.textColor,
+          width: 2,
+          dash: 'dash'
+        },
+        opacity: 0.5
+      })
+    }
+    
+    // Add irrational region shading (below reserved values)
+    if (reservedValues[xIdx] > 0 || reservedValues[yIdx] > 0) {
+      // Get min/max utilities to determine bounds
+      const allX = traces.flatMap(t => t.x || []).filter(x => typeof x === 'number')
+      const allY = traces.flatMap(t => t.y || []).filter(y => typeof y === 'number')
+      const minX = Math.min(...allX, 0)
+      const maxX = Math.max(...allX, 1)
+      const minY = Math.min(...allY, 0)
+      const maxY = Math.max(...allY, 1)
+      
+      // Add gray rectangle for irrational region (below both reserved values)
+      const rvX = reservedValues[xIdx] || minX
+      const rvY = reservedValues[yIdx] || minY
+      
+      shapes.push({
+        type: 'rect',
+        xref: 'x',
+        yref: 'y',
+        x0: minX,
+        y0: minY,
+        x1: rvX,
+        y1: maxY,
+        fillcolor: colors.textColor,
+        opacity: 0.1,
+        line: { width: 0 },
+        layer: 'below'
+      })
+      
+      shapes.push({
+        type: 'rect',
+        xref: 'x',
+        yref: 'y',
+        x0: minX,
+        y0: minY,
+        x1: maxX,
+        y1: rvY,
+        fillcolor: colors.textColor,
+        opacity: 0.1,
+        line: { width: 0 },
+        layer: 'below'
+      })
+    }
+    
     const layout = {
+      shapes: shapes,
       xaxis: { 
         title: { 
           text: neg.negotiator_names?.[xIdx] || `Agent ${xIdx + 1}`, 
