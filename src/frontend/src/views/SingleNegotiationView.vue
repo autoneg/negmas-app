@@ -164,7 +164,7 @@ const negotiation = computed(() => {
     offers: offers.value,
     outcome_space_data: sessionInit.value?.outcome_space_data,
     agreement: sessionComplete.value?.agreement || currentSession.value?.agreement,
-    final_utilities: sessionComplete.value?.final_utilities,
+    final_utilities: sessionComplete.value?.final_utilities || currentSession.value?.final_utilities,
     optimality_stats: sessionComplete.value?.optimality_stats,
     end_reason: sessionComplete.value?.end_reason || currentSession.value?.end_reason,
     error: sessionComplete.value?.error,

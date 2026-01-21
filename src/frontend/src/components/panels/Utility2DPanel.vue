@@ -527,6 +527,15 @@ watch(() => props.negotiation?.outcome_space_data, () => {
   }
 })
 
+// Watch for agreement/final_utilities changes (when negotiation completes)
+watch(() => props.negotiation?.final_utilities, () => {
+  if (hasData.value && !collapsed.value) {
+    nextTick(() => {
+      initPlot()
+    })
+  }
+}, { deep: true })
+
 watch(collapsed, (newVal) => {
   if (!newVal && hasData.value) {
     nextTick(() => {
