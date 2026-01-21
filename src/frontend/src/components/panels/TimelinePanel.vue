@@ -238,9 +238,9 @@ function getXAxisRange(offers) {
     // Always 0-1 for relative time
     return [0, 1]
   } else if (xAxisType.value === 'time') {
-    // Dynamic range from 0 to max time
-    const maxTime = Math.max(...offers.map(o => o.time || 0))
-    return [0, maxTime]
+    // For time, let Plotly autorange based on actual data
+    // This handles milliseconds, seconds, etc. properly
+    return null  // null means autorange
   } else {
     // Step: dynamic range
     const maxStep = Math.max(...offers.map(o => o.step || 0))
@@ -344,7 +344,7 @@ async function initPlots() {
           tickfont: { color: colors.textColor, size: 10 },
           gridcolor: colors.gridColor,
           linecolor: colors.gridColor,
-          range: getXAxisRange(neg.offers)
+          ...(getXAxisRange(neg.offers) && { range: getXAxisRange(neg.offers) })
         },
         yaxis: { 
           title: { text: 'Utility', font: { color: colors.textColor, size: 11 } },
@@ -452,7 +452,7 @@ async function initPlots() {
             tickfont: { color: colors.textColor, size: 8 },
             gridcolor: colors.gridColor,
             linecolor: colors.gridColor,
-            range: getXAxisRange(neg.offers)
+            ...(getXAxisRange(neg.offers) && { range: getXAxisRange(neg.offers) })
           },
           yaxis: { 
             title: { text: 'Utility', font: { color: colors.textColor, size: 9 } },

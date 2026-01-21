@@ -27,7 +27,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
+import Plotly from 'plotly.js-dist-min'
 
 // Column resize state
 const leftColumn = ref(null)
@@ -62,10 +63,27 @@ function startColumnResize(event) {
     isDraggingColumn.value = false
     document.removeEventListener('mousemove', onMouseMove)
     document.removeEventListener('mouseup', onMouseUp)
+    
+    // Resize all Plotly plots after column resize completes
+    nextTick(() => {
+      resizePlotlyPlots()
+    })
   }
   
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
+}
+
+// Resize all Plotly plots in the container
+function resizePlotlyPlots() {
+  const plotDivs = document.querySelectorAll('[id^="timeline-plot"], [id^="utility-2d-plot"]')
+  plotDivs.forEach(plotDiv => {
+    try {
+      Plotly.Plots.resize(plotDiv)
+    } catch (err) {
+      // Ignore errors for plots that don't exist yet
+    }
+  })
 }
 
 // Panel resize between panels (horizontal handles)

@@ -203,7 +203,7 @@ function getPlotColors() {
     bgColor: isDark ? '#1a1a1a' : '#ffffff',
     textColor: isDark ? '#e0e0e0' : '#333333',
     gridColor: isDark ? '#333333' : '#e0e0e0',
-    outcomeColor: isDark ? '#4a5568' : '#cbd5e0',
+    outcomeColor: isDark ? '#6b7280' : '#9ca3af',
     paretoColor: isDark ? '#fbbf24' : '#f59e0b',
     nashColor: '#8b5cf6',
     kalaiColor: '#06b6d4',
