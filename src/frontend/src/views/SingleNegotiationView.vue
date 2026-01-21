@@ -69,6 +69,11 @@
             :negotiation="negotiation"
           />
           
+          <!-- Issue Space 2D Panel -->
+          <IssueSpace2DPanel 
+            :negotiation="negotiation"
+          />
+          
           <!-- Result Panel -->
           <ResultPanel 
             :negotiation="negotiation"
@@ -129,6 +134,7 @@ import ResultPanel from '../components/panels/ResultPanel.vue'
 import Utility2DPanel from '../components/panels/Utility2DPanel.vue'
 import TimelinePanel from '../components/panels/TimelinePanel.vue'
 import HistogramPanel from '../components/panels/HistogramPanel.vue'
+import IssueSpace2DPanel from '../components/panels/IssueSpace2DPanel.vue'
 
 const router = useRouter()
 const route = useRoute()

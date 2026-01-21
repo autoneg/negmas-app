@@ -1,5 +1,5 @@
 <template>
-  <!-- Issue Frequency / Histogram Panel with Tabs for Issue Space 2D -->
+  <!-- Issue Frequency / Histogram Panel -->
   <div 
     class="panel panel-compact panel-histogram" 
     :class="{ 'collapsed': collapsed }"
@@ -9,15 +9,15 @@
     <!-- Floating Actions (Left side) -->
     <div class="panel-floating-actions panel-floating-actions-left">
       <!-- Histogram controls -->
-      <div v-if="activeTab === 'histogram' && !collapsed" style="display: flex; gap: 4px;">
-        <button class="panel-btn" title="Save as Image" @click="$emit('saveHistogramImage')">
+      <div v-show="!collapsed" style="display: flex; gap: 4px;">
+        <button class="panel-btn" title="Save as Image" @click="downloadPlot">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/>
             <line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
         </button>
-        <button class="panel-btn" title="Zoom" @click="$emit('zoomHistogram')">
+        <button class="panel-btn" title="Zoom" @click="$emit('zoom')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="15 3 21 3 21 9"/>
             <polyline points="9 21 3 21 3 15"/>
@@ -25,57 +25,7 @@
             <line x1="3" y1="21" x2="10" y2="14"/>
           </svg>
         </button>
-      </div>
-      
-      <!-- Issue Space 2D controls -->
-      <div v-if="activeTab === 'issueSpace' && !collapsed" style="display: flex; gap: 4px; align-items: center;">
-        <div class="panel-inline-controls" v-show="issueNames.length >= 2">
-          <select 
-            class="form-select form-select-xs" 
-            v-model.number="issueXAxis" 
-            @change="renderIssueSpacePlot"
-            title="X-Axis Issue"
-          >
-            <option 
-              v-for="(name, idx) in issueNames" 
-              :key="idx"
-              :value="idx"
-            >
-              {{ name.substring(0, 8) }}
-            </option>
-          </select>
-          <span style="font-size: 9px; opacity: 0.5;">x</span>
-          <select 
-            class="form-select form-select-xs" 
-            v-model.number="issueYAxis" 
-            @change="renderIssueSpacePlot"
-            title="Y-Axis Issue"
-          >
-            <option 
-              v-for="(name, idx) in issueNames" 
-              :key="idx"
-              :value="idx"
-            >
-              {{ name.substring(0, 8) }}
-            </option>
-          </select>
-        </div>
-        <button class="panel-btn" title="Save as Image" @click="$emit('saveIssueSpaceImage')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-        </button>
-        <button class="panel-btn" title="Zoom" @click="$emit('zoomIssueSpace')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15 3 21 3 21 9"/>
-            <polyline points="9 21 3 21 3 15"/>
-            <line x1="21" y1="3" x2="14" y2="10"/>
-            <line x1="3" y1="21" x2="10" y2="14"/>
-          </svg>
-        </button>
-        <button class="panel-btn" title="Reset View" @click="resetIssueSpaceView">
+        <button class="panel-btn" title="Reset View" @click="resetView">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
             <path d="M3 3v5h5"/>
@@ -93,35 +43,6 @@
           <polyline points="6 9 12 15 18 9"></polyline>
         </svg>
       </button>
-    </div>
-    
-    <!-- Tab Buttons (Centered at top) -->
-    <div 
-      class="panel-floating-actions" 
-      style="left: 50%; transform: translateX(-50%); right: auto;" 
-      v-show="!collapsed"
-    >
-      <div style="display: flex; gap: 2px; padding: 2px; background: var(--bg-tertiary); border-radius: 4px;">
-        <button 
-          class="panel-tab-btn" 
-          :class="{ 'active': activeTab === 'histogram' }"
-          @click="switchTab('histogram')"
-          style="padding: 4px 8px; font-size: 11px; background: transparent; border: none; cursor: pointer; border-radius: 3px; transition: background 0.2s;"
-          :style="activeTab === 'histogram' ? 'background: var(--bg-secondary); font-weight: 500;' : ''"
-        >
-          Histogram
-        </button>
-        <button 
-          class="panel-tab-btn" 
-          :class="{ 'active': activeTab === 'issueSpace' }"
-          @click="switchTab('issueSpace')"
-          style="padding: 4px 8px; font-size: 11px; background: transparent; border: none; cursor: pointer; border-radius: 3px; transition: background 0.2s;"
-          :style="activeTab === 'issueSpace' ? 'background: var(--bg-secondary); font-weight: 500;' : ''"
-          :disabled="issueNames.length < 2"
-        >
-          Issue Space 2D
-        </button>
-      </div>
     </div>
     
     <!-- Panel Content -->
@@ -149,38 +70,19 @@
       
       <!-- Full Content (after clicking "View Interactive" or in full view) -->
       <div v-show="!compact || !previewImageUrl || showInteractive" style="width: 100%; height: 100%;">
-        <!-- Histogram View -->
-        <div v-show="activeTab === 'histogram'" style="width: 100%; height: 100%;">
-          <div ref="histogramContainer" style="width: 100%; height: 100%;"></div>
-          <div 
-            v-show="!hasOffers" 
-            class="empty-state-mini" 
-            style="position: absolute; inset: 0; background: var(--bg-secondary);"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px; opacity: 0.4;">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <path d="M3 9h18M9 21V9"/>
-            </svg>
-            <span class="text-muted">Waiting...</span>
-          </div>
-        </div>
-      
-      <!-- Issue Space 2D View -->
-      <div v-show="activeTab === 'issueSpace'" style="width: 100%; height: 100%;">
-        <div ref="issueSpaceDiv" style="width: 100%; height: 100%;"></div>
+        <div ref="histogramContainer" style="width: 100%; height: 100%;"></div>
         <div 
-          v-show="issueNames.length < 2" 
+          v-show="!hasOffers" 
           class="empty-state-mini" 
           style="position: absolute; inset: 0; background: var(--bg-secondary);"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px; opacity: 0.4;">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M8 12h8M12 8v8"/>
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <path d="M3 9h18M9 21V9"/>
           </svg>
-          <span class="text-muted">Need 2+ issues</span>
+          <span class="text-muted">Waiting...</span>
         </div>
       </div>
-      </div> <!-- End of full content wrapper -->
     </div>
   </div>
 </template>
@@ -200,17 +102,12 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['saveHistogramImage', 'zoomHistogram', 'saveIssueSpaceImage', 'zoomIssueSpace'])
+const emit = defineEmits(['zoom'])
 
 // Refs
 const histogramContainer = ref(null)
-const issueSpaceDiv = ref(null)
 const collapsed = ref(false)
-const activeTab = ref('histogram')
 const histogramInitialized = ref(false)
-const issueSpaceInitialized = ref(false)
-const issueXAxis = ref(0)
-const issueYAxis = ref(1)
 const showInteractive = ref(false)
 
 // Computed
@@ -255,18 +152,6 @@ function getNegotiatorColors() {
     return ['#0173b2', '#de8f05', '#029e73', '#cc78bc', '#ca9161', '#fbafe4', '#949494', '#ece133']
   }
   return ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899']
-}
-
-// Switch tab
-function switchTab(tab) {
-  activeTab.value = tab
-  nextTick(() => {
-    if (tab === 'histogram') {
-      initHistogram()
-    } else {
-      renderIssueSpacePlot()
-    }
-  })
 }
 
 // Initialize histogram
@@ -525,161 +410,33 @@ async function initHistogram(retryCount = 0) {
   }
 }
 
-// Render issue space 2D plot
-async function renderIssueSpacePlot() {
-  // Early exit if collapsed - performance optimization
-  if (collapsed.value) return
-  
-  const plotDiv = issueSpaceDiv.value
-  if (!plotDiv || issueNames.value.length < 2) return
-  
-  // Don't render if panel is collapsed or hidden
-  if (plotDiv.offsetParent === null || plotDiv.clientWidth === 0) {
-    issueSpaceInitialized.value = false
-    return
-  }
-  
-  const neg = props.negotiation
-  if (!neg || !neg.offers || neg.offers.length === 0) {
-    plotDiv.innerHTML = ''
-    issueSpaceInitialized.value = false
-    return
-  }
-  
-  try {
-    const colors = getPlotColors()
-    const negColors = getNegotiatorColors()
-    const numAgents = neg.negotiator_names?.length || 2
-    const issues = issueNames.value
-    
-    // Ensure valid axis selection
-    const xIdx = Math.min(issueXAxis.value, issues.length - 1)
-    const yIdx = Math.min(issueYAxis.value, issues.length - 1)
-    
-    // Collect data points by agent
-    const dataByAgent = []
-    for (let i = 0; i < numAgents; i++) {
-      dataByAgent.push({ x: [], y: [], text: [] })
+// Reset view
+function resetView() {
+  const container = histogramContainer.value
+  if (container && window.Plotly) {
+    const plot = container.querySelector('#histogram-plot')
+    if (plot) {
+      Plotly.relayout(plot, {
+        'xaxis.autorange': true,
+        'yaxis.autorange': true
+      })
     }
-    
-    neg.offers.forEach((offer, offerIdx) => {
-      const offerData = offer.offer
-      if (typeof offerData === 'object' && offerData !== null && !Array.isArray(offerData)) {
-        const xValue = offerData[issues[xIdx]]
-        const yValue = offerData[issues[yIdx]]
-        
-        if (xValue !== undefined && yValue !== undefined) {
-          const agentIdx = offer.proposer_index
-          dataByAgent[agentIdx].x.push(xValue)
-          dataByAgent[agentIdx].y.push(yValue)
-          dataByAgent[agentIdx].text.push(`Step ${offerIdx + 1}<br>${issues[xIdx]}: ${xValue}<br>${issues[yIdx]}: ${yValue}`)
-        }
-      }
-    })
-    
-    // Create traces
-    const traces = []
-    for (let agentIdx = 0; agentIdx < numAgents; agentIdx++) {
-      if (dataByAgent[agentIdx].x.length > 0) {
-        traces.push({
-          x: dataByAgent[agentIdx].x,
-          y: dataByAgent[agentIdx].y,
-          text: dataByAgent[agentIdx].text,
-          type: 'scatter',
-          mode: 'markers',
-          name: neg.negotiator_names?.[agentIdx] || `Agent ${agentIdx + 1}`,
-          marker: {
-            color: negColors[agentIdx % negColors.length],
-            size: 6,
-            opacity: 0.7,
-            line: {
-              color: colors.textColor,
-              width: 0.5
-            }
-          },
-          hovertemplate: '%{text}<extra></extra>'
-        })
-      }
-    }
-    
-    // Add agreement marker if available
-    if (neg.agreement && typeof neg.agreement === 'object' && !Array.isArray(neg.agreement)) {
-      const agreementX = neg.agreement[issues[xIdx]]
-      const agreementY = neg.agreement[issues[yIdx]]
-      
-      if (agreementX !== undefined && agreementY !== undefined) {
-        traces.push({
-          x: [agreementX],
-          y: [agreementY],
-          type: 'scatter',
-          mode: 'markers',
-          name: 'Agreement',
-          marker: {
-            color: '#10b981',
-            size: 14,
-            symbol: 'star',
-            line: {
-              color: colors.textColor,
-              width: 1.5
-            }
-          },
-          hovertemplate: `Agreement<br>${issues[xIdx]}: ${agreementX}<br>${issues[yIdx]}: ${agreementY}<extra></extra>`
-        })
-      }
-    }
-    
-    const layout = {
-      margin: { t: 10, r: 10, b: 40, l: 50 },
-      paper_bgcolor: 'transparent',
-      plot_bgcolor: 'transparent',
-      font: { 
-        family: '-apple-system, BlinkMacSystemFont, sans-serif', 
-        size: 10, 
-        color: colors.textColor 
-      },
-      legend: { 
-        orientation: 'h', 
-        y: 1.02,
-        x: 0.5,
-        xanchor: 'center',
-        font: { color: colors.textColor, size: 9 } 
-      },
-      xaxis: {
-        title: { text: issues[xIdx], font: { size: 10, color: colors.textColor } },
-        tickfont: { color: colors.textColor, size: 9 },
-        gridcolor: colors.gridColor,
-        zeroline: false
-      },
-      yaxis: {
-        title: { text: issues[yIdx], font: { size: 10, color: colors.textColor } },
-        tickfont: { color: colors.textColor, size: 9 },
-        gridcolor: colors.gridColor,
-        zeroline: false
-      }
-    }
-    
-    await Plotly.newPlot(plotDiv, traces, layout, {
-      responsive: true,
-      displayModeBar: 'hover',
-      modeBarButtonsToRemove: ['lasso2d', 'select2d']
-    })
-    
-    issueSpaceInitialized.value = true
-    nextTick(() => {
-      if (plotDiv && window.Plotly) {
-        Plotly.Plots.resize(plotDiv)
-      }
-    })
-  } catch (e) {
-    console.warn('Failed to render issue space plot:', e)
-    issueSpaceInitialized.value = false
   }
 }
 
-// Reset issue space view
-function resetIssueSpaceView() {
-  if (issueSpaceDiv.value && window.Plotly) {
-    Plotly.Plots.resize(issueSpaceDiv.value)
+// Download plot
+function downloadPlot() {
+  const container = histogramContainer.value
+  if (container && window.Plotly) {
+    const plot = container.querySelector('#histogram-plot')
+    if (plot) {
+      Plotly.downloadImage(plot, {
+        format: 'png',
+        width: 1920,
+        height: 1080,
+        filename: `histogram-${props.negotiation?.id || 'plot'}`
+      })
+    }
   }
 }
 
@@ -711,7 +468,7 @@ function scheduleUpdate(force = false) {
   if (updateScheduled) return
   updateScheduled = true
   requestAnimationFrame(() => {
-    if (hasOffers.value && !collapsed.value && activeTab.value === 'histogram') {
+    if (hasOffers.value && !collapsed.value) {
       nextTick(() => {
         initHistogram()
         lastRenderedOfferCount = props.negotiation?.offers?.length || 0
@@ -741,11 +498,7 @@ watch(() => props.negotiation?.end_reason, (newEndReason) => {
 watch(collapsed, (newVal) => {
   if (!newVal && hasOffers.value) {
     nextTick(() => {
-      if (activeTab.value === 'histogram') {
-        initHistogram()
-      } else {
-        renderIssueSpacePlot()
-      }
+      initHistogram()
     })
   }
 })
@@ -754,18 +507,14 @@ watch(collapsed, (newVal) => {
 watch(showInteractive, (newVal) => {
   if (newVal && hasOffers.value) {
     nextTick(() => {
-      if (activeTab.value === 'histogram') {
-        initHistogram()
-      } else {
-        renderIssueSpacePlot()
-      }
+      initHistogram()
     })
   }
 })
 
 // Initialize on mount
 onMounted(() => {
-  if (hasOffers.value && !collapsed.value && activeTab.value === 'histogram') {
+  if (hasOffers.value && !collapsed.value) {
     nextTick(() => {
       initHistogram()
     })
@@ -780,15 +529,13 @@ onBeforeUnmount(() => {
       Plotly.purge(plot)
     }
   }
-  if (issueSpaceDiv.value && window.Plotly) {
-    Plotly.purge(issueSpaceDiv.value)
-  }
 })
 
 // Expose methods
 defineExpose({
   initHistogram,
-  renderIssueSpacePlot
+  resetView,
+  downloadPlot
 })
 </script>
 
