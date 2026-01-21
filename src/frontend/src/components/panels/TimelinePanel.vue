@@ -171,6 +171,14 @@ const props = defineProps({
   compact: {
     type: Boolean,
     default: false
+  },
+  initialXAxis: {
+    type: String,
+    default: 'step' // 'step', 'time', 'relative_time'
+  },
+  initialSimplified: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -180,8 +188,8 @@ const emit = defineEmits(['saveAsImage', 'zoom'])
 const timelineContainer = ref(null)
 const collapsed = ref(false)
 const plotsInitialized = ref(false)
-const xAxisType = ref('step')
-const simplified = ref(true)
+const xAxisType = ref(props.initialXAxis)
+const simplified = ref(props.initialSimplified)
 const showInteractive = ref(false)
 
 // Computed

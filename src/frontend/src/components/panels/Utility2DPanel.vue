@@ -166,6 +166,14 @@ const props = defineProps({
   compact: {
     type: Boolean,
     default: false
+  },
+  initialXAxis: {
+    type: Number,
+    default: 0
+  },
+  initialYAxis: {
+    type: Number,
+    default: 1
   }
 })
 
@@ -178,8 +186,8 @@ const plotInitialized = ref(false)
 const showInteractive = ref(false)
 
 // Axis indices
-const xAxisIndex = ref(0)
-const yAxisIndex = ref(1)
+const xAxisIndex = ref(props.initialXAxis)
+const yAxisIndex = ref(props.initialYAxis)
 
 // Computed
 const negotiatorNames = computed(() => props.negotiation?.negotiator_names || [])

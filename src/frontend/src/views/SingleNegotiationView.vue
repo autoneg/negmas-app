@@ -81,13 +81,17 @@
           <!-- 2D Utility View Panel -->
           <Utility2DPanel 
             :negotiation="negotiation"
-            :adjustable="true"
+            :adjustable="panelSettings?.panels?.adjustable ?? true"
+            :initial-x-axis="panelSettings?.panels?.utilityView?.xAxis ?? 0"
+            :initial-y-axis="panelSettings?.panels?.utilityView?.yAxis ?? 1"
           />
           
           <!-- Timeline Panel -->
           <TimelinePanel 
             :negotiation="negotiation"
-            :adjustable="true"
+            :adjustable="panelSettings?.panels?.adjustable ?? true"
+            :initial-x-axis="panelSettings?.panels?.timeline?.xAxis ?? 'relative_time'"
+            :initial-simplified="panelSettings?.panels?.timeline?.simplified ?? false"
           />
         </template>
       </PanelLayout>
@@ -141,6 +145,9 @@ const showNewNegotiationModal = ref(false)
 const loading = ref(true)
 const error = ref(null)
 
+// Panel settings loaded from localStorage
+const panelSettings = ref(null)
+
 // Computed negotiation data for panels
 const negotiation = computed(() => {
   if (!streamingSession.value && !currentSession.value) return null
@@ -175,6 +182,17 @@ onMounted(async () => {
     error.value = 'No negotiation ID provided'
     loading.value = false
     return
+  }
+  
+  // Load panel settings from localStorage
+  const settingsKey = `negotiation_settings_${sessionId}`
+  const storedSettings = localStorage.getItem(settingsKey)
+  if (storedSettings) {
+    try {
+      panelSettings.value = JSON.parse(storedSettings)
+    } catch (e) {
+      console.error('Failed to parse panel settings:', e)
+    }
   }
   
   try {

@@ -1538,8 +1538,16 @@ async function startNegotiation() {
     const preset = buildSessionPreset(selectedScenario.value.name)
     await negotiationsStore.addToRecentSessions(preset)
     
-    // TODO: Store mode and panels in session/local storage for UI state
-    // These don't need to be sent to backend
+    // Store panel settings in localStorage for this session
+    if (data.session_id) {
+      const panelSettings = {
+        panels: panels.value,
+        runMode: runMode.value,
+        stepDelay: stepDelay.value,
+        displayOptions: displayOptions.value,
+      }
+      localStorage.setItem(`negotiation_settings_${data.session_id}`, JSON.stringify(panelSettings))
+    }
     
     emit('start', data)
     emit('close')
