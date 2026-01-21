@@ -54,7 +54,7 @@
       <button 
         class="panel-btn" 
         title="Save as Image" 
-        @click="$emit('saveAsImage')" 
+        @click="saveAsImage" 
         v-show="!collapsed"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -514,6 +514,36 @@ function resetView() {
         })
       }
     })
+  }
+}
+
+// Download plot as image
+async function saveAsImage() {
+  if (timelineContainer.value && plotsInitialized.value && window.Plotly) {
+    const plots = timelineContainer.value.querySelectorAll('[id^="timeline-plot-"]')
+    if (plots.length === 0) return
+    
+    try {
+      // If single plot (simplified view), download it directly
+      if (simplified.value && plots.length === 1) {
+        await Plotly.downloadImage(plots[0], {
+          format: 'png',
+          width: 1200,
+          height: 800,
+          filename: 'timeline-utility'
+        })
+      } else {
+        // For multiple plots, download the first one (or we could combine them)
+        await Plotly.downloadImage(plots[0], {
+          format: 'png',
+          width: 1200,
+          height: 600,
+          filename: 'timeline-utility'
+        })
+      }
+    } catch (err) {
+      console.error('Failed to download image:', err)
+    }
   }
 }
 
