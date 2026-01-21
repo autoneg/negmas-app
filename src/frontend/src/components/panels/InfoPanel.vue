@@ -77,7 +77,7 @@
     <div class="panel-content-ultra-compact" v-show="!collapsed">
       <!-- Row 1: Scenario + Status + Progress -->
       <div class="info-row">
-        <span class="info-scenario">{{ negotiation?.scenario }}</span>
+        <span class="info-scenario">{{ negotiation?.scenario_name || 'Unknown' }}</span>
         <span 
           class="badge badge-xs" 
           :class="statusBadgeClass"
@@ -103,7 +103,31 @@
         </div>
       </div>
       
-      <!-- Row 2: ID (clickable to copy) -->
+      <!-- Row 2: Summary Section (when complete) -->
+      <div v-if="showSummary" class="info-summary">
+        <div class="summary-row">
+          <span class="summary-label">Mechanism:</span>
+          <span class="summary-value">SAO (Stacked Alternating Offers)</span>
+        </div>
+        <div class="summary-row" v-if="negotiation?.agreement">
+          <span class="summary-label">Result:</span>
+          <span class="summary-value success">Agreement Reached</span>
+        </div>
+        <div class="summary-row" v-else-if="negotiation?.end_reason">
+          <span class="summary-label">Result:</span>
+          <span class="summary-value">{{ endReasonText }}</span>
+        </div>
+        <div class="summary-row" v-if="negotiation?.final_utilities">
+          <span class="summary-label">Utilities:</span>
+          <span class="summary-value">{{ formatUtilities }}</span>
+        </div>
+        <div class="summary-row" v-if="negotiation?.n_steps">
+          <span class="summary-label">Total Steps:</span>
+          <span class="summary-value">{{ negotiation.step || 0 }} / {{ negotiation.n_steps }}</span>
+        </div>
+      </div>
+      
+      <!-- Row 3: ID (clickable to copy) -->
       <div class="info-row" v-show="negotiation?.id" style="font-size: 10px;">
         <span class="text-muted">ID:</span>
         <code 
@@ -116,7 +140,7 @@
         </code>
       </div>
       
-      <!-- Row 3: Negotiators -->
+      <!-- Row 4: Negotiators -->
       <div class="info-row info-row-negotiators">
         <span 
           v-for="(name, idx) in (negotiation?.negotiator_names || [])" 
@@ -149,6 +173,12 @@ const emit = defineEmits(['start', 'togglePause', 'stop', 'showStats'])
 // Collapse state
 const collapsed = ref(false)
 
+// Show summary section when negotiation is complete
+const showSummary = computed(() => {
+  if (!props.negotiation) return false
+  return !!(props.negotiation.agreement || props.negotiation.end_reason)
+})
+
 // Computed status
 const statusBadgeClass = computed(() => {
   if (!props.negotiation) return 'badge-neutral'
@@ -168,6 +198,24 @@ const statusText = computed(() => {
   return 'Running'
 })
 
+const endReasonText = computed(() => {
+  if (!props.negotiation?.end_reason) return ''
+  const reason = props.negotiation.end_reason
+  if (reason === 'timedout') return 'Timeout (No Agreement)'
+  if (reason === 'maxsteps') return 'Max Steps (No Agreement)'
+  return reason.charAt(0).toUpperCase() + reason.slice(1)
+})
+
+const formatUtilities = computed(() => {
+  if (!props.negotiation?.final_utilities) return 'N/A'
+  return props.negotiation.final_utilities
+    .map((u, idx) => {
+      const name = props.negotiation.negotiator_names?.[idx] || `A${idx + 1}`
+      return `${name.substring(0, 6)}: ${u.toFixed(3)}`
+    })
+    .join(', ')
+})
+
 // Copy session ID to clipboard
 async function copySessionId() {
   if (!props.negotiation?.id) return
@@ -182,6 +230,42 @@ async function copySessionId() {
 }
 </script>
 
-<style>
-/* All styles are in panels.css - no additional styles needed */
+<style scoped>
+.info-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  margin: 4px 0;
+  font-size: 11px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.summary-value {
+  color: var(--text-primary);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.summary-value.success {
+  color: var(--success-color);
+  font-weight: 600;
+}
 </style>
