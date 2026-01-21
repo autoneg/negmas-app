@@ -62,22 +62,26 @@
           <!-- Offer History Panel (scrollable) -->
           <OfferHistoryPanel 
             :negotiation="negotiation"
+            @zoom="showZoomPanel('Offer History', 'offerHistory')"
           />
           
           <!-- Histogram Panel -->
           <HistogramPanel 
             :negotiation="negotiation"
+            @zoom="showZoomPanel('Histogram', 'histogram')"
           />
           
           <!-- Issue Space 2D Panel -->
           <IssueSpace2DPanel 
             :negotiation="negotiation"
+            @zoom="showZoomPanel('Issue Space 2D', 'issueSpace')"
           />
           
           <!-- Result Panel -->
           <ResultPanel 
             :negotiation="negotiation"
             @saveResults="handleSaveResults"
+            @zoom="showZoomPanel('Result', 'result')"
           />
         </template>
         
@@ -89,6 +93,7 @@
             :adjustable="panelSettings?.panels?.adjustable ?? true"
             :initial-x-axis="panelSettings?.panels?.utilityView?.xAxis ?? 0"
             :initial-y-axis="panelSettings?.panels?.utilityView?.yAxis ?? 1"
+            @zoom="showZoomPanel('2D Utility View', 'utility2d')"
           />
           
           <!-- Timeline Panel -->
@@ -97,6 +102,7 @@
             :adjustable="panelSettings?.panels?.adjustable ?? true"
             :initial-x-axis="panelSettings?.panels?.timeline?.xAxis ?? 'relative_time'"
             :initial-simplified="panelSettings?.panels?.timeline?.simplified ?? false"
+            @zoom="showZoomPanel('Timeline', 'timeline')"
           />
         </template>
       </PanelLayout>
@@ -124,17 +130,36 @@
         :negotiation="negotiation"
         @close="showStatsModal = false"
       />
+      
+      <!-- Zoom Modal -->
+      <ZoomModal
+        :show="showZoomModal"
+        :title="zoomPanelTitle"
+        @close="closeZoomModal"
+      >
+        <component 
+          :is="zoomPanelComponent" 
+          v-if="zoomPanelComponent && negotiation"
+          :negotiation="negotiation"
+          :adjustable="panelSettings?.panels?.adjustable ?? true"
+          :initial-x-axis="zoomPanelType === 'utility2d' ? (panelSettings?.panels?.utilityView?.xAxis ?? 0) : (panelSettings?.panels?.timeline?.xAxis ?? 'relative_time')"
+          :initial-y-axis="panelSettings?.panels?.utilityView?.yAxis ?? 1"
+          :initial-simplified="panelSettings?.panels?.timeline?.simplified ?? false"
+          style="width: 100%; height: 100%;"
+        />
+      </ZoomModal>
     </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, shallowRef } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useNegotiationsStore } from '../stores/negotiations'
 import { storeToRefs } from 'pinia'
 import NewNegotiationModal from '../components/NewNegotiationModal.vue'
 import StatsModal from '../components/StatsModal.vue'
+import ZoomModal from '../components/ZoomModal.vue'
 import PanelLayout from '../components/panels/PanelLayout.vue'
 import InfoPanel from '../components/panels/InfoPanel.vue'
 import OfferHistoryPanel from '../components/panels/OfferHistoryPanel.vue'
@@ -157,6 +182,10 @@ const {
 
 const showNewNegotiationModal = ref(false)
 const showStatsModal = ref(false)
+const showZoomModal = ref(false)
+const zoomPanelTitle = ref('')
+const zoomPanelType = ref('')
+const zoomPanelComponent = shallowRef(null)
 const loading = ref(true)
 const error = ref(null)
 
@@ -355,6 +384,29 @@ async function handleStopNegotiation() {
 function handleShowStats() {
   // Show scenario stats modal
   showStatsModal.value = true
+}
+
+function showZoomPanel(title, panelType) {
+  zoomPanelTitle.value = title
+  zoomPanelType.value = panelType
+  
+  // Map panel type to component
+  const componentMap = {
+    'offerHistory': OfferHistoryPanel,
+    'histogram': HistogramPanel,
+    'issueSpace': IssueSpace2DPanel,
+    'result': ResultPanel,
+    'utility2d': Utility2DPanel,
+    'timeline': TimelinePanel
+  }
+  
+  zoomPanelComponent.value = componentMap[panelType] || null
+  showZoomModal.value = true
+}
+
+function closeZoomModal() {
+  showZoomModal.value = false
+  zoomPanelComponent.value = null
 }
 
 function handleSaveResults() {
