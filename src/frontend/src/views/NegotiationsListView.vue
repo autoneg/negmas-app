@@ -281,7 +281,7 @@ const {
 
 const showNewNegotiationModal = ref(false)
 const searchQuery = ref('')
-const selectedPreview = ref('none')
+const selectedPreview = ref('utility2d')
 const selectedNegotiation = ref(null)
 const previewData = ref(null)
 const previewComponent = shallowRef(null)
@@ -369,7 +369,52 @@ const filteredAndSortedNegotiations = computed(() => {
 
 onMounted(async () => {
   await loadData()
+  // Add keyboard event listener for arrow navigation
+  window.addEventListener('keydown', handleKeyNavigation)
 })
+
+onUnmounted(() => {
+  // Clean up keyboard event listener
+  window.removeEventListener('keydown', handleKeyNavigation)
+})
+
+// Keyboard navigation
+function handleKeyNavigation(event) {
+  // Only handle if not typing in an input/textarea
+  if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.tagName === 'SELECT') {
+    return
+  }
+  
+  const negotiations = filteredAndSortedNegotiations.value
+  if (negotiations.length === 0) return
+  
+  const currentIndex = selectedNegotiation.value 
+    ? negotiations.findIndex(n => n.id === selectedNegotiation.value.id)
+    : -1
+  
+  let newIndex = -1
+  
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    // Move to next negotiation, or select first if none selected
+    newIndex = currentIndex === -1 ? 0 : Math.min(currentIndex + 1, negotiations.length - 1)
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    // Move to previous negotiation, or select last if none selected
+    newIndex = currentIndex === -1 ? negotiations.length - 1 : Math.max(currentIndex - 1, 0)
+  }
+  
+  if (newIndex !== -1 && newIndex !== currentIndex) {
+    selectNegotiation(negotiations[newIndex])
+    
+    // Scroll the selected row into view
+    const tableBody = document.querySelector('.negotiations-table tbody')
+    const selectedRow = tableBody?.children[newIndex]
+    if (selectedRow) {
+      selectedRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }
+}
 
 // Watch for preview selection changes
 watch(selectedPreview, (newVal) => {
