@@ -41,21 +41,100 @@
     
     <!-- Content Area -->
     <div class="content-area" :class="{ 'with-preview': selectedPreview !== 'none' }">
-      <!-- Table -->
+      <!-- Tables Container -->
       <div class="table-container" :class="{ 'with-preview': selectedPreview !== 'none' }">
-        <!-- Search -->
-        <div class="search-bar">
-          <input 
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="Search by scenario name, negotiators, or ID..."
-            class="search-input"
-          >
+        <!-- Running Negotiations Section -->
+        <div v-if="runningNegotiations.length > 0" class="running-section">
+          <div class="section-header">
+            <h3>Running Negotiations ({{ runningNegotiations.length }})</h3>
+          </div>
+          <div class="running-table-wrapper">
+            <table class="running-negotiations-table">
+              <thead>
+                <tr>
+                  <th style="width: 180px;">Scenario</th>
+                  <th style="width: 200px;">Negotiators</th>
+                  <th style="width: 120px;">Progress</th>
+                  <th style="width: 80px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr 
+                  v-for="neg in runningNegotiations" 
+                  :key="neg.id"
+                  @click="selectNegotiation(neg)"
+                  :class="{ 'selected': selectedNegotiation?.id === neg.id }"
+                  class="clickable-row"
+                >
+                  <td class="scenario-cell">
+                    <div class="scenario-name">{{ neg.scenario_name || 'Unknown' }}</div>
+                    <div class="session-id">{{ neg.id }}</div>
+                  </td>
+                  <td class="negotiators-cell">
+                    <div class="negotiators-list">
+                      <span 
+                        v-for="(name, idx) in neg.negotiator_names" 
+                        :key="idx"
+                        class="negotiator-badge-sm"
+                        :style="{ background: getNegotiatorColor(idx, neg.negotiator_colors) }"
+                      >
+                        {{ name }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="progress-cell">
+                    <div class="progress-info">
+                      <div class="progress-text">
+                        <span v-if="neg.current_step !== undefined && neg.n_steps">
+                          {{ neg.current_step }} / {{ neg.n_steps }} steps
+                        </span>
+                        <span v-else-if="neg.current_step !== undefined">
+                          {{ neg.current_step }} steps
+                        </span>
+                        <span v-else>Starting...</span>
+                      </div>
+                      <div class="progress-bar-mini" v-if="neg.n_steps">
+                        <div 
+                          class="progress-bar-fill" 
+                          :style="{ width: getProgressPercent(neg) + '%' }"
+                        ></div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="actions-cell" @click.stop>
+                    <button 
+                      class="btn-icon-small" 
+                      @click="viewNegotiation(neg.id)" 
+                      title="View full details"
+                    >
+                      👁️
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
         
-        <!-- Table -->
-        <div class="table-wrapper">
-          <table class="negotiations-table">
+        <!-- Saved/Completed Negotiations Section -->
+        <div class="saved-section">
+          <div class="section-header">
+            <h3>Saved & Completed Negotiations ({{ completedNegotiations.length }})</h3>
+          </div>
+          
+          <!-- Search -->
+          <div class="search-bar">
+            <input 
+              v-model="searchQuery" 
+              type="text" 
+              placeholder="Search by scenario name, negotiators, or ID..."
+              class="search-input"
+            >
+          </div>
+          
+          <!-- Table -->
+          <div class="table-wrapper">
+            <table class="negotiations-table">
             <thead>
               <tr>
                 <th style="width: 160px;" @click="sortBy('date')">
@@ -160,6 +239,7 @@
           <div v-if="loading" class="loading-state">
             <p>Loading negotiations...</p>
           </div>
+        </div>
         </div>
       </div>
       
@@ -295,10 +375,18 @@ const tagEditorNegotiation = ref(null)
 const tagEditorTags = ref([])
 const newTagInput = ref('')
 
-// Combine all negotiations (sessions + saved)
-const allNegotiations = computed(() => {
-  const combined = [
-    ...sessions.value.map(s => ({
+// Separate running from completed negotiations
+const runningNegotiations = computed(() => {
+  return sessions.value.filter(s => 
+    s.status === 'running' || s.status === 'pending'
+  )
+})
+
+const completedNegotiations = computed(() => {
+  return [
+    ...sessions.value.filter(s => 
+      s.status === 'completed' || s.status === 'failed'
+    ).map(s => ({
       ...s,
       source: 'session',
       timestamp: s.created_at || s.started_at || Date.now()
@@ -309,12 +397,16 @@ const allNegotiations = computed(() => {
       timestamp: s.created_at || s.completed_at || Date.now()
     }))
   ]
-  return combined
 })
 
-// Filter by search query and tags
+// Combine all negotiations (sessions + saved) - for backward compatibility
+const allNegotiations = computed(() => {
+  return [...runningNegotiations.value, ...completedNegotiations.value]
+})
+
+// Filter by search query and tags (only completed negotiations)
 const filteredAndSortedNegotiations = computed(() => {
-  let result = allNegotiations.value
+  let result = completedNegotiations.value
   
   // Filter by tag
   if (tagFilter.value) {
@@ -566,6 +658,11 @@ function getNegotiatorColor(index, colors) {
   
   const fallbackColors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899']
   return fallbackColors[index % fallbackColors.length]
+}
+
+function getProgressPercent(neg) {
+  if (!neg.n_steps || !neg.current_step) return 0
+  return Math.min(100, (neg.current_step / neg.n_steps) * 100)
 }
 
 function getResultTooltip(neg) {
@@ -977,4 +1074,122 @@ function onNegotiationStart(data) {
   outline: none;
   border-color: var(--primary-color);
 }
+
+/* Running Negotiations Section Styles */
+.running-section {
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 16px;
+}
+
+.section-header {
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: 6px 6px 0 0;
+  margin-bottom: 8px;
+}
+
+.section-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.running-table-wrapper {
+  overflow-x: auto;
+}
+
+.running-negotiations-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.running-negotiations-table thead {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.running-negotiations-table th {
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.running-negotiations-table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.2s;
+}
+
+.running-negotiations-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.running-negotiations-table tbody tr.selected {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.running-negotiations-table tbody tr.clickable-row {
+  cursor: pointer;
+}
+
+.running-negotiations-table td {
+  padding: 8px;
+}
+
+.negotiator-badge-sm {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: white;
+}
+
+.progress-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progress-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.progress-bar-mini {
+  height: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--primary-color);
+  transition: width 0.3s ease;
+}
+
+.session-id {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: monospace;
+  margin-top: 2px;
+}
+
+.saved-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.saved-section .section-header {
+  margin-bottom: 0;
+  border-radius: 6px 6px 0 0;
+}
+
 </style>
