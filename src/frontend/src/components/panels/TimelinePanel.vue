@@ -503,11 +503,15 @@ async function initPlots() {
 // Reset view
 function resetView() {
   if (timelineContainer.value && plotsInitialized.value) {
-    // Resize all plots in container
+    // Reset zoom/pan for all plots in container
     const plots = timelineContainer.value.querySelectorAll('[id^="timeline-plot-"]')
     plots.forEach(plot => {
       if (plot && window.Plotly) {
-        Plotly.Plots.resize(plot)
+        // Reset axes to autoscale
+        Plotly.relayout(plot, {
+          'xaxis.autorange': true,
+          'yaxis.autorange': true
+        })
       }
     })
   }
