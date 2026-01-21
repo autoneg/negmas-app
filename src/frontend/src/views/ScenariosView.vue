@@ -361,11 +361,13 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useScenariosStore } from '../stores/scenarios'
+import { useNegotiationsStore } from '../stores/negotiations'
 import { storeToRefs } from 'pinia'
 import Plotly from 'plotly.js-dist-min'
 import NewNegotiationModal from '../components/NewNegotiationModal.vue'
 
 const scenariosStore = useScenariosStore()
+const negotiationsStore = useNegotiationsStore()
 const {
   scenarios,
   sources,
@@ -687,11 +689,21 @@ function openNewNegotiation() {
 }
 
 function onNegotiationStart(data) {
-  // Navigate to single negotiation view
-  router.push({
-    name: 'SingleNegotiation',
-    params: { id: data.session_id }
-  })
+  if (data.session_id) {
+    // Start streaming immediately before navigation
+    // Extract step_delay and share_ufuns from the stream_url
+    const url = new URL(data.stream_url, window.location.origin)
+    const stepDelay = parseFloat(url.searchParams.get('step_delay') || '0.1')
+    const shareUfuns = url.searchParams.get('share_ufuns') === 'true'
+    
+    negotiationsStore.startStreaming(data.session_id, stepDelay, shareUfuns)
+    
+    // Navigate to single negotiation view
+    router.push({
+      name: 'SingleNegotiation',
+      params: { id: data.session_id }
+    })
+  }
 }
 
 function formatNumber(num) {
