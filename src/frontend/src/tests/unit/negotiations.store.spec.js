@@ -95,23 +95,31 @@ describe('Negotiations Store', () => {
           body: JSON.stringify(presetData),
         })
       )
-      expect(result).toBe(true)
+      // Store returns the full preset data, not just true
+      expect(result).toEqual(presetData)
     })
 
     it('should delete a session preset', async () => {
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true }),
-      })
+      // Mock both the delete and the subsequent loadSessionPresets call
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ success: true }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ presets: [] }),
+        })
 
       const store = useNegotiationsStore()
       const result = await store.deleteSessionPreset('Test Preset')
 
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/settings/presets/sessions/Test Preset',
+        '/api/settings/presets/sessions/Test%20Preset',
         expect.objectContaining({ method: 'DELETE' })
       )
-      expect(result).toBe(true)
+      // Store returns the full response object, not just boolean
+      expect(result).toEqual({ success: true })
     })
   })
 
@@ -139,7 +147,7 @@ describe('Negotiations Store', () => {
 
       global.fetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ sessions: mockSessions }),
+        json: async () => ({ presets: mockSessions }),  // API returns 'presets' not 'sessions'
       })
 
       const store = useNegotiationsStore()
@@ -220,7 +228,8 @@ describe('Negotiations Store', () => {
       const store = useNegotiationsStore()
       await store.loadSavedNegotiations()
 
-      expect(global.fetch).toHaveBeenCalledWith('/api/negotiation/saved/list')
+      // API uses query param for archive filtering
+      expect(global.fetch).toHaveBeenCalledWith('/api/negotiation/saved?include_archived=false')
       expect(store.savedNegotiations).toEqual(mockNegotiations)
     })
 
@@ -245,10 +254,15 @@ describe('Negotiations Store', () => {
     })
 
     it('should delete a saved negotiation', async () => {
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true }),
-      })
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ success: true }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ negotiations: [] }),
+        })
 
       const store = useNegotiationsStore()
       const result = await store.deleteSavedNegotiation('session-123')
@@ -257,16 +271,22 @@ describe('Negotiations Store', () => {
         '/api/negotiation/saved/session-123',
         expect.objectContaining({ method: 'DELETE' })
       )
-      expect(result).toBe(true)
+      // Returns the full response object
+      expect(result).toEqual({ success: true })
     })
 
     it('should update negotiation tags', async () => {
       const tags = ['important', 'demo', 'test']
 
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ tags }),
-      })
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ tags }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ negotiations: [] }),
+        })
 
       const store = useNegotiationsStore()
       await store.updateNegotiationTags('session-123', tags)
@@ -274,7 +294,7 @@ describe('Negotiations Store', () => {
       expect(global.fetch).toHaveBeenCalledWith(
         '/api/negotiation/saved/session-123/tags',
         expect.objectContaining({
-          method: 'POST',
+          method: 'PUT',  // Uses PUT, not POST
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tags }),
         })
@@ -298,10 +318,12 @@ describe('Negotiations Store', () => {
       const store = useNegotiationsStore()
       await store.loadSavedNegotiations()
 
-      expect(store.availableNegotiationTags).toContain('test')
-      expect(store.availableNegotiationTags).toContain('demo')
-      expect(store.availableNegotiationTags).toContain('important')
-      expect(store.availableNegotiationTags.length).toBe(3)
+      // availableTags is computed from the loaded negotiations
+      const availableTags = store.availableTags || []
+      expect(availableTags).toContain('test')
+      expect(availableTags).toContain('demo')
+      expect(availableTags).toContain('important')
+      expect(availableTags.length).toBe(3)
     })
 
     it('should filter negotiations by tag', async () => {
@@ -332,12 +354,13 @@ describe('Negotiations Store', () => {
   })
 
   describe('Archive Functionality', () => {
-    it('should toggle showArchivedNegotiations flag', () => {
+    it('should toggle showArchived flag', () => {
       const store = useNegotiationsStore()
       
-      expect(store.showArchivedNegotiations).toBe(false)
-      store.showArchivedNegotiations = true
-      expect(store.showArchivedNegotiations).toBe(true)
+      // The property is called showArchived, not showArchivedNegotiations
+      expect(store.showArchived).toBe(false)
+      store.showArchived = true
+      expect(store.showArchived).toBe(true)
     })
   })
 })
