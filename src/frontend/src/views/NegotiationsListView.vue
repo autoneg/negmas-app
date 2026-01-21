@@ -42,7 +42,7 @@
     <!-- Content Area -->
     <div class="content-area" :class="{ 'with-preview': selectedPreview !== 'none' }">
       <!-- Table -->
-      <div class="table-container" :style="{ width: selectedPreview === 'none' ? '100%' : '66.67%' }">
+      <div class="table-container" :class="{ 'with-preview': selectedPreview !== 'none' }">
         <!-- Search -->
         <div class="search-bar">
           <input 
@@ -673,10 +673,16 @@ function onNegotiationStart(data) {
 .table-container {
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
+  flex: 1;
   min-height: 0;
+  min-width: 400px;
   border-right: 1px solid var(--border-color);
-  transition: width 0.3s ease;
+  transition: flex 0.3s ease;
+}
+
+.table-container.with-preview {
+  flex: 0 0 66.67%;
+  max-width: 66.67%;
 }
 
 .search-bar {
@@ -863,7 +869,9 @@ function onNegotiationStart(data) {
 }
 
 .preview-container {
-  width: 33.33%;
+  flex: 0 0 33.33%;
+  min-width: 300px;
+  max-width: 33.33%;
   display: flex;
   flex-direction: column;
   background: var(--bg-secondary);
