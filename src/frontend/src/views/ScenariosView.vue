@@ -687,10 +687,10 @@ function openNewNegotiation() {
 }
 
 function onNegotiationStart(data) {
-  // Navigate to negotiations view and start streaming
+  // Navigate to single negotiation view
   router.push({
-    name: 'negotiations',
-    query: { session_id: data.session_id }
+    name: 'SingleNegotiation',
+    params: { id: data.session_id }
   })
 }
 

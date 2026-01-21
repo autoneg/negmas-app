@@ -416,6 +416,7 @@ class NegotiationStorageService:
 
                 summary = {
                     "id": metadata.get("id"),
+                    "status": metadata.get("status", "completed"),
                     "scenario_name": metadata.get("scenario_name"),
                     "scenario_path": metadata.get("scenario_path"),
                     "mechanism_type": metadata.get("mechanism_type"),
@@ -426,12 +427,18 @@ class NegotiationStorageService:
                     "n_steps": metadata.get("n_steps"),
                     "tags": metadata.get("tags", []),
                     "archived": archived,
+                    "created_at": metadata.get("start_time"),
+                    "completed_at": metadata.get("end_time"),
                 }
 
                 # Add result info if available
                 if result_path.exists():
                     with open(result_path) as f:
                         result = json.load(f)
+                    summary["agreement"] = result.get(
+                        "agreement"
+                    )  # Include full agreement
+                    summary["agreement_dict"] = result.get("agreement_dict")
                     summary["has_agreement"] = result.get("agreement") is not None
                     summary["end_reason"] = result.get("end_reason")
                     summary["final_utilities"] = result.get("final_utilities")

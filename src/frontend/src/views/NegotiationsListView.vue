@@ -101,12 +101,12 @@
                   </div>
                 </td>
                 <td class="result-cell">
-                  <span v-if="neg.status === 'running'" class="badge badge-running">Running</span>
-                  <span v-else-if="neg.status === 'pending'" class="badge badge-pending">Pending</span>
-                  <span v-else-if="neg.status === 'failed'" class="badge badge-failed">Failed</span>
-                  <span v-else-if="neg.agreement" class="badge badge-agreement">Agreement</span>
-                  <span v-else-if="neg.end_reason === 'timedout'" class="badge badge-timeout">Timeout</span>
-                  <span v-else class="badge badge-disagreement">Disagreement</span>
+                  <span v-if="neg.status === 'running'" class="badge badge-running" :title="getResultTooltip(neg)">Running</span>
+                  <span v-else-if="neg.status === 'pending'" class="badge badge-pending" :title="getResultTooltip(neg)">Pending</span>
+                  <span v-else-if="neg.status === 'failed'" class="badge badge-failed" :title="getResultTooltip(neg)">Failed</span>
+                  <span v-else-if="neg.agreement" class="badge badge-agreement" :title="getResultTooltip(neg)">Agreement</span>
+                  <span v-else-if="neg.end_reason === 'timedout'" class="badge badge-timeout" :title="getResultTooltip(neg)">Timeout</span>
+                  <span v-else class="badge badge-disagreement" :title="getResultTooltip(neg)">Disagreement</span>
                 </td>
                 <td class="tags-cell">
                   <div class="tags-list">
@@ -168,16 +168,29 @@
         <div v-if="!selectedNegotiation" class="preview-empty">
           <p>Select a negotiation to preview</p>
         </div>
-        <div v-else class="preview-content">
-          <!-- Preview panels will be loaded here -->
-          <component 
-            :is="previewComponent" 
-            v-if="previewComponent && previewData"
-            :negotiation="previewData"
-            :compact="true"
-          />
-          <div v-else class="preview-loading">
-            <p>Loading preview...</p>
+        <div v-else class="preview-content" style="display: flex; flex-direction: column; height: 100%;">
+          <!-- Always show Result Panel at top when previewing other panels -->
+          <div 
+            v-if="selectedPreview !== 'result' && previewData" 
+            style="flex-shrink: 0; max-height: 200px; overflow: auto; border-bottom: 1px solid var(--border-color); margin-bottom: 1rem;"
+          >
+            <ResultPanel 
+              :negotiation="previewData"
+              :compact="true"
+            />
+          </div>
+          
+          <!-- Selected preview panel below (or full height if Result is selected) -->
+          <div style="flex: 1; min-height: 0; overflow: auto;">
+            <component 
+              :is="previewComponent" 
+              v-if="previewComponent && previewData"
+              :negotiation="previewData"
+              :compact="true"
+            />
+            <div v-else class="preview-loading">
+              <p>Loading preview...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -509,6 +522,49 @@ function getNegotiatorColor(index, colors) {
   return fallbackColors[index % fallbackColors.length]
 }
 
+function getResultTooltip(neg) {
+  const tooltip = []
+  
+  // Add status
+  tooltip.push(`Status: ${neg.status || 'Unknown'}`)
+  
+  // Add end reason if available
+  if (neg.end_reason) {
+    tooltip.push(`End Reason: ${neg.end_reason}`)
+  }
+  
+  // Add error if failed
+  if (neg.error) {
+    tooltip.push(`Error: ${neg.error}`)
+  }
+  
+  // Add agreement details if available
+  if (neg.agreement_dict && Object.keys(neg.agreement_dict).length > 0) {
+    tooltip.push('\nAgreement:')
+    Object.entries(neg.agreement_dict).forEach(([key, value]) => {
+      tooltip.push(`  ${key}: ${value}`)
+    })
+  } else if (neg.agreement) {
+    tooltip.push(`\nAgreement: ${JSON.stringify(neg.agreement)}`)
+  }
+  
+  // Add final utilities if available
+  if (neg.final_utilities && neg.final_utilities.length > 0) {
+    tooltip.push('\nFinal Utilities:')
+    neg.final_utilities.forEach((utility, idx) => {
+      const name = neg.negotiator_names?.[idx] || `Agent ${idx}`
+      tooltip.push(`  ${name}: ${utility.toFixed(3)}`)
+    })
+  }
+  
+  // Add step count if available
+  if (neg.n_steps !== undefined) {
+    tooltip.push(`\nSteps: ${neg.current_step || neg.step || 0}/${neg.n_steps}`)
+  }
+  
+  return tooltip.length > 0 ? tooltip.join('\n') : 'No additional information'
+}
+
 function viewNegotiation(sessionId) {
   router.push({ name: 'SingleNegotiation', params: { id: sessionId } })
 }
@@ -558,6 +614,7 @@ async function saveTagsFromEditor() {
       tagEditorNegotiation.value.id,
       tagEditorTags.value
     )
+    await loadData()  // Reload to show updated tags
     closeTagEditor()
   }
 }
@@ -616,7 +673,7 @@ function onNegotiationStart(data) {
 .table-container {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex-shrink: 0;
   min-height: 0;
   border-right: 1px solid var(--border-color);
   transition: width 0.3s ease;

@@ -892,15 +892,17 @@
                   <div class="form-group">
                     <label class="form-label">X-Axis (Issue)</label>
                     <select class="form-select" v-model.number="panels.issueSpace.xAxis">
-                      <option value="0">First Issue</option>
-                      <option value="1">Second Issue</option>
+                      <option v-for="opt in issueOptions" :key="opt.value" :value="opt.value">
+                        {{ opt.label }}
+                      </option>
                     </select>
                   </div>
                   <div class="form-group">
                     <label class="form-label">Y-Axis (Issue)</label>
                     <select class="form-select" v-model.number="panels.issueSpace.yAxis">
-                      <option value="0">First Issue</option>
-                      <option value="1">Second Issue</option>
+                      <option v-for="opt in issueOptions" :key="opt.value" :value="opt.value">
+                        {{ opt.label }}
+                      </option>
                     </select>
                   </div>
                 </div>
@@ -1205,7 +1207,7 @@ const showAdvancedMechParams = ref(false)
 const panels = ref({
   adjustable: false,
   utilityView: { xAxis: 0, yAxis: 1 },
-  timeline: { xAxis: 'step', simplified: false },
+  timeline: { xAxis: 'relative_time', simplified: false },
   issueSpace: { xAxis: 0, yAxis: 1 },
   visible: {
     info: true,
@@ -1312,6 +1314,19 @@ const canProceed = computed(() => {
            negotiators.value.every(n => n.type_name)
   }
   return true
+})
+
+const issueOptions = computed(() => {
+  if (!selectedScenario.value?.issues || selectedScenario.value.issues.length === 0) {
+    return [
+      { value: 0, label: 'First Issue' },
+      { value: 1, label: 'Second Issue' }
+    ]
+  }
+  return selectedScenario.value.issues.map((issue, idx) => ({
+    value: idx,
+    label: issue.name
+  }))
 })
 
 // Methods
