@@ -370,6 +370,7 @@ async function initPlot() {
     const numAgents = neg.negotiator_names?.length || 2
     for (let i = 0; i < numAgents; i++) {
       const agentOffers = offers.filter(o => Number(o.proposer_index) === i)
+      
       traces.push({
         x: agentOffers.map(o => o.utilities[xIdx] || 0),
         y: agentOffers.map(o => o.utilities[yIdx] || 0),
@@ -387,6 +388,25 @@ async function initPlot() {
           symbol: isColorBlind ? MARKER_SYMBOLS[i % MARKER_SYMBOLS.length] : 'circle'
         }
       })
+      
+      // Add separate trace for last offer (larger marker)
+      if (agentOffers.length > 0) {
+        const lastOffer = agentOffers[agentOffers.length - 1]
+        traces.push({
+          x: [lastOffer.utilities[xIdx] || 0],
+          y: [lastOffer.utilities[yIdx] || 0],
+          type: 'scattergl',
+          mode: 'markers',
+          name: `${neg.negotiator_names?.[i] || `Agent ${i + 1}`} (Current)`,
+          showlegend: false,
+          marker: { 
+            color: negColors[i % negColors.length], 
+            size: 12,
+            symbol: isColorBlind ? MARKER_SYMBOLS[i % MARKER_SYMBOLS.length] : 'circle',
+            line: { color: '#fff', width: 1.5 }
+          }
+        })
+      }
     }
     
     // 8. Agreement point
