@@ -1,6 +1,15 @@
 <template>
   <div v-if="show" class="modal-overlay active" @click.self="$emit('close')">
     <div class="modal large">
+      <!-- Success Message Toast -->
+      <div v-if="saveSuccessMessage" class="success-toast">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        {{ saveSuccessMessage }}
+      </div>
+      
       <div class="modal-header">
         <h2 class="modal-title">Start New Negotiation</h2>
         <div class="modal-header-actions">
@@ -1223,6 +1232,7 @@ const savePresetName = ref('')
 const recentDropdownOpen = ref(false)
 const savedDropdownOpen = ref(false)
 const isLoadingPresets = ref(false)
+const saveSuccessMessage = ref('')
 
 // Computed
 const filteredScenarios = computed(() => {
@@ -1676,6 +1686,12 @@ async function saveFullSession() {
   const result = await negotiationsStore.saveSessionPreset(preset)
   console.log('[NewNegotiationModal] Save result:', result)
   
+  // Show success message
+  saveSuccessMessage.value = `Configuration "${savePresetName.value.trim()}" saved successfully!`
+  setTimeout(() => {
+    saveSuccessMessage.value = ''
+  }, 3000)
+  
   showSaveModal.value = false
   savePresetName.value = ''
   console.log('[NewNegotiationModal] Save modal closed')
@@ -1800,6 +1816,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  position: relative;
 }
 
 .modal.large {
@@ -1808,6 +1825,35 @@ onUnmounted(() => {
 
 .modal.small {
   max-width: 500px;
+}
+
+.success-toast {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #10b981;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  z-index: 1001;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateX(-50%) translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
 }
 
 .modal-header {
