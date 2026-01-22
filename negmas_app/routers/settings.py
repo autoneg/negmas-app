@@ -366,6 +366,7 @@ async def save_session_preset(data: dict[str, Any]) -> dict[str, Any]:
         step_delay=data.get("step_delay", 100),
         show_plot=data.get("show_plot", True),
         show_offers=data.get("show_offers", True),
+        panels=data.get("panels", {}),
     )
     await asyncio.to_thread(SettingsService.save_session_preset, preset)
     return asdict(preset)
@@ -404,6 +405,7 @@ async def add_recent_session(data: dict[str, Any]) -> dict[str, Any]:
         step_delay=data.get("step_delay", 100),
         show_plot=data.get("show_plot", True),
         show_offers=data.get("show_offers", True),
+        panels=data.get("panels", {}),
     )
     await asyncio.to_thread(SettingsService.add_recent_session, session)
     return {"success": True}

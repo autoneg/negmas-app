@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import math
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -52,6 +53,22 @@ class TagRequest(BaseModel):
     """Request model for adding/removing a single tag."""
 
     tag: str
+
+
+def sanitize_float(value: float) -> float | None:
+    """Convert NaN/Infinity to None for JSON serialization."""
+    if value is None or math.isnan(value) or math.isinf(value):
+        return None
+    return value
+
+
+def sanitize_utilities(
+    utilities: list[tuple[float, ...]] | None,
+) -> list[list[float | None]] | None:
+    """Sanitize utility arrays to handle NaN/Infinity values."""
+    if utilities is None:
+        return None
+    return [[sanitize_float(v) for v in u] for u in utilities]
 
 
 @router.post("/start")
@@ -167,19 +184,37 @@ async def stream_negotiation(
                     osd_data = None
                     if osd is not None:
                         osd_data = {
-                            "outcome_utilities": osd.outcome_utilities,
-                            "pareto_utilities": osd.pareto_utilities,
-                            "reserved_values": osd.reserved_values,
-                            "nash_point": osd.nash_point.utilities
+                            "outcome_utilities": sanitize_utilities(
+                                osd.outcome_utilities
+                            ),
+                            "pareto_utilities": sanitize_utilities(
+                                osd.pareto_utilities
+                            ),
+                            "reserved_values": [
+                                sanitize_float(v) for v in osd.reserved_values
+                            ]
+                            if osd.reserved_values
+                            else None,
+                            "nash_point": [
+                                sanitize_float(v) for v in osd.nash_point.utilities
+                            ]
                             if osd.nash_point
                             else None,
-                            "kalai_point": osd.kalai_point.utilities
+                            "kalai_point": [
+                                sanitize_float(v) for v in osd.kalai_point.utilities
+                            ]
                             if osd.kalai_point
                             else None,
-                            "kalai_smorodinsky_point": osd.kalai_smorodinsky_point.utilities
+                            "kalai_smorodinsky_point": [
+                                sanitize_float(v)
+                                for v in osd.kalai_smorodinsky_point.utilities
+                            ]
                             if osd.kalai_smorodinsky_point
                             else None,
-                            "max_welfare_point": osd.max_welfare_point.utilities
+                            "max_welfare_point": [
+                                sanitize_float(v)
+                                for v in osd.max_welfare_point.utilities
+                            ]
                             if osd.max_welfare_point
                             else None,
                             "total_outcomes": osd.total_outcomes,
@@ -597,19 +632,34 @@ async def get_negotiation_preview(session_id: str, panel_type: str):
 
     # Get session directory
     session_dir = NegotiationStorageService.get_session_dir(session_id)
-    preview_file = session_dir / f"{panel_type}_preview.webp"
+
+    # Find existing preview with any supported format
+    from ..services.negotiation_preview_service import _find_existing_preview
+
+    preview_file = _find_existing_preview(session_dir, panel_type)
 
     # Check if preview exists
-    if not preview_file.exists():
+    if not preview_file:
         raise HTTPException(
             status_code=404,
             detail=f"Preview '{panel_type}' not found for negotiation '{session_id}'",
         )
 
-    # Return the WebP file
+    # Determine media type from extension
+    ext = preview_file.suffix.lower()
+    media_types = {
+        ".webp": "image/webp",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".svg": "image/svg+xml",
+    }
+    media_type = media_types.get(ext, "image/webp")
+
+    # Return the image file
     return FileResponse(
         preview_file,
-        media_type="image/webp",
+        media_type=media_type,
         headers={
             "Cache-Control": "public, max-age=31536000",  # Cache for 1 year
         },

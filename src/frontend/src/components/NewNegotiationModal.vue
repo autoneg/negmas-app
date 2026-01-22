@@ -999,47 +999,7 @@
                 <div class="form-hint">Save results to disk when negotiation completes</div>
               </div>
 
-              <div class="param-section">
-                <h4 class="param-section-title">Visible Panels</h4>
-                <div class="visible-panels-grid">
-                  <label class="checkbox-label">
-                    <input type="checkbox" v-model="panels.visible.info" />
-                    <span>Info</span>
-                  </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" v-model="panels.visible.history" />
-                    <span>Offer History</span>
-                  </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" v-model="panels.visible.result" />
-                    <span>Result</span>
-                  </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" v-model="panels.visible.utility2d" />
-                    <span>2D Utility</span>
-                  </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" v-model="panels.visible.issueSpace2d" />
-                    <span>Issue Space</span>
-                  </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" v-model="panels.visible.timeline" />
-                    <span>Timeline</span>
-                  </label>
-                  <label class="checkbox-label" :class="{ 'disabled': !histogramAvailable }">
-                    <input 
-                      type="checkbox" 
-                      v-model="panels.visible.histogram" 
-                      :disabled="!histogramAvailable"
-                    />
-                    <span>Histogram</span>
-                    <span v-if="!histogramAvailable" class="text-muted-sm" style="margin-left: 8px;" :title="histogramDisabledReason">
-                      (too many outcomes)
-                    </span>
-                  </label>
-                </div>
-                <div class="form-hint">Select which panels to show when viewing this negotiation</div>
-              </div>
+              <!-- Panel visibility controls removed - panels are always visible and can be collapsed individually -->
             </div>
           </div>
         </div>
@@ -1678,13 +1638,24 @@ function buildSessionPreset(name) {
 }
 
 async function saveFullSession() {
-  if (!savePresetName.value.trim() || !selectedScenario.value) return
+  console.log('[NewNegotiationModal] saveFullSession called')
+  console.log('[NewNegotiationModal] savePresetName:', savePresetName.value)
+  console.log('[NewNegotiationModal] selectedScenario:', selectedScenario.value)
+  
+  if (!savePresetName.value.trim() || !selectedScenario.value) {
+    console.log('[NewNegotiationModal] Validation failed - missing name or scenario')
+    return
+  }
   
   const preset = buildSessionPreset(savePresetName.value.trim())
-  await negotiationsStore.saveSessionPreset(preset)
+  console.log('[NewNegotiationModal] Built preset:', preset)
+  
+  const result = await negotiationsStore.saveSessionPreset(preset)
+  console.log('[NewNegotiationModal] Save result:', result)
   
   showSaveModal.value = false
   savePresetName.value = ''
+  console.log('[NewNegotiationModal] Save modal closed')
 }
 
 async function deleteSessionPreset(name) {
@@ -2536,12 +2507,6 @@ onUnmounted(() => {
 }
 
 /* Visible Panels Grid */
-.visible-panels-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-
 /* Disabled checkbox label */
 .checkbox-label.disabled {
   opacity: 0.5;

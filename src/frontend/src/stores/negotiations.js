@@ -133,6 +133,10 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     
     eventSource.value.addEventListener('init', (event) => {
       const data = JSON.parse(event.data)
+      console.log('[negotiations store] SSE init event received:', {
+        hasOutcomeSpaceData: !!data.outcome_space_data,
+        data
+      })
       sessionInit.value = data
     })
     
@@ -317,44 +321,60 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
 
   // Session preset management
   async function loadSessionPresets() {
+    console.log('[negotiations store] loadSessionPresets called')
     try {
       const response = await fetch('/api/settings/presets/sessions')
+      console.log('[negotiations store] loadSessionPresets response:', response.status)
       if (response.ok) {
         const data = await response.json()
+        console.log('[negotiations store] Loaded session presets:', data.presets?.length || 0)
         sessionPresets.value = data.presets || []
       }
     } catch (error) {
-      console.error('Failed to load session presets:', error)
+      console.error('[negotiations store] Failed to load session presets:', error)
       sessionPresets.value = []
     }
   }
 
   async function loadRecentSessions() {
+    console.log('[negotiations store] loadRecentSessions called')
     try {
       const response = await fetch('/api/settings/presets/recent')
+      console.log('[negotiations store] loadRecentSessions response:', response.status)
       if (response.ok) {
         const data = await response.json()
-        recentSessions.value = data.presets || []
+        // Backend returns 'sessions', not 'presets'
+        const sessions = data.sessions || data.presets || []
+        console.log('[negotiations store] Loaded recent sessions:', sessions.length)
+        recentSessions.value = sessions
       }
     } catch (error) {
-      console.error('Failed to load recent sessions:', error)
+      console.error('[negotiations store] Failed to load recent sessions:', error)
       recentSessions.value = []
     }
   }
 
   async function saveSessionPreset(preset) {
+    console.log('[negotiations store] saveSessionPreset called with:', preset)
     try {
       const response = await fetch('/api/settings/presets/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(preset)
       })
+      console.log('[negotiations store] Response status:', response.status, response.statusText)
       if (response.ok) {
+        const result = await response.json()
+        console.log('[negotiations store] Response data:', result)
         await loadSessionPresets()
-        return await response.json()
+        return result
+      } else {
+        const errorText = await response.text()
+        console.error('[negotiations store] Save failed:', response.status, errorText)
+        return null
       }
     } catch (error) {
-      console.error('Failed to save session preset:', error)
+      console.error('[negotiations store] Failed to save session preset:', error)
       return null
     }
   }
