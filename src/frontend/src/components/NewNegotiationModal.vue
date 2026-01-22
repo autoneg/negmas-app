@@ -42,6 +42,11 @@
               Load
             </button>
             <div v-if="savedDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
+              <!-- Debug info -->
+              <div style="background: yellow; padding: 4px; font-size: 10px; border-bottom: 1px solid #ccc;">
+                DEBUG: {{ negotiationsStore.sessionPresets?.length || 0 }} presets
+              </div>
+              
               <div v-if="negotiationsStore.sessionPresets.length === 0" class="dropdown-item text-muted">
                 No saved sessions
               </div>
