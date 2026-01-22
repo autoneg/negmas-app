@@ -27,6 +27,7 @@ export const useSettingsStore = defineStore('settings', () => {
       max_outcomes_run: null,
       max_outcomes_stats: 1000000,
       max_outcomes_info: 10000000,
+      plot_image_format: 'webp',
     },
   })
 

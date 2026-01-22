@@ -252,6 +252,26 @@
                 />
               </div>
             </div>
+            
+            <div class="setting-group">
+              <div class="setting-group-title">Image Settings</div>
+              
+              <div class="setting-row">
+                <div class="setting-info">
+                  <div class="setting-name">Plot Image Format</div>
+                  <div class="setting-desc">Format for saving plot images (webp is smallest)</div>
+                </div>
+                <select
+                  v-model="localSettings.performance.plot_image_format"
+                  class="setting-input"
+                >
+                  <option value="webp">WebP (Smallest, Recommended)</option>
+                  <option value="png">PNG</option>
+                  <option value="jpg">JPEG</option>
+                  <option value="svg">SVG (Vector)</option>
+                </select>
+              </div>
+            </div>
           </div>
           
           <!-- Paths Tab -->
