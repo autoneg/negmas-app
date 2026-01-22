@@ -191,7 +191,16 @@ const yAxisIndex = ref(props.initialYAxis)
 
 // Computed
 const negotiatorNames = computed(() => props.negotiation?.negotiator_names || [])
-const hasData = computed(() => !!props.negotiation?.outcome_space_data)
+const hasData = computed(() => {
+  const result = !!props.negotiation?.outcome_space_data
+  console.log('[Utility2DPanel] hasData check:', {
+    hasNegotiation: !!props.negotiation,
+    hasOutcomeSpaceData: !!props.negotiation?.outcome_space_data,
+    result,
+    negotiation: props.negotiation
+  })
+  return result
+})
 
 // Preview image URL for compact mode
 const previewImageUrl = computed(() => {
@@ -258,15 +267,22 @@ async function initPlot() {
     
     // 1. All outcomes - use scattergl (WebGL) for large outcome spaces
     if (osd.outcome_utilities && osd.outcome_utilities.length > 0) {
-      traces.push({
-        x: osd.outcome_utilities.map(u => u[xIdx] || 0),
-        y: osd.outcome_utilities.map(u => u[yIdx] || 0),
-        type: 'scattergl',
-        mode: 'markers',
-        name: 'Outcomes',
-        marker: { color: colors.outcomeColor, size: 3, opacity: 0.5 },
-        hoverinfo: 'skip'
-      })
+      // Filter out outcomes with null values (NaN/Infinity from backend)
+      const validOutcomes = osd.outcome_utilities
+        .map((u, i) => ({ x: u[xIdx], y: u[yIdx], i }))
+        .filter(p => p.x !== null && p.y !== null && p.x !== undefined && p.y !== undefined)
+      
+      if (validOutcomes.length > 0) {
+        traces.push({
+          x: validOutcomes.map(p => p.x),
+          y: validOutcomes.map(p => p.y),
+          type: 'scattergl',
+          mode: 'markers',
+          name: 'Outcomes',
+          marker: { color: colors.outcomeColor, size: 3, opacity: 0.5 },
+          hoverinfo: 'skip'
+        })
+      }
     }
     
     // 2. Pareto frontier
@@ -581,7 +597,11 @@ function onAxisChange() {
 }
 
 // Image error handler for preview mode
-function onImageError() {
+function onImageError(event) {
+  console.log('[Utility2DPanel] Preview image failed to load:', {
+    url: previewImageUrl.value,
+    error: event
+  })
   console.warn('Failed to load preview image, falling back to interactive mode')
   showInteractive.value = true
 }
