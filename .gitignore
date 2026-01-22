@@ -238,8 +238,12 @@ SESSION.md
 OLD_TASKS.md
 SUMMARY.md
 
-# Planning and documentation files
+# Planning and documentation files created by AI agents (not official docs)
 docs/*_PLAN.md
+*_PARAMETERS.md
+*_PLAN.md
+*_REFACTORING.md
+*_NOTES.md
 
 # Node.js / npm
 node_modules/
