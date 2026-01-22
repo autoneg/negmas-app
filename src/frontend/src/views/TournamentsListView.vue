@@ -116,6 +116,26 @@
                   </div>
                 </td>
                 <td class="actions-cell" @click.stop>
+                  <!-- Run/Continue button for incomplete tournaments -->
+                  <button 
+                    v-if="!tourn.is_complete && tourn.status !== 'running'"
+                    class="btn-icon-small btn-success" 
+                    @click="continueTournament(tourn.id)"
+                    title="Run/Continue tournament"
+                  >
+                    ▶️
+                  </button>
+                  
+                  <!-- Stop button for running tournaments -->
+                  <button 
+                    v-if="tourn.status === 'running'"
+                    class="btn-icon-small btn-danger" 
+                    @click="stopTournament(tourn)"
+                    title="Stop tournament"
+                  >
+                    ⏹️
+                  </button>
+                  
                   <button 
                     class="btn-icon-small" 
                     @click="viewTournament(tourn.id)" 
@@ -613,6 +633,65 @@ function onTournamentStart(data) {
     router.push({ name: 'SingleTournament', params: { id: data.session_id } })
   }
 }
+
+async function continueTournament(tournamentId) {
+  try {
+    const response = await fetch(`/api/tournament/saved/${tournamentId}/continue`, {
+      method: 'POST'
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      alert(`Failed to continue tournament: ${error.detail || 'Unknown error'}`)
+      return
+    }
+    
+    const data = await response.json()
+    // Navigate to tournament view with streaming
+    router.push({ name: 'SingleTournament', params: { id: data.session_id } })
+  } catch (error) {
+    console.error('Failed to continue tournament:', error)
+    alert(`Failed to continue tournament: ${error.message}`)
+  }
+}
+
+async function stopTournament(tourn) {
+  if (!confirm(`Stop tournament ${tourn.name || tourn.id}?`)) {
+    return
+  }
+  
+  try {
+    // Find the session ID if this is a running session
+    let sessionId = tourn.id
+    if (tourn.source === 'session' && tourn.session_id) {
+      sessionId = tourn.session_id
+    }
+    
+    const response = await fetch(`/api/tournament/${sessionId}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delete_results: false })
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      alert(`Failed to stop tournament: ${error.detail || 'Unknown error'}`)
+      return
+    }
+    
+    // Refresh tournament list
+    await loadData()
+    
+    // Clear selection if we stopped the selected tournament
+    if (selectedTournament.value?.id === tourn.id) {
+      selectedTournament.value = null
+      previewData.value = null
+    }
+  } catch (error) {
+    console.error('Failed to stop tournament:', error)
+    alert(`Failed to stop tournament: ${error.message}`)
+  }
+}
 </script>
 
 <style scoped>
@@ -821,6 +900,26 @@ function onTournamentStart(data) {
 .btn-icon-small:hover {
   background: var(--bg-hover);
   border-color: var(--primary-color);
+}
+
+.btn-icon-small.btn-success {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.btn-icon-small.btn-success:hover {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+}
+
+.btn-icon-small.btn-danger {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.btn-icon-small.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
 }
 
 .empty-state,

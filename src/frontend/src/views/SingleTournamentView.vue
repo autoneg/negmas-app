@@ -94,6 +94,7 @@
           :gridInit="gridInit"
           :cellStates="cellStates"
           :selfPlay="currentSession.self_play || false"
+          :status="currentSession.status"
         />
         
         <!-- Scores Panel -->

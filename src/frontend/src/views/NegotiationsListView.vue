@@ -141,6 +141,9 @@
                   Date
                   <span v-if="sortColumn === 'date'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
                 </th>
+                <th style="width: 140px;">
+                  Negotiation ID
+                </th>
                 <th @click="sortBy('scenario')">
                   Scenario
                   <span v-if="sortColumn === 'scenario'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
@@ -560,6 +563,7 @@ async function loadPreviewData(neg) {
     // Format data for preview panels
     previewData.value = {
       id: fullData.id,
+      source: neg.source, // Add source field for preview image detection
       scenario_name: fullData.scenario_name,
       negotiator_names: fullData.negotiator_names,
       negotiator_colors: fullData.negotiator_colors,

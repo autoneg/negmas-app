@@ -208,18 +208,32 @@ async def get_scenario_plot_image(path: str):
         path: Full path to scenario directory.
 
     Returns:
-        WebP image file.
+        WebP/PNG/JPG/SVG image file.
     """
-    plot_path = get_plot_path(path)
+    # Import helper to find existing plot with any format
+    from ..services.plot_service import find_existing_plot
 
-    if not plot_path.exists():
+    plot_path = find_existing_plot(path)
+
+    if not plot_path:
         raise HTTPException(
             status_code=404,
             detail="Plot image not found. Call /plot-data first to generate it.",
         )
 
+    # Determine media type from extension
+    ext = plot_path.suffix.lower()
+    media_types = {
+        ".webp": "image/webp",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".svg": "image/svg+xml",
+    }
+    media_type = media_types.get(ext, "image/webp")
+
     return FileResponse(
-        plot_path, media_type="image/webp", filename=f"{Path(path).name}_plot.webp"
+        plot_path, media_type=media_type, filename=f"{Path(path).name}_plot{ext}"
     )
 
 

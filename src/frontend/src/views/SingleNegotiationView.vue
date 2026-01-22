@@ -182,7 +182,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, shallowRef } from 'vue'
+import { ref, onMounted, onUnmounted, computed, shallowRef, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useNegotiationsStore } from '../stores/negotiations'
 import { storeToRefs } from 'pinia'
@@ -252,6 +252,15 @@ const negotiation = computed(() => {
     isSaved: currentSession.value?.status === 'completed' || currentSession.value?.status === 'failed'
   }
 })
+
+// Debug: Watch sessionInit for changes
+watch(() => sessionInit.value, (newVal) => {
+  console.log('[SingleNegotiationView] sessionInit changed:', {
+    hasSessionInit: !!newVal,
+    hasOutcomeSpaceData: !!newVal?.outcome_space_data,
+    sessionInit: newVal
+  })
+}, { immediate: true, deep: true })
 
 onMounted(async () => {
   const sessionId = route.params.id
