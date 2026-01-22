@@ -47,13 +47,17 @@
             <div v-if="savedDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
               <!-- Debug info -->
               <div style="background: yellow; padding: 4px; font-size: 10px; border-bottom: 1px solid #ccc;">
-                DEBUG: {{ negotiationsStore.sessionPresets?.length || 0 }} presets, open={{ savedDropdownOpen }}
+                DEBUG: {{ negotiationsStore.sessionPresets?.length || 0 }} presets, open={{ savedDropdownOpen }}, loading={{ isLoadingPresets }}
               </div>
               
-              <div v-if="negotiationsStore.sessionPresets.length === 0" class="dropdown-item text-muted">
+              <div v-if="isLoadingPresets" class="dropdown-item text-muted">
+                Loading saved sessions...
+              </div>
+              <div v-else-if="negotiationsStore.sessionPresets.length === 0" class="dropdown-item text-muted">
                 No saved sessions
               </div>
               <div
+                v-else
                 v-for="preset in negotiationsStore.sessionPresets"
                 :key="preset.name"
                 class="dropdown-item"
@@ -1218,6 +1222,7 @@ const showSaveModal = ref(false)
 const savePresetName = ref('')
 const recentDropdownOpen = ref(false)
 const savedDropdownOpen = ref(false)
+const isLoadingPresets = ref(false)
 
 // Computed
 const filteredScenarios = computed(() => {
@@ -1624,7 +1629,12 @@ async function loadRecentSessions() {
 }
 
 async function loadSessionPresets() {
-  await negotiationsStore.loadSessionPresets()
+  isLoadingPresets.value = true
+  try {
+    await negotiationsStore.loadSessionPresets()
+  } finally {
+    isLoadingPresets.value = false
+  }
 }
 
 function buildSessionPreset(name) {
