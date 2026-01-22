@@ -328,7 +328,9 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
       if (response.ok) {
         const data = await response.json()
         console.log('[negotiations store] Loaded session presets:', data.presets?.length || 0)
+        console.log('[negotiations store] Session presets data:', data.presets)
         sessionPresets.value = data.presets || []
+        console.log('[negotiations store] sessionPresets.value after assignment:', sessionPresets.value)
       }
     } catch (error) {
       console.error('[negotiations store] Failed to load session presets:', error)
