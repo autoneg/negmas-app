@@ -111,6 +111,11 @@ class PerformanceSettings:
     # (other than n_outcomes itself)
     max_outcomes_info: int | None = 10_000_000
 
+    # Maximum number of outcomes for showing histogram panel
+    # Above this threshold, histogram is disabled for enumerated outcome spaces
+    # (scenarios without named issues where histogram shows all outcomes)
+    max_histogram_outcomes: int = 10_000
+
 
 # =============================================================================
 # Layout State Models for Panel Layout Persistence

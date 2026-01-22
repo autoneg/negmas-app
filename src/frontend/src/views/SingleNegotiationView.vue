@@ -15,17 +15,46 @@
     
     <!-- Negotiation Viewer -->
     <div v-else-if="negotiation" class="negotiation-viewer">
+      <!-- Tournament Context Breadcrumb (if from tournament) -->
+      <div v-if="fromTournament" class="tournament-breadcrumb">
+        <button class="breadcrumb-link" @click="backToTournament" title="Back to tournament">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          <span>Tournament</span>
+        </button>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="opacity: 0.3;">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+        <span class="breadcrumb-current">Negotiation #{{ tournamentNegIndex !== null ? tournamentNegIndex + 1 : '?' }}</span>
+      </div>
+      
       <!-- Compact Header -->
       <div class="table-header" style="margin-bottom: 8px;">
         <div style="display: flex; align-items: center; gap: 12px;">
-          <button class="btn btn-ghost btn-sm" @click="router.push({ name: 'NegotiationsList' })" title="Back to negotiations list">
+          <button 
+            class="btn btn-ghost btn-sm" 
+            @click="fromTournament ? backToTournament() : router.push({ name: 'NegotiationsList' })" 
+            :title="fromTournament ? 'Back to tournament' : 'Back to negotiations list'"
+          >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
               <polyline points="15 18 9 12 15 6"></polyline>
             </svg>
-            <span>Back</span>
+            <span>{{ fromTournament ? 'Tournament' : 'Back' }}</span>
           </button>
           <h2 style="font-size: 16px;">Negotiation</h2>
           <span class="badge badge-primary" style="font-size: 12px;">{{ negotiation?.scenario_name || 'Unknown' }}</span>
+          <span v-if="fromTournament" class="badge badge-secondary" style="font-size: 11px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="margin-right: 4px;">
+              <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+              <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+              <path d="M4 22h16"></path>
+              <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+              <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+              <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
+            </svg>
+            From Tournament
+          </span>
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
           <!-- Stats button -->
@@ -71,11 +100,11 @@
             @zoom="showZoomPanel('Histogram', 'histogram')"
           />
           
-          <!-- Issue Space 2D Panel -->
-          <IssueSpace2DPanel 
+          <!-- Issue Space 2D Panel - HIDDEN FOR NOW (future: tabbed zones feature) -->
+          <!-- <IssueSpace2DPanel 
             :negotiation="negotiation"
             @zoom="showZoomPanel('Issue Space 2D', 'issueSpace')"
-          />
+          /> -->
           
           <!-- Result Panel -->
           <ResultPanel 
@@ -191,6 +220,11 @@ const error = ref(null)
 
 // Panel settings loaded from localStorage
 const panelSettings = ref(null)
+
+// Tournament context (if this negotiation is from a tournament)
+const fromTournament = computed(() => currentSession.value?.fromTournament === true)
+const tournamentId = computed(() => currentSession.value?.tournamentId || null)
+const tournamentNegIndex = computed(() => currentSession.value?.tournamentNegIndex ?? null)
 
 // Computed negotiation data for panels
 const negotiation = computed(() => {
@@ -382,7 +416,9 @@ async function handleStopNegotiation() {
 }
 
 function handleShowStats() {
-  // Show scenario stats modal
+  console.log('[SingleNegotiationView] Opening stats modal')
+  console.log('[SingleNegotiationView] negotiation:', negotiation.value)
+  console.log('[SingleNegotiationView] outcome_space_data:', negotiation.value?.outcome_space_data)
   showStatsModal.value = true
 }
 
@@ -413,6 +449,16 @@ function handleSaveResults() {
   // Save results to file
   console.log('Save results')
 }
+
+function backToTournament() {
+  // Navigate back to the tournament this negotiation came from
+  if (tournamentId.value) {
+    router.push({ name: 'SingleTournament', params: { id: tournamentId.value } })
+  } else {
+    // Fallback to tournaments list
+    router.push({ name: 'TournamentsList' })
+  }
+}
 </script>
 
 <style scoped>
@@ -433,6 +479,44 @@ function handleSaveResults() {
   min-height: 0;
   height: 100%;
   overflow: hidden;
+}
+
+.tournament-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.breadcrumb-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.breadcrumb-link:hover {
+  background: var(--bg-hover);
+  color: var(--primary-hover);
+}
+
+.breadcrumb-current {
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .empty-state {
@@ -461,11 +545,19 @@ function handleSaveResults() {
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .badge-primary {
   background: rgba(59, 130, 246, 0.2);
   color: rgb(59, 130, 246);
+}
+
+.badge-secondary {
+  background: rgba(107, 114, 128, 0.2);
+  color: rgb(107, 114, 128);
 }
 
 .btn {

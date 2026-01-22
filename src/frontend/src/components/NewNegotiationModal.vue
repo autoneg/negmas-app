@@ -888,7 +888,7 @@
 
               <div class="param-section">
                 <h4 class="param-section-title">Issue Space 2D</h4>
-                <div class="form-row">
+                <div v-if="issueOptions.length >= 2" class="form-row">
                   <div class="form-group">
                     <label class="form-label">X-Axis (Issue)</label>
                     <select class="form-select" v-model.number="panels.issueSpace.xAxis">
@@ -906,7 +906,10 @@
                     </select>
                   </div>
                 </div>
-                <div class="form-hint">Only applies to scenarios with 2+ issues</div>
+                <div v-else class="form-hint" style="color: var(--text-muted); font-style: italic;">
+                  Not available for this scenario (requires 2+ named issues)
+                </div>
+                <div v-if="issueOptions.length >= 2" class="form-hint">Select which issues to display on X and Y axes</div>
               </div>
             </div>
 
@@ -1023,9 +1026,16 @@
                     <input type="checkbox" v-model="panels.visible.timeline" />
                     <span>Timeline</span>
                   </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" v-model="panels.visible.histogram" />
+                  <label class="checkbox-label" :class="{ 'disabled': !histogramAvailable }">
+                    <input 
+                      type="checkbox" 
+                      v-model="panels.visible.histogram" 
+                      :disabled="!histogramAvailable"
+                    />
                     <span>Histogram</span>
+                    <span v-if="!histogramAvailable" class="text-muted-sm" style="margin-left: 8px;" :title="histogramDisabledReason">
+                      (too many outcomes)
+                    </span>
                   </label>
                 </div>
                 <div class="form-hint">Select which panels to show when viewing this negotiation</div>
@@ -1318,15 +1328,38 @@ const canProceed = computed(() => {
 
 const issueOptions = computed(() => {
   if (!selectedScenario.value?.issues || selectedScenario.value.issues.length === 0) {
-    return [
-      { value: 0, label: 'First Issue' },
-      { value: 1, label: 'Second Issue' }
-    ]
+    // Fallback: if scenario loaded but issues not yet available, 
+    // return empty to avoid showing fake names
+    return []
   }
   return selectedScenario.value.issues.map((issue, idx) => ({
     value: idx,
     label: issue.name
   }))
+})
+
+// Check if histogram should be available for this scenario
+// For enumerated outcome spaces (no named issues), histogram shows all outcomes
+// which can be very slow for large spaces
+const histogramAvailable = computed(() => {
+  const scenario = selectedScenario.value
+  if (!scenario) return true // Allow by default if no scenario selected yet
+  
+  // If scenario has named issues, histogram is efficient (shows per-issue distribution)
+  if (scenario.issues && scenario.issues.length > 0) return true
+  
+  // For enumerated spaces, check outcome count against threshold
+  const MAX_HISTOGRAM_OUTCOMES = 10000 // TODO: Get from settings
+  const outcomeCount = scenario.n_outcomes || 0
+  
+  return outcomeCount <= MAX_HISTOGRAM_OUTCOMES
+})
+
+const histogramDisabledReason = computed(() => {
+  if (histogramAvailable.value) return null
+  
+  const outcomeCount = selectedScenario.value?.n_outcomes || 0
+  return `Histogram disabled: ${formatNumber(outcomeCount)} outcomes exceeds limit of 10,000 for enumerated outcome spaces`
 })
 
 // Methods
@@ -1361,6 +1394,11 @@ function selectScenario(scenario) {
     source: '',
   }))
   selectedSlot.value = 0
+  
+  // Auto-disable histogram if outcome space is too large for enumerated spaces
+  if (!histogramAvailable.value) {
+    panels.value.visible.histogram = false
+  }
 }
 
 function filterScenarios() {
@@ -2502,5 +2540,15 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
+}
+
+/* Disabled checkbox label */
+.checkbox-label.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.checkbox-label.disabled input[type="checkbox"] {
+  cursor: not-allowed;
 }
 </style>

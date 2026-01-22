@@ -18,7 +18,7 @@
           <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
       </button>
-      <button class="panel-btn" title="Zoom (show all)" @click="$emit('zoom')">
+      <button class="panel-btn" title="Zoom (show all)" @click.stop="$emit('zoom')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="15 3 21 3 21 9"/>
           <polyline points="9 21 3 21 3 15"/>
@@ -54,7 +54,7 @@
           <button 
             class="btn-link" 
             style="font-size: 10px; padding: 0; color: var(--primary); border: none; background: none; cursor: pointer; text-decoration: underline;" 
-            @click="$emit('zoom')"
+            @click.stop="$emit('zoom')"
           >
             View all
           </button>

@@ -2,6 +2,7 @@
   <div class="single-tournament-view">
     <!-- Loading State -->
     <div v-if="loading" class="empty-state">
+      <div class="spinner"></div>
       <p>Loading tournament...</p>
     </div>
     
@@ -15,44 +16,30 @@
     
     <!-- Tournament Viewer -->
     <div v-else-if="currentSession" class="tournament-viewer">
-      <!-- Header -->
+      <!-- Compact Header -->
       <div class="viewer-header">
         <div style="display: flex; align-items: center; gap: 12px;">
           <button class="btn btn-ghost btn-sm" @click="router.push({ name: 'TournamentsList' })" title="Back to tournaments list">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
               <polyline points="15 18 9 12 15 6"></polyline>
             </svg>
-            <span>Back</span>
+            Back
           </button>
           <div>
-            <h2>Tournament {{ currentSession.id.slice(0, 12) }}</h2>
+            <h2>{{ currentSession.name || `Tournament ${currentSession.id.slice(0, 12)}` }}</h2>
             <div v-if="gridInit" class="tournament-info">
-              <span>{{ gridInit.competitors.length }} competitors</span>
+              <span>{{ gridInit.competitors?.length || 0 }} competitors</span>
               <span>×</span>
-              <span>{{ gridInit.scenarios.length }} scenarios</span>
+              <span>{{ gridInit.scenarios?.length || 0 }} scenarios</span>
               <span>=</span>
-              <span>{{ gridInit.total_negotiations }} negotiations</span>
+              <span>{{ gridInit.total_negotiations || 0 }} negotiations</span>
             </div>
           </div>
         </div>
         <div class="header-actions">
           <button
-            v-if="currentSession.status === 'running' && !streamingSession"
-            class="btn-primary btn-sm"
-            @click="watchLive"
-          >
-            Watch Live
-          </button>
-          <button
-            v-if="streamingSession"
-            class="btn-secondary btn-sm"
-            @click="stopWatching"
-          >
-            Stop Watching
-          </button>
-          <button
             v-if="currentSession.status === 'running'"
-            class="btn-secondary btn-sm"
+            class="btn btn-secondary btn-sm"
             @click="cancelTournament"
           >
             Cancel
@@ -62,156 +49,67 @@
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            <span>New</span>
+            New
           </button>
         </div>
       </div>
       
-      <!-- Live Status Bar -->
-      <div v-if="streamingSession && progress" class="status-bar live">
-        <span class="status-indicator">● LIVE</span>
-        <span>{{ progress.completed }}/{{ progress.total }} completed</span>
-        <span v-if="progress.current_scenario">{{ progress.current_scenario }}</span>
-        <div class="progress-bar">
+      <!-- Stats Bar (single line with inline stats) -->
+      <div v-if="currentSession.status === 'running' || currentSession.status === 'completed'" class="stats-bar">
+        <div class="stats-inline">
+          <span class="stat-inline">
+            <span class="stat-label">Negotiations:</span>
+            <span class="stat-value">
+              {{ currentSession.status === 'completed' 
+                ? (currentSession.n_negotiations || 0) 
+                : `${progress?.completed || 0}/${progress?.total || 0}` 
+              }}
+            </span>
+          </span>
+          <span class="stat-inline" v-if="currentSession.status === 'completed' && currentSession.n_agreements !== undefined">
+            <span class="stat-label">Agreements:</span>
+            <span class="stat-value">
+              {{ currentSession.n_agreements || 0 }} ({{ Math.round((currentSession.agreement_rate || 0) * 100) }}%)
+            </span>
+          </span>
+          <span class="stat-inline" v-if="currentSession.status === 'running' && progress">
+            <span class="stat-label">Progress:</span>
+            <span class="stat-value">{{ Math.round(progress.percent || 0) }}%</span>
+          </span>
+          <span v-if="streamingSession" class="stat-inline live-indicator">
+            <span class="status-dot"></span>
+            LIVE
+          </span>
+        </div>
+        <!-- Progress bar for running tournaments -->
+        <div v-if="currentSession.status === 'running' && progress" class="progress-bar-inline">
           <div class="progress-fill" :style="{ width: progress.percent + '%' }"></div>
         </div>
       </div>
       
-      <!-- Tabs -->
-      <div class="tabs">
-        <button
-          class="tab"
-          :class="{ active: activeTab === 'grid' }"
-          @click="activeTab = 'grid'"
-        >
-          Grid
-        </button>
-        <button
-          class="tab"
-          :class="{ active: activeTab === 'leaderboard' }"
-          @click="activeTab = 'leaderboard'"
-        >
-          Leaderboard
-        </button>
-        <button
-          class="tab"
-          :class="{ active: activeTab === 'analytics' }"
-          @click="activeTab = 'analytics'"
-        >
-          Analytics
-        </button>
-        <button
-          class="tab"
-          :class="{ active: activeTab === 'config' }"
-          @click="activeTab = 'config'"
-        >
-          Configuration
-        </button>
-      </div>
-      
-      <!-- Tab Content -->
-      <div class="tab-content">
-        <!-- Grid Tab -->
-        <div v-if="activeTab === 'grid'" class="grid-tab">
-          <div v-if="!gridInit" class="empty-state-sm">
-            Loading grid...
-          </div>
-          <div v-else class="tournament-grid">
-            <div class="grid-header">
-              <div class="grid-corner"></div>
-              <div
-                v-for="scenario in gridInit.scenarios"
-                :key="scenario"
-                class="grid-header-cell"
-              >
-                {{ scenario.split('/').pop() }}
-              </div>
-            </div>
-            <div
-              v-for="competitor in gridInit.competitors"
-              :key="competitor"
-              class="grid-row"
-            >
-              <div class="grid-row-header">{{ competitor }}</div>
-              <div
-                v-for="scenario in gridInit.scenarios"
-                :key="scenario"
-                class="grid-cell"
-                :class="getCellClass(competitor, scenario)"
-              >
-                {{ getCellContent(competitor, scenario) }}
-              </div>
-            </div>
-          </div>
-        </div>
+      <!-- Main Panels (always visible, stacked vertically) -->
+      <div class="panels-container">
+        <!-- Grid Panel -->
+        <TournamentGridPanel 
+          :gridInit="gridInit"
+          :cellStates="cellStates"
+          :selfPlay="currentSession.self_play || false"
+        />
         
-        <!-- Leaderboard Tab -->
-        <div v-if="activeTab === 'leaderboard'" class="leaderboard-tab">
-          <div v-if="leaderboard.length === 0" class="empty-state-sm">
-            No leaderboard data yet
-          </div>
-          <div v-else class="leaderboard-table-container">
-            <table class="leaderboard-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Competitor</th>
-                  <th>Score</th>
-                  <th>Wins</th>
-                  <th>Agreements</th>
-                  <th>Avg Utility</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(entry, idx) in leaderboard" :key="entry.competitor">
-                  <td class="rank-cell">
-                    <span v-if="idx === 0" class="rank-medal">🥇</span>
-                    <span v-else-if="idx === 1" class="rank-medal">🥈</span>
-                    <span v-else-if="idx === 2" class="rank-medal">🥉</span>
-                    <span v-else>{{ idx + 1 }}</span>
-                  </td>
-                  <td>{{ entry.competitor }}</td>
-                  <td>{{ entry.score?.toFixed(2) || 'N/A' }}</td>
-                  <td>{{ entry.wins }}</td>
-                  <td>{{ entry.agreements }}/{{ entry.total }}</td>
-                  <td>{{ entry.avg_utility?.toFixed(3) || 'N/A' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <!-- Scores Panel -->
+        <TournamentScoresPanel 
+          :leaderboard="leaderboard"
+          :status="currentSession.status"
+        />
         
-        <!-- Analytics Tab -->
-        <div v-if="activeTab === 'analytics'" class="analytics-tab">
-          <div class="empty-state-sm">
-            Analytics charts coming soon
-          </div>
-        </div>
-        
-        <!-- Config Tab -->
-        <div v-if="activeTab === 'config'" class="config-tab">
-          <div v-if="!gridInit" class="empty-state-sm">
-            Loading configuration...
-          </div>
-          <div v-else class="config-grid">
-            <div class="config-item">
-              <label>Competitors:</label>
-              <span>{{ gridInit.competitors.length }}</span>
-            </div>
-            <div class="config-item">
-              <label>Scenarios:</label>
-              <span>{{ gridInit.scenarios.length }}</span>
-            </div>
-            <div class="config-item">
-              <label>Repetitions:</label>
-              <span>{{ gridInit.n_repetitions }}</span>
-            </div>
-            <div class="config-item">
-              <label>Rotate Utility Functions:</label>
-              <span>{{ gridInit.rotate_ufuns ? 'Yes' : 'No' }}</span>
-            </div>
-          </div>
-        </div>
+        <!-- Negotiations Panel -->
+        <TournamentNegotiationsPanel 
+          :negotiations="displayedNegotiations"
+          :status="currentSession.status"
+          :tournamentId="currentSession.id"
+          @view-negotiation="handleViewNegotiation"
+          @load-trace="handleLoadTrace"
+        />
       </div>
     </div>
     
@@ -223,7 +121,7 @@
       </button>
     </div>
     
-    <!-- New Tournament Modal (teleported to body) -->
+    <!-- New Tournament Modal -->
     <Teleport to="body">
       <NewTournamentModal
         :show="showNewTournamentModal"
@@ -235,15 +133,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useTournamentsStore } from '../stores/tournaments'
+import { useNegotiationsStore } from '../stores/negotiations'
 import { storeToRefs } from 'pinia'
 import NewTournamentModal from '../components/NewTournamentModal.vue'
+import TournamentGridPanel from '../components/TournamentGridPanel.vue'
+import TournamentScoresPanel from '../components/TournamentScoresPanel.vue'
+import TournamentNegotiationsPanel from '../components/TournamentNegotiationsPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
 const tournamentsStore = useTournamentsStore()
+const negotiationsStore = useNegotiationsStore()
+
 const {
   currentSession,
   streamingSession,
@@ -251,13 +155,22 @@ const {
   cellStates,
   leaderboard,
   progress,
-  tournamentComplete,
+  liveNegotiations,
 } = storeToRefs(tournamentsStore)
 
 const showNewTournamentModal = ref(false)
 const loading = ref(true)
 const error = ref(null)
-const activeTab = ref('grid')
+
+// Computed property for negotiations based on status
+const displayedNegotiations = computed(() => {
+  if (currentSession.value?.status === 'running') {
+    return liveNegotiations.value || []
+  } else if (currentSession.value?.status === 'completed') {
+    return currentSession.value?.negotiations || []
+  }
+  return []
+})
 
 onMounted(async () => {
   const tournamentId = route.params.id
@@ -305,6 +218,10 @@ onMounted(async () => {
           status: 'completed',
           n_competitors: savedData.n_competitors,
           n_scenarios: savedData.n_scenarios,
+          n_negotiations: savedData.n_negotiations,
+          n_agreements: savedData.n_agreements,
+          agreement_rate: savedData.agreement_rate,
+          negotiations: savedData.negotiations || [],
           isSaved: true,
         }
         
@@ -334,22 +251,11 @@ onUnmounted(() => {
 })
 
 function onTournamentStart(data) {
-  // Close modal
   showNewTournamentModal.value = false
   
-  // Navigate to the new tournament
   if (data.session_id) {
     router.push({ name: 'SingleTournament', params: { id: data.session_id } })
   }
-}
-
-function watchLive() {
-  if (!currentSession.value) return
-  tournamentsStore.startStreaming(currentSession.value.id)
-}
-
-function stopWatching() {
-  tournamentsStore.stopStreaming()
 }
 
 async function cancelTournament() {
@@ -360,28 +266,78 @@ async function cancelTournament() {
   }
 }
 
-function getCellClass(competitor, scenario) {
-  const key = `${competitor}::${scenario}`
-  const state = cellStates.value[key]
-  if (!state) return 'pending'
-  return state.status || 'pending'
-}
-
-function getCellContent(competitor, scenario) {
-  const key = `${competitor}::${scenario}`
-  const state = cellStates.value[key]
-  if (!state) return '⋯'
-  
-  if (state.status === 'running') return '⟳'
-  if (state.status === 'pending') return '⋯'
-  if (state.status === 'failed') return '✗'
-  
-  // Completed - show utility
-  if (state.utility !== undefined) {
-    return state.utility.toFixed(2)
+function handleViewNegotiation(neg) {
+  // For running tournaments, click on a negotiation to view its live data
+  // The negotiation object from liveNegotiations already has the data we need
+  if (!neg || !neg.offers || neg.offers.length === 0) {
+    console.warn('Negotiation has no offers yet')
+    return
   }
   
-  return '✓'
+  // Create a minimal negotiation session to load in the viewer
+  // The negotiations store expects this format
+  const sessionData = {
+    id: `tournament-${currentSession.value.id}-neg-${neg.index || 0}`,
+    scenario: neg.scenario_path || neg.scenario,
+    issue_names: neg.issue_names || [],
+    offers: neg.offers || [],
+    agreement: neg.agreement || null,
+    utilities: neg.utilities || {},
+    partners: neg.partners || [],
+    n_steps: neg.n_steps || neg.offers?.length || 0,
+    end_reason: neg.end_reason || 'unknown',
+    fromTournament: true,
+    tournamentId: currentSession.value.id,
+  }
+  
+  // Load this into the negotiations store
+  negotiationsStore.loadTournamentNegotiation(sessionData)
+  
+  // Navigate to the negotiation viewer
+  router.push({ name: 'SingleNegotiation', params: { id: sessionData.id } })
+}
+
+async function handleLoadTrace(tournamentId, negIndex) {
+  // For saved tournaments, load the full negotiation trace from the server
+  try {
+    loading.value = true
+    
+    // Fetch full negotiation data from the API
+    const response = await fetch(`/api/tournament/saved/${tournamentId}/negotiation/${negIndex}/full`)
+    if (!response.ok) {
+      throw new Error(`Failed to load negotiation: ${response.statusText}`)
+    }
+    
+    const negData = await response.json()
+    
+    // Create session data for the negotiations store
+    const sessionData = {
+      id: `tournament-${tournamentId}-neg-${negIndex}`,
+      scenario: negData.scenario_path || negData.scenario,
+      issue_names: negData.issue_names || [],
+      offers: negData.history || negData.offers || [],
+      agreement: negData.agreement || null,
+      utilities: negData.final_utilities || negData.utilities || {},
+      partners: negData.partners || negData.negotiators || [],
+      n_steps: negData.n_steps || negData.history?.length || 0,
+      end_reason: negData.end_reason || 'unknown',
+      outcome_space_data: negData.outcome_space_data || null,
+      fromTournament: true,
+      tournamentId: tournamentId,
+      tournamentNegIndex: negIndex,
+    }
+    
+    // Load into negotiations store
+    negotiationsStore.loadTournamentNegotiation(sessionData)
+    
+    // Navigate to negotiation viewer
+    router.push({ name: 'SingleNegotiation', params: { id: sessionData.id } })
+  } catch (err) {
+    console.error('Failed to load trace:', err)
+    error.value = `Failed to load negotiation: ${err.message}`
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -401,7 +357,6 @@ function getCellContent(competitor, scenario) {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  height: 100%;
   overflow: hidden;
 }
 
@@ -416,11 +371,17 @@ function getCellContent(competitor, scenario) {
   height: 100%;
 }
 
-.empty-state-sm {
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  padding: 24px;
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .viewer-header {
@@ -436,14 +397,15 @@ function getCellContent(competitor, scenario) {
 
 .viewer-header h2 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .tournament-info {
   display: flex;
   gap: 8px;
   margin-top: 4px;
-  font-size: 0.85rem;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
@@ -452,33 +414,66 @@ function getCellContent(competitor, scenario) {
   gap: 8px;
 }
 
-.status-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.stats-bar {
   padding: 8px 16px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   margin-bottom: 12px;
-  font-size: 0.85rem;
 }
 
-.status-bar.live {
-  border-color: rgb(239, 68, 68);
-  background: rgba(239, 68, 68, 0.05);
+.stats-inline {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  margin-bottom: 8px;
 }
 
-.status-indicator {
-  color: rgb(239, 68, 68);
+.stat-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.stat-value {
+  color: var(--text-primary);
   font-weight: 600;
 }
 
-.progress-bar {
-  flex: 1;
-  height: 6px;
+.live-indicator {
+  color: rgb(239, 68, 68);
+  font-weight: 700;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: rgb(239, 68, 68);
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.progress-bar-inline {
+  width: 100%;
+  height: 4px;
   background: var(--bg-tertiary);
-  border-radius: 3px;
+  border-radius: 2px;
   overflow: hidden;
 }
 
@@ -488,192 +483,23 @@ function getCellContent(competitor, scenario) {
   transition: width 0.3s ease;
 }
 
-.tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 2px solid var(--border-color);
-  margin-bottom: 12px;
-}
-
-.tab {
-  padding: 8px 16px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  transition: all 0.2s;
-  margin-bottom: -2px;
-}
-
-.tab:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
-}
-
-.tab.active {
-  color: var(--primary-color);
-  border-bottom-color: var(--primary-color);
-}
-
-.tab-content {
+.panels-container {
   flex: 1;
-  min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
 }
 
-.tournament-grid {
-  display: inline-block;
-  min-width: 100%;
-}
-
-.grid-header {
-  display: flex;
-  position: sticky;
-  top: 0;
-  background: var(--bg-primary);
-  z-index: 10;
-}
-
-.grid-corner {
-  width: 150px;
-  min-width: 150px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-}
-
-.grid-header-cell {
-  width: 80px;
-  min-width: 80px;
-  padding: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.grid-row {
-  display: flex;
-}
-
-.grid-row-header {
-  width: 150px;
-  min-width: 150px;
-  padding: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-  font-size: 0.85rem;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  position: sticky;
-  left: 0;
-  z-index: 5;
-}
-
-.grid-cell {
-  width: 80px;
-  min-width: 80px;
-  padding: 8px;
-  border: 1px solid var(--border-color);
-  text-align: center;
-  font-size: 0.8rem;
-  font-family: monospace;
-}
-
-.grid-cell.pending {
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-}
-
-.grid-cell.running {
-  background: rgba(59, 130, 246, 0.1);
-  color: rgb(59, 130, 246);
-}
-
-.grid-cell.completed {
-  background: rgba(16, 185, 129, 0.1);
-  color: var(--text-primary);
-}
-
-.grid-cell.failed {
-  background: rgba(239, 68, 68, 0.1);
-  color: rgb(239, 68, 68);
-}
-
-.leaderboard-table-container {
-  overflow: auto;
-}
-
-.leaderboard-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.leaderboard-table th,
-.leaderboard-table td {
-  padding: 10px;
-  text-align: left;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.leaderboard-table th {
-  background: var(--bg-secondary);
-  font-weight: 600;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.leaderboard-table tbody tr:hover {
-  background: var(--bg-hover);
-}
-
-.rank-cell {
-  text-align: center;
-  font-weight: 600;
-}
-
-.rank-medal {
-  font-size: 1.2rem;
-}
-
-.config-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 16px;
-}
-
-.config-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 12px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-}
-
-.config-item label {
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
+/* Buttons */
 .btn {
   padding: 6px 12px;
   border: 1px solid var(--border-color);
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 13px;
   font-weight: 500;
   transition: all 0.2s;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   background: var(--bg-primary);
@@ -687,7 +513,7 @@ function getCellContent(competitor, scenario) {
 
 .btn-sm {
   padding: 4px 8px;
-  font-size: 0.8rem;
+  font-size: 12px;
 }
 
 .btn-ghost {

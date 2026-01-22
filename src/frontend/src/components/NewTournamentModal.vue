@@ -1264,18 +1264,36 @@ const startTournament = async () => {
 
 const loadData = async () => {
   try {
+    console.log('[NewTournamentModal] Starting loadData...')
     const [scenariosRes, negotiatorsRes] = await Promise.all([
       fetch('/api/scenarios'),
       fetch('/api/negotiators'),
     ])
     
+    console.log('[NewTournamentModal] API responses received:', {
+      scenariosStatus: scenariosRes.status,
+      negotiatorsStatus: negotiatorsRes.status
+    })
+    
     const scenariosData = await scenariosRes.json()
     const negotiatorsData = await negotiatorsRes.json()
     
+    console.log('[NewTournamentModal] Raw API data:', {
+      scenariosData: scenariosData,
+      negotiatorsData: negotiatorsData
+    })
+    
     scenarios.value = scenariosData.scenarios || []
     negotiators.value = negotiatorsData.negotiators || []
+    
+    console.log('[NewTournamentModal] Loaded data:', {
+      scenarios: scenarios.value.length,
+      negotiators: negotiators.value.length,
+      scenariosArray: scenarios.value.slice(0, 3),
+      negotiatorsArray: negotiators.value.slice(0, 3)
+    })
   } catch (error) {
-    console.error('Failed to load data:', error)
+    console.error('[NewTournamentModal] Failed to load data:', error)
   }
 }
 

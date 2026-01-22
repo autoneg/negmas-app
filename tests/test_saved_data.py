@@ -125,18 +125,18 @@ class TestSavedNegotiationsAPI:
         session_id = response.json()["session_id"]
         time.sleep(2)
 
-        # Add tags
-        response = client.post(
-            f"/api/negotiation/saved/{session_id}/tags",
-            json={"tags": ["test", "important", "demo"]},
-        )
-        # Should succeed or return 404 if not saved
-        assert response.status_code in (200, 404)
+        # Add tags one by one (endpoint accepts single tag)
+        for tag in ["test", "important", "demo"]:
+            response = client.post(
+                f"/api/negotiation/saved/{session_id}/tags",
+                json={"tag": tag},
+            )
+            # Should succeed or return 404 if not saved
+            assert response.status_code in (200, 404)
 
+        # Verify tags were added
+        response = client.get(f"/api/negotiation/saved/{session_id}")
         if response.status_code == 200:
-            # Verify tags were added
-            response = client.get(f"/api/negotiation/saved/{session_id}")
-            assert response.status_code == 200
             data = response.json()
             assert "tags" in data
             assert "test" in data["tags"]
@@ -322,7 +322,10 @@ class TestSavedTournamentsAPI:
         time.sleep(5)
 
         # Archive it
-        response = client.post(f"/api/tournament/saved/{tournament_id}/archive")
+        response = client.post(
+            f"/api/tournament/saved/{tournament_id}/archive",
+            json={"archived": True},
+        )
         assert response.status_code in (200, 404)
 
     def test_get_tournament_config(

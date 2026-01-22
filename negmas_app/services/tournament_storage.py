@@ -84,6 +84,8 @@ class TournamentStorageService:
             if math.isnan(obj) or math.isinf(obj):
                 return None
             return obj
+        if isinstance(obj, (int, str, bool)):
+            return obj
         if isinstance(obj, dict):
             return {
                 k: TournamentStorageService._sanitize_for_json(v)
@@ -91,9 +93,12 @@ class TournamentStorageService:
             }
         if isinstance(obj, (list, tuple)):
             return [TournamentStorageService._sanitize_for_json(v) for v in obj]
-        # Handle pandas/numpy NaN
-        if pd.isna(obj):
-            return None
+        # Handle numpy arrays
+        if hasattr(obj, "__array__"):
+            return [
+                TournamentStorageService._sanitize_for_json(item)
+                for item in obj.tolist()
+            ]
         # Handle numpy numeric types
         if hasattr(obj, "item"):
             try:
@@ -104,6 +109,12 @@ class TournamentStorageService:
                 return val
             except (ValueError, AttributeError):
                 pass
+        # Handle pandas/numpy NaN (use try/except to avoid array ambiguity)
+        try:
+            if pd.isna(obj):
+                return None
+        except (ValueError, TypeError):
+            pass
         return obj
 
     @classmethod
@@ -247,14 +258,16 @@ class TournamentStorageService:
 
                     # Count agreements
                     if "agreement" in details_df.columns:
-                        n_agreements = details_df["agreement"].notna().sum()
+                        n_agreements = int(details_df["agreement"].notna().sum())
                         # Also filter out "None" strings
                         if details_df["agreement"].dtype == object:
-                            n_agreements = (
-                                (details_df["agreement"].notna())
-                                & (details_df["agreement"] != "None")
-                                & (details_df["agreement"] != "")
-                            ).sum()
+                            n_agreements = int(
+                                (
+                                    (details_df["agreement"].notna())
+                                    & (details_df["agreement"] != "None")
+                                    & (details_df["agreement"] != "")
+                                ).sum()
+                            )
 
                     # Get scenarios
                     if "scenario" in details_df.columns:
@@ -340,11 +353,32 @@ class TournamentStorageService:
         # Load negotiation results (summary only, not full details)
         negotiations = cls._load_negotiations_summary(path)
 
-        return {
+        # Build gridInit and cellStates for frontend
+        gridInit, cellStates = cls._build_grid_structures(path, negotiations)
+
+        # Build leaderboard from scores
+        leaderboard = [
+            {
+                "name": s["name"],
+                "rank": s["rank"],
+                "score": s.get("score"),
+                "mean_utility": s.get("mean_utility"),
+                "n_negotiations": s.get("n_negotiations", 0),
+            }
+            for s in scores
+        ]
+
+        result = {
             **summary,
             "scores": scores,
             "negotiations": negotiations,
+            "gridInit": gridInit,
+            "cellStates": cellStates,
+            "leaderboard": leaderboard,
         }
+
+        # Sanitize for JSON serialization
+        return cls._sanitize_for_json(result)
 
     @classmethod
     def _load_scores(cls, path: Path) -> list[dict]:
@@ -476,6 +510,73 @@ class TournamentStorageService:
             print(f"Error parsing type_scores.csv: {e}")
 
         return result
+
+    @classmethod
+    def _build_grid_structures(
+        cls, path: Path, negotiations: list[dict]
+    ) -> tuple[dict, dict]:
+        """Build gridInit and cellStates structures from saved tournament data.
+
+        This reconstructs the grid data structures that the frontend expects.
+
+        Args:
+            path: Path to tournament directory.
+            negotiations: List of negotiation summaries.
+
+        Returns:
+            Tuple of (gridInit, cellStates) dicts.
+        """
+        # Extract unique competitors and scenarios
+        competitors_set = set()
+        scenarios_set = set()
+
+        for neg in negotiations:
+            partners = neg.get("partners", [])
+            competitors_set.update(partners)
+            scenario = neg.get("scenario")
+            if scenario:
+                scenarios_set.add(scenario)
+
+        competitors = sorted(list(competitors_set))
+        scenarios = sorted(list(scenarios_set))
+        opponents = competitors  # In cartesian tournaments, opponents = competitors
+
+        # Build gridInit
+        gridInit = {
+            "competitors": competitors,
+            "opponents": opponents,
+            "scenarios": scenarios,
+            "total_negotiations": len(negotiations),
+            "n_competitors": len(competitors),
+            "n_scenarios": len(scenarios),
+        }
+
+        # Build cellStates (map of cell_id -> state)
+        cellStates = {}
+
+        for neg in negotiations:
+            partners = neg.get("partners", [])
+            scenario = neg.get("scenario")
+
+            # Create cell keys for each partner combination
+            if len(partners) >= 2 and scenario:
+                # In a cartesian tournament, each negotiation involves 2 partners
+                competitor = partners[0]
+                opponent = partners[1]
+
+                cell_id = f"{competitor}::{opponent}::{scenario}"
+
+                cellStates[cell_id] = {
+                    "status": "complete",
+                    "cell_id": cell_id,
+                    "competitor": competitor,
+                    "opponent": opponent,
+                    "scenario": scenario,
+                    "has_agreement": neg.get("has_agreement", False),
+                    "utilities": neg.get("utilities"),
+                }
+
+        return gridInit, cellStates
 
     @classmethod
     def _load_negotiations_summary(cls, path: Path) -> list[dict]:

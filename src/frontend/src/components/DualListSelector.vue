@@ -130,7 +130,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const props = defineProps({
   // All available items
@@ -169,6 +169,14 @@ const props = defineProps({
     default: null
   }
 })
+
+// Debug: watch items prop
+watch(() => props.items, (newItems) => {
+  console.log('[DualListSelector] Items changed:', {
+    length: newItems?.length,
+    sample: newItems?.slice(0, 2)
+  })
+}, { immediate: true })
 
 const emit = defineEmits(['update:modelValue', 'add', 'remove', 'add-all', 'remove-all'])
 

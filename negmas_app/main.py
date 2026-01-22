@@ -214,19 +214,16 @@ def run(
         sys.exit(1)
 
 
-@cli.command()
-def kill(
-    backend_port: Annotated[int, typer.Option(help="Backend port to kill")] = 8019,
-    frontend_port: Annotated[int, typer.Option(help="Frontend port to kill")] = 5174,
-    force: Annotated[
-        bool,
-        typer.Option("--force", "-f", help="Kill without checking if it's negmas-app"),
-    ] = False,
-) -> None:
-    """Kill negmas-app processes (both backend and frontend).
+def _kill_processes(
+    backend_port: int = 8019,
+    frontend_port: int = 5174,
+    force: bool = False,
+    exit_on_error: bool = True,
+) -> bool:
+    """Internal function to kill negmas-app processes.
 
-    By default, kills processes on both default ports (backend: 8019, frontend: 5174).
-    Use --force/-f to kill any process on those ports without verification.
+    Returns True if any processes were killed, False otherwise.
+    If exit_on_error is True, will call sys.exit(1) on verification failure.
     """
     import urllib.request
     import urllib.error
@@ -256,7 +253,9 @@ def kill(
                             f"Process on port {backend_port} is not negmas-app backend. Use --force/-f to kill anyway.",
                             err=True,
                         )
-                        sys.exit(1)
+                        if exit_on_error:
+                            sys.exit(1)
+                        return False
             except urllib.error.URLError:
                 pass  # Likely not running, will try to kill anyway
             except Exception:
@@ -302,7 +301,48 @@ def kill(
             f"No processes found on ports {backend_port} (backend) or {frontend_port} (frontend)"
         )
 
+    return killed_any
+
+
+@cli.command()
+def kill(
+    backend_port: Annotated[int, typer.Option(help="Backend port to kill")] = 8019,
+    frontend_port: Annotated[int, typer.Option(help="Frontend port to kill")] = 5174,
+    force: Annotated[
+        bool,
+        typer.Option("--force", "-f", help="Kill without checking if it's negmas-app"),
+    ] = False,
+) -> None:
+    """Kill negmas-app processes (both backend and frontend).
+
+    By default, kills processes on both default ports (backend: 8019, frontend: 5174).
+    Use --force/-f to kill any process on those ports without verification.
+    """
+    _kill_processes(backend_port=backend_port, frontend_port=frontend_port, force=force)
     sys.exit(0)
+
+
+@cli.command()
+def start(
+    port: Annotated[
+        int, typer.Option(help="Port for the frontend (user-facing)")
+    ] = 5174,
+    backend_port: Annotated[int, typer.Option(help="Port for the backend API")] = 8019,
+    host: Annotated[str, typer.Option(help="Host to bind servers to")] = "127.0.0.1",
+    log_level: Annotated[
+        str,
+        typer.Option(help="Backend log level (debug, info, warning, error, critical)"),
+    ] = "info",
+    dev: Annotated[
+        bool, typer.Option("--dev", help="Enable development mode with auto-reload")
+    ] = True,
+) -> None:
+    """Start the NegMAS App (synonym for 'run').
+
+    This command is identical to 'run' - it starts both backend and frontend servers.
+    Use whichever command you prefer: 'negmas-app start' or 'negmas-app run'.
+    """
+    run(port=port, backend_port=backend_port, host=host, log_level=log_level, dev=dev)
 
 
 @cli.command()
@@ -328,45 +368,19 @@ def restart(
 
     Kills any existing negmas-app processes, then starts fresh servers.
     """
-    import urllib.request
-    import urllib.error
-
     typer.echo("Stopping existing servers...")
 
-    # Kill backend
-    result = subprocess.run(
-        ["lsof", "-ti", f":{backend_port}"],
-        capture_output=True,
-        text=True,
+    # Call internal kill function (don't exit on completion)
+    _kill_processes(
+        backend_port=backend_port, frontend_port=port, force=force, exit_on_error=False
     )
-
-    pids = result.stdout.strip()
-    if pids:
-        for pid in pids.split("\n"):
-            if pid:
-                subprocess.run(["kill", "-9", pid], check=False)
-        typer.echo(f"Killed backend process(es) on port {backend_port}")
-
-    # Kill frontend
-    result = subprocess.run(
-        ["lsof", "-ti", f":{port}"],
-        capture_output=True,
-        text=True,
-    )
-
-    pids = result.stdout.strip()
-    if pids:
-        for pid in pids.split("\n"):
-            if pid:
-                subprocess.run(["kill", "-9", pid], check=False)
-        typer.echo(f"Killed frontend process(es) on port {port}")
 
     # Wait a moment for ports to be released
     time.sleep(0.5)
 
-    # Start new servers by calling run()
+    # Call start command
     typer.echo("\nStarting fresh servers...")
-    run(port=port, backend_port=backend_port, host=host, log_level=log_level, dev=dev)
+    start(port=port, backend_port=backend_port, host=host, log_level=log_level, dev=dev)
 
 
 if __name__ == "__main__":

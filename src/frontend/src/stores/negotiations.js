@@ -399,6 +399,44 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     return sessions.value.filter(s => s.status === 'failed')
   })
 
+  function loadTournamentNegotiation(sessionData) {
+    // Load a negotiation from a tournament into the current session
+    // This allows viewing tournament negotiations in the negotiation viewer
+    
+    // Create a session-like object that matches what the viewer expects
+    const session = {
+      id: sessionData.id,
+      status: 'completed',
+      fromTournament: true,
+      tournamentId: sessionData.tournamentId,
+      tournamentNegIndex: sessionData.tournamentNegIndex,
+    }
+    
+    // Set up the session state
+    currentSession.value = session
+    streamingSession.value = null
+    
+    // Set up the init data (scenario information)
+    sessionInit.value = {
+      scenario: sessionData.scenario,
+      issue_names: sessionData.issue_names,
+      partners: sessionData.partners,
+      outcome_space_data: sessionData.outcome_space_data,
+    }
+    
+    // Load all offers
+    offers.value = sessionData.offers || []
+    
+    // Set completion state
+    sessionComplete.value = {
+      status: 'completed',
+      agreement: sessionData.agreement,
+      utilities: sessionData.utilities,
+      n_steps: sessionData.n_steps,
+      end_reason: sessionData.end_reason,
+    }
+  }
+
   return {
     sessions,
     currentSession,
@@ -438,5 +476,6 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     saveSessionPreset,
     deleteSessionPreset,
     addToRecentSessions,
+    loadTournamentNegotiation,
   }
 })

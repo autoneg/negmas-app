@@ -62,7 +62,7 @@
       <button 
         class="panel-btn" 
         title="Toggle Fullscreen" 
-        @click="collapsed = !collapsed" 
+        @click.stop="$emit('zoom')" 
         v-show="!collapsed"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
