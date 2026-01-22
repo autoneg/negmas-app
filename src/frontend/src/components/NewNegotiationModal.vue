@@ -35,7 +35,7 @@
           <div class="dropdown">
             <button 
               class="btn btn-sm btn-secondary" 
-              @click="console.log('[NewNegotiationModal] Load button clicked, savedDropdownOpen before:', savedDropdownOpen); savedDropdownOpen = !savedDropdownOpen; console.log('[NewNegotiationModal] savedDropdownOpen after:', savedDropdownOpen); console.log('[NewNegotiationModal] sessionPresets.length:', negotiationsStore.sessionPresets.length); loadSessionPresets()"
+              @click="savedDropdownOpen = !savedDropdownOpen"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
@@ -47,7 +47,7 @@
             <div v-if="savedDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
               <!-- Debug info -->
               <div style="background: yellow; padding: 4px; font-size: 10px; border-bottom: 1px solid #ccc;">
-                DEBUG: {{ negotiationsStore.sessionPresets?.length || 0 }} presets
+                DEBUG: {{ negotiationsStore.sessionPresets?.length || 0 }} presets, open={{ savedDropdownOpen }}
               </div>
               
               <div v-if="negotiationsStore.sessionPresets.length === 0" class="dropdown-item text-muted">
