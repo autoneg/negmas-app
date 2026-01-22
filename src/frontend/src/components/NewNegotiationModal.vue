@@ -1088,6 +1088,11 @@ watch(() => props.show, (newVal, oldVal) => {
   }
 })
 
+// Debug: Watch sessionPresets
+watch(() => negotiationsStore.sessionPresets, (newVal) => {
+  console.log('[NewNegotiationModal] sessionPresets changed:', newVal?.length || 0, newVal)
+}, { immediate: true, deep: true })
+
 // Tab management
 const currentTab = ref('scenario')
 const negotiatorSubTab = ref('preset')
