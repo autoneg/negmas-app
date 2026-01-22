@@ -167,16 +167,22 @@ body {
     font-size: 13px;
     cursor: pointer;
     transition: all var(--transition-fast);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .header-nav-btn:hover {
     background: var(--bg-tertiary);
     color: var(--text-primary);
+    text-decoration: none;
 }
 
 .header-nav-btn.active {
     background: var(--primary-light);
     color: var(--primary);
+    text-decoration: none;
 }
 
 .header-spacer {

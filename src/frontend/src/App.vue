@@ -59,7 +59,9 @@
           <button class="header-nav-btn" @click="showSettings = true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
               <circle cx="12" cy="12" r="3"></circle>
-              <path d="M12 1v6m0 6v6m5.657-13.657l-4.243 4.243m-2.828 2.828l-4.243 4.243M23 12h-6m-6 0H1m18.364-5.657l-4.243 4.243m-2.828 2.828l-4.243 4.243"></path>
+              <path d="M12 1v6m0 6v6"></path>
+              <path d="m4.93 4.93 4.24 4.24m5.66 5.66 4.24 4.24"></path>
+              <path d="m19.07 4.93-4.24 4.24m-5.66 5.66-4.24 4.24"></path>
             </svg>
             <span>Settings</span>
           </button>

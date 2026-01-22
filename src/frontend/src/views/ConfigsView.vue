@@ -121,6 +121,16 @@
           <h3>{{ selectedConfig.name }}</h3>
           <div class="details-actions">
             <button 
+              class="btn btn-sm btn-primary" 
+              @click="startFromConfig"
+              title="Start negotiation/tournament with this configuration"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              Start
+            </button>
+            <button 
               class="btn btn-sm btn-secondary" 
               @click="editConfig"
               title="Edit"
@@ -239,11 +249,13 @@
     <!-- Modals -->
     <NewNegotiationModal
       v-if="currentTab === 'negotiations'"
-      :show="showCreateModal || showEditModal"
+      :show="showCreateModal || showEditModal || showStartModal"
       :editMode="showEditModal"
-      :initialData="editingConfig"
+      :startMode="showStartModal"
+      :initialData="editingConfig || startingConfig"
       @close="closeModals"
       @saved="onConfigSaved"
+      @start="onNegotiationStart"
     />
     
     <!-- Rename Modal -->
@@ -272,9 +284,11 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useNegotiationsStore } from '../stores/negotiations'
 import NewNegotiationModal from '../components/NewNegotiationModal.vue'
 
+const router = useRouter()
 const negotiationsStore = useNegotiationsStore()
 
 const currentTab = ref('negotiations')
@@ -287,7 +301,9 @@ const newTag = ref('')
 const showJson = ref(false)
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
+const showStartModal = ref(false)
 const editingConfig = ref(null)
+const startingConfig = ref(null)
 const showRenameModal = ref(false)
 const newName = ref('')
 
@@ -373,15 +389,31 @@ function editConfig() {
   showEditModal.value = true
 }
 
+function startFromConfig() {
+  if (!selectedConfig.value) return
+  startingConfig.value = { ...selectedConfig.value }
+  showStartModal.value = true
+}
+
 function closeModals() {
   showCreateModal.value = false
   showEditModal.value = false
+  showStartModal.value = false
   editingConfig.value = null
+  startingConfig.value = null
 }
 
 function onConfigSaved() {
   closeModals()
   loadData()
+}
+
+function onNegotiationStart(data) {
+  closeModals()
+  // Navigate to the new negotiation
+  if (data && data.id) {
+    router.push(`/negotiations/${data.id}`)
+  }
 }
 
 async function toggleEnabled() {

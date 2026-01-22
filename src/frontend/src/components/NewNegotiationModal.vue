@@ -11,7 +11,9 @@
       </div>
       
       <div class="modal-header">
-        <h2 class="modal-title">Start New Negotiation</h2>
+        <h2 class="modal-title">
+          {{ startMode ? 'Start Negotiation' : (editMode ? 'Edit Configuration' : 'Start New Negotiation') }}
+        </h2>
         <div class="modal-header-actions">
           <!-- Recent Sessions Dropdown -->
           <div class="dropdown">
@@ -1032,11 +1034,14 @@
         <button v-if="currentTab !== 'display'" class="btn btn-primary" @click="nextTab" :disabled="!canProceed">
           Next
         </button>
-        <button v-if="currentTab === 'display'" class="btn btn-secondary" @click="startWithoutMonitoring" :disabled="starting">
+        <button v-if="currentTab === 'display' && !editMode && !startMode" class="btn btn-secondary" @click="startWithoutMonitoring" :disabled="starting">
           Start without Monitoring
         </button>
-        <button v-if="currentTab === 'display'" class="btn btn-primary" @click="startNegotiation" :disabled="starting">
+        <button v-if="currentTab === 'display' && !editMode" class="btn btn-primary" @click="startNegotiation" :disabled="starting">
           {{ starting ? 'Starting...' : 'Start Negotiation' }}
+        </button>
+        <button v-if="currentTab === 'display' && editMode && !startMode" class="btn btn-primary" @click="saveConfig" :disabled="starting">
+          Save Changes
         </button>
       </div>
     </div>
@@ -1083,9 +1088,12 @@ const negotiationsStore = useNegotiationsStore()
 const props = defineProps({
   show: Boolean,
   preselectedScenario: Object,
+  editMode: Boolean,
+  startMode: Boolean,
+  initialData: Object,
 })
 
-const emit = defineEmits(['close', 'start'])
+const emit = defineEmits(['close', 'start', 'saved'])
 
 // Debug: Watch show prop
 watch(() => props.show, (newVal, oldVal) => {
@@ -1704,6 +1712,38 @@ async function deleteSessionPreset(name) {
   }
 }
 
+async function saveConfig() {
+  if (!selectedScenario.value || !props.initialData) return
+  
+  starting.value = true
+  try {
+    // Build the preset with the same name (to overwrite)
+    const preset = buildSessionPreset(props.initialData.name)
+    
+    // Save
+    await negotiationsStore.saveSessionPreset(preset)
+    
+    // Show success message
+    saveSuccessMessage.value = `Configuration "${props.initialData.name}" updated successfully!`
+    setTimeout(() => {
+      saveSuccessMessage.value = ''
+    }, 3000)
+    
+    // Emit saved event
+    emit('saved')
+    
+    // Close modal after a short delay
+    setTimeout(() => {
+      emit('close')
+    }, 1000)
+  } catch (error) {
+    console.error('[NewNegotiationModal] Error saving config:', error)
+    alert('Failed to save configuration: ' + error.message)
+  } finally {
+    starting.value = false
+  }
+}
+
 function loadFullSession(session) {
   // Find the scenario in the loaded scenarios
   const scenario = scenarios.value.find(s => s.path === session.scenario_path)
@@ -1761,16 +1801,74 @@ function loadFullSession(session) {
 // Watch for modal open/close
 watch(() => props.show, (newShow) => {
   if (newShow) {
-    currentTab.value = 'scenario'
-    negotiatorSubTab.value = 'preset'
-    selectedScenario.value = null
-    negotiators.value = []
+    // Load data
     loadScenarios()
     loadNegotiators()
     loadRecentSessions()
     loadSessionPresets()
+    
+    // If in edit mode or start mode, load the initial data
+    if ((props.editMode || props.startMode) && props.initialData) {
+      loadInitialData(props.initialData)
+    } else {
+      // Reset to defaults for create mode
+      currentTab.value = 'scenario'
+      negotiatorSubTab.value = 'preset'
+      selectedScenario.value = null
+      negotiators.value = []
+    }
   }
 })
+
+function loadInitialData(data) {
+  console.log('[NewNegotiationModal] Loading initial data for edit/start mode:', data)
+  
+  // Set scenario
+  if (data.scenario_path) {
+    selectedScenario.value = scenarios.value.find(s => s.path === data.scenario_path) || {
+      path: data.scenario_path,
+      name: data.scenario_name,
+      n_negotiators: data.negotiators?.length || 2
+    }
+  }
+  
+  // Set negotiators
+  if (data.negotiators && data.negotiators.length > 0) {
+    negotiators.value = [...data.negotiators]
+  }
+  
+  // Set mechanism params
+  if (data.mechanism_type) {
+    mechanismType.value = data.mechanism_type
+  }
+  if (data.mechanism_params) {
+    Object.assign(mechanismParams.value, data.mechanism_params)
+  }
+  
+  // Set other params
+  if (data.share_ufuns !== undefined) {
+    shareUfuns.value = data.share_ufuns
+  }
+  if (data.mode) {
+    runMode.value = data.mode
+  }
+  if (data.step_delay !== undefined) {
+    stepDelay.value = data.step_delay
+  }
+  if (data.show_plot !== undefined) {
+    displayOptions.value.showPlot = data.show_plot
+  }
+  if (data.show_offers !== undefined) {
+    displayOptions.value.showOffers = data.show_offers
+  }
+  if (data.panels) {
+    panels.value = [...data.panels]
+  }
+  
+  // If in start mode, go directly to display tab (last tab)
+  // If in edit mode, go to negotiators tab
+  currentTab.value = props.startMode ? 'display' : 'negotiators'
+}
 
 onMounted(() => {
   if (props.show) {
