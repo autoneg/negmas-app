@@ -3,6 +3,7 @@
 import ast
 import csv
 import json
+import logging
 import math
 import shutil
 from dataclasses import dataclass, field
@@ -14,6 +15,8 @@ import pandas as pd
 import yaml
 
 from negmas.tournaments.neg import SimpleTournamentResults
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -144,7 +147,7 @@ class TournamentStorageService:
         except FileNotFoundError:
             return None
         except Exception as e:
-            print(f"Error loading tournament results from {path}: {e}")
+            logger.error(f"Error loading tournament results from {path}: {e}")
             return None
 
     @classmethod
@@ -229,7 +232,7 @@ class TournamentStorageService:
     def _load_tournament_summary(cls, path: Path) -> dict | None:
         """Load summary info for a tournament directory.
 
-        Uses SimpleTournamentResults.load() for robust format handling.
+        Optimized for fast listing - only reads minimal data.
         """
         try:
             tournament_id = path.name
@@ -242,71 +245,81 @@ class TournamentStorageService:
             except Exception:
                 pass
 
-            # Try to load using SimpleTournamentResults for format-agnostic access
-            results = cls._load_results(path)
+            # Quick check: is tournament complete? (scores file exists)
+            is_complete = (
+                (path / "scores.csv").exists()
+                or (path / "scores.csv.gz").exists()
+                or (path / "scores.parquet").exists()
+            )
 
-            n_negotiations = 0
-            n_agreements = 0
-            scenarios: set[str] = set()
+            # Fast competitor count: read scores file header only
             competitors: set[str] = set()
-
-            if results is not None:
-                # Use the loaded results
-                details_df = results.details
-                if details_df is not None and len(details_df) > 0:
-                    n_negotiations = len(details_df)
-
-                    # Count agreements
-                    if "agreement" in details_df.columns:
-                        n_agreements = int(details_df["agreement"].notna().sum())
-                        # Also filter out "None" strings
-                        if details_df["agreement"].dtype == object:
-                            n_agreements = int(
-                                (
-                                    (details_df["agreement"].notna())
-                                    & (details_df["agreement"] != "None")
-                                    & (details_df["agreement"] != "")
-                                ).sum()
-                            )
-
-                    # Get scenarios
-                    if "scenario" in details_df.columns:
-                        scenarios = set(details_df["scenario"].dropna().unique())
-
-                    # Get partners/competitors
-                    if "partners" in details_df.columns:
-                        for partners_val in details_df["partners"].dropna():
-                            if isinstance(partners_val, (list, tuple)):
-                                competitors.update(partners_val)
-                            elif isinstance(partners_val, str):
-                                try:
-                                    parsed = ast.literal_eval(partners_val)
-                                    if isinstance(parsed, (list, tuple)):
-                                        competitors.update(parsed)
-                                except (ValueError, SyntaxError):
-                                    pass
-
-                # Also check scores for competitor names
-                scores_df = results.final_scores
-                if scores_df is not None and len(scores_df) > 0:
-                    if "strategy" in scores_df.columns:
-                        competitors.update(scores_df["strategy"].dropna().unique())
-            else:
-                # Fallback: try to read scores.csv directly (always CSV format)
+            n_competitors = 0
+            try:
                 scores_file = path / "scores.csv"
+                if not scores_file.exists():
+                    scores_file = path / "scores.csv.gz"
                 if scores_file.exists():
-                    try:
+                    import gzip
+
+                    if scores_file.suffix == ".gz":
+                        with gzip.open(scores_file, "rt") as f:
+                            reader = csv.DictReader(f)
+                            for row in reader:
+                                if row.get("strategy"):
+                                    competitors.add(row["strategy"])
+                    else:
                         with open(scores_file, "r") as f:
                             reader = csv.DictReader(f)
                             for row in reader:
                                 if row.get("strategy"):
                                     competitors.add(row["strategy"])
-                    except Exception:
-                        pass
+                    n_competitors = len(competitors)
+            except Exception:
+                pass
 
-            agreement_rate = (
-                n_agreements / n_negotiations if n_negotiations > 0 else 0.0
-            )
+            # Fast scenario count: count subdirectories in scenarios/
+            n_scenarios = 0
+            scenarios_dir = path / "scenarios"
+            if scenarios_dir.exists() and scenarios_dir.is_dir():
+                try:
+                    n_scenarios = sum(1 for p in scenarios_dir.iterdir() if p.is_dir())
+                except Exception:
+                    pass
+
+            # Fast negotiation count: count files in details/
+            n_negotiations = 0
+            details_dir = path / "details"
+            if details_dir.exists() and details_dir.is_dir():
+                try:
+                    n_negotiations = sum(
+                        1
+                        for p in details_dir.iterdir()
+                        if p.is_file() and p.suffix in {".json", ".gz"}
+                    )
+                except Exception:
+                    pass
+            elif (path / "details.csv").exists() or (path / "details.csv.gz").exists():
+                # Fallback: read line count from CSV (faster than loading DataFrame)
+                try:
+                    details_file = path / "details.csv"
+                    if not details_file.exists():
+                        details_file = path / "details.csv.gz"
+
+                    if details_file.suffix == ".gz":
+                        import gzip
+
+                        with gzip.open(details_file, "rt") as f:
+                            n_negotiations = sum(1 for _ in f) - 1  # -1 for header
+                    else:
+                        with open(details_file, "r") as f:
+                            n_negotiations = sum(1 for _ in f) - 1  # -1 for header
+                except Exception:
+                    pass
+
+            # Estimate agreements (skip for now to keep it fast)
+            n_agreements = 0
+            agreement_rate = 0.0
 
             # Load metadata (tags, archived status)
             metadata = cls._load_metadata(tournament_id)
@@ -316,16 +329,17 @@ class TournamentStorageService:
                 "path": str(path),
                 "name": tournament_id,
                 "created_at": created_at,
-                "n_scenarios": len(scenarios),
-                "n_competitors": len(competitors),
+                "is_complete": is_complete,
+                "n_scenarios": n_scenarios,
+                "n_competitors": n_competitors,
                 "n_negotiations": n_negotiations,
-                "n_agreements": int(n_agreements),
-                "agreement_rate": agreement_rate,
+                "n_agreements": n_agreements,  # Set to 0 for fast loading
+                "agreement_rate": agreement_rate,  # Set to 0 for fast loading
                 "tags": metadata.get("tags", []),
                 "archived": metadata.get("archived", False),
             }
         except Exception as e:
-            print(f"Error loading tournament summary from {path}: {e}")
+            logger.info(f"Error loading tournament summary from {path}: {e}")
             return None
 
     @classmethod
@@ -391,12 +405,35 @@ class TournamentStorageService:
 
         # Use SimpleTournamentResults for format-agnostic loading
         results = cls._load_results(path)
-        if results is None:
-            return scores
+        final_scores_df = None
+
+        if results is not None:
+            final_scores_df = results.final_scores
+
+        # Fallback: if SimpleTournamentResults failed or returned no scores, try direct CSV read
+        if final_scores_df is None or len(final_scores_df) == 0:
+            scores_csv_path = path / "scores.csv"
+            if scores_csv_path.exists():
+                try:
+                    with open(scores_csv_path, "r") as f:
+                        reader = csv.DictReader(f)
+                        for row in reader:
+                            name = row.get("strategy", "")
+                            score = row.get("score")
+                            scores.append(
+                                {
+                                    "name": name,
+                                    "rank": int(row.get("index", 0)) + 1,
+                                    "score": float(score) if score else None,
+                                    "raw_data": row,
+                                }
+                            )
+                except Exception as e:
+                    logger.error(f"Error reading scores.csv directly from {path}: {e}")
+                    return scores
 
         try:
-            # Get final scores (always in memory, small)
-            final_scores_df = results.final_scores
+            # Get final scores from SimpleTournamentResults (preferred method)
             if final_scores_df is not None and len(final_scores_df) > 0:
                 for idx, row in final_scores_df.iterrows():
                     name = row.get("strategy", str(idx))
@@ -446,10 +483,10 @@ class TournamentStorageService:
                             ).get("mean")
                             score_entry["type_scores"] = stats
                 except Exception as e:
-                    print(f"Error enriching scores with type_scores: {e}")
+                    logger.info(f"Error enriching scores with type_scores: {e}")
 
         except Exception as e:
-            print(f"Error loading scores from {path}: {e}")
+            logger.info(f"Error loading scores from {path}: {e}")
 
         return scores
 
@@ -507,7 +544,7 @@ class TournamentStorageService:
                     result[strategy_name][metric_name] = metric_stats
 
         except Exception as e:
-            print(f"Error parsing type_scores.csv: {e}")
+            logger.info(f"Error parsing type_scores.csv: {e}")
 
         return result
 
@@ -552,6 +589,8 @@ class TournamentStorageService:
         }
 
         # Build cellStates (map of cell_id -> state)
+        # For completed tournaments, we aggregate multiple negotiations per cell
+        # (since there can be multiple repetitions)
         cellStates = {}
 
         for neg in negotiations:
@@ -566,15 +605,59 @@ class TournamentStorageService:
 
                 cell_id = f"{competitor}::{opponent}::{scenario}"
 
-                cellStates[cell_id] = {
-                    "status": "complete",
-                    "cell_id": cell_id,
-                    "competitor": competitor,
-                    "opponent": opponent,
-                    "scenario": scenario,
-                    "has_agreement": neg.get("has_agreement", False),
-                    "utilities": neg.get("utilities"),
-                }
+                # Determine the status based on negotiation outcome
+                status = "complete"
+                if neg.get("has_error", False):
+                    status = "error"
+                elif neg.get("broken", False):
+                    status = "broken"
+                elif neg.get("timedout", False):
+                    status = "timeout"
+
+                # If cell doesn't exist yet, create it
+                if cell_id not in cellStates:
+                    cellStates[cell_id] = {
+                        "status": status,
+                        "cell_id": cell_id,
+                        "competitor": competitor,
+                        "opponent": opponent,
+                        "scenario": scenario,
+                        "has_agreement": neg.get("has_agreement", False),
+                        "utilities": neg.get("utilities"),
+                        "total": 1,
+                        "completed": 1,
+                        "agreements": 1 if neg.get("has_agreement", False) else 0,
+                        "errors": 1 if neg.get("has_error", False) else 0,
+                        "timeouts": 1 if neg.get("timedout", False) else 0,
+                        "broken": 1 if neg.get("broken", False) else 0,
+                    }
+                else:
+                    # Aggregate multiple repetitions
+                    cell = cellStates[cell_id]
+                    cell["total"] += 1
+                    cell["completed"] += 1
+                    if neg.get("has_agreement", False):
+                        cell["agreements"] += 1
+                    if neg.get("has_error", False):
+                        cell["errors"] += 1
+                    if neg.get("timedout", False):
+                        cell["timeouts"] += 1
+                    if neg.get("broken", False):
+                        cell["broken"] += 1
+
+                    # Update status to worst case (error > timeout > broken > complete)
+                    if cell["errors"] > 0:
+                        cell["status"] = "error"
+                    elif cell["timeouts"] > 0:
+                        cell["status"] = "timeout"
+                    elif cell["broken"] > 0:
+                        cell["status"] = "broken"
+                    else:
+                        cell["status"] = "complete"
+
+                    # Update has_agreement to reflect if ANY had agreement
+                    if neg.get("has_agreement", False):
+                        cell["has_agreement"] = True
 
         return gridInit, cellStates
 
@@ -678,7 +761,7 @@ class TournamentStorageService:
                 )
 
         except Exception as e:
-            print(f"Error loading negotiations from {path}: {e}")
+            logger.info(f"Error loading negotiations from {path}: {e}")
 
         return negotiations
 
@@ -686,14 +769,15 @@ class TournamentStorageService:
     def get_tournament_negotiation(cls, tournament_id: str, index: int) -> dict | None:
         """Get full details of a specific negotiation from a tournament.
 
-        Uses SimpleTournamentResults for format-agnostic loading.
+        Uses SimpleTournamentResults for format-agnostic loading and enriches
+        with scenario data (issue_names, outcome_space_data) and negotiation history.
 
         Args:
             tournament_id: Tournament ID.
             index: Index of the negotiation in details.
 
         Returns:
-            Full negotiation data or None if not found.
+            Full negotiation data with history, scenario info, and outcome_space_data, or None if not found.
         """
         path = cls.TOURNAMENTS_DIR / tournament_id
 
@@ -771,19 +855,66 @@ class TournamentStorageService:
                 and pd.notna(agreement_val)
             )
 
-            return {
+            # Get scenario name
+            scenario_name = row.get("scenario") or row.get("domain")
+
+            # Get mechanism_name for loading trace
+            mechanism_name = row.get("mechanism_name")
+
+            # Load scenario info (issue_names, etc.)
+            scenario_info = None
+            issue_names = []
+            if scenario_name:
+                scenario_info = cls.get_scenario_info(tournament_id, scenario_name)
+                if scenario_info:
+                    issue_names = scenario_info.get("issue_names", [])
+
+            # Load negotiation history/trace
+            history = []
+            if scenario_name and partners:
+                # Try to find the negotiation trace file by scenario and partners
+                trace_data = cls.get_negotiation_trace_by_partners(
+                    tournament_id, scenario_name, partners
+                )
+                if trace_data:
+                    history = trace_data.get("trace", [])
+                # Fallback to mechanism_name if available
+                elif mechanism_name:
+                    trace_data = cls.get_negotiation_trace(
+                        tournament_id, mechanism_name
+                    )
+                    if trace_data:
+                        history = trace_data.get("trace", [])
+
+            # Load outcome_space_data for visualization
+            outcome_space_data = None
+            if scenario_name:
+                outcome_space_data = cls.get_outcome_space_data(
+                    tournament_id, scenario_name
+                )
+
+            # Build the complete negotiation object
+            negotiation = {
                 "index": index,
                 "raw_data": cls._sanitize_for_json(
                     row.to_dict() if hasattr(row, "to_dict") else dict(row)
                 ),
-                "scenario": row.get("scenario") or row.get("domain"),
+                "scenario": scenario_name,
                 "partners": partners,
                 "agreement": str(agreement_val) if agreement_val is not None else None,
                 "utilities": utilities,
                 "has_agreement": has_agreement,
+                "issue_names": issue_names,
+                "history": history,
+                "outcome_space_data": outcome_space_data,
+                "source": "tournament",  # For frontend to know this is from a tournament
+                "mechanism_name": mechanism_name,
             }
+
+            return negotiation
+
         except Exception as e:
-            print(f"Error loading negotiation {index} from {tournament_id}: {e}")
+            logger.error(f"Error loading negotiation {index} from {tournament_id}: {e}")
 
         return None
 
@@ -828,7 +959,63 @@ class TournamentStorageService:
                 "file_name": trace_file.name,
             }
         except Exception as e:
-            print(f"Error loading negotiation trace {mechanism_name}: {e}")
+            logger.info(f"Error loading negotiation trace {mechanism_name}: {e}")
+            return None
+
+    @classmethod
+    def get_negotiation_trace_by_partners(
+        cls, tournament_id: str, scenario_name: str, partners: list[str]
+    ) -> dict | None:
+        """Get the negotiation trace by matching scenario and partners.
+
+        Args:
+            tournament_id: Tournament ID.
+            scenario_name: Name of the scenario.
+            partners: List of partner negotiator names.
+
+        Returns:
+            Negotiation trace data with offers and responses, or None if not found.
+        """
+        path = cls.TOURNAMENTS_DIR / tournament_id
+        negotiations_dir = path / "negotiations"
+
+        if not negotiations_dir.exists() or not partners:
+            return None
+
+        try:
+            # Build pattern to match files with this scenario and any order of partners
+            # File pattern: {scenario}_{partner1}_{partner2}_{rep}_{id}.csv
+
+            # Try both orderings of partners
+            for partner_order in [partners, list(reversed(partners))]:
+                # Build a glob pattern - we need to match the scenario and partners
+                # The rep number is 0 in most cases
+                pattern = f"{scenario_name}_{'_'.join(partner_order)}_0_*.csv"
+                matching_files = list(negotiations_dir.glob(pattern))
+
+                if matching_files:
+                    trace_file = matching_files[0]
+
+                    # Read the negotiation trace
+                    trace_data = []
+                    with open(trace_file, "r") as f:
+                        reader = csv.DictReader(f)
+                        for row in reader:
+                            trace_data.append(dict(row))
+
+                    return {
+                        "file_name": trace_file.name,
+                        "trace": trace_data,
+                        "scenario": scenario_name,
+                        "partners": partner_order,
+                    }
+
+            return None
+
+        except Exception as e:
+            logger.error(
+                f"Error loading negotiation trace for {scenario_name} with partners {partners}: {e}"
+            )
             return None
 
     @classmethod
@@ -918,7 +1105,9 @@ class TournamentStorageService:
             }
 
         except Exception as e:
-            print(f"Error loading scenario {scenario_name} from {tournament_id}: {e}")
+            logger.info(
+                f"Error loading scenario {scenario_name} from {tournament_id}: {e}"
+            )
             return None
 
     @classmethod
@@ -950,7 +1139,7 @@ class TournamentStorageService:
                     ufun_data = yaml.safe_load(f)
                     ufuns.append(ufun_data)
             except Exception as e:
-                print(f"Error loading ufun {i} for {scenario_name}: {e}")
+                logger.info(f"Error loading ufun {i} for {scenario_name}: {e}")
                 break
 
         return ufuns if ufuns else None
@@ -988,7 +1177,7 @@ class TournamentStorageService:
 
             return utility
         except Exception as e:
-            print(f"Error calculating utility: {e}")
+            logger.info(f"Error calculating utility: {e}")
             return None
 
     @classmethod
@@ -1060,7 +1249,7 @@ class TournamentStorageService:
             shutil.rmtree(path)
             return True
         except Exception as e:
-            print(f"Error deleting tournament {tournament_id}: {e}")
+            logger.info(f"Error deleting tournament {tournament_id}: {e}")
             return False
 
     @classmethod
@@ -1079,7 +1268,7 @@ class TournamentStorageService:
             with open(metadata_path, "r") as f:
                 return json.load(f)
         except Exception as e:
-            print(f"Error loading metadata for {tournament_id}: {e}")
+            logger.info(f"Error loading metadata for {tournament_id}: {e}")
             return {"tags": [], "archived": False}
 
     @classmethod
@@ -1095,7 +1284,7 @@ class TournamentStorageService:
                 json.dump(metadata, f, indent=2)
             return True
         except Exception as e:
-            print(f"Error saving metadata for {tournament_id}: {e}")
+            logger.info(f"Error saving metadata for {tournament_id}: {e}")
             return False
 
     @classmethod
@@ -1130,7 +1319,7 @@ class TournamentStorageService:
             with open(path, "r") as f:
                 return json.load(f)
         except Exception as e:
-            print(f"Error loading config for {tournament_id}: {e}")
+            logger.info(f"Error loading config for {tournament_id}: {e}")
             return None
 
     @classmethod
@@ -1155,7 +1344,7 @@ class TournamentStorageService:
                     scores.append(dict(row))
             return scores
         except Exception as e:
-            print(f"Error loading scores.csv for {tournament_id}: {e}")
+            logger.info(f"Error loading scores.csv for {tournament_id}: {e}")
             return None
 
     @classmethod
@@ -1203,7 +1392,7 @@ class TournamentStorageService:
                 "strategies": rows,
             }
         except Exception as e:
-            print(f"Error loading type_scores.csv for {tournament_id}: {e}")
+            logger.info(f"Error loading type_scores.csv for {tournament_id}: {e}")
             return None
 
     @classmethod
@@ -1235,7 +1424,7 @@ class TournamentStorageService:
                 scores.append(cls._sanitize_for_json(row.to_dict()))
             return scores
         except Exception as e:
-            print(f"Error loading all_scores for {tournament_id}: {e}")
+            logger.info(f"Error loading all_scores for {tournament_id}: {e}")
             return None
 
     @classmethod
@@ -1267,7 +1456,7 @@ class TournamentStorageService:
                 details.append(cls._sanitize_for_json(row.to_dict()))
             return details
         except Exception as e:
-            print(f"Error loading details for {tournament_id}: {e}")
+            logger.info(f"Error loading details for {tournament_id}: {e}")
             return None
 
     @classmethod
@@ -1373,7 +1562,7 @@ class TournamentStorageService:
             }
 
         except Exception as e:
-            print(f"Error computing outcome_space_data for {scenario_name}: {e}")
+            logger.info(f"Error computing outcome_space_data for {scenario_name}: {e}")
             return None
 
     @classmethod
@@ -1616,7 +1805,7 @@ class TournamentStorageService:
                         "sample_size": osd.sample_size,
                     }
             except Exception as e:
-                print(f"Error loading scenario {scenario_name}: {e}")
+                logger.info(f"Error loading scenario {scenario_name}: {e}")
 
         # Load the negotiation trace from negotiations folder
         _trace = []
@@ -1925,7 +2114,7 @@ class TournamentStorageService:
             }
 
         except Exception as e:
-            print(f"Error loading negotiation from {csv_path}: {e}")
+            logger.info(f"Error loading negotiation from {csv_path}: {e}")
             return None
 
     @classmethod
@@ -2138,7 +2327,7 @@ class TournamentStorageService:
         except Exception as e:
             import traceback
 
-            traceback.print_exc()
+            traceback.logger.info_exc()
             return CombineResult(
                 success=False,
                 error=f"Failed to combine tournaments: {e}",

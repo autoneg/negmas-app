@@ -6,6 +6,45 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from ..models.session import NegotiationSession, OutcomeSpaceData
+from .settings_service import SettingsService
+
+
+def _get_preview_format() -> str:
+    """Get configured image format for previews."""
+    performance_settings = SettingsService.load_performance()
+    return performance_settings.plot_image_format
+
+
+def _get_preview_path(session_dir: Path, preview_type: str) -> Path:
+    """Get path to preview file with configured format.
+
+    Args:
+        session_dir: Directory where preview is saved.
+        preview_type: Type of preview (utility2d, timeline, histogram, result).
+
+    Returns:
+        Path to preview file.
+    """
+    fmt = _get_preview_format()
+    return session_dir / f"{preview_type}_preview.{fmt}"
+
+
+def _find_existing_preview(session_dir: Path, preview_type: str) -> Path | None:
+    """Find existing preview file with any supported format.
+
+    Args:
+        session_dir: Directory where preview is saved.
+        preview_type: Type of preview.
+
+    Returns:
+        Path to existing preview, or None if not found.
+    """
+    # Try all supported formats
+    for fmt in ["webp", "png", "jpg", "svg"]:
+        preview_file = session_dir / f"{preview_type}_preview.{fmt}"
+        if preview_file.exists():
+            return preview_file
+    return None
 
 
 class NegotiationPreviewService:
@@ -60,20 +99,22 @@ class NegotiationPreviewService:
                 results["histogram"] = False
 
         # Generate result preview (only if completed)
-        if session.agreement or session.end_reason:
-            try:
-                NegotiationPreviewService._generate_result_preview(session, session_dir)
-                results["result"] = True
-            except Exception as e:
-                print(f"Warning: Failed to generate result preview: {e}")
-                results["result"] = False
+        # DISABLED: Result should show live data, not cached image
+        # if session.agreement or session.end_reason:
+        #     try:
+        #         NegotiationPreviewService._generate_result_preview(session, session_dir)
+        #         results["result"] = True
+        #     except Exception as e:
+        #         print(f"Warning: Failed to generate result preview: {e}")
+        #         results["result"] = False
 
         return results
 
     @staticmethod
     def _generate_utility2d_preview(session: NegotiationSession, session_dir: Path):
-        """Generate 2D utility space preview."""
-        plot_file = session_dir / "utility2d_preview.webp"
+        """Generate 2D utility space preview showing negotiation trace."""
+        plot_file = _get_preview_path(session_dir, "utility2d")
+        image_format = _get_preview_format()
 
         if not session.outcome_space_data:
             return
@@ -99,14 +140,14 @@ class NegotiationPreviewService:
                 y=y_utils,
                 mode="markers",
                 marker=dict(
-                    size=3, color="rgba(100, 149, 237, 0.5)", line=dict(width=0)
+                    size=2, color="rgba(100, 149, 237, 0.3)", line=dict(width=0)
                 ),
                 name="Outcomes",
-                showlegend=False,
+                showlegend=True,
             )
         )
 
-        # Add Pareto frontier
+        # Add Pareto frontier (scatter only, no lines)
         if data.pareto_utilities:
             pareto_x = [u[x_idx] for u in data.pareto_utilities]
             pareto_y = [u[y_idx] for u in data.pareto_utilities]
@@ -114,13 +155,38 @@ class NegotiationPreviewService:
                 go.Scatter(
                     x=pareto_x,
                     y=pareto_y,
-                    mode="lines+markers",
+                    mode="markers",
                     marker=dict(size=4, color="red"),
-                    line=dict(color="red", width=2),
                     name="Pareto",
                     showlegend=True,
                 )
             )
+
+        # Add negotiation trace (offers made during negotiation)
+        if session.offers and len(session.offers) > 0:
+            offer_x = [
+                offer.utilities[x_idx]
+                for offer in session.offers
+                if len(offer.utilities) > max(x_idx, y_idx)
+            ]
+            offer_y = [
+                offer.utilities[y_idx]
+                for offer in session.offers
+                if len(offer.utilities) > max(x_idx, y_idx)
+            ]
+
+            if offer_x and offer_y:
+                fig.add_trace(
+                    go.Scatter(
+                        x=offer_x,
+                        y=offer_y,
+                        mode="lines+markers",
+                        marker=dict(size=5, color="orange", opacity=0.7),
+                        line=dict(color="orange", width=1, dash="dot"),
+                        name="Offers",
+                        showlegend=True,
+                    )
+                )
 
         # Add special points
         special_points = []
@@ -130,7 +196,7 @@ class NegotiationPreviewService:
             special_points.append(("Kalai", data.kalai_point.utilities, "green"))
         if data.kalai_smorodinsky_point:
             special_points.append(
-                ("KS", data.kalai_smorodinsky_point.utilities, "orange")
+                ("KS", data.kalai_smorodinsky_point.utilities, "cyan")
             )
         if data.max_welfare_point:
             special_points.append(
@@ -157,7 +223,7 @@ class NegotiationPreviewService:
                     x=[session.final_utilities[x_idx]],
                     y=[session.final_utilities[y_idx]],
                     mode="markers",
-                    marker=dict(size=12, color="red", symbol="x", line=dict(width=2)),
+                    marker=dict(size=14, color="black", symbol="x", line=dict(width=2)),
                     name="Agreement",
                     showlegend=True,
                 )
@@ -172,7 +238,7 @@ class NegotiationPreviewService:
         )
 
         fig.update_layout(
-            title=f"2D Utility Space",
+            title=f"Negotiation Trace",
             xaxis_title=x_name,
             yaxis_title=y_name,
             width=600,
@@ -186,10 +252,10 @@ class NegotiationPreviewService:
         fig.update_xaxes(showgrid=True, gridcolor="lightgray")
         fig.update_yaxes(showgrid=True, gridcolor="lightgray")
 
-        # Save as WebP
+        # Save preview image
         try:
             fig.write_image(
-                str(plot_file), format="webp", width=600, height=600, scale=1.5
+                str(plot_file), format=image_format, width=600, height=600, scale=1.5
             )
         except Exception as e:
             print(f"Warning: Failed to save utility2d preview to {plot_file}: {e}")
@@ -197,7 +263,8 @@ class NegotiationPreviewService:
     @staticmethod
     def _generate_timeline_preview(session: NegotiationSession, session_dir: Path):
         """Generate timeline preview."""
-        plot_file = session_dir / "timeline_preview.webp"
+        plot_file = _get_preview_path(session_dir, "timeline")
+        image_format = _get_preview_format()
 
         if not session.offers:
             return
@@ -263,10 +330,10 @@ class NegotiationPreviewService:
         fig.update_xaxes(showgrid=True, gridcolor="lightgray")
         fig.update_yaxes(showgrid=True, gridcolor="lightgray")
 
-        # Save as WebP
+        # Save preview image
         try:
             fig.write_image(
-                str(plot_file), format="webp", width=800, height=400, scale=1.5
+                str(plot_file), format=image_format, width=800, height=400, scale=1.5
             )
         except Exception as e:
             print(f"Warning: Failed to save timeline preview to {plot_file}: {e}")
@@ -274,7 +341,8 @@ class NegotiationPreviewService:
     @staticmethod
     def _generate_histogram_preview(session: NegotiationSession, session_dir: Path):
         """Generate histogram preview (utility distribution)."""
-        plot_file = session_dir / "histogram_preview.webp"
+        plot_file = _get_preview_path(session_dir, "histogram")
+        image_format = _get_preview_format()
 
         if not session.offers:
             return
@@ -340,11 +408,11 @@ class NegotiationPreviewService:
         fig.update_xaxes(title_text="Utility", showgrid=True, gridcolor="lightgray")
         fig.update_yaxes(title_text="Count", showgrid=True, gridcolor="lightgray")
 
-        # Save as WebP
+        # Save preview image
         try:
             fig.write_image(
                 str(plot_file),
-                format="webp",
+                format=image_format,
                 width=min(300 * n_negotiators, 1000),
                 height=400,
                 scale=1.5,
@@ -355,7 +423,8 @@ class NegotiationPreviewService:
     @staticmethod
     def _generate_result_preview(session: NegotiationSession, session_dir: Path):
         """Generate result preview (text-based summary as image)."""
-        plot_file = session_dir / "result_preview.webp"
+        plot_file = _get_preview_path(session_dir, "result")
+        image_format = _get_preview_format()
 
         # Create a simple text-based figure
         fig = go.Figure()
@@ -414,10 +483,10 @@ class NegotiationPreviewService:
             margin=dict(l=40, r=40, t=60, b=40),
         )
 
-        # Save as WebP
+        # Save preview image
         try:
             fig.write_image(
-                str(plot_file), format="webp", width=600, height=400, scale=1.5
+                str(plot_file), format=image_format, width=600, height=400, scale=1.5
             )
         except Exception as e:
             print(f"Warning: Failed to save result preview to {plot_file}: {e}")

@@ -7,6 +7,56 @@ import plotly.graph_objects as go
 from negmas import Scenario
 
 from .outcome_analysis import compute_outcome_utilities
+from .settings_service import SettingsService
+
+
+# Supported image formats for plotly (ordered by file size, smallest first)
+SUPPORTED_IMAGE_FORMATS = ["webp", "png", "jpg", "svg"]
+
+
+def get_plot_path(scenario_path: Path | str, format: str | None = None) -> Path:
+    """Get the path to the cached plot file for a scenario.
+
+    Args:
+        scenario_path: Path to scenario directory.
+        format: Image format (webp, png, jpg, svg). If None, uses settings.
+
+    Returns:
+        Path to the _plot.{format} file.
+    """
+    if format is None:
+        performance_settings = SettingsService.load_performance()
+        format = performance_settings.plot_image_format
+    return Path(scenario_path) / f"_plot.{format}"
+
+
+def find_existing_plot(scenario_path: Path | str) -> Path | None:
+    """Find an existing plot file with any supported format.
+
+    Args:
+        scenario_path: Path to scenario directory.
+
+    Returns:
+        Path to existing plot file, or None if not found.
+    """
+    scenario_path = Path(scenario_path)
+    for fmt in SUPPORTED_IMAGE_FORMATS:
+        plot_file = scenario_path / f"_plot.{fmt}"
+        if plot_file.exists():
+            return plot_file
+    return None
+
+
+def has_cached_plot(scenario_path: Path | str) -> bool:
+    """Check if a cached plot exists for a scenario.
+
+    Args:
+        scenario_path: Path to scenario directory.
+
+    Returns:
+        True if _plot file exists with any supported format.
+    """
+    return find_existing_plot(scenario_path) is not None
 
 
 def generate_and_save_plot(
@@ -16,7 +66,7 @@ def generate_and_save_plot(
     negotiator_x: int = 0,
     negotiator_y: int = 1,
 ) -> dict[str, Any]:
-    """Generate a 2D utility plot and save as WebP.
+    """Generate a 2D utility plot and save in configured format.
 
     Args:
         scenario: Loaded scenario with ufuns and outcome_space.
@@ -29,7 +79,11 @@ def generate_and_save_plot(
         Dictionary with plot metadata (path, negotiator names, etc.).
     """
     scenario_path = Path(scenario_path)
-    plot_file = scenario_path / "_plot.webp"
+
+    # Get image format from settings
+    performance_settings = SettingsService.load_performance()
+    image_format = performance_settings.plot_image_format
+    plot_file = get_plot_path(scenario_path, image_format)
 
     # Get negotiator names
     negotiator_names = []
@@ -83,9 +137,8 @@ def generate_and_save_plot(
             go.Scatter(
                 x=pareto_x,
                 y=pareto_y,
-                mode="lines+markers",
+                mode="markers",
                 marker=dict(size=6, color="red"),
-                line=dict(color="red", width=2),
                 name="Pareto Frontier",
                 hovertemplate=f"{negotiator_names[negotiator_x]}: %{{x:.3f}}<br>"
                 + f"{negotiator_names[negotiator_y]}: %{{y:.3f}}<extra></extra>",
@@ -172,10 +225,11 @@ def generate_and_save_plot(
         showgrid=True, gridcolor="lightgray", zeroline=True, zerolinecolor="black"
     )
 
-    # Save as WebP using kaleido (much smaller than PNG with good quality)
-    # WebP provides ~5-10x better compression than PNG with minimal quality loss
+    # Save plot in configured format
     try:
-        fig.write_image(str(plot_file), format="webp", width=800, height=800, scale=1.5)
+        fig.write_image(
+            str(plot_file), format=image_format, width=800, height=800, scale=1.5
+        )
     except Exception as e:
         print(f"Warning: Failed to save plot to {plot_file}: {e}")
         # Continue without saving - not critical
@@ -187,27 +241,3 @@ def generate_and_save_plot(
         "sampled": sampled,
         "sample_size": sample_size,
     }
-
-
-def get_plot_path(scenario_path: Path | str) -> Path:
-    """Get the path to the cached plot file for a scenario.
-
-    Args:
-        scenario_path: Path to scenario directory.
-
-    Returns:
-        Path to the _plot.webp file.
-    """
-    return Path(scenario_path) / "_plot.webp"
-
-
-def has_cached_plot(scenario_path: Path | str) -> bool:
-    """Check if a cached plot exists for a scenario.
-
-    Args:
-        scenario_path: Path to scenario directory.
-
-    Returns:
-        True if _plot.webp exists.
-    """
-    return get_plot_path(scenario_path).exists()
