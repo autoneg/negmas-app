@@ -714,7 +714,7 @@ onMounted(() => {
 .detail-label {
   font-weight: 600;
   color: var(--text-secondary);
-  width: 180px;
+  width: 240px;
   flex-shrink: 0;
 }
 
