@@ -154,6 +154,12 @@ class TournamentConfig:
     save_path: str | None = None  # Path to save results (None = don't save)
     verbosity: int = 0
 
+    # Path handling when save_path already exists
+    # - "continue": Continue existing tournament if path exists (default)
+    # - "overwrite": Delete existing tournament and start fresh
+    # - "fail": Raise error if path exists
+    path_exists: str = "continue"
+
     # Storage and Memory Optimization
     # Controls disk space usage for tournament results:
     # - "speed"/"time"/"none": Keep all files (results/, all_scores.csv, details.csv)

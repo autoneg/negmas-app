@@ -109,45 +109,60 @@
               :class="getScenarioCellClass(i, j)"
               :title="getScenarioCellTooltip(i, j)"
             >
-              <!-- Icon based on state -->
-              <div v-if="getScenarioCellStatus(i, j) === 'running'" class="spinner spinner-xs"></div>
-              <svg
-                v-else-if="getScenarioCellStatus(i, j) === 'agreement' || getScenarioCellStatus(i, j) === 'complete'"
-                class="tournament-cell-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
+              <!-- For completed tournaments with multiple reps, show percentage -->
+              <span 
+                v-if="isCompleted && getScenarioCellPercent(i, j) !== null" 
+                class="cell-percent"
+                :style="{ 
+                  fontSize: getScenarioCellProgress(i, j).total > 1 ? '11px' : '10px',
+                  fontWeight: getScenarioCellProgress(i, j).total > 1 ? '600' : '500'
+                }"
               >
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-              <svg
-                v-else-if="getScenarioCellStatus(i, j) === 'timeout'"
-                class="tournament-cell-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-              </svg>
-              <svg
-                v-else-if="getScenarioCellStatus(i, j) === 'error' || getScenarioCellStatus(i, j) === 'broken'"
-                class="tournament-cell-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="15" y1="9" x2="9" y2="15"></line>
-                <line x1="9" y1="9" x2="15" y2="15"></line>
-              </svg>
+                {{ getScenarioCellPercent(i, j) }}%
+              </span>
               
-              <!-- Progress indicator for multiple runs -->
+              <!-- For running tournaments or single-rep completed, show icons -->
+              <template v-else>
+                <!-- Icon based on state -->
+                <div v-if="getScenarioCellStatus(i, j) === 'running'" class="spinner spinner-xs"></div>
+                <svg
+                  v-else-if="getScenarioCellStatus(i, j) === 'agreement' || getScenarioCellStatus(i, j) === 'complete'"
+                  class="tournament-cell-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <svg
+                  v-else-if="getScenarioCellStatus(i, j) === 'timeout'"
+                  class="tournament-cell-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <svg
+                  v-else-if="getScenarioCellStatus(i, j) === 'error' || getScenarioCellStatus(i, j) === 'broken'"
+                  class="tournament-cell-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="15" y1="9" x2="9" y2="15"></line>
+                  <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+              </template>
+              
+              <!-- Progress indicator for multiple runs (bottom of cell) -->
               <div
-                v-if="getScenarioCellProgress(i, j).total > 1"
+                v-if="getScenarioCellProgress(i, j).total > 1 && !isCompleted"
                 style="position: absolute; bottom: 2px; left: 2px; right: 2px; font-size: 8px; opacity: 0.7;"
               >
                 {{ getScenarioCellProgress(i, j).completed }}/{{ getScenarioCellProgress(i, j).total }}
@@ -175,6 +190,10 @@ const props = defineProps({
   selfPlay: {
     type: Boolean,
     default: false
+  },
+  status: {
+    type: String,
+    default: 'unknown'
   }
 })
 
@@ -184,6 +203,7 @@ const currentTab = ref('summary')
 const competitors = computed(() => props.gridInit?.competitors || [])
 const opponents = computed(() => props.gridInit?.opponents || props.gridInit?.competitors || [])
 const scenarios = computed(() => props.gridInit?.scenarios || [])
+const isCompleted = computed(() => props.status === 'completed' || props.status === 'failed')
 
 function getSummaryCellStyle(i, j) {
   if (i === j && !props.selfPlay) return {}
@@ -194,23 +214,39 @@ function getSummaryCellStyle(i, j) {
   // Calculate aggregate results across all scenarios
   let total = 0
   let agreements = 0
+  let errors = 0
+  let timeouts = 0
   
   scenarios.value.forEach(scenario => {
     const key = `${competitor}::${opponent}::${scenario}`
     const state = props.cellStates[key]
-    if (state && state.status === 'complete') {
-      total++
-      if (state.has_agreement) agreements++
+    if (state) {
+      total += state.total || 1
+      agreements += state.agreements || (state.has_agreement ? 1 : 0)
+      errors += state.errors || (state.status === 'error' ? 1 : 0)
+      timeouts += state.timeouts || (state.status === 'timeout' ? 1 : 0)
     }
   })
   
   if (total === 0) return {}
   
+  // Color based on agreement rate, but dim if errors/timeouts
   const percent = agreements / total
-  const green = Math.round(16 + percent * 169) // 16 to 185
+  const errorRate = errors / total
+  const timeoutRate = timeouts / total
   
-  return {
-    background: `rgba(16, ${green}, 129, ${0.1 + percent * 0.3})`
+  if (errorRate > 0.5) {
+    // Mostly errors - show red
+    return { background: `rgba(239, 68, 68, ${0.2 + errorRate * 0.3})` }
+  } else if (timeoutRate > 0.5) {
+    // Mostly timeouts - show orange
+    return { background: `rgba(251, 146, 60, ${0.2 + timeoutRate * 0.3})` }
+  } else {
+    // Show green based on agreement rate
+    const green = Math.round(16 + percent * 169) // 16 to 185
+    return {
+      background: `rgba(16, ${green}, 129, ${0.1 + percent * 0.3})`
+    }
   }
 }
 
@@ -226,9 +262,9 @@ function getSummaryCellPercent(i, j) {
   scenarios.value.forEach(scenario => {
     const key = `${competitor}::${opponent}::${scenario}`
     const state = props.cellStates[key]
-    if (state && state.status === 'complete') {
-      total++
-      if (state.has_agreement) agreements++
+    if (state) {
+      total += state.total || 1
+      agreements += state.agreements || (state.has_agreement ? 1 : 0)
     }
   })
   
@@ -281,7 +317,24 @@ function getScenarioCellTooltip(i, j) {
   const opponent = opponents.value[j]
   const scenario = scenarios.value[currentTab.value]
   
-  return `${competitor} vs ${opponent}\n${scenario}`
+  const key = `${competitor}::${opponent}::${scenario}`
+  const state = props.cellStates[key]
+  
+  let tooltip = `${competitor} vs ${opponent}\n${scenario}`
+  
+  if (state && isCompleted.value) {
+    const total = state.total || 1
+    const agreements = state.agreements || (state.has_agreement ? 1 : 0)
+    const errors = state.errors || 0
+    const timeouts = state.timeouts || 0
+    
+    tooltip += `\n\nNegotiations: ${total}`
+    tooltip += `\nAgreements: ${agreements} (${Math.round(agreements/total * 100)}%)`
+    if (errors > 0) tooltip += `\nErrors: ${errors}`
+    if (timeouts > 0) tooltip += `\nTimeouts: ${timeouts}`
+  }
+  
+  return tooltip
 }
 
 function getScenarioCellProgress(i, j) {
@@ -296,6 +349,24 @@ function getScenarioCellProgress(i, j) {
     completed: state?.completed || 0,
     total: state?.total || 1
   }
+}
+
+function getScenarioCellPercent(i, j) {
+  if (i === j && !props.selfPlay) return null
+  
+  const competitor = competitors.value[i]
+  const opponent = opponents.value[j]
+  const scenario = scenarios.value[currentTab.value]
+  
+  const key = `${competitor}::${opponent}::${scenario}`
+  const state = props.cellStates[key]
+  
+  if (!state || !isCompleted.value) return null
+  
+  const total = state.total || 1
+  const agreements = state.agreements || (state.has_agreement ? 1 : 0)
+  
+  return Math.round((agreements / total) * 100)
 }
 </script>
 
@@ -465,6 +536,16 @@ function getScenarioCellProgress(i, j) {
 .tournament-cell.cell-complete {
   background: rgba(16, 185, 129, 0.1);
   color: rgb(16, 185, 129);
+}
+
+.cell-percent {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tournament-cell.cell-timeout {
+  background: rgba(251, 146, 60, 0.1);
+  color: rgb(251, 146, 60);
 }
 
 .tournament-cell.cell-timeout {

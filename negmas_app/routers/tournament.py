@@ -89,6 +89,9 @@ class TournamentConfigRequest(BaseModel):
     save_path: str | None = None
     verbosity: int = 0
 
+    # Path handling when save_path already exists
+    path_exists: str = "continue"  # "continue", "overwrite", or "fail"
+
 
 def _to_range_int(value: int | list[int] | None) -> int | tuple[int, int] | None:
     """Convert list [min, max] to tuple for int range parameters."""
@@ -155,6 +158,7 @@ async def start_tournament(request: TournamentConfigRequest):
         njobs=request.njobs,
         save_path=request.save_path,
         verbosity=request.verbosity,
+        path_exists=request.path_exists,
     )
 
     session = _manager.create_session(config)
@@ -540,6 +544,49 @@ async def run_batch(session_id: str):
 # =============================================================================
 # Saved Tournaments Endpoints
 # =============================================================================
+
+
+@router.post("/saved/{tournament_id}/continue")
+async def continue_tournament(tournament_id: str):
+    """Continue an incomplete tournament from a saved path.
+
+    This endpoint creates a new session that continues an existing tournament.
+    If the tournament is already complete, it will just load and return the results.
+    If incomplete, it will resume running the remaining negotiations.
+
+    Args:
+        tournament_id: ID of the saved tournament to continue.
+
+    Returns:
+        Session info with session_id and stream_url for monitoring progress.
+    """
+    # Get the tournament path from storage service
+    from pathlib import Path
+
+    tournaments_dir = Path.home() / "negmas" / "app" / "tournaments"
+    tournament_path = tournaments_dir / tournament_id
+
+    if not tournament_path.exists():
+        raise HTTPException(status_code=404, detail="Tournament not found")
+
+    config_file = tournament_path / "config.yaml"
+    if not config_file.exists():
+        raise HTTPException(
+            status_code=400, detail="Invalid tournament - missing config.yaml"
+        )
+
+    # Create a session for continuing this tournament
+    try:
+        session = _manager.continue_session(str(tournament_path))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {
+        "session_id": session.id,
+        "status": session.status.value,
+        "stream_url": f"/api/tournament/{session.id}/stream",
+        "tournament_path": str(tournament_path),
+    }
 
 
 @router.get("/saved/list")
