@@ -1298,8 +1298,10 @@ const loadData = async () => {
 }
 
 // Watch for modal open/close
-watch(() => props.show, (newShow) => {
+watch(() => props.show, (newShow, oldShow) => {
+  console.log('[NewTournamentModal] props.show changed:', { oldShow, newShow })
   if (newShow) {
+    console.log('[NewTournamentModal] Modal opened, loading data...')
     currentTab.value = 'scenarios'
     selectedScenarios.value = []
     selectedCompetitors.value = []
@@ -1308,10 +1310,13 @@ watch(() => props.show, (newShow) => {
     loadData()
     tournamentsStore.loadTournamentPresets()
   }
-})
+}, { immediate: true })
 
 onMounted(() => {
+  console.log('[NewTournamentModal] Component mounted, props.show:', props.show)
   if (props.show) {
+    console.log('[NewTournamentModal] Loading data on mount...')
+    loadData()
     tournamentsStore.loadTournamentPresets()
   }
 })
