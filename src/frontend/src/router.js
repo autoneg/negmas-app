@@ -5,6 +5,7 @@ import ScenariosView from './views/ScenariosView.vue'
 import NegotiatorsView from './views/NegotiatorsView.vue'
 import TournamentsListView from './views/TournamentsListView.vue'
 import SingleTournamentView from './views/SingleTournamentView.vue'
+import ConfigsView from './views/ConfigsView.vue'
 
 const routes = [
   {
@@ -40,6 +41,11 @@ const routes = [
     path: '/tournaments/:id',
     name: 'SingleTournament',
     component: SingleTournamentView,
+  },
+  {
+    path: '/configs',
+    name: 'Configs',
+    component: ConfigsView,
   },
 ]
 

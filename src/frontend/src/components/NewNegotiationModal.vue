@@ -1872,6 +1872,31 @@ onUnmounted(() => {
 .modal-header-actions {
   display: flex;
   gap: 8px;
+  position: relative;
+  z-index: 10;
+}
+
+.modal-header-actions .dropdown {
+  position: relative;
+  z-index: 100;
+}
+
+.modal-header-actions .dropdown-menu {
+  position: absolute !important;
+  display: block !important;
+  top: calc(100% + 4px) !important;
+  right: 0 !important;
+  z-index: 1050 !important;
+  background: var(--bg-secondary) !important;
+  border: 2px solid red !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-width: 280px !important;
+  padding: 6px 0 !important;
+  max-height: 400px !important;
+  overflow-y: auto !important;
 }
 
 .modal-close {
