@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from negmas.plots.util import SUPPORTED_IMAGE_FORMATS
+
 
 @dataclass
 class ThemeSettings:
@@ -115,6 +117,20 @@ class PerformanceSettings:
     # Above this threshold, histogram is disabled for enumerated outcome spaces
     # (scenarios without named issues where histogram shows all outcomes)
     max_histogram_outcomes: int = 10_000
+
+    # Image format for saving plots
+    # Supported formats: SUPPORTED_IMAGE_FORMATS = {"webp", "png", "jpg", "jpeg", "svg", "pdf"}
+    # webp provides best compression (5-10x smaller than PNG)
+    # When loading, all supported formats are tried
+    plot_image_format: str = "webp"
+
+    def __post_init__(self) -> None:
+        """Validate plot_image_format is supported."""
+        if self.plot_image_format not in SUPPORTED_IMAGE_FORMATS:
+            raise ValueError(
+                f"plot_image_format must be one of {SUPPORTED_IMAGE_FORMATS}, "
+                f"got: {self.plot_image_format}"
+            )
 
 
 # =============================================================================
@@ -280,6 +296,8 @@ class FullSessionPreset:
     step_delay: int = 100
     show_plot: bool = True
     show_offers: bool = True
+    # Panels
+    panels: dict[str, Any] = field(default_factory=dict)
     # Metadata
     created_at: str = ""  # ISO timestamp
     last_used_at: str = ""  # ISO timestamp

@@ -16,7 +16,7 @@ from typing import Any
 
 from negmas import Scenario
 from negmas.sao import SAOMechanism, SAONegotiator
-from negmas.tournaments.neg import cartesian_tournament
+from negmas.tournaments.neg import cartesian_tournament, continue_cartesian_tournament
 
 from ..models.tournament import (
     TournamentConfig,
@@ -34,6 +34,7 @@ from ..models.tournament import (
 )
 from .scenario_loader import ScenarioLoader
 from .negotiator_factory import _get_class_for_type
+from .settings_service import SettingsService
 
 
 def _apply_normalization(scenario: Scenario, mode: str) -> Scenario:  # type: ignore[type-arg]
@@ -128,6 +129,47 @@ class TournamentManager:
         if config.save_path is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             config.save_path = str(self.tournaments_dir / f"{timestamp}_{session_id}")
+
+        session = TournamentSession(
+            id=session_id,
+            status=TournamentStatus.PENDING,
+            config=config,
+        )
+        self.sessions[session_id] = session
+        self._cancel_flags[session_id] = False
+        self._tournament_states[session_id] = TournamentState()
+        return session
+
+    def continue_session(self, tournament_path: str) -> TournamentSession:
+        """Create a session to continue an existing tournament from disk.
+
+        Args:
+            tournament_path: Path to the existing tournament directory.
+
+        Returns:
+            Created session ready to be run via run_tournament_stream().
+
+        Raises:
+            ValueError: If the tournament path doesn't exist or is invalid.
+        """
+        path = Path(tournament_path)
+        if not path.exists():
+            raise ValueError(f"Tournament path does not exist: {tournament_path}")
+
+        config_file = path / "config.yaml"
+        if not config_file.exists():
+            raise ValueError(f"Tournament config not found at: {config_file}")
+
+        session_id = str(uuid.uuid4())[:8]
+
+        # Create minimal config - continue_cartesian_tournament will load from config.yaml
+        # We just need to know the path and basic settings
+        config = TournamentConfig(
+            competitor_types=[],  # Will be loaded from config.yaml
+            scenario_paths=[],  # Will be loaded from saved scenarios
+            save_path=str(path),
+            path_exists="continue",  # Force continue mode
+        )
 
         session = TournamentSession(
             id=session_id,
@@ -649,6 +691,145 @@ class TournamentManager:
         config = session.config
 
         try:
+            # Check if we're continuing an existing tournament
+            # (indicated by empty competitor_types and path_exists="continue")
+            is_continue = (
+                not config.competitor_types
+                and config.save_path
+                and config.path_exists == "continue"
+            )
+
+            if is_continue:
+                # Use continue_cartesian_tournament for existing tournaments
+                state.event_queue.put(
+                    (
+                        "setup_progress",
+                        {
+                            "message": "Loading existing tournament...",
+                            "current": 1,
+                            "total": 3,
+                        },
+                    )
+                )
+
+                # Update status
+                state.status = TournamentStatus.RUNNING
+                session.status = TournamentStatus.RUNNING
+                session.start_time = datetime.now()
+
+                # Create simple callbacks for continue mode (no detailed cell updates available)
+                def simple_progress_callback(
+                    message: str,
+                    current: int,
+                    total: int,
+                    config_dict: dict[str, Any] | None = None,
+                ) -> None:
+                    if self._cancel_flags.get(session_id, False):
+                        return
+                    state.event_queue.put(
+                        (
+                            "setup_progress",
+                            {"message": message, "current": current, "total": total},
+                        )
+                    )
+
+                state.event_queue.put(
+                    (
+                        "setup_progress",
+                        {
+                            "message": "Continuing tournament...",
+                            "current": 2,
+                            "total": 3,
+                        },
+                    )
+                )
+
+                # Run continue_cartesian_tournament
+                if not config.save_path:
+                    state.status = TournamentStatus.FAILED
+                    state.error = "Cannot continue tournament - no save path specified"
+                    session.status = TournamentStatus.FAILED
+                    session.error = state.error
+                    state.event_queue.put(("error", state.error))
+                    return
+
+                results = continue_cartesian_tournament(
+                    path=Path(config.save_path),
+                    verbosity=config.verbosity,
+                    njobs=-1,  # Serial for web app
+                )
+
+                if results is None:
+                    state.status = TournamentStatus.FAILED
+                    state.error = (
+                        "Failed to continue tournament - invalid path or missing files"
+                    )
+                    session.status = TournamentStatus.FAILED
+                    session.error = state.error
+                    state.event_queue.put(("error", state.error))
+                    return
+
+                # Check if cancelled
+                if self._cancel_flags.get(session_id, False):
+                    state.status = TournamentStatus.CANCELLED
+                    session.status = TournamentStatus.CANCELLED
+                    session.end_time = datetime.now()
+                    state.event_queue.put(("cancelled", None))
+                    return
+
+                # Build final scores from results
+                final_scores: list[CompetitorScore] = []
+                if results.final_scores is not None:
+                    for idx, row in results.final_scores.iterrows():
+                        if "strategy" in results.final_scores.columns:
+                            name = str(row["strategy"])
+                        else:
+                            name = str(idx)
+                        if "score" in results.final_scores.columns:
+                            score = float(row["score"])
+                        else:
+                            score = float(row.iloc[0]) if len(row) > 0 else 0.0
+                        final_scores.append(
+                            CompetitorScore(
+                                name=name,
+                                type_name=name,
+                                score=score,
+                                rank=len(final_scores) + 1,
+                            )
+                        )
+
+                total_completed = (
+                    len(results.details) if results.details is not None else 0
+                )
+                total_agreements = 0
+                if (
+                    results.details is not None
+                    and "agreement" in results.details.columns
+                ):
+                    total_agreements = int(results.details["agreement"].notna().sum())
+
+                session.results = TournamentResults(
+                    final_scores=final_scores,
+                    negotiation_results=[],  # Don't rebuild from continue mode
+                    total_negotiations=total_completed,
+                    total_agreements=total_agreements,
+                    overall_agreement_rate=(
+                        total_agreements / total_completed
+                        if total_completed > 0
+                        else 0.0
+                    ),
+                    results_path=str(results.path) if results.path else None,
+                )
+
+                state.status = TournamentStatus.COMPLETED
+                session.status = TournamentStatus.COMPLETED
+                session.end_time = datetime.now()
+
+                # Emit complete event
+                state.event_queue.put(("complete", session))
+                return
+
+            # Normal tournament flow (not continuing)
             # Emit initial setup progress
             state.event_queue.put(
                 (
@@ -875,6 +1056,7 @@ class TournamentManager:
                 "save_every": config.save_every,
                 "verbosity": config.verbosity,
                 "path": Path(config.save_path) if config.save_path else None,
+                "path_exists": config.path_exists,
                 "ignore_discount": config.ignore_discount,
                 "ignore_reserved": config.ignore_reserved,
                 "raise_exceptions": config.raise_exceptions,
@@ -891,6 +1073,10 @@ class TournamentManager:
             # Add storage format if specified
             if config.storage_format is not None:
                 tournament_kwargs["storage_format"] = config.storage_format
+
+            # Add image format from performance settings
+            perf_settings = SettingsService.load_performance()
+            tournament_kwargs["image_format"] = perf_settings.plot_image_format
 
             # Save config before starting
             if config.save_path:
