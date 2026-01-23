@@ -7,8 +7,11 @@
         <div class="filter-header">
           <h3>Configurations</h3>
           <button class="btn-icon" @click="loadData" :disabled="loading" title="Refresh">
-            <span v-if="loading">⟳</span>
-            <span v-else>↻</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" :class="{ 'spin-icon': loading }">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
           </button>
         </div>
         
@@ -410,9 +413,18 @@ function closeModals() {
   startingConfig.value = null
 }
 
-function onConfigSaved() {
+async function onConfigSaved() {
+  console.log('[ConfigsView] Config saved, reloading data')
   closeModals()
-  loadData()
+  await loadData()
+  
+  // Re-select the config to refresh the view
+  if (selectedConfig.value) {
+    const updatedConfig = configs.value.find(c => c.name === selectedConfig.value.name)
+    if (updatedConfig) {
+      selectedConfig.value = updatedConfig
+    }
+  }
 }
 
 function onNegotiationStart(data) {
@@ -430,11 +442,19 @@ function onNegotiationStart(data) {
 async function toggleEnabled() {
   if (!selectedConfig.value) return
   
+  const configName = selectedConfig.value.name
+  
   // Toggle the disabled flag (defaults to false/enabled if not set)
   selectedConfig.value.disabled = !isConfigDisabled(selectedConfig.value)
   
   await negotiationsStore.saveSessionPreset(selectedConfig.value)
   await loadData()
+  
+  // Re-select the config to refresh the view
+  const updatedConfig = configs.value.find(c => c.name === configName)
+  if (updatedConfig) {
+    selectedConfig.value = updatedConfig
+  }
 }
 
 function renameConfig() {
@@ -447,14 +467,24 @@ async function confirmRename() {
   if (!selectedConfig.value || !newName.value.trim()) return
   
   const oldName = selectedConfig.value.name
-  selectedConfig.value.name = newName.value.trim()
+  const newNameTrimmed = newName.value.trim()
+  
+  // Update the config name
+  selectedConfig.value.name = newNameTrimmed
   
   // Delete old config and save with new name
   await negotiationsStore.deleteSessionPreset(oldName)
   await negotiationsStore.saveSessionPreset(selectedConfig.value)
   
   showRenameModal.value = false
+  newName.value = ''
+  
+  // Reload and re-select with new name
   await loadData()
+  const updatedConfig = configs.value.find(c => c.name === newNameTrimmed)
+  if (updatedConfig) {
+    selectedConfig.value = updatedConfig
+  }
 }
 
 async function deleteConfig() {
@@ -792,6 +822,10 @@ onMounted(() => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+.spin-icon {
+  animation: spin 0.8s linear infinite;
 }
 
 .badge {
