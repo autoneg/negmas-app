@@ -152,6 +152,16 @@
         <div class="details-header">
           <h2>{{ selectedScenario.name }}</h2>
           <div class="header-actions">
+            <button 
+              class="btn-secondary btn-sm" 
+              @click="refreshAllCaches"
+              :disabled="refreshingCache"
+              title="Refresh all cached data (stats, plot, info)"
+            >
+              <span v-if="refreshingCache" class="spinner-small"></span>
+              <span v-else>↻</span>
+              Refresh Cache
+            </button>
             <button class="btn-primary btn-sm" @click="openNewNegotiation">
               Start Negotiation
             </button>
@@ -413,6 +423,7 @@ const plotDiv = ref(null)
 const plotNegotiator1 = ref(0)
 const plotNegotiator2 = ref(1)
 const useInteractivePlot = ref(false) // Default to cached PNG
+const refreshingCache = ref(false)
 const plotImageUrl = computed(() => {
   if (!selectedScenario.value) return null
   return `/api/scenarios/${encodeURIComponent(selectedScenario.value.path)}/plot-image`
@@ -497,6 +508,32 @@ async function loadStats() {
 async function calculateStats() {
   if (!selectedScenario.value) return
   await scenariosStore.calculateScenarioStats(selectedScenario.value.path, true)
+}
+
+async function refreshAllCaches() {
+  if (!selectedScenario.value) return
+  
+  refreshingCache.value = true
+  try {
+    // Recalculate stats with force=true (respects max_outcomes_pareto and max_outcomes_rationality from settings)
+    await scenariosStore.calculateScenarioStats(selectedScenario.value.path, true)
+    
+    // Regenerate plot with force_regenerate=true
+    await loadPlotData(true)
+    
+    // Reload scenario to get updated info (has_stats, etc.)
+    await scenariosStore.loadScenarios()
+    
+    // Re-select the scenario to update the UI
+    const updatedScenario = scenariosStore.scenarios.find(s => s.path === selectedScenario.value.path)
+    if (updatedScenario) {
+      await scenariosStore.selectScenario(updatedScenario)
+    }
+  } catch (error) {
+    console.error('Failed to refresh caches:', error)
+  } finally {
+    refreshingCache.value = false
+  }
 }
 
 async function loadPlotData(forceRegenerate = false) {
@@ -1183,6 +1220,17 @@ function formatNumber(num) {
   border-top-color: var(--primary-color);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+.spinner-small {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 4px;
 }
 
 @keyframes spin {
