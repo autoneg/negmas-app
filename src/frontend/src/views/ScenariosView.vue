@@ -131,7 +131,7 @@
           </div>
           <div class="scenario-stats" v-if="scenario.rational_fraction !== null || scenario.opposition !== null">
             <span v-if="scenario.rational_fraction !== null" title="Rational Fraction">
-              R: {{ scenario.rational_fraction.toFixed(2) }}
+              R: {{ (scenario.rational_fraction * 100).toFixed(1) }}%
             </span>
             <span v-if="scenario.opposition !== null" title="Opposition">
               O: {{ scenario.opposition.toFixed(2) }}
@@ -182,7 +182,7 @@
               </div>
               <div class="info-item" v-if="selectedScenario.rational_fraction !== null">
                 <label>Rational Fraction</label>
-                <span>{{ selectedScenario.rational_fraction.toFixed(3) }}</span>
+                <span>{{ (selectedScenario.rational_fraction * 100).toFixed(1) }}%</span>
               </div>
               <div class="info-item" v-if="selectedScenario.opposition !== null">
                 <label>Opposition</label>
@@ -244,7 +244,7 @@
             </div>
             
             <div v-else-if="selectedScenarioStats" class="stats-grid">
-              <div class="stat-item" v-if="selectedScenarioStats.n_pareto_outcomes">
+              <div class="stat-item" v-if="selectedScenarioStats.n_pareto_outcomes !== null && selectedScenarioStats.n_pareto_outcomes !== undefined">
                 <label>Pareto Outcomes</label>
                 <span>{{ formatNumber(selectedScenarioStats.n_pareto_outcomes) }}</span>
               </div>
@@ -254,31 +254,47 @@
               </div>
               <div class="stat-item" v-if="selectedScenarioStats.rational_fraction !== null && selectedScenarioStats.rational_fraction !== undefined">
                 <label>Rational Fraction</label>
-                <span>{{ selectedScenarioStats.rational_fraction.toFixed(3) }}</span>
+                <span>{{ (selectedScenarioStats.rational_fraction * 100).toFixed(1) }}%</span>
               </div>
               
               <!-- Nash Point -->
               <div class="stat-item full-width" v-if="selectedScenarioStats.nash_utils && selectedScenarioStats.nash_utils.length > 0">
-                <label>Nash Point</label>
+                <label>Nash Point (Utils)</label>
                 <span>{{ formatUtilityList(selectedScenarioStats.nash_utils[0]) }}</span>
+              </div>
+              <div class="stat-item full-width" v-if="selectedScenarioStats.nash_outcomes && selectedScenarioStats.nash_outcomes.length > 0">
+                <label>Nash Outcome</label>
+                <span class="outcome-text">{{ formatOutcome(selectedScenarioStats.nash_outcomes[0]) }}</span>
               </div>
               
               <!-- Kalai Point -->
               <div class="stat-item full-width" v-if="selectedScenarioStats.kalai_utils && selectedScenarioStats.kalai_utils.length > 0">
-                <label>Kalai Point</label>
+                <label>Kalai Point (Utils)</label>
                 <span>{{ formatUtilityList(selectedScenarioStats.kalai_utils[0]) }}</span>
+              </div>
+              <div class="stat-item full-width" v-if="selectedScenarioStats.kalai_outcomes && selectedScenarioStats.kalai_outcomes.length > 0">
+                <label>Kalai Outcome</label>
+                <span class="outcome-text">{{ formatOutcome(selectedScenarioStats.kalai_outcomes[0]) }}</span>
               </div>
               
               <!-- KS Point -->
               <div class="stat-item full-width" v-if="selectedScenarioStats.ks_utils && selectedScenarioStats.ks_utils.length > 0">
-                <label>KS Point</label>
+                <label>KS Point (Utils)</label>
                 <span>{{ formatUtilityList(selectedScenarioStats.ks_utils[0]) }}</span>
+              </div>
+              <div class="stat-item full-width" v-if="selectedScenarioStats.ks_outcomes && selectedScenarioStats.ks_outcomes.length > 0">
+                <label>KS Outcome</label>
+                <span class="outcome-text">{{ formatOutcome(selectedScenarioStats.ks_outcomes[0]) }}</span>
               </div>
               
               <!-- Max Welfare Point -->
               <div class="stat-item full-width" v-if="selectedScenarioStats.max_welfare_utils && selectedScenarioStats.max_welfare_utils.length > 0">
-                <label>Max Welfare</label>
+                <label>Max Welfare (Utils)</label>
                 <span>{{ formatUtilityList(selectedScenarioStats.max_welfare_utils[0]) }}</span>
+              </div>
+              <div class="stat-item full-width" v-if="selectedScenarioStats.max_welfare_outcomes && selectedScenarioStats.max_welfare_outcomes.length > 0">
+                <label>Max Welfare Outcome</label>
+                <span class="outcome-text">{{ formatOutcome(selectedScenarioStats.max_welfare_outcomes[0]) }}</span>
               </div>
             </div>
             </div>
@@ -682,6 +698,14 @@ function formatUtilityList(utils) {
   return '(' + utils.map(u => u.toFixed(3)).join(', ') + ')'
 }
 
+function formatOutcome(outcome) {
+  if (!outcome || typeof outcome !== 'object') return 'N/A'
+  // Format as "Issue1: Value1, Issue2: Value2, ..."
+  return Object.entries(outcome)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(', ')
+}
+
 function openNewNegotiation() {
   console.log('openNewNegotiation called, current value:', showNewNegotiationModal.value)
   showNewNegotiationModal.value = true
@@ -1029,6 +1053,14 @@ function formatNumber(num) {
 .stat-item span {
   font-size: 1rem;
   color: var(--text-primary);
+}
+
+.outcome-text {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  font-family: monospace;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
 .issues-section,
