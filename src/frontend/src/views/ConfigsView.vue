@@ -245,11 +245,11 @@
           
           <div v-if="selectedConfig.mechanism_params" class="detail-subsection">
             <h5>Mechanism Parameters</h5>
-            <div class="params-list">
-              <div v-for="(value, key) in selectedConfig.mechanism_params" :key="key" class="param-item">
-                <span class="param-key">{{ key }}:</span>
+            <div class="params-grid">
+              <template v-for="(value, key) in selectedConfig.mechanism_params" :key="key">
+                <span class="param-label">{{ key }}:</span>
                 <span class="param-value">{{ value !== null ? value : 'null' }}</span>
-              </div>
+              </template>
             </div>
           </div>
         </div>
@@ -720,7 +720,7 @@ onMounted(() => {
 }
 
 .config-details {
-  max-width: 900px;
+  /* Removed max-width to use full available space */
 }
 
 .details-header {
@@ -807,33 +807,34 @@ onMounted(() => {
   margin-top: 8px;
 }
 
-.params-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.params-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  align-items: baseline;
 }
 
-.param-item {
-  display: flex;
-  gap: 8px;
-  padding: 6px 0;
-  font-size: 13px;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+/* Responsive: 4 columns on wide screens (2 params per row) */
+@media (min-width: 900px) {
+  .params-grid {
+    grid-template-columns: auto 1fr auto 1fr;
+  }
 }
 
-.param-key {
+.param-label {
   font-weight: 600;
   color: var(--text-secondary);
-  min-width: 200px;
-  flex-shrink: 0;
+  font-size: 13px;
   word-break: break-word;
+  padding: 4px 0;
 }
 
 .param-value {
   color: var(--text-primary);
   font-family: monospace;
-  flex: 1;
+  font-size: 13px;
   word-break: break-all;
+  padding: 4px 0;
 }
 
 .empty-tags {
