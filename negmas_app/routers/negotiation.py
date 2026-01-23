@@ -664,3 +664,49 @@ async def get_negotiation_preview(session_id: str, panel_type: str):
             "Cache-Control": "public, max-age=31536000",  # Cache for 1 year
         },
     )
+
+
+@router.post("/saved/{session_id}/open-folder")
+async def open_negotiation_folder(session_id: str):
+    """Open the negotiation folder in the system file explorer.
+
+    Platform-specific behavior:
+    - macOS: Uses 'open' command
+    - Windows: Uses 'explorer' command
+    - Linux: Uses 'xdg-open' command
+    """
+    import platform
+    import subprocess
+
+    # Get session directory
+    session_dir = NegotiationStorageService.get_session_dir(session_id)
+
+    if not session_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Negotiation folder not found for session '{session_id}'",
+        )
+
+    # Determine the platform-specific command
+    system = platform.system()
+
+    try:
+        if system == "Darwin":  # macOS
+            subprocess.run(["open", str(session_dir)], check=True)
+        elif system == "Windows":
+            subprocess.run(["explorer", str(session_dir)], check=True)
+        elif system == "Linux":
+            subprocess.run(["xdg-open", str(session_dir)], check=True)
+        else:
+            raise HTTPException(
+                status_code=500, detail=f"Unsupported platform: {system}"
+            )
+
+        return {"status": "opened", "path": str(session_dir)}
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to open folder: {str(e)}")
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=500,
+            detail=f"File explorer command not found for platform: {system}",
+        )

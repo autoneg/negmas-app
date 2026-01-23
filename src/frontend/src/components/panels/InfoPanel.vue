@@ -127,14 +127,14 @@
         </div>
       </div>
       
-      <!-- Row 3: ID (clickable to copy) -->
+      <!-- Row 3: ID (clickable to open folder) -->
       <div class="info-row" v-show="negotiation?.id" style="font-size: 10px;">
         <span class="text-muted">ID:</span>
         <code 
           class="negotiation-id-display" 
           style="font-size: 10px; background: var(--bg-tertiary); padding: 1px 4px; border-radius: 3px; cursor: pointer; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
-          :title="'Click to copy: ' + negotiation?.id"
-          @click="copySessionId"
+          :title="'Click to open folder: ' + negotiation?.id"
+          @click="openNegotiationFolder"
         >
           {{ negotiation?.id }}
         </code>
@@ -216,16 +216,26 @@ const formatUtilities = computed(() => {
     .join(', ')
 })
 
-// Copy session ID to clipboard
-async function copySessionId() {
+// Open negotiation folder in file explorer
+async function openNegotiationFolder() {
   if (!props.negotiation?.id) return
   
   try {
-    await navigator.clipboard.writeText(props.negotiation.id)
-    // TODO: Show toast notification
-    console.log('Session ID copied to clipboard')
+    const response = await fetch(`/api/negotiation/saved/${props.negotiation.id}/open-folder`, {
+      method: 'POST'
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Failed to open folder:', error)
+      // TODO: Show error toast notification
+    } else {
+      console.log('Folder opened successfully')
+      // TODO: Show success toast notification (optional)
+    }
   } catch (err) {
-    console.error('Failed to copy session ID:', err)
+    console.error('Failed to open folder:', err)
+    // TODO: Show error toast notification
   }
 }
 </script>
