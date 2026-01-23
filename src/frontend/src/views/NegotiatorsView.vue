@@ -66,7 +66,14 @@
           </label>
         </div>
         
-        <button class="btn-secondary btn-sm" @click="clearFilters">Clear Filters</button>
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+          <button class="btn-secondary btn-sm" @click="clearFilters" style="flex: 1;">Clear Filters</button>
+          <button class="btn-secondary btn-sm" @click="showSaveFilterDialog = true" style="flex: 1;">Save Filter</button>
+          <select v-model="selectedFilterId" @change="loadSavedFilter" class="input-select btn-sm" style="flex: 1;">
+            <option value="">Load Filter...</option>
+            <option v-for="filter in savedFilters" :key="filter.id" :value="filter.id">{{ filter.name }}</option>
+          </select>
+        </div>
       </div>
       
       <!-- Negotiators List -->
@@ -278,6 +285,54 @@
         </div>
       </div>
     </div>
+    
+    <!-- Save Filter Dialog -->
+    <div v-if="showSaveFilterDialog" class="modal-overlay" @click="showSaveFilterDialog = false">
+      <div class="modal save-filter-modal" @click.stop>
+        <div class="modal-header">
+          <h3>Save Current Filter</h3>
+          <button class="btn-close" @click="showSaveFilterDialog = false">×</button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Filter Name</label>
+            <input
+              v-model="saveFilterName"
+              type="text"
+              class="input-text"
+              placeholder="e.g., Available SAO Negotiators"
+              @keyup.enter="saveCurrentFilter"
+            />
+          </div>
+          
+          <div class="form-group">
+            <label>Description (optional)</label>
+            <textarea
+              v-model="saveFilterDescription"
+              class="input-text"
+              rows="3"
+              placeholder="Optional description for this filter"
+            ></textarea>
+          </div>
+          
+          <p v-if="saveFilterError" class="error-message">{{ saveFilterError }}</p>
+          <p v-if="saveFilterSuccess" class="success-message">{{ saveFilterSuccess }}</p>
+        </div>
+        
+        <div class="modal-footer">
+          <button class="btn-secondary" @click="showSaveFilterDialog = false">Cancel</button>
+          <button
+            class="btn-primary"
+            @click="saveCurrentFilter"
+            :disabled="!saveFilterName || savingFilter"
+          >
+            <span v-if="savingFilter">Saving...</span>
+            <span v-else>Save Filter</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -315,9 +370,20 @@ const newVirtualName = ref('')
 const newVirtualBase = ref('')
 const newVirtualDescription = ref('')
 
+// Filter save/load state
+const showSaveFilterDialog = ref(false)
+const saveFilterName = ref('')
+const saveFilterDescription = ref('')
+const savingFilter = ref(false)
+const saveFilterError = ref('')
+const saveFilterSuccess = ref('')
+const savedFilters = ref([])
+const selectedFilterId = ref('')
+
 // Load data on mount
 onMounted(async () => {
   await loadData()
+  await loadSavedFilters()
 })
 
 async function loadData() {
@@ -412,6 +478,110 @@ async function deleteVirtual(id) {
 function useInNegotiation() {
   // TODO: Navigate to negotiations with this negotiator selected
   console.log('Use negotiator in negotiation:', selectedNegotiator.value)
+}
+
+// Filter save/load functions
+async function loadSavedFilters() {
+  try {
+    const response = await fetch('/api/filters?type=negotiator')
+    const data = await response.json()
+    if (data.success) {
+      savedFilters.value = data.filters
+    }
+  } catch (error) {
+    console.error('Failed to load saved filters:', error)
+  }
+}
+
+async function saveCurrentFilter() {
+  if (!saveFilterName.value) return
+  
+  saveFilterError.value = ''
+  saveFilterSuccess.value = ''
+  savingFilter.value = true
+  
+  try {
+    const filterData = {
+      search: localSearch.value,
+      source: localSource.value,
+      group: localGroup.value,
+      mechanism: localMechanism.value,
+      availableOnly: localAvailableOnly.value,
+    }
+    
+    const response = await fetch('/api/filters', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: saveFilterName.value,
+        type: 'negotiator',
+        data: filterData,
+        description: saveFilterDescription.value,
+      }),
+    })
+    
+    const data = await response.json()
+    
+    if (data.success) {
+      saveFilterSuccess.value = 'Filter saved successfully!'
+      // Reload saved filters
+      await loadSavedFilters()
+      // Clear form after 1.5 seconds
+      setTimeout(() => {
+        showSaveFilterDialog.value = false
+        saveFilterName.value = ''
+        saveFilterDescription.value = ''
+        saveFilterError.value = ''
+        saveFilterSuccess.value = ''
+      }, 1500)
+    } else {
+      saveFilterError.value = 'Failed to save filter: ' + (data.error || 'Unknown error')
+    }
+  } catch (error) {
+    saveFilterError.value = 'Failed to save filter: ' + error.message
+  } finally {
+    savingFilter.value = false
+  }
+}
+
+async function loadSavedFilter() {
+  if (!selectedFilterId.value) return
+  
+  try {
+    const response = await fetch(`/api/filters/${selectedFilterId.value}`)
+    const data = await response.json()
+    
+    if (data.success && data.filter) {
+      const filterData = data.filter.data
+      
+      // Apply filter data to local state
+      localSearch.value = filterData.search || ''
+      localSource.value = filterData.source || ''
+      localGroup.value = filterData.group || ''
+      localMechanism.value = filterData.mechanism || ''
+      localAvailableOnly.value = filterData.availableOnly ?? true
+      
+      // Update store
+      negotiatorsStore.updateFilter({
+        search: localSearch.value,
+        source: localSource.value,
+        group: localGroup.value,
+        mechanism: localMechanism.value,
+        availableOnly: localAvailableOnly.value,
+      })
+      
+      // Reload negotiators with new filters
+      await negotiatorsStore.loadNegotiators(localSource.value, localGroup.value, localSearch.value)
+    }
+    
+    // Reset selection after loading
+    selectedFilterId.value = ''
+  } catch (error) {
+    console.error('Failed to load filter:', error)
+    alert('Failed to load filter: ' + error.message)
+  }
 }
 </script>
 
@@ -944,5 +1114,58 @@ function useInNegotiation() {
   font-size: 0.9rem;
   font-weight: 500;
   color: var(--text-secondary);
+}
+
+/* Save filter dialog styles */
+.save-filter-modal {
+  max-width: 500px;
+  width: 90%;
+}
+
+.input-text {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+.input-text:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+textarea.input-text {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.error-message {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.success-message {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.btn-sm {
+  font-size: 0.85rem;
+  padding: 6px 12px;
 }
 </style>
