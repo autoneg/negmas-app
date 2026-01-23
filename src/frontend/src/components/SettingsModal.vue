@@ -334,6 +334,122 @@
             </div>
           </div>
           
+          <!-- Cache Tab -->
+          <div v-if="activeTab === 'cache'" class="settings-panel">
+            <h2 class="panel-title">Cache Management</h2>
+            
+            <div class="setting-group">
+              <div class="setting-group-title">Scenario Caches</div>
+              
+              <div class="setting-row vertical">
+                <div class="setting-info">
+                  <div class="setting-name">Cache Status</div>
+                  <div class="setting-desc">Current cache file statistics</div>
+                </div>
+                <div v-if="cacheStatus" class="cache-stats">
+                  <div class="stat-item">
+                    <span class="stat-label">Total Scenarios:</span>
+                    <span class="stat-value">{{ cacheStatus.total }}</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="stat-label">With Info:</span>
+                    <span class="stat-value">{{ cacheStatus.with_info }}</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="stat-label">With Stats:</span>
+                    <span class="stat-value">{{ cacheStatus.with_stats }}</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="stat-label">With Plots:</span>
+                    <span class="stat-value">{{ cacheStatus.with_plots }}</span>
+                  </div>
+                </div>
+                <button
+                  class="btn-action secondary"
+                  @click="loadCacheStatus"
+                  :disabled="loadingCacheStatus"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                  </svg>
+                  <span v-if="loadingCacheStatus">Loading...</span>
+                  <span v-else>Refresh Status</span>
+                </button>
+              </div>
+              
+              <div class="setting-row vertical">
+                <div class="setting-info">
+                  <div class="setting-name">Build Caches</div>
+                  <div class="setting-desc">Generate cache files for scenarios (info, stats, or plots)</div>
+                </div>
+                <div class="cache-options">
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="buildOptions.info" />
+                    <span>Info (_info.yaml)</span>
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="buildOptions.stats" />
+                    <span>Stats (_stats.yaml)</span>
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="buildOptions.plots" />
+                    <span>Plots (_plot.webp or _plots/)</span>
+                  </label>
+                </div>
+                <button
+                  class="btn-action primary"
+                  @click="buildCaches"
+                  :disabled="buildingCaches || !hasSelectedBuildOptions"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                  <span v-if="buildingCaches">Building...</span>
+                  <span v-else>Build Caches</span>
+                </button>
+                <p v-if="buildResult" class="cache-result" :class="buildResultClass">
+                  {{ buildResult }}
+                </p>
+              </div>
+              
+              <div class="setting-row vertical">
+                <div class="setting-info">
+                  <div class="setting-name">Clear Caches</div>
+                  <div class="setting-desc">Delete cache files for all scenarios</div>
+                </div>
+                <div class="cache-options">
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="clearOptions.info" />
+                    <span>Info (_info.yaml)</span>
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="clearOptions.stats" />
+                    <span>Stats (_stats.yaml)</span>
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="clearOptions.plots" />
+                    <span>Plots (_plot.webp or _plots/)</span>
+                  </label>
+                </div>
+                <button
+                  class="btn-action danger"
+                  @click="clearCaches"
+                  :disabled="clearingCaches || !hasSelectedClearOptions"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
+                  <span v-if="clearingCaches">Clearing...</span>
+                  <span v-else>Clear Caches</span>
+                </button>
+                <p v-if="clearResult" class="cache-result" :class="clearResultClass">
+                  {{ clearResult }}
+                </p>
+              </div>
+            </div>
+          </div>
+          
           <!-- Import/Export Tab -->
           <div v-if="activeTab === 'import-export'" class="settings-panel">
             <h2 class="panel-title">Import & Export</h2>
@@ -425,7 +541,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { storeToRefs } from 'pinia'
 
@@ -471,6 +587,11 @@ const tabs = [
     id: 'paths', 
     label: 'Paths',
     icon: 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'
+  },
+  { 
+    id: 'cache', 
+    label: 'Cache',
+    icon: 'M3 12h4l3 9 4-18 3 9h4'
   },
   { 
     id: 'import-export', 
@@ -560,7 +681,154 @@ async function handleImport(event) {
     if (result.partial) {
       importStatus.value += ' (with some errors)'
       importStatusClass.value = 'warning'
+}
+
+// Cache management state
+const cacheStatus = ref(null)
+const loadingCacheStatus = ref(false)
+const buildingCaches = ref(false)
+const clearingCaches = ref(false)
+const buildResult = ref('')
+const clearResult = ref('')
+const buildResultClass = ref('')
+const clearResultClass = ref('')
+
+const buildOptions = ref({
+  info: false,
+  stats: false,
+  plots: false,
+})
+
+const clearOptions = ref({
+  info: false,
+  stats: false,
+  plots: false,
+})
+
+const hasSelectedBuildOptions = computed(() => {
+  return buildOptions.value.info || buildOptions.value.stats || buildOptions.value.plots
+})
+
+const hasSelectedClearOptions = computed(() => {
+  return clearOptions.value.info || clearOptions.value.stats || clearOptions.value.plots
+})
+
+// Cache management methods
+async function loadCacheStatus() {
+  loadingCacheStatus.value = true
+  try {
+    const response = await fetch('/api/cache/scenarios/status')
+    const data = await response.json()
+    if (data.success) {
+      cacheStatus.value = data.status
     }
+  } catch (error) {
+    console.error('Failed to load cache status:', error)
+  } finally {
+    loadingCacheStatus.value = false
+  }
+}
+
+async function buildCaches() {
+  if (!hasSelectedBuildOptions.value) return
+  
+  buildingCaches.value = true
+  buildResult.value = ''
+  
+  try {
+    const params = new URLSearchParams()
+    if (buildOptions.value.info) params.append('info', 'true')
+    if (buildOptions.value.stats) params.append('stats', 'true')
+    if (buildOptions.value.plots) params.append('plots', 'true')
+    
+    const response = await fetch(`/api/cache/scenarios/build?${params}`, {
+      method: 'POST',
+    })
+    const data = await response.json()
+    
+    if (data.success) {
+      const results = data.results
+      buildResult.value = `Built caches for ${results.successful}/${results.total} scenarios. `
+      if (buildOptions.value.info) buildResult.value += `Info: ${results.info_created}. `
+      if (buildOptions.value.stats) buildResult.value += `Stats: ${results.stats_created}. `
+      if (buildOptions.value.plots) buildResult.value += `Plots: ${results.plots_created}. `
+      
+      if (results.failed > 0) {
+        buildResult.value += `(${results.failed} failed)`
+        buildResultClass.value = 'warning'
+      } else {
+        buildResultClass.value = 'success'
+      }
+      
+      // Reload cache status
+      await loadCacheStatus()
+    } else {
+      buildResult.value = 'Error: ' + (data.error || 'Unknown error')
+      buildResultClass.value = 'error'
+    }
+  } catch (error) {
+    buildResult.value = 'Failed to build caches: ' + error.message
+    buildResultClass.value = 'error'
+  } finally {
+    buildingCaches.value = false
+  }
+}
+
+async function clearCaches() {
+  if (!hasSelectedClearOptions.value) return
+  
+  const types = []
+  if (clearOptions.value.info) types.push('info')
+  if (clearOptions.value.stats) types.push('stats')
+  if (clearOptions.value.plots) types.push('plots')
+  
+  if (!confirm(`Are you sure you want to delete ${types.join(', ')} cache files for all scenarios? This cannot be undone.`)) {
+    return
+  }
+  
+  clearingCaches.value = true
+  clearResult.value = ''
+  
+  try {
+    const params = new URLSearchParams()
+    if (clearOptions.value.info) params.append('info', 'true')
+    if (clearOptions.value.stats) params.append('stats', 'true')
+    if (clearOptions.value.plots) params.append('plots', 'true')
+    
+    const response = await fetch(`/api/cache/scenarios/clear?${params}`, {
+      method: 'POST',
+    })
+    const data = await response.json()
+    
+    if (data.success) {
+      const results = data.results
+      clearResult.value = `Cleared caches from ${results.total} scenarios. `
+      if (clearOptions.value.info) clearResult.value += `Info: ${results.info_deleted}. `
+      if (clearOptions.value.stats) clearResult.value += `Stats: ${results.stats_deleted}. `
+      if (clearOptions.value.plots) clearResult.value += `Plots: ${results.plots_deleted}. `
+      clearResultClass.value = 'success'
+      
+      // Reload cache status
+      await loadCacheStatus()
+    } else {
+      clearResult.value = 'Error: ' + (data.error || 'Unknown error')
+      clearResultClass.value = 'error'
+    }
+  } catch (error) {
+    clearResult.value = 'Failed to clear caches: ' + error.message
+    clearResultClass.value = 'error'
+  } finally {
+    clearingCaches.value = false
+  }
+}
+
+// Load cache status when cache tab is opened
+watch(activeTab, (newVal) => {
+  if (newVal === 'cache' && !cacheStatus.value) {
+    loadCacheStatus()
+  }
+})
+
   } else {
     importStatus.value = 'Import failed: ' + (result.error || 'Unknown error')
     importStatusClass.value = 'error'
@@ -1064,5 +1332,83 @@ function handleReset() {
 .btn-footer.primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Cache management styles */
+.cache-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.stat-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.stat-value {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.cache-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.cache-result {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.cache-result.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.cache-result.warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.cache-result.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 </style>

@@ -22,6 +22,7 @@ dependencies = [
     "sse-starlette>=2.1.0",
     "plotly>=6.5.1",
     "typer>=0.12.0",
+    "rich>=13.7.0",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +46,7 @@ docs = [
 [project.scripts]
 negmas-app = "negmas_app.main:cli"
 negmas-legacy = "negmas_app.legacy_main:cli"
+negmas-helper = "negmas_app.helper_main:cli"
 
 
 [tool.hatch.build.targets.wheel]
