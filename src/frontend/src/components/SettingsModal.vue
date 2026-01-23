@@ -530,26 +530,57 @@
                   v-for="filter in savedFilters"
                   :key="filter.id"
                   class="filter-item"
+                  :class="{ 'is-default': filter.id === defaultFilterId }"
                 >
                   <div class="filter-info">
-                    <div class="filter-name">{{ filter.name }}</div>
+                    <div class="filter-name">
+                      {{ filter.name }}
+                      <span v-if="filter.id === defaultFilterId" class="default-badge">DEFAULT</span>
+                    </div>
                     <div class="filter-desc" v-if="filter.description">{{ filter.description }}</div>
                     <div class="filter-meta">
                       Created: {{ formatDate(filter.created_at) }}
                     </div>
                   </div>
-                  <button
-                    class="btn-action danger small"
-                    @click="deleteFilter(filter.id)"
-                    :disabled="deletingFilterId === filter.id"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                    <span v-if="deletingFilterId === filter.id">Deleting...</span>
-                    <span v-else>Delete</span>
-                  </button>
+                  <div class="filter-item-actions">
+                    <button
+                      v-if="filter.id !== defaultFilterId"
+                      class="btn-action secondary small"
+                      @click="setDefaultFilter(filter.id)"
+                      :disabled="settingDefaultFilterId === filter.id"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      </svg>
+                      <span v-if="settingDefaultFilterId === filter.id">Setting...</span>
+                      <span v-else>Set Default</span>
+                    </button>
+                    <button
+                      v-else
+                      class="btn-action secondary small"
+                      @click="clearDefaultFilter()"
+                      :disabled="clearingDefaultFilter"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                      <span v-if="clearingDefaultFilter">Clearing...</span>
+                      <span v-else>Clear Default</span>
+                    </button>
+                    <button
+                      class="btn-action danger small"
+                      @click="deleteFilter(filter.id)"
+                      :disabled="deletingFilterId === filter.id"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                      <span v-if="deletingFilterId === filter.id">Deleting...</span>
+                      <span v-else>Delete</span>
+                    </button>
+                  </div>
                 </div>
               </div>
               
@@ -721,6 +752,9 @@ const filterResultClass = ref('')
 const exportingFilters = ref(false)
 const importingFilters = ref(false)
 const importFileInput = ref(null)
+const defaultFilterId = ref(null)
+const settingDefaultFilterId = ref(null)
+const clearingDefaultFilter = ref(false)
 
 const tabs = [
   { 
@@ -1015,10 +1049,20 @@ async function loadFilters() {
   loadingFilters.value = true
   filterActionResult.value = ''
   try {
+    // Load filters list
     const response = await fetch(`/api/filters?type=${filterTypeTab.value}`)
     const data = await response.json()
     if (data.success) {
       savedFilters.value = data.filters
+    }
+    
+    // Load default filter ID
+    const defaultResponse = await fetch(`/api/filters/default/${filterTypeTab.value}`)
+    const defaultData = await defaultResponse.json()
+    if (defaultData.success && defaultData.filter) {
+      defaultFilterId.value = defaultData.filter.id
+    } else {
+      defaultFilterId.value = null
     }
   } catch (error) {
     console.error('Failed to load filters:', error)
@@ -1062,6 +1106,58 @@ function formatDate(isoString) {
   if (!isoString) return ''
   const date = new Date(isoString)
   return date.toLocaleString()
+}
+
+async function setDefaultFilter(filterId) {
+  settingDefaultFilterId.value = filterId
+  filterActionResult.value = ''
+  
+  try {
+    const response = await fetch(`/api/filters/default/${filterTypeTab.value}/${filterId}`, {
+      method: 'POST'
+    })
+    const data = await response.json()
+    
+    if (data.success) {
+      defaultFilterId.value = filterId
+      filterActionResult.value = 'Default filter set successfully'
+      filterResultClass.value = 'success'
+    } else {
+      filterActionResult.value = 'Failed to set default filter'
+      filterResultClass.value = 'error'
+    }
+  } catch (error) {
+    filterActionResult.value = 'Error setting default filter: ' + error.message
+    filterResultClass.value = 'error'
+  } finally {
+    settingDefaultFilterId.value = null
+  }
+}
+
+async function clearDefaultFilter() {
+  clearingDefaultFilter.value = true
+  filterActionResult.value = ''
+  
+  try {
+    const response = await fetch(`/api/filters/default/${filterTypeTab.value}`, {
+      method: 'DELETE'
+    })
+    const data = await response.json()
+    
+    if (data.success) {
+      defaultFilterId.value = null
+      filterActionResult.value = 'Default filter cleared successfully'
+      filterResultClass.value = 'success'
+    } else {
+      filterActionResult.value = 'Failed to clear default filter'
+      filterResultClass.value = 'error'
+    }
+  } catch (error) {
+    filterActionResult.value = 'Error clearing default filter: ' + error.message
+    filterResultClass.value = 'error'
+  } finally {
+    clearingDefaultFilter.value = false
+  }
 }
 
 async function exportFilters() {
@@ -1816,6 +1912,11 @@ function handleReset() {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+.filter-item.is-default {
+  border-color: var(--primary-color);
+  background: rgba(var(--primary-color-rgb), 0.05);
+}
+
 .filter-info {
   flex: 1;
 }
@@ -1825,6 +1926,21 @@ function handleReset() {
   font-size: 0.95rem;
   color: var(--text-primary);
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.default-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--primary-color);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .filter-desc {
@@ -1836,6 +1952,12 @@ function handleReset() {
 .filter-meta {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.filter-item-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .btn-action.small {

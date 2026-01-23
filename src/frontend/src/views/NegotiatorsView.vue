@@ -384,6 +384,7 @@ const selectedFilterId = ref('')
 onMounted(async () => {
   await loadData()
   await loadSavedFilters()
+  await loadDefaultFilter()
 })
 
 async function loadData() {
@@ -393,8 +394,45 @@ async function loadData() {
     negotiatorsStore.loadVirtualNegotiators(),
   ])
   
-  // Set initial filter
-  negotiatorsStore.updateFilter({ availableOnly: true })
+  // Set initial filter only if no default filter will be applied
+  const defaultFilterResponse = await fetch('/api/filters/default/negotiator')
+  const defaultFilterData = await defaultFilterResponse.json()
+  if (!defaultFilterData.success || !defaultFilterData.filter) {
+    negotiatorsStore.updateFilter({ availableOnly: true })
+  }
+}
+
+async function loadDefaultFilter() {
+  try {
+    const response = await fetch('/api/filters/default/negotiator')
+    const data = await response.json()
+    
+    if (data.success && data.filter) {
+      // Apply default filter
+      const filterData = data.filter.data
+      localSearch.value = filterData.search || ''
+      localSource.value = filterData.source || ''
+      localGroup.value = filterData.group || ''
+      localMechanism.value = filterData.mechanism || ''
+      localAvailableOnly.value = filterData.availableOnly !== undefined ? filterData.availableOnly : true
+      
+      // Update store with default filter
+      negotiatorsStore.updateFilter({
+        search: localSearch.value,
+        source: localSource.value,
+        group: localGroup.value,
+        mechanism: localMechanism.value,
+        availableOnly: localAvailableOnly.value
+      })
+      
+      // Reload negotiators if filters changed
+      if (localSource.value || localGroup.value || localSearch.value) {
+        negotiatorsStore.loadNegotiators(localSource.value, localGroup.value, localSearch.value)
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load default filter:', error)
+  }
 }
 
 function updateSearch() {

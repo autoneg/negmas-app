@@ -233,3 +233,71 @@ def import_filters(request: ImportFiltersRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/default/{filter_type}/{filter_id}")
+def set_default_filter(filter_type: str, filter_id: str):
+    """Set a filter as the default for its type.
+
+    Args:
+        filter_type: "scenario" or "negotiator".
+        filter_id: ID of the filter to set as default.
+
+    Returns:
+        Success status.
+    """
+    if filter_type not in ["scenario", "negotiator"]:
+        raise HTTPException(status_code=400, detail="Invalid filter type")
+
+    success = filter_service.set_default_filter(filter_id, filter_type)
+    if not success:
+        raise HTTPException(status_code=404, detail="Filter not found")
+
+    return {"success": True}
+
+
+@router.delete("/default/{filter_type}")
+def clear_default_filter(filter_type: str):
+    """Clear the default filter for a type.
+
+    Args:
+        filter_type: "scenario" or "negotiator".
+
+    Returns:
+        Success status.
+    """
+    if filter_type not in ["scenario", "negotiator"]:
+        raise HTTPException(status_code=400, detail="Invalid filter type")
+
+    success = filter_service.clear_default_filter(filter_type)
+    return {"success": success}
+
+
+@router.get("/default/{filter_type}")
+def get_default_filter(filter_type: str):
+    """Get the default filter for a type.
+
+    Args:
+        filter_type: "scenario" or "negotiator".
+
+    Returns:
+        The default filter if set, or null.
+    """
+    if filter_type not in ["scenario", "negotiator"]:
+        raise HTTPException(status_code=400, detail="Invalid filter type")
+
+    filter_obj = filter_service.get_default_filter(filter_type)
+    if filter_obj is None:
+        return {"success": True, "filter": None}
+
+    return {
+        "success": True,
+        "filter": {
+            "id": filter_obj.id,
+            "name": filter_obj.name,
+            "type": filter_obj.type,
+            "data": filter_obj.data,
+            "description": filter_obj.description,
+            "created_at": filter_obj.created_at,
+        },
+    }

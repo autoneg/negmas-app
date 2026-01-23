@@ -127,6 +127,10 @@ class FilterSettings:
     # Saved negotiator filters
     negotiator_filters: list[SavedFilter] = field(default_factory=list)
 
+    # Default filter IDs (auto-apply on view load)
+    default_scenario_filter_id: str | None = None
+    default_negotiator_filter_id: str | None = None
+
 
 @dataclass
 class PerformanceSettings:

@@ -50,6 +50,8 @@ class FilterService:
             return FilterSettings(
                 scenario_filters=scenario_filters,
                 negotiator_filters=negotiator_filters,
+                default_scenario_filter_id=data.get("default_scenario_filter_id"),
+                default_negotiator_filter_id=data.get("default_negotiator_filter_id"),
             )
         except Exception as e:
             print(f"Warning: Failed to load filters: {e}")
@@ -84,6 +86,8 @@ class FilterService:
                 }
                 for f in settings.negotiator_filters
             ],
+            "default_scenario_filter_id": settings.default_scenario_filter_id,
+            "default_negotiator_filter_id": settings.default_negotiator_filter_id,
         }
 
         with open(self.filters_file, "w") as f:
@@ -387,3 +391,75 @@ class FilterService:
             "imported": imported_count,
             "errors": errors,
         }
+
+    def set_default_filter(self, filter_id: str, filter_type: str) -> bool:
+        """Set a filter as the default for its type.
+
+        Args:
+            filter_id: ID of the filter to set as default.
+            filter_type: "scenario" or "negotiator".
+
+        Returns:
+            True if successfully set, False if filter not found.
+        """
+        settings = self.load_filters()
+
+        # Verify the filter exists
+        filter_obj = self.get_filter(filter_id)
+        if filter_obj is None or filter_obj.type != filter_type:
+            return False
+
+        # Set as default
+        if filter_type == "scenario":
+            settings.default_scenario_filter_id = filter_id
+        elif filter_type == "negotiator":
+            settings.default_negotiator_filter_id = filter_id
+        else:
+            return False
+
+        self.save_filters(settings)
+        return True
+
+    def clear_default_filter(self, filter_type: str) -> bool:
+        """Clear the default filter for a type.
+
+        Args:
+            filter_type: "scenario" or "negotiator".
+
+        Returns:
+            True if successfully cleared.
+        """
+        settings = self.load_filters()
+
+        if filter_type == "scenario":
+            settings.default_scenario_filter_id = None
+        elif filter_type == "negotiator":
+            settings.default_negotiator_filter_id = None
+        else:
+            return False
+
+        self.save_filters(settings)
+        return True
+
+    def get_default_filter(self, filter_type: str) -> SavedFilter | None:
+        """Get the default filter for a type.
+
+        Args:
+            filter_type: "scenario" or "negotiator".
+
+        Returns:
+            The default SavedFilter if set, None otherwise.
+        """
+        settings = self.load_filters()
+
+        if filter_type == "scenario":
+            filter_id = settings.default_scenario_filter_id
+        elif filter_type == "negotiator":
+            filter_id = settings.default_negotiator_filter_id
+        else:
+            return None
+
+        if filter_id is None:
+            return None
+
+        return self.get_filter(filter_id)

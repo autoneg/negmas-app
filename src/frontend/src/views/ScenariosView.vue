@@ -643,6 +643,7 @@ const negotiatorNamesForPlot = computed(() => {
 onMounted(async () => {
   await loadData()
   await loadSavedFilters()
+  await loadDefaultFilter()
 })
 
 async function loadData() {
@@ -650,6 +651,48 @@ async function loadData() {
     scenariosStore.loadSources(),
     scenariosStore.loadScenarios(),
   ])
+}
+
+async function loadDefaultFilter() {
+  try {
+    const response = await fetch('/api/filters/default/scenario')
+    const data = await response.json()
+    
+    if (data.success && data.filter) {
+      // Apply default filter
+      const filterData = data.filter.data
+      localSearch.value = filterData.search || ''
+      localSource.value = filterData.source || ''
+      localFilters.value = {
+        minOutcomes: filterData.minOutcomes || null,
+        maxOutcomes: filterData.maxOutcomes || null,
+        minNegotiators: filterData.minNegotiators || null,
+        maxNegotiators: filterData.maxNegotiators || null,
+        minOpposition: filterData.minOpposition || null,
+        maxOpposition: filterData.maxOpposition || null,
+        minRationalFraction: filterData.minRationalFraction || null,
+        maxRationalFraction: filterData.maxRationalFraction || null,
+        normalized: filterData.normalized || '',
+        anac: filterData.anac || '',
+        file: filterData.file || '',
+        format: filterData.format || ''
+      }
+      
+      // Update store with default filter
+      scenariosStore.updateFilter({
+        search: localSearch.value,
+        source: localSource.value,
+        ...localFilters.value
+      })
+      
+      // Reload scenarios if source changed
+      if (localSource.value) {
+        scenariosStore.loadScenarios(localSource.value)
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load default filter:', error)
+  }
 }
 
 function updateSearch() {
