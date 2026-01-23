@@ -16,6 +16,9 @@ async def build_scenario_caches(
     stats: Annotated[bool, Query(description="Build stats cache")] = False,
     plots: Annotated[bool, Query(description="Build plot caches")] = False,
     all: Annotated[bool, Query(description="Build all caches")] = False,
+    compact: Annotated[
+        bool, Query(description="Exclude Pareto frontier from stats")
+    ] = False,
 ):
     """Build cache files for all scenarios.
 
@@ -24,6 +27,7 @@ async def build_scenario_caches(
         - stats: Build _stats.yaml files
         - plots: Build plot files (_plot.webp or _plots/)
         - all: Build all cache types
+        - compact: Exclude Pareto frontier from stats (saves disk space)
 
     Returns build statistics.
     """
@@ -45,6 +49,7 @@ async def build_scenario_caches(
         build_info=info,
         build_stats=stats,
         build_plots=plots,
+        compact=compact,
     )
 
     return {

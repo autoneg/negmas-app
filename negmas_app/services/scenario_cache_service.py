@@ -59,6 +59,7 @@ class ScenarioCacheService:
         build_info: bool = False,
         build_stats: bool = False,
         build_plots: bool = False,
+        compact: bool = False,
     ) -> dict[str, Any]:
         """Build cache files for all scenarios.
 
@@ -66,6 +67,7 @@ class ScenarioCacheService:
             build_info: Build _info.yaml files
             build_stats: Build _stats.yaml files
             build_plots: Build plot files (_plot.webp or _plots/)
+            compact: If True, exclude Pareto frontier from stats (saves space)
 
         Returns:
             Dictionary with build results and statistics.
@@ -90,6 +92,7 @@ class ScenarioCacheService:
                     build_info=build_info,
                     build_stats=build_stats,
                     build_plots=build_plots,
+                    compact=compact,
                 )
 
                 if success["success"]:
@@ -115,6 +118,7 @@ class ScenarioCacheService:
         build_info: bool = False,
         build_stats: bool = False,
         build_plots: bool = False,
+        compact: bool = False,
         console=None,
     ) -> dict[str, Any]:
         """Build cache files for all scenarios with rich progress display.
@@ -123,6 +127,7 @@ class ScenarioCacheService:
             build_info: Build _info.yaml files
             build_stats: Build _stats.yaml files
             build_plots: Build plot files (_plot.webp or _plots/)
+            compact: If True, exclude Pareto frontier from stats (saves space)
             console: Rich console for output (optional)
 
         Returns:
@@ -176,6 +181,7 @@ class ScenarioCacheService:
                         build_info=build_info,
                         build_stats=build_stats,
                         build_plots=build_plots,
+                        compact=compact,
                     )
 
                     if success["success"]:
@@ -306,6 +312,7 @@ class ScenarioCacheService:
         build_info: bool,
         build_stats: bool,
         build_plots: bool,
+        compact: bool = False,
     ) -> dict[str, Any]:
         """Build cache files for a single scenario.
 
@@ -314,6 +321,7 @@ class ScenarioCacheService:
             build_info: Build _info.yaml
             build_stats: Build _stats.yaml
             build_plots: Build plot files
+            compact: If True, exclude Pareto frontier from stats
 
         Returns:
             Dictionary with success status and counts.
@@ -362,14 +370,31 @@ class ScenarioCacheService:
                     # Calculate stats using negmas built-in method
                     scenario.calc_stats()
 
-                    # Save with stats
-                    scenario.dumpas(scenario_dir, save_stats=True, save_info=False)
+                    # Save stats with include_pareto_frontier option
+                    scenario.save_stats(
+                        scenario_dir,
+                        compact=False,
+                        include_pareto_frontier=not compact,  # Exclude if compact=True
+                    )
 
                     result["stats_created"] = 1
 
             # Build plot cache
             if build_plots:
                 n_negotiators = len(scenario.ufuns)
+
+                # If stats are being built or already exist, ensure they're loaded
+                # so we can include special points in plots
+                if build_stats or (scenario_dir / "_stats.yaml").exists():
+                    if not hasattr(scenario, "stats") or scenario.stats is None:
+                        # Load stats from file if they exist
+                        stats_file = scenario_dir / "_stats.yaml"
+                        if stats_file.exists():
+                            scenario = Scenario.load(
+                                scenario_dir, load_stats=True, load_info=False
+                            )
+                    # If stats are being built, they're already calculated above
+                    # (scenario.calc_stats() was called)
 
                 if n_negotiators == 2:
                     # Bilateral: single _plot.webp
@@ -431,6 +456,7 @@ class ScenarioCacheService:
         # Create plot
         fig = go.Figure()
 
+        # Add all outcomes
         fig.add_trace(
             go.Scatter(
                 x=utilities_0,
@@ -442,6 +468,55 @@ class ScenarioCacheService:
             )
         )
 
+        # Add Pareto frontier if stats are available
+        if (
+            hasattr(scenario, "stats")
+            and scenario.stats
+            and scenario.stats.pareto_utils
+        ):
+            pareto_x = [u[0] for u in scenario.stats.pareto_utils]
+            pareto_y = [u[1] for u in scenario.stats.pareto_utils]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=pareto_x,
+                    y=pareto_y,
+                    mode="markers",
+                    marker=dict(size=6, color="red"),
+                    name="Pareto Frontier",
+                    showlegend=True,
+                )
+            )
+
+        # Add special points if stats are available
+        special_points = []
+        if hasattr(scenario, "stats") and scenario.stats:
+            if scenario.stats.nash_utils and len(scenario.stats.nash_utils) > 0:
+                special_points.append(("Nash", scenario.stats.nash_utils[0], "purple"))
+            if scenario.stats.kalai_utils and len(scenario.stats.kalai_utils) > 0:
+                special_points.append(("Kalai", scenario.stats.kalai_utils[0], "green"))
+            if scenario.stats.ks_utils and len(scenario.stats.ks_utils) > 0:
+                special_points.append(("KS", scenario.stats.ks_utils[0], "orange"))
+            if (
+                scenario.stats.max_welfare_utils
+                and len(scenario.stats.max_welfare_utils) > 0
+            ):
+                special_points.append(
+                    ("MaxWelfare", scenario.stats.max_welfare_utils[0], "blue")
+                )
+
+        for name, utils, color in special_points:
+            fig.add_trace(
+                go.Scatter(
+                    x=[utils[0]],
+                    y=[utils[1]],
+                    mode="markers",
+                    marker=dict(size=12, color=color, symbol="star"),
+                    name=name,
+                    showlegend=True,
+                )
+            )
+
         fig.update_layout(
             xaxis_title=getattr(scenario.ufuns[0], "name", "Negotiator 0"),
             yaxis_title=getattr(scenario.ufuns[1], "name", "Negotiator 1"),
@@ -450,6 +525,8 @@ class ScenarioCacheService:
             margin=dict(l=60, r=20, t=20, b=60),
             plot_bgcolor="white",
             paper_bgcolor="white",
+            showlegend=True,
+            legend=dict(x=1.05, y=1, xanchor="left", yanchor="top"),
         )
 
         fig.update_xaxes(gridcolor="#e0e0e0")
@@ -486,6 +563,7 @@ class ScenarioCacheService:
         # Create plot
         fig = go.Figure()
 
+        # Add all outcomes
         fig.add_trace(
             go.Scatter(
                 x=utilities_1,
@@ -497,6 +575,55 @@ class ScenarioCacheService:
             )
         )
 
+        # Add Pareto frontier if stats are available (project to 2D)
+        if (
+            hasattr(scenario, "stats")
+            and scenario.stats
+            and scenario.stats.pareto_utils
+        ):
+            pareto_x = [u[idx1] for u in scenario.stats.pareto_utils]
+            pareto_y = [u[idx2] for u in scenario.stats.pareto_utils]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=pareto_x,
+                    y=pareto_y,
+                    mode="markers",
+                    marker=dict(size=6, color="red"),
+                    name="Pareto Frontier",
+                    showlegend=True,
+                )
+            )
+
+        # Add special points if stats are available (project to 2D)
+        special_points = []
+        if hasattr(scenario, "stats") and scenario.stats:
+            if scenario.stats.nash_utils and len(scenario.stats.nash_utils) > 0:
+                special_points.append(("Nash", scenario.stats.nash_utils[0], "purple"))
+            if scenario.stats.kalai_utils and len(scenario.stats.kalai_utils) > 0:
+                special_points.append(("Kalai", scenario.stats.kalai_utils[0], "green"))
+            if scenario.stats.ks_utils and len(scenario.stats.ks_utils) > 0:
+                special_points.append(("KS", scenario.stats.ks_utils[0], "orange"))
+            if (
+                scenario.stats.max_welfare_utils
+                and len(scenario.stats.max_welfare_utils) > 0
+            ):
+                special_points.append(
+                    ("MaxWelfare", scenario.stats.max_welfare_utils[0], "blue")
+                )
+
+        for name, utils, color in special_points:
+            fig.add_trace(
+                go.Scatter(
+                    x=[utils[idx1]],
+                    y=[utils[idx2]],
+                    mode="markers",
+                    marker=dict(size=12, color=color, symbol="star"),
+                    name=name,
+                    showlegend=True,
+                )
+            )
+
         fig.update_layout(
             xaxis_title=getattr(scenario.ufuns[idx1], "name", f"Negotiator {idx1}"),
             yaxis_title=getattr(scenario.ufuns[idx2], "name", f"Negotiator {idx2}"),
@@ -505,6 +632,8 @@ class ScenarioCacheService:
             margin=dict(l=60, r=20, t=20, b=60),
             plot_bgcolor="white",
             paper_bgcolor="white",
+            showlegend=True,
+            legend=dict(x=1.05, y=1, xanchor="left", yanchor="top"),
         )
 
         fig.update_xaxes(gridcolor="#e0e0e0")

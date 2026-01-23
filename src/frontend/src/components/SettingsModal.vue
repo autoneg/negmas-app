@@ -392,6 +392,10 @@
                     <span>Stats (_stats.yaml)</span>
                   </label>
                   <label class="checkbox-label">
+                    <input type="checkbox" v-model="buildOptions.compact" :disabled="!buildOptions.stats" />
+                    <span>Compact (exclude Pareto frontier)</span>
+                  </label>
+                  <label class="checkbox-label">
                     <input type="checkbox" v-model="buildOptions.plots" />
                     <span>Plots (_plot.webp or _plots/)</span>
                   </label>
@@ -697,6 +701,7 @@ const buildOptions = ref({
   info: false,
   stats: false,
   plots: false,
+  compact: false,
 })
 
 const clearOptions = ref({
@@ -740,6 +745,7 @@ async function buildCaches() {
     if (buildOptions.value.info) params.append('info', 'true')
     if (buildOptions.value.stats) params.append('stats', 'true')
     if (buildOptions.value.plots) params.append('plots', 'true')
+    if (buildOptions.value.compact) params.append('compact', 'true')
     
     const response = await fetch(`/api/cache/scenarios/build?${params}`, {
       method: 'POST',
@@ -750,7 +756,11 @@ async function buildCaches() {
       const results = data.results
       buildResult.value = `Built caches for ${results.successful}/${results.total} scenarios. `
       if (buildOptions.value.info) buildResult.value += `Info: ${results.info_created}. `
-      if (buildOptions.value.stats) buildResult.value += `Stats: ${results.stats_created}. `
+      if (buildOptions.value.stats) {
+        buildResult.value += `Stats: ${results.stats_created}`
+        if (buildOptions.value.compact) buildResult.value += ' (compact)'
+        buildResult.value += '. '
+      }
       if (buildOptions.value.plots) buildResult.value += `Plots: ${results.plots_created}. `
       
       if (results.failed > 0) {

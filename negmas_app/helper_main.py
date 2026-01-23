@@ -51,6 +51,9 @@ def cache_build(
         bool, typer.Option(help="Build plot caches (_plot.webp or _plots/)")
     ] = False,
     all: Annotated[bool, typer.Option(help="Build all cache types")] = False,
+    compact: Annotated[
+        bool, typer.Option(help="Exclude Pareto frontier from stats (saves disk space)")
+    ] = False,
 ) -> None:
     """Build cache files for scenarios.
 
@@ -58,6 +61,7 @@ def cache_build(
         negmas-helper cache build scenarios --info --stats
         negmas-helper cache build scenarios --plots
         negmas-helper cache build scenarios --all
+        negmas-helper cache build scenarios --stats --compact
     """
     if target != "scenarios":
         console.print(
@@ -81,7 +85,10 @@ def cache_build(
     if info:
         cache_types.append("[cyan]info[/cyan]")
     if stats:
-        cache_types.append("[magenta]stats[/magenta]")
+        stats_label = "[magenta]stats[/magenta]"
+        if compact:
+            stats_label += " [dim](compact)[/dim]"
+        cache_types.append(stats_label)
     if plots:
         cache_types.append("[yellow]plots[/yellow]")
 
@@ -100,6 +107,7 @@ def cache_build(
         build_info=info,
         build_stats=stats,
         build_plots=plots,
+        compact=compact,
         console=console,
     )
 
