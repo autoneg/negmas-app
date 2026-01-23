@@ -590,21 +590,27 @@ function renderPlot() {
       y: paretoY,
       mode: 'markers',
       type: 'scatter',
-      marker: { size: 5, color: 'red', symbol: 'diamond' },
-      name: 'Pareto Frontier',
+      marker: { size: 4, color: 'red', symbol: 'circle' },
+      name: 'Pareto',
       hovertemplate: `Pareto<br>${names[idx1] || 'N1'}: %{x:.3f}<br>` +
                      `${names[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
     })
   }
   
   // Add Nash point if available
+  // Using markers from negmas/src/negmas/plots/util.py (NASH_MARKER, NASH_COLOR)
   if (stats?.nash_utils && stats.nash_utils.length > 0) {
     traces.push({
       x: stats.nash_utils.map(u => u[idx1]),
       y: stats.nash_utils.map(u => u[idx2]),
       mode: 'markers',
       type: 'scatter',
-      marker: { size: 10, color: 'green', symbol: 'star' },
+      marker: { 
+        size: 14, 
+        color: 'rgba(0,0,0,0)', 
+        symbol: 'triangle-left',
+        line: { color: 'brown', width: 2.5 }
+      },
       name: 'Nash',
       hovertemplate: `Nash<br>${names[idx1] || 'N1'}: %{x:.3f}<br>` +
                      `${names[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
@@ -612,13 +618,19 @@ function renderPlot() {
   }
   
   // Add Kalai point if available
+  // Using markers from negmas/src/negmas/plots/util.py (KALAI_MARKER, KALAI_COLOR)
   if (stats?.kalai_utils && stats.kalai_utils.length > 0) {
     traces.push({
       x: stats.kalai_utils.map(u => u[idx1]),
       y: stats.kalai_utils.map(u => u[idx2]),
       mode: 'markers',
       type: 'scatter',
-      marker: { size: 10, color: 'orange', symbol: 'square' },
+      marker: { 
+        size: 14, 
+        color: 'rgba(0,0,0,0)', 
+        symbol: 'triangle-down',
+        line: { color: 'green', width: 2.5 }
+      },
       name: 'Kalai',
       hovertemplate: `Kalai<br>${names[idx1] || 'N1'}: %{x:.3f}<br>` +
                      `${names[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
@@ -626,13 +638,19 @@ function renderPlot() {
   }
   
   // Add KS point if available
+  // Using markers from negmas/src/negmas/plots/util.py (KS_MARKER, KS_COLOR)
   if (stats?.ks_utils && stats.ks_utils.length > 0) {
     traces.push({
       x: stats.ks_utils.map(u => u[idx1]),
       y: stats.ks_utils.map(u => u[idx2]),
       mode: 'markers',
       type: 'scatter',
-      marker: { size: 10, color: 'purple', symbol: 'cross' },
+      marker: { 
+        size: 14, 
+        color: 'rgba(0,0,0,0)', 
+        symbol: 'triangle-up',
+        line: { color: 'cyan', width: 2.5 }
+      },
       name: 'KS',
       hovertemplate: `KS<br>${names[idx1] || 'N1'}: %{x:.3f}<br>` +
                      `${names[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
@@ -640,14 +658,20 @@ function renderPlot() {
   }
   
   // Add Max Welfare point if available
+  // Using markers from negmas/src/negmas/plots/util.py (WELFARE_MARKER, WELFARE_COLOR)
   if (stats?.max_welfare_utils && stats.max_welfare_utils.length > 0) {
     traces.push({
       x: stats.max_welfare_utils.map(u => u[idx1]),
       y: stats.max_welfare_utils.map(u => u[idx2]),
       mode: 'markers',
       type: 'scatter',
-      marker: { size: 10, color: 'blue', symbol: 'diamond-open' },
-      name: 'Max Welfare',
+      marker: { 
+        size: 14, 
+        color: 'rgba(0,0,0,0)', 
+        symbol: 'triangle-right',
+        line: { color: 'blue', width: 2.5 }
+      },
+      name: 'MaxWelfare',
       hovertemplate: `Max Welfare<br>${names[idx1] || 'N1'}: %{x:.3f}<br>` +
                      `${names[idx2] || 'N2'}: %{y:.3f}<extra></extra>`
     })
