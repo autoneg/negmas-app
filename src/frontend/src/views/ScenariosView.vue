@@ -683,7 +683,7 @@ function renderPlot() {
     const reservedVal1 = data.reserved_values[idx1]
     const reservedVal2 = data.reserved_values[idx2]
     
-    // Vertical line for negotiator 1's reservation value
+    // Vertical line for horizontal negotiator's reservation value (idx1)
     if (reservedVal1 !== null && reservedVal1 !== undefined) {
       shapes.push({
         type: 'line',
@@ -693,14 +693,14 @@ function renderPlot() {
         y1: 1,
         yref: 'paper',
         line: {
-          color: 'rgba(128, 128, 128, 0.5)',
+          color: 'red',
           width: 2,
           dash: 'dash'
         }
       })
     }
     
-    // Horizontal line for negotiator 2's reservation value
+    // Horizontal line for vertical negotiator's reservation value (idx2)
     if (reservedVal2 !== null && reservedVal2 !== undefined) {
       shapes.push({
         type: 'line',
@@ -710,7 +710,7 @@ function renderPlot() {
         y0: reservedVal2,
         y1: reservedVal2,
         line: {
-          color: 'rgba(128, 128, 128, 0.5)',
+          color: 'red',
           width: 2,
           dash: 'dash'
         }
