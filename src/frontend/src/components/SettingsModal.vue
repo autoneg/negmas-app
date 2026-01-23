@@ -556,6 +556,46 @@
               <p v-if="filterActionResult" class="filter-result" :class="filterResultClass">
                 {{ filterActionResult }}
               </p>
+              
+              <!-- Export/Import actions -->
+              <div class="filter-actions">
+                <button
+                  class="btn-action primary"
+                  @click="exportFilters"
+                  :disabled="savedFilters.length === 0 || exportingFilters"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  <span v-if="exportingFilters">Exporting...</span>
+                  <span v-else>Export Filters</span>
+                </button>
+                
+                <button
+                  class="btn-action secondary"
+                  @click="triggerImportFilters"
+                  :disabled="importingFilters"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  <span v-if="importingFilters">Importing...</span>
+                  <span v-else>Import Filters</span>
+                </button>
+                
+                <!-- Hidden file input for import -->
+                <input
+                  ref="importFileInput"
+                  type="file"
+                  accept=".json"
+                  @change="handleImportFile"
+                  style="display: none"
+                />
+              </div>
             </div>
           </div>
           
@@ -678,6 +718,9 @@ const loadingFilters = ref(false)
 const deletingFilterId = ref(null)
 const filterActionResult = ref('')
 const filterResultClass = ref('')
+const exportingFilters = ref(false)
+const importingFilters = ref(false)
+const importFileInput = ref(null)
 
 const tabs = [
   { 
@@ -803,6 +846,11 @@ async function handleImport(event) {
     if (result.partial) {
       importStatus.value += ' (with some errors)'
       importStatusClass.value = 'warning'
+    }
+  } else {
+    importStatus.value = result.message || 'Import failed'
+    importStatusClass.value = 'error'
+  }
 }
 
 // Cache management state
@@ -1016,14 +1064,104 @@ function formatDate(isoString) {
   return date.toLocaleString()
 }
 
-  } else {
-    importStatus.value = 'Import failed: ' + (result.error || 'Unknown error')
-    importStatusClass.value = 'error'
-  }
+async function exportFilters() {
+  exportingFilters.value = true
+  filterActionResult.value = ''
   
-  // Clear file input
-  if (importInput.value) {
-    importInput.value.value = ''
+  try {
+    const response = await fetch('/api/filters/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filter_type: filterTypeTab.value
+      })
+    })
+    
+    if (response.ok) {
+      // Download the file
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `negmas-${filterTypeTab.value}-filters.json`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      filterActionResult.value = 'Filters exported successfully'
+      filterResultClass.value = 'success'
+    } else {
+      filterActionResult.value = 'Failed to export filters'
+      filterResultClass.value = 'error'
+    }
+  } catch (error) {
+    filterActionResult.value = 'Error exporting filters: ' + error.message
+    filterResultClass.value = 'error'
+  } finally {
+    exportingFilters.value = false
+  }
+}
+
+function triggerImportFilters() {
+  if (importFileInput.value) {
+    importFileInput.value.click()
+  }
+}
+
+async function handleImportFile(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  
+  importingFilters.value = true
+  filterActionResult.value = ''
+  
+  try {
+    const text = await file.text()
+    
+    // Ask user about overwrite behavior
+    const overwrite = confirm(
+      'Do you want to overwrite filters with the same name?\n\n' +
+      'Yes: Replace existing filters with same name\n' +
+      'No: Keep both (imported filters get " (Imported)" suffix)'
+    )
+    
+    const response = await fetch('/api/filters/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        json_data: text,
+        overwrite: overwrite
+      })
+    })
+    
+    const result = await response.json()
+    
+    if (result.success) {
+      filterActionResult.value = `Successfully imported ${result.imported} filter(s)`
+      if (result.errors && result.errors.length > 0) {
+        filterActionResult.value += `. Errors: ${result.errors.join(', ')}`
+      }
+      filterResultClass.value = result.errors && result.errors.length > 0 ? 'warning' : 'success'
+      
+      // Reload filters
+      await loadFilters()
+    } else {
+      filterActionResult.value = 'Import failed'
+      if (result.errors && result.errors.length > 0) {
+        filterActionResult.value += `: ${result.errors.join(', ')}`
+      }
+      filterResultClass.value = 'error'
+    }
+  } catch (error) {
+    filterActionResult.value = 'Error importing filters: ' + error.message
+    filterResultClass.value = 'error'
+  } finally {
+    importingFilters.value = false
+    // Clear file input
+    if (importFileInput.value) {
+      importFileInput.value.value = ''
+    }
   }
 }
 
@@ -1723,9 +1861,24 @@ function handleReset() {
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
+.filter-result.warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
 .filter-result.error {
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
   border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Filter export/import actions */
+.filter-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
 }
 </style>

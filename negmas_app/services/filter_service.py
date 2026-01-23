@@ -1,5 +1,6 @@
 """Service for managing saved filters."""
 
+import json
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -244,3 +245,145 @@ class FilterService:
         self.save_filters(settings)
 
         return filter_obj
+
+    def export_filters(
+        self, filter_ids: list[str] | None = None, filter_type: str | None = None
+    ) -> str:
+        """Export filters to JSON format.
+
+        Args:
+            filter_ids: List of specific filter IDs to export. If None, exports all.
+            filter_type: Filter by type ("scenario" or "negotiator"). If None, exports all types.
+
+        Returns:
+            JSON string containing the exported filters.
+        """
+        settings = self.load_filters()
+
+        # Determine which filters to export
+        if filter_ids is not None:
+            # Export specific filters by ID
+            filters_to_export = []
+            for f in settings.scenario_filters + settings.negotiator_filters:
+                if f.id in filter_ids:
+                    filters_to_export.append(f)
+        elif filter_type is not None:
+            # Export all filters of a specific type
+            filters_to_export = self.list_filters(filter_type=filter_type)
+        else:
+            # Export all filters
+            filters_to_export = settings.scenario_filters + settings.negotiator_filters
+
+        # Convert to exportable format
+        export_data = {
+            "version": "1.0",
+            "exported_at": datetime.utcnow().isoformat(),
+            "filters": [
+                {
+                    "name": f.name,
+                    "type": f.type,
+                    "data": f.data,
+                    "description": f.description,
+                }
+                for f in filters_to_export
+            ],
+        }
+
+        return json.dumps(export_data, indent=2)
+
+    def import_filters(self, json_data: str, overwrite: bool = False) -> dict[str, Any]:
+        """Import filters from JSON format.
+
+        Args:
+            json_data: JSON string containing filters to import.
+            overwrite: If True, replaces filters with same name. If False, creates new filters with "(Imported)" suffix.
+
+        Returns:
+            Dictionary with import results: {"success": bool, "imported": int, "errors": list}.
+        """
+        try:
+            import_data = json.loads(json_data)
+        except json.JSONDecodeError as e:
+            return {
+                "success": False,
+                "imported": 0,
+                "errors": [f"Invalid JSON: {str(e)}"],
+            }
+
+        # Validate structure
+        if "filters" not in import_data or not isinstance(import_data["filters"], list):
+            return {
+                "success": False,
+                "imported": 0,
+                "errors": ["Invalid format: missing 'filters' array"],
+            }
+
+        settings = self.load_filters()
+        imported_count = 0
+        errors = []
+
+        for idx, filter_data in enumerate(import_data["filters"]):
+            try:
+                # Validate required fields
+                if "name" not in filter_data or "type" not in filter_data:
+                    errors.append(f"Filter {idx}: missing required fields (name, type)")
+                    continue
+
+                if filter_data["type"] not in ["scenario", "negotiator"]:
+                    errors.append(f"Filter {idx}: invalid type '{filter_data['type']}'")
+                    continue
+
+                # Check if filter with same name already exists
+                existing_filters = (
+                    settings.scenario_filters
+                    if filter_data["type"] == "scenario"
+                    else settings.negotiator_filters
+                )
+                existing_names = [f.name for f in existing_filters]
+
+                filter_name = filter_data["name"]
+                if filter_name in existing_names:
+                    if not overwrite:
+                        # Add suffix to make name unique
+                        base_name = filter_name
+                        counter = 1
+                        while filter_name in existing_names:
+                            filter_name = f"{base_name} (Imported {counter})"
+                            counter += 1
+                    else:
+                        # Delete existing filter with same name
+                        for f in existing_filters:
+                            if f.name == filter_name:
+                                self.delete_filter(f.id)
+                                break
+
+                # Create new filter
+                new_filter = SavedFilter(
+                    id=str(uuid.uuid4()),
+                    name=filter_name,
+                    type=filter_data["type"],
+                    data=filter_data.get("data", {}),
+                    description=filter_data.get("description", ""),
+                    created_at=datetime.utcnow().isoformat(),
+                )
+
+                # Add to appropriate list
+                if filter_data["type"] == "scenario":
+                    settings.scenario_filters.append(new_filter)
+                else:
+                    settings.negotiator_filters.append(new_filter)
+
+                imported_count += 1
+
+            except Exception as e:
+                errors.append(f"Filter {idx}: {str(e)}")
+
+        # Save all imported filters at once
+        if imported_count > 0:
+            self.save_filters(settings)
+
+        return {
+            "success": imported_count > 0 or len(errors) == 0,
+            "imported": imported_count,
+            "errors": errors,
+        }

@@ -1,6 +1,7 @@
 """API routes for filter management."""
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from ..services.filter_service import FilterService
@@ -26,6 +27,20 @@ class UpdateFilterRequest(BaseModel):
     name: str | None = None
     data: dict | None = None
     description: str | None = None
+
+
+class ExportFiltersRequest(BaseModel):
+    """Request body for exporting filters."""
+
+    filter_ids: list[str] | None = None
+    filter_type: str | None = None
+
+
+class ImportFiltersRequest(BaseModel):
+    """Request body for importing filters."""
+
+    json_data: str
+    overwrite: bool = False
 
 
 @router.get("/")
@@ -172,3 +187,49 @@ def delete_filter(filter_id: str):
         raise HTTPException(status_code=404, detail="Filter not found")
 
     return {"success": True}
+
+
+@router.post("/export")
+def export_filters(request: ExportFiltersRequest):
+    """Export filters to JSON format.
+
+    Args:
+        request: ExportFiltersRequest with filter IDs or type to export.
+
+    Returns:
+        JSON file with exported filters.
+    """
+    try:
+        json_data = filter_service.export_filters(
+            filter_ids=request.filter_ids, filter_type=request.filter_type
+        )
+
+        # Return as downloadable JSON file
+        return Response(
+            content=json_data,
+            media_type="application/json",
+            headers={
+                "Content-Disposition": 'attachment; filename="negmas-filters.json"'
+            },
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/import")
+def import_filters(request: ImportFiltersRequest):
+    """Import filters from JSON format.
+
+    Args:
+        request: ImportFiltersRequest with JSON data and overwrite flag.
+
+    Returns:
+        Import results with success status, count, and errors.
+    """
+    try:
+        result = filter_service.import_filters(
+            json_data=request.json_data, overwrite=request.overwrite
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
