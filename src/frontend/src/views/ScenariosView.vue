@@ -212,7 +212,7 @@
             
             <!-- Tags -->
             <div v-if="selectedScenario.tags && selectedScenario.tags.length > 0" class="tags-section">
-              <h4>Tags</h4>
+              <h4>Tags:</h4>
               <div class="tags">
                 <span v-for="tag in selectedScenario.tags" :key="tag" class="badge">{{ tag }}</span>
               </div>
@@ -1068,9 +1068,18 @@ function formatNumber(num) {
   margin-top: 24px;
 }
 
+.tags-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .issues-section h3,
-.tags-section h3 {
-  margin: 0 0 12px 0;
+.tags-section h3,
+.issues-section h4,
+.tags-section h4 {
+  margin: 0;
   font-size: 1rem;
 }
 
