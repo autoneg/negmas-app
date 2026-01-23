@@ -262,26 +262,30 @@
     />
     
     <!-- Rename Modal -->
-    <div v-if="showRenameModal" class="modal-overlay" @click.self="showRenameModal = false">
-      <div class="modal small">
-        <div class="modal-header">
-          <h3>Rename Configuration</h3>
-        </div>
-        <div class="modal-body">
-          <input 
-            v-model="newName" 
-            type="text" 
-            class="input-text" 
-            placeholder="Enter new name"
-            @keyup.enter="confirmRename"
-          />
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" @click="showRenameModal = false">Cancel</button>
-          <button class="btn btn-primary" @click="confirmRename">Rename</button>
+    <Teleport to="body">
+      <div v-if="showRenameModal" class="modal-overlay" @click.self="showRenameModal = false">
+        <div class="modal small">
+          <div class="modal-header">
+            <h3 class="modal-title">Rename Configuration</h3>
+            <button class="modal-close" @click="showRenameModal = false">×</button>
+          </div>
+          <div class="modal-body" style="padding: 24px;">
+            <input 
+              v-model="newName" 
+              type="text" 
+              class="input-text" 
+              placeholder="Enter new name"
+              @keyup.enter="confirmRename"
+              style="width: 100%;"
+            />
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="showRenameModal = false">Cancel</button>
+            <button class="btn btn-primary" @click="confirmRename">Rename</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -459,15 +463,23 @@ async function toggleEnabled() {
 
 function renameConfig() {
   if (!selectedConfig.value) return
+  console.log('[ConfigsView] Opening rename modal for:', selectedConfig.value.name)
   newName.value = selectedConfig.value.name
   showRenameModal.value = true
+  console.log('[ConfigsView] showRenameModal:', showRenameModal.value)
 }
 
 async function confirmRename() {
-  if (!selectedConfig.value || !newName.value.trim()) return
+  console.log('[ConfigsView] confirmRename called, newName:', newName.value)
+  if (!selectedConfig.value || !newName.value.trim()) {
+    console.log('[ConfigsView] Validation failed')
+    return
+  }
   
   const oldName = selectedConfig.value.name
   const newNameTrimmed = newName.value.trim()
+  
+  console.log('[ConfigsView] Renaming from', oldName, 'to', newNameTrimmed)
   
   // Update the config name
   selectedConfig.value.name = newNameTrimmed
@@ -479,11 +491,14 @@ async function confirmRename() {
   showRenameModal.value = false
   newName.value = ''
   
+  console.log('[ConfigsView] Rename complete, reloading data')
+  
   // Reload and re-select with new name
   await loadData()
   const updatedConfig = configs.value.find(c => c.name === newNameTrimmed)
   if (updatedConfig) {
     selectedConfig.value = updatedConfig
+    console.log('[ConfigsView] Re-selected config:', updatedConfig.name)
   }
 }
 
