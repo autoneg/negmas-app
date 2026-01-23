@@ -416,10 +416,14 @@ function onConfigSaved() {
 }
 
 function onNegotiationStart(data) {
+  console.log('[ConfigsView] Negotiation started:', data)
   closeModals()
   // Navigate to the new negotiation
-  if (data && data.id) {
-    router.push(`/negotiations/${data.id}`)
+  if (data && data.session_id) {
+    console.log('[ConfigsView] Navigating to /negotiations/' + data.session_id)
+    router.push(`/negotiations/${data.session_id}`)
+  } else {
+    console.error('[ConfigsView] No session_id in response:', data)
   }
 }
 

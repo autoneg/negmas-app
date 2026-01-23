@@ -1861,7 +1861,7 @@ function loadInitialData(data) {
   if (data.show_offers !== undefined) {
     displayOptions.value.showOffers = data.show_offers
   }
-  if (data.panels) {
+  if (data.panels && Array.isArray(data.panels)) {
     panels.value = [...data.panels]
   }
   
