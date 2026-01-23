@@ -683,8 +683,13 @@ function renderPlot() {
     const reservedVal1 = data.reserved_values[idx1]
     const reservedVal2 = data.reserved_values[idx2]
     
+    // Calculate min utilities for each negotiator
+    const minUtil1 = Math.min(...x)
+    const minUtil2 = Math.min(...y)
+    
     // Vertical line for horizontal negotiator's reservation value (idx1)
-    if (reservedVal1 !== null && reservedVal1 !== undefined) {
+    // Only show if reserved value is greater than minimum
+    if (reservedVal1 !== null && reservedVal1 !== undefined && reservedVal1 > minUtil1) {
       shapes.push({
         type: 'line',
         x0: reservedVal1,
@@ -701,7 +706,8 @@ function renderPlot() {
     }
     
     // Horizontal line for vertical negotiator's reservation value (idx2)
-    if (reservedVal2 !== null && reservedVal2 !== undefined) {
+    // Only show if reserved value is greater than minimum
+    if (reservedVal2 !== null && reservedVal2 !== undefined && reservedVal2 > minUtil2) {
       shapes.push({
         type: 'line',
         x0: 0,
