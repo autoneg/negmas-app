@@ -208,26 +208,103 @@ async def get_scenario_plot_data(
     return result
 
 
-@router.get("/{path:path}/plot-image")
-async def get_scenario_plot_image(path: str):
-    """Serve the cached plot image for a scenario.
+@router.get("/{path:path}/available-plots")
+async def get_available_plots(path: str):
+    """Get list of available plot files for a scenario.
 
     Args:
         path: Full path to scenario directory.
 
     Returns:
+        List of plot file information for bilateral or multilateral scenarios.
+    """
+    from pathlib import Path
+
+    scenario_dir = Path(path)
+    plots_dir = scenario_dir / "_plots"
+
+    # Check if multilateral (has _plots/ folder)
+    if plots_dir.exists() and plots_dir.is_dir():
+        # Multilateral scenario - list all plots in _plots/
+        plot_files = sorted(plots_dir.glob("*.webp")) + sorted(plots_dir.glob("*.png"))
+        return {
+            "type": "multilateral",
+            "plots": [
+                {"name": p.stem, "filename": p.name, "path": str(p)} for p in plot_files
+            ],
+        }
+    else:
+        # Bilateral scenario - single plot file
+        single_plot = scenario_dir / "_plot.webp"
+        if not single_plot.exists():
+            single_plot = scenario_dir / "_plot.png"
+
+        if single_plot.exists():
+            return {
+                "type": "bilateral",
+                "plots": [
+                    {
+                        "name": "plot",
+                        "filename": single_plot.name,
+                        "path": str(single_plot),
+                    }
+                ],
+            }
+        else:
+            return {"type": "bilateral", "plots": []}
+
+
+@router.get("/{path:path}/plot-image")
+async def get_scenario_plot_image(path: str, plot_name: str | None = None):
+    """Serve the cached plot image for a scenario.
+
+    Args:
+        path: Full path to scenario directory.
+        plot_name: Optional plot name for multilateral scenarios (e.g., "util1-util2").
+                   If not provided, returns the default/first plot.
+
+    Returns:
         WebP/PNG/JPG/SVG image file.
     """
-    # Import helper to find existing plot with any format
-    from ..services.plot_service import find_existing_plot
+    from pathlib import Path
 
-    plot_path = find_existing_plot(path)
+    scenario_dir = Path(path)
+    plots_dir = scenario_dir / "_plots"
 
-    if not plot_path:
-        raise HTTPException(
-            status_code=404,
-            detail="Plot image not found. Call /plot-data first to generate it.",
-        )
+    # Check if multilateral (has _plots/ folder)
+    if plots_dir.exists() and plots_dir.is_dir():
+        # Multilateral scenario
+        if plot_name:
+            # Try to find the specific plot
+            plot_path = plots_dir / f"{plot_name}.webp"
+            if not plot_path.exists():
+                plot_path = plots_dir / f"{plot_name}.png"
+            if not plot_path.exists():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Plot '{plot_name}' not found in multilateral scenario.",
+                )
+        else:
+            # Return first available plot
+            plot_files = sorted(plots_dir.glob("*.webp")) + sorted(
+                plots_dir.glob("*.png")
+            )
+            if not plot_files:
+                raise HTTPException(
+                    status_code=404, detail="No plot images found in _plots/ directory."
+                )
+            plot_path = plot_files[0]
+    else:
+        # Bilateral scenario - single _plot.webp
+        from ..services.plot_service import find_existing_plot
+
+        plot_path = find_existing_plot(path)
+
+        if not plot_path:
+            raise HTTPException(
+                status_code=404,
+                detail="Plot image not found. Call /plot-data first to generate it.",
+            )
 
     # Determine media type from extension
     ext = plot_path.suffix.lower()

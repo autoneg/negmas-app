@@ -227,12 +227,6 @@ class ScenarioLoader:
 
             # Count actual utility function files to get correct n_negotiators
             # Don't trust registry value, count files directly
-            from negmas.genius import (
-                find_domain_and_utility_files_yaml,
-                find_domain_and_utility_files_xml,
-                find_domain_and_utility_files_geniusweb,
-            )
-
             _, ufun_files = find_domain_and_utility_files_yaml(scenario_path)
             if not ufun_files:
                 _, ufun_files = find_domain_and_utility_files_xml(scenario_path)

@@ -341,7 +341,17 @@
             <div v-else-if="selectedScenarioPlotData" class="plot-container">
               <!-- Cached WebP Image (default) -->
               <div v-if="!useInteractivePlot && plotImageUrl" class="plot-image-container">
-                <img :src="plotImageUrl" alt="Scenario Plot" class="plot-image" />
+                <!-- Plot selector for multilateral scenarios -->
+                <div v-if="isMultilateral && availablePlots?.plots?.length > 1" class="plot-selector">
+                  <label>Select Plot:</label>
+                  <select v-model="selectedPlotName" class="input-select">
+                    <option v-for="plot in availablePlots.plots" :key="plot.name" :value="plot.name">
+                      {{ plot.name }}
+                    </option>
+                  </select>
+                </div>
+                
+                <img :src="plotImageUrl" :key="plotImageUrl" alt="Scenario Plot" class="plot-image" />
                 <p class="plot-hint">Toggle "Interactive" for customizable Plotly visualization</p>
               </div>
               
@@ -424,9 +434,15 @@ const plotNegotiator1 = ref(0)
 const plotNegotiator2 = ref(1)
 const useInteractivePlot = ref(false) // Default to cached PNG
 const refreshingCache = ref(false)
+const availablePlots = ref(null)
+const selectedPlotName = ref(null)
 const plotImageUrl = computed(() => {
   if (!selectedScenario.value) return null
-  return `/api/scenarios/${encodeURIComponent(selectedScenario.value.path)}/plot-image`
+  const basePath = `/api/scenarios/${encodeURIComponent(selectedScenario.value.path)}/plot-image`
+  if (selectedPlotName.value) {
+    return `${basePath}?plot_name=${encodeURIComponent(selectedPlotName.value)}`
+  }
+  return basePath
 })
 const showNewNegotiationModal = ref(false)
 const router = useRouter()
@@ -434,6 +450,7 @@ const router = useRouter()
 // Computed properties
 const statsLoaded = computed(() => selectedScenarioStats.value !== null)
 const plotDataLoaded = computed(() => selectedScenarioPlotData.value !== null)
+const isMultilateral = computed(() => availablePlots.value?.type === 'multilateral')
 const negotiatorNamesForPlot = computed(() => {
   // Prefer stats negotiator_names, fallback to plot data negotiator_names
   if (selectedScenarioStats.value?.negotiator_names) {
@@ -490,6 +507,14 @@ function clearFilters() {
 
 async function selectScenario(scenario) {
   scenariosStore.selectScenario(scenario)
+  
+  // Reset plot selection
+  availablePlots.value = null
+  selectedPlotName.value = null
+  
+  // Load available plots
+  await loadAvailablePlots()
+  
   // Auto-load stats when selecting a scenario
   if (scenario.has_stats) {
     await scenariosStore.loadScenarioStats(scenario.path)
@@ -503,6 +528,24 @@ async function loadStats() {
   if (selectedScenarioStats.value) return // Already loaded
   
   await scenariosStore.loadScenarioStats(selectedScenario.value.path)
+}
+
+async function loadAvailablePlots() {
+  if (!selectedScenario.value) return
+  
+  try {
+    const response = await fetch(`/api/scenarios/${encodeURIComponent(selectedScenario.value.path)}/available-plots`)
+    const data = await response.json()
+    availablePlots.value = data
+    
+    // Set default selected plot (first one)
+    if (data.plots && data.plots.length > 0) {
+      selectedPlotName.value = data.plots[0].name
+    }
+  } catch (error) {
+    console.error('Failed to load available plots:', error)
+    availablePlots.value = null
+  }
 }
 
 async function calculateStats() {
@@ -1119,6 +1162,27 @@ function formatNumber(num) {
 .plot-controls .input-select {
   flex: 1;
   max-width: 200px;
+}
+
+.plot-selector {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+}
+
+.plot-selector label {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.plot-selector .input-select {
+  flex: 1;
+  max-width: 300px;
 }
 
 .info-grid,
