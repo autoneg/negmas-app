@@ -216,6 +216,15 @@ class ScenarioLoader:
             # Use tags directly from registry
             tags = list(reg_info.tags) if reg_info.tags else []
 
+            # Check if cached stats/info files exist
+            scenario_path = Path(reg_info.path)
+            stats_file = scenario_path / "_stats.yaml"
+            has_stats = stats_file.exists()
+            # Check both .yml and .yaml extensions for info file
+            has_info = (scenario_path / "_info.yml").exists() or (
+                scenario_path / "_info.yaml"
+            ).exists()
+
             # negmas ScenarioInfo has: name, path, source, tags, n_outcomes, n_negotiators, opposition_level, description
             return ScenarioInfo(
                 path=str(reg_info.path),
@@ -228,8 +237,8 @@ class ScenarioLoader:
                 source=reg_info.source or "unknown",  # Use actual source from registry
                 tags=tags,  # All tags from registry (includes folder names)
                 description=reg_info.description or "",  # Description from registry
-                has_stats="has-stats" in reg_info.tags if reg_info.tags else False,
-                has_info=False,  # Will check on detail load
+                has_stats=has_stats,
+                has_info=has_info,
             )
         except Exception as e:
             print(f"Warning: Failed to convert registry info: {e}")
