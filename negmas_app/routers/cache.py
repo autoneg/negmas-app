@@ -19,6 +19,9 @@ async def build_scenario_caches(
     compact: Annotated[
         bool, Query(description="Exclude Pareto frontier from stats")
     ] = False,
+    refresh: Annotated[
+        bool, Query(description="Force rebuild existing cache files")
+    ] = False,
 ):
     """Build cache files for all scenarios.
 
@@ -28,6 +31,7 @@ async def build_scenario_caches(
         - plots: Build plot files (_plot.webp or _plots/)
         - all: Build all cache types
         - compact: Exclude Pareto frontier from stats (saves disk space)
+        - refresh: Force rebuild existing files (default: skip existing)
 
     Returns build statistics.
     """
@@ -50,6 +54,7 @@ async def build_scenario_caches(
         build_stats=stats,
         build_plots=plots,
         compact=compact,
+        refresh=refresh,
     )
 
     return {

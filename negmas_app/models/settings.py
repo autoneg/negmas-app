@@ -109,6 +109,10 @@ class PerformanceSettings:
     # (Pareto, Nash, Kalai, etc.) - above this, only info is calculated
     max_outcomes_stats: int | None = 1_000_000
 
+    # Maximum number of outcomes for generating plots
+    # Above this, plots show special points only (no background outcome space)
+    max_outcomes_plots: int | None = 500_000
+
     # Maximum number of outcomes for calculating any scenario info
     # (other than n_outcomes itself)
     max_outcomes_info: int | None = 10_000_000

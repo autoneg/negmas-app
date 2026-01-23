@@ -96,37 +96,54 @@ def generate_and_save_plot(
         negotiator_x = 0
         negotiator_y = min(1, len(scenario.ufuns) - 1)
 
-    # Compute outcome utilities
-    outcomes = list(
-        scenario.outcome_space.enumerate_or_sample(max_cardinality=max_samples * 2)
-    )
-    utilities, sampled, sample_size = compute_outcome_utilities(
-        scenario.ufuns, outcomes, max_samples
-    )
+    # Check outcome limit for plotting
+    max_outcomes_plots = performance_settings.max_outcomes_plots
+    n_outcomes = scenario.outcome_space.cardinality
+    show_outcomes = True
 
-    # Extract X and Y utilities
-    x_utils = [u[negotiator_x] for u in utilities]
-    y_utils = [u[negotiator_y] for u in utilities]
+    if max_outcomes_plots is not None and max_outcomes_plots > 0:
+        if n_outcomes > max_outcomes_plots:
+            show_outcomes = False
+
+    # Compute outcome utilities only if within limit
+    outcomes = []
+    utilities = []
+    x_utils = []
+    y_utils = []
+    sampled = False
+    sample_size = 0
+
+    if show_outcomes:
+        outcomes = list(
+            scenario.outcome_space.enumerate_or_sample(max_cardinality=max_samples * 2)
+        )
+        utilities, sampled, sample_size = compute_outcome_utilities(
+            scenario.ufuns, outcomes, max_samples
+        )
+        # Extract X and Y utilities
+        x_utils = [u[negotiator_x] for u in utilities]
+        y_utils = [u[negotiator_y] for u in utilities]
 
     # Create Plotly figure
     fig = go.Figure()
 
-    # Add outcome scatter
-    fig.add_trace(
-        go.Scatter(
-            x=x_utils,
-            y=y_utils,
-            mode="markers",
-            marker=dict(
-                size=4,
-                color="rgba(100, 149, 237, 0.5)",  # Cornflower blue
-                line=dict(width=0),
-            ),
-            name="Outcomes",
-            hovertemplate=f"{negotiator_names[negotiator_x]}: %{{x:.3f}}<br>"
-            + f"{negotiator_names[negotiator_y]}: %{{y:.3f}}<extra></extra>",
+    # Add outcome scatter only if within limit
+    if show_outcomes and outcomes:
+        fig.add_trace(
+            go.Scatter(
+                x=x_utils,
+                y=y_utils,
+                mode="markers",
+                marker=dict(
+                    size=4,
+                    color="rgba(100, 149, 237, 0.5)",  # Cornflower blue
+                    line=dict(width=0),
+                ),
+                name="Outcomes",
+                hovertemplate=f"{negotiator_names[negotiator_x]}: %{{x:.3f}}<br>"
+                + f"{negotiator_names[negotiator_y]}: %{{y:.3f}}<extra></extra>",
+            )
         )
-    )
 
     # Add Pareto frontier if stats are available
     if scenario.stats and scenario.stats.pareto_utils:

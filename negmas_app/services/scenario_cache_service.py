@@ -65,6 +65,7 @@ class ScenarioCacheService:
         build_stats: bool = False,
         build_plots: bool = False,
         compact: bool = False,
+        refresh: bool = False,
     ) -> dict[str, Any]:
         """Build cache files for all scenarios.
 
@@ -73,6 +74,7 @@ class ScenarioCacheService:
             build_stats: Build _stats.yaml files
             build_plots: Build plot files (_plot.webp or _plots/)
             compact: If True, exclude Pareto frontier from stats (saves space)
+            refresh: If True, rebuild existing cache files (default: skip existing)
 
         Returns:
             Dictionary with build results and statistics.
@@ -100,6 +102,7 @@ class ScenarioCacheService:
                     build_stats=build_stats,
                     build_plots=build_plots,
                     compact=compact,
+                    refresh=refresh,
                 )
 
                 if success["success"]:
@@ -131,6 +134,7 @@ class ScenarioCacheService:
         build_stats: bool = False,
         build_plots: bool = False,
         compact: bool = False,
+        refresh: bool = False,
         console=None,
     ) -> dict[str, Any]:
         """Build cache files for all scenarios with rich progress display.
@@ -140,6 +144,7 @@ class ScenarioCacheService:
             build_stats: Build _stats.yaml files
             build_plots: Build plot files (_plot.webp or _plots/)
             compact: If True, exclude Pareto frontier from stats (saves space)
+            refresh: If True, rebuild existing cache files (default: skip existing)
             console: Rich console for output (optional)
 
         Returns:
@@ -196,6 +201,7 @@ class ScenarioCacheService:
                         build_stats=build_stats,
                         build_plots=build_plots,
                         compact=compact,
+                        refresh=refresh,
                     )
 
                     if success["success"]:
@@ -332,6 +338,7 @@ class ScenarioCacheService:
         build_stats: bool,
         build_plots: bool,
         compact: bool = False,
+        refresh: bool = False,
     ) -> dict[str, Any]:
         """Build cache files for a single scenario.
 
@@ -341,6 +348,7 @@ class ScenarioCacheService:
             build_stats: Build _stats.yaml
             build_plots: Build plot files
             compact: If True, exclude Pareto frontier from stats
+            refresh: If True, rebuild existing files (default: skip existing)
 
         Returns:
             Dictionary with success status and counts.
@@ -383,7 +391,7 @@ class ScenarioCacheService:
             # Build info cache
             if build_info:
                 info_file = scenario_dir / "_info.yaml"
-                if not info_file.exists():
+                if refresh or not info_file.exists():
                     # Calculate rational fraction if needed
                     from .scenario_loader import calculate_rational_fraction
 
@@ -404,7 +412,7 @@ class ScenarioCacheService:
             # Build stats cache
             if build_stats and not skip_stats:
                 stats_file = scenario_dir / "_stats.yaml"
-                if not stats_file.exists():
+                if refresh or not stats_file.exists():
                     # Calculate stats using negmas built-in method
                     scenario.calc_stats()
 
@@ -439,7 +447,7 @@ class ScenarioCacheService:
                 if n_negotiators == 2:
                     # Bilateral: single _plot.webp
                     plot_file = scenario_dir / "_plot.webp"
-                    if not plot_file.exists():
+                    if refresh or not plot_file.exists():
                         self._create_bilateral_plot(scenario, plot_file)
                         result["plots_created"] = 1
 
@@ -460,7 +468,7 @@ class ScenarioCacheService:
                         plot_name = f"{ufun_names[i]}-{ufun_names[next_i]}.webp"
                         plot_file = plots_dir / plot_name
 
-                        if not plot_file.exists():
+                        if refresh or not plot_file.exists():
                             self._create_multilateral_plot(
                                 scenario, i, next_i, plot_file
                             )
@@ -481,32 +489,44 @@ class ScenarioCacheService:
         """
         import plotly.graph_objects as go
 
-        # Sample outcomes
-        outcomes = list(
-            scenario.outcome_space.enumerate_or_sample(max_cardinality=5000)
-        )
+        # Check outcome limit for plotting
+        max_outcomes_plots = self.settings.performance.max_outcomes_plots
+        n_outcomes = scenario.outcome_space.cardinality
+        show_outcomes = True
 
-        if not outcomes:
-            return
+        if max_outcomes_plots is not None and max_outcomes_plots > 0:
+            if n_outcomes > max_outcomes_plots:
+                show_outcomes = False
 
-        # Calculate utilities
-        utilities_0 = [scenario.ufuns[0](o) for o in outcomes]
-        utilities_1 = [scenario.ufuns[1](o) for o in outcomes]
+        # Sample outcomes only if within limit
+        outcomes = []
+        utilities_0 = []
+        utilities_1 = []
+
+        if show_outcomes:
+            outcomes = list(
+                scenario.outcome_space.enumerate_or_sample(max_cardinality=5000)
+            )
+            if outcomes:
+                # Calculate utilities
+                utilities_0 = [scenario.ufuns[0](o) for o in outcomes]
+                utilities_1 = [scenario.ufuns[1](o) for o in outcomes]
 
         # Create plot
         fig = go.Figure()
 
-        # Add all outcomes
-        fig.add_trace(
-            go.Scatter(
-                x=utilities_0,
-                y=utilities_1,
-                mode="markers",
-                marker=dict(size=3, color="#6b7280", opacity=0.5),
-                name="Outcomes",
-                showlegend=False,
+        # Add all outcomes if within limit
+        if show_outcomes and outcomes:
+            fig.add_trace(
+                go.Scatter(
+                    x=utilities_0,
+                    y=utilities_1,
+                    mode="markers",
+                    marker=dict(size=3, color="#6b7280", opacity=0.5),
+                    name="Outcomes",
+                    showlegend=False,
+                )
             )
-        )
 
         # Add Pareto frontier if stats are available
         if (
@@ -588,32 +608,44 @@ class ScenarioCacheService:
         """
         import plotly.graph_objects as go
 
-        # Sample outcomes
-        outcomes = list(
-            scenario.outcome_space.enumerate_or_sample(max_cardinality=5000)
-        )
+        # Check outcome limit for plotting
+        max_outcomes_plots = self.settings.performance.max_outcomes_plots
+        n_outcomes = scenario.outcome_space.cardinality
+        show_outcomes = True
 
-        if not outcomes:
-            return
+        if max_outcomes_plots is not None and max_outcomes_plots > 0:
+            if n_outcomes > max_outcomes_plots:
+                show_outcomes = False
 
-        # Calculate utilities for the two negotiators
-        utilities_1 = [scenario.ufuns[idx1](o) for o in outcomes]
-        utilities_2 = [scenario.ufuns[idx2](o) for o in outcomes]
+        # Sample outcomes only if within limit
+        outcomes = []
+        utilities_1 = []
+        utilities_2 = []
+
+        if show_outcomes:
+            outcomes = list(
+                scenario.outcome_space.enumerate_or_sample(max_cardinality=5000)
+            )
+            if outcomes:
+                # Calculate utilities for the two negotiators
+                utilities_1 = [scenario.ufuns[idx1](o) for o in outcomes]
+                utilities_2 = [scenario.ufuns[idx2](o) for o in outcomes]
 
         # Create plot
         fig = go.Figure()
 
-        # Add all outcomes
-        fig.add_trace(
-            go.Scatter(
-                x=utilities_1,
-                y=utilities_2,
-                mode="markers",
-                marker=dict(size=3, color="#6b7280", opacity=0.5),
-                name="Outcomes",
-                showlegend=False,
+        # Add all outcomes if within limit
+        if show_outcomes and outcomes:
+            fig.add_trace(
+                go.Scatter(
+                    x=utilities_1,
+                    y=utilities_2,
+                    mode="markers",
+                    marker=dict(size=3, color="#6b7280", opacity=0.5),
+                    name="Outcomes",
+                    showlegend=False,
+                )
             )
-        )
 
         # Add Pareto frontier if stats are available (project to 2D)
         if (

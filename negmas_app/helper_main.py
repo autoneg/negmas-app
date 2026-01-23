@@ -54,12 +54,20 @@ def cache_build(
     compact: Annotated[
         bool, typer.Option(help="Exclude Pareto frontier from stats (saves disk space)")
     ] = False,
+    refresh: Annotated[
+        bool,
+        typer.Option(
+            help="Force rebuild existing cache files (default: skip existing)"
+        ),
+    ] = False,
 ) -> None:
     """Build cache files for scenarios.
 
+    By default, existing cache files are kept. Use --refresh to force rebuild.
+
     Examples:
         negmas-helper cache build scenarios --info --stats
-        negmas-helper cache build scenarios --plots
+        negmas-helper cache build scenarios --plots --refresh
         negmas-helper cache build scenarios --all
         negmas-helper cache build scenarios --stats --compact
     """
@@ -92,9 +100,11 @@ def cache_build(
     if plots:
         cache_types.append("[yellow]plots[/yellow]")
 
+    mode_text = "[dim](refresh mode)[/dim]" if refresh else "[dim](skip existing)[/dim]"
+
     console.print(
         Panel(
-            f"Building {', '.join(cache_types)} caches for [bold]{target}[/bold]",
+            f"Building {', '.join(cache_types)} caches for [bold]{target}[/bold] {mode_text}",
             title="[bold green]Cache Build[/bold green]",
             border_style="green",
         )
@@ -108,6 +118,7 @@ def cache_build(
         build_stats=stats,
         build_plots=plots,
         compact=compact,
+        refresh=refresh,
         console=console,
     )
 

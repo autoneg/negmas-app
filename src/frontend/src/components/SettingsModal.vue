@@ -234,6 +234,20 @@
                   type="number"
                   min="0"
                   class="setting-input number"
+                  placeholder="1000000"
+                />
+              </div>
+              
+              <div class="setting-row">
+                <div class="setting-info">
+                  <div class="setting-name">Max Outcomes for Plots</div>
+                  <div class="setting-desc">Maximum outcomes for generating plots with full outcome space (0 = no limit)</div>
+                </div>
+                <input
+                  v-model.number="localSettings.performance.max_outcomes_plots"
+                  type="number"
+                  min="0"
+                  class="setting-input number"
                   placeholder="500000"
                 />
               </div>
@@ -248,7 +262,7 @@
                   type="number"
                   min="0"
                   class="setting-input number"
-                  placeholder="5000000"
+                  placeholder="10000000"
                 />
               </div>
             </div>
@@ -398,6 +412,10 @@
                   <label class="checkbox-label">
                     <input type="checkbox" v-model="buildOptions.plots" />
                     <span>Plots (_plot.webp or _plots/)</span>
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="buildOptions.refresh" />
+                    <span>Refresh (rebuild existing files)</span>
                   </label>
                 </div>
                 <button
@@ -702,6 +720,7 @@ const buildOptions = ref({
   stats: false,
   plots: false,
   compact: false,
+  refresh: false,
 })
 
 const clearOptions = ref({
@@ -746,6 +765,7 @@ async function buildCaches() {
     if (buildOptions.value.stats) params.append('stats', 'true')
     if (buildOptions.value.plots) params.append('plots', 'true')
     if (buildOptions.value.compact) params.append('compact', 'true')
+    if (buildOptions.value.refresh) params.append('refresh', 'true')
     
     const response = await fetch(`/api/cache/scenarios/build?${params}`, {
       method: 'POST',
