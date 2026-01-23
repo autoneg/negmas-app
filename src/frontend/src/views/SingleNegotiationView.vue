@@ -8,8 +8,8 @@
     <!-- Error State -->
     <div v-else-if="error" class="empty-state">
       <p style="color: var(--error-color);">{{ error }}</p>
-      <button class="btn btn-secondary" @click="router.push({ name: 'NegotiationsList' })">
-        ← Back to List
+      <button class="btn btn-secondary" @click="handleBackNavigation">
+        ← Back
       </button>
     </div>
     
@@ -34,13 +34,13 @@
         <div style="display: flex; align-items: center; gap: 12px;">
           <button 
             class="btn btn-ghost btn-sm" 
-            @click="fromTournament ? backToTournament() : router.push({ name: 'NegotiationsList' })" 
-            :title="fromTournament ? 'Back to tournament' : 'Back to negotiations list'"
+            @click="handleBackNavigation" 
+            :title="fromTournament ? 'Back to tournament' : fromConfigs ? 'Back to configs' : 'Back to negotiations list'"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
               <polyline points="15 18 9 12 15 6"></polyline>
             </svg>
-            <span>{{ fromTournament ? 'Tournament' : 'Back' }}</span>
+            <span>{{ fromTournament ? 'Tournament' : fromConfigs ? 'Configs' : 'Back' }}</span>
           </button>
           <h2 style="font-size: 16px;">Negotiation</h2>
           <span class="badge badge-primary" style="font-size: 12px;">{{ negotiation?.scenario_name || 'Unknown' }}</span>
@@ -140,8 +140,8 @@
     <!-- Empty State -->
     <div v-else class="empty-state">
       <p>Negotiation not found</p>
-      <button class="btn btn-secondary" @click="router.push({ name: 'NegotiationsList' })">
-        ← Back to List
+      <button class="btn btn-secondary" @click="handleBackNavigation">
+        ← Back
       </button>
     </div>
     
@@ -225,6 +225,9 @@ const panelSettings = ref(null)
 const fromTournament = computed(() => currentSession.value?.fromTournament === true)
 const tournamentId = computed(() => currentSession.value?.tournamentId || null)
 const tournamentNegIndex = computed(() => currentSession.value?.tournamentNegIndex ?? null)
+
+// Check if coming from configs page
+const fromConfigs = computed(() => route.query.from === 'configs')
 
 // Computed negotiation data for panels
 const negotiation = computed(() => {
@@ -466,6 +469,21 @@ function backToTournament() {
   } else {
     // Fallback to tournaments list
     router.push({ name: 'TournamentsList' })
+  }
+}
+
+function handleBackNavigation() {
+  if (fromTournament.value) {
+    backToTournament()
+  } else if (fromConfigs.value) {
+    // Check if we came from tournaments tab in configs
+    if (route.query.tab === 'tournaments') {
+      router.push({ name: 'Configs', query: { tab: 'tournaments' } })
+    } else {
+      router.push({ name: 'Configs' })
+    }
+  } else {
+    router.push({ name: 'NegotiationsList' })
   }
 }
 </script>
