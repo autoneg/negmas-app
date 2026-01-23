@@ -225,11 +225,28 @@ class ScenarioLoader:
                 scenario_path / "_info.yaml"
             ).exists()
 
+            # Count actual utility function files to get correct n_negotiators
+            # Don't trust registry value, count files directly
+            from negmas.genius import (
+                find_domain_and_utility_files_yaml,
+                find_domain_and_utility_files_xml,
+                find_domain_and_utility_files_geniusweb,
+            )
+
+            _, ufun_files = find_domain_and_utility_files_yaml(scenario_path)
+            if not ufun_files:
+                _, ufun_files = find_domain_and_utility_files_xml(scenario_path)
+            if not ufun_files:
+                _, ufun_files = find_domain_and_utility_files_geniusweb(scenario_path)
+            n_negotiators = (
+                len(ufun_files) if ufun_files else (reg_info.n_negotiators or 2)
+            )
+
             # negmas ScenarioInfo has: name, path, source, tags, n_outcomes, n_negotiators, opposition_level, description
             return ScenarioInfo(
                 path=str(reg_info.path),
                 name=reg_info.name,
-                n_negotiators=reg_info.n_negotiators or 2,
+                n_negotiators=n_negotiators,
                 issues=[],  # Will be loaded on detail request
                 n_outcomes=reg_info.n_outcomes,
                 rational_fraction=None,  # Not in registry, loaded from _info.yaml on detail

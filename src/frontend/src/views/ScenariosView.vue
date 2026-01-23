@@ -515,19 +515,28 @@ async function refreshAllCaches() {
   
   refreshingCache.value = true
   try {
+    const scenarioPath = selectedScenario.value.path
+    
     // Recalculate stats with force=true (respects max_outcomes_pareto and max_outcomes_rationality from settings)
-    await scenariosStore.calculateScenarioStats(selectedScenario.value.path, true)
+    await scenariosStore.calculateScenarioStats(scenarioPath, true)
     
     // Regenerate plot with force_regenerate=true
     await loadPlotData(true)
     
-    // Reload scenario to get updated info (has_stats, etc.)
+    // Reload scenario list to get updated info (has_stats, etc.)
     await scenariosStore.loadScenarios()
     
-    // Re-select the scenario to update the UI
-    const updatedScenario = scenariosStore.scenarios.find(s => s.path === selectedScenario.value.path)
+    // Find and re-select the scenario to update the UI
+    const updatedScenario = scenariosStore.scenarios.find(s => s.path === scenarioPath)
     if (updatedScenario) {
-      await scenariosStore.selectScenario(updatedScenario)
+      // Update selectedScenario with new metadata
+      selectedScenario.value = updatedScenario
+      
+      // Reload stats from the refreshed cache
+      await scenariosStore.loadScenarioStats(scenarioPath)
+      
+      // Reload plot data from the refreshed cache
+      await loadPlotData(false) // false because we already regenerated above
     }
   } catch (error) {
     console.error('Failed to refresh caches:', error)

@@ -426,6 +426,7 @@ class ScenarioCacheService:
                     info_data = {
                         "n_outcomes": scenario.outcome_space.cardinality,
                         "n_issues": len(scenario.outcome_space.issues),
+                        "n_negotiators": len(scenario.ufuns),
                         "rational_fraction": rational_fraction,  # Will be None if skipped
                         "description": scenario_dir.name,  # Use directory name as description
                     }
@@ -499,16 +500,29 @@ class ScenarioCacheService:
 
                     try:
                         if n_negotiators == 2:
-                            # Bilateral: single _plot.webp
+                            # Bilateral: single _plot.webp (remove _plots/ if it exists)
                             plot_file = scenario_dir / "_plot.webp"
+                            plots_dir = scenario_dir / "_plots"
+
+                            # Clean up _plots/ folder if it exists for bilateral
+                            if plots_dir.exists():
+                                import shutil
+
+                                shutil.rmtree(plots_dir)
+
                             if refresh or not plot_file.exists():
                                 self._create_bilateral_plot(scenario, plot_file)
                                 result["plots_created"] = 1
 
                         else:
-                            # Multilateral: _plots/ folder with multiple images
+                            # Multilateral: _plots/ folder with multiple images (remove _plot.webp if it exists)
                             plots_dir = scenario_dir / "_plots"
                             plots_dir.mkdir(exist_ok=True)
+
+                            # Clean up single _plot.webp file if it exists for multilateral
+                            single_plot = scenario_dir / "_plot.webp"
+                            if single_plot.exists():
+                                single_plot.unlink()
 
                             # Get ufun names
                             ufun_names = [
