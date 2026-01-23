@@ -249,7 +249,7 @@
     <!-- Modals -->
     <NewNegotiationModal
       v-if="currentTab === 'negotiations'"
-      :show="showCreateModal || showEditModal || showStartModal"
+      :show="showNegotiationModal"
       :editMode="showEditModal"
       :startMode="showStartModal"
       :initialData="editingConfig || startingConfig"
@@ -306,6 +306,9 @@ const editingConfig = ref(null)
 const startingConfig = ref(null)
 const showRenameModal = ref(false)
 const newName = ref('')
+
+// Computed
+const showNegotiationModal = computed(() => showCreateModal.value || showEditModal.value || showStartModal.value)
 
 // Computed
 const configs = computed(() => {
@@ -385,14 +388,18 @@ function createNew() {
 
 function editConfig() {
   if (!selectedConfig.value) return
+  console.log('[ConfigsView] Opening edit modal for:', selectedConfig.value.name)
   editingConfig.value = { ...selectedConfig.value }
   showEditModal.value = true
+  console.log('[ConfigsView] showEditModal:', showEditModal.value, 'showNegotiationModal:', showNegotiationModal.value)
 }
 
 function startFromConfig() {
   if (!selectedConfig.value) return
+  console.log('[ConfigsView] Opening start modal for:', selectedConfig.value.name)
   startingConfig.value = { ...selectedConfig.value }
   showStartModal.value = true
+  console.log('[ConfigsView] showStartModal:', showStartModal.value, 'showNegotiationModal:', showNegotiationModal.value)
 }
 
 function closeModals() {
