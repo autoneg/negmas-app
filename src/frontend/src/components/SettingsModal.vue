@@ -486,6 +486,79 @@
             </div>
           </div>
           
+          <!-- Filters Tab -->
+          <div v-if="activeTab === 'filters'" class="settings-panel">
+            <h2 class="panel-title">Saved Filters</h2>
+            
+            <div class="setting-group">
+              <div class="setting-group-title">Manage your saved filters for scenarios and negotiators</div>
+              
+              <!-- Filter type tabs -->
+              <div class="filter-type-tabs">
+                <button
+                  class="filter-type-tab"
+                  :class="{ active: filterTypeTab === 'scenario' }"
+                  @click="filterTypeTab = 'scenario'; loadFilters()"
+                >
+                  Scenario Filters
+                </button>
+                <button
+                  class="filter-type-tab"
+                  :class="{ active: filterTypeTab === 'negotiator' }"
+                  @click="filterTypeTab = 'negotiator'; loadFilters()"
+                >
+                  Negotiator Filters
+                </button>
+              </div>
+              
+              <!-- Filters list -->
+              <div v-if="loadingFilters" class="filters-loading">
+                Loading filters...
+              </div>
+              
+              <div v-else-if="savedFilters.length === 0" class="filters-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+                <p>No {{ filterTypeTab }} filters saved yet</p>
+                <p class="filters-empty-hint">Save filters from the {{ filterTypeTab === 'scenario' ? 'Scenarios' : 'Negotiators' }} view to access them here</p>
+              </div>
+              
+              <div v-else class="filters-list">
+                <div
+                  v-for="filter in savedFilters"
+                  :key="filter.id"
+                  class="filter-item"
+                >
+                  <div class="filter-info">
+                    <div class="filter-name">{{ filter.name }}</div>
+                    <div class="filter-desc" v-if="filter.description">{{ filter.description }}</div>
+                    <div class="filter-meta">
+                      Created: {{ formatDate(filter.created_at) }}
+                    </div>
+                  </div>
+                  <button
+                    class="btn-action danger small"
+                    @click="deleteFilter(filter.id)"
+                    :disabled="deletingFilterId === filter.id"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                    <span v-if="deletingFilterId === filter.id">Deleting...</span>
+                    <span v-else>Delete</span>
+                  </button>
+                </div>
+              </div>
+              
+              <p v-if="filterActionResult" class="filter-result" :class="filterResultClass">
+                {{ filterActionResult }}
+              </p>
+            </div>
+          </div>
+          
           <!-- Import/Export Tab -->
           <div v-if="activeTab === 'import-export'" class="settings-panel">
             <h2 class="panel-title">Import & Export</h2>
@@ -598,6 +671,14 @@ const importStatus = ref('')
 const importStatusClass = ref('')
 const importInput = ref(null)
 
+// Filters tab state
+const filterTypeTab = ref('scenario')
+const savedFilters = ref([])
+const loadingFilters = ref(false)
+const deletingFilterId = ref(null)
+const filterActionResult = ref('')
+const filterResultClass = ref('')
+
 const tabs = [
   { 
     id: 'general', 
@@ -628,6 +709,11 @@ const tabs = [
     id: 'cache', 
     label: 'Cache',
     icon: 'M3 12h4l3 9 4-18 3 9h4'
+  },
+  { 
+    id: 'filters', 
+    label: 'Filters',
+    icon: 'M22 3H2l8 9.46V19l4 2v-8.54L22 3z'
   },
   { 
     id: 'import-export', 
@@ -871,7 +957,64 @@ watch(activeTab, (newVal) => {
   if (newVal === 'cache' && !cacheStatus.value) {
     loadCacheStatus()
   }
+  if (newVal === 'filters') {
+    loadFilters()
+  }
 })
+
+// Filter management methods
+async function loadFilters() {
+  loadingFilters.value = true
+  filterActionResult.value = ''
+  try {
+    const response = await fetch(`/api/filters?type=${filterTypeTab.value}`)
+    const data = await response.json()
+    if (data.success) {
+      savedFilters.value = data.filters
+    }
+  } catch (error) {
+    console.error('Failed to load filters:', error)
+  } finally {
+    loadingFilters.value = false
+  }
+}
+
+async function deleteFilter(filterId) {
+  if (!confirm('Are you sure you want to delete this filter? This cannot be undone.')) {
+    return
+  }
+  
+  deletingFilterId.value = filterId
+  filterActionResult.value = ''
+  
+  try {
+    const response = await fetch(`/api/filters/${filterId}`, {
+      method: 'DELETE',
+    })
+    const data = await response.json()
+    
+    if (data.success) {
+      filterActionResult.value = 'Filter deleted successfully'
+      filterResultClass.value = 'success'
+      // Reload filters
+      await loadFilters()
+    } else {
+      filterActionResult.value = 'Error: ' + (data.error || 'Unknown error')
+      filterResultClass.value = 'error'
+    }
+  } catch (error) {
+    filterActionResult.value = 'Failed to delete filter: ' + error.message
+    filterResultClass.value = 'error'
+  } finally {
+    deletingFilterId.value = null
+  }
+}
+
+function formatDate(isoString) {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  return date.toLocaleString()
+}
 
   } else {
     importStatus.value = 'Import failed: ' + (result.error || 'Unknown error')
@@ -1451,6 +1594,136 @@ function handleReset() {
 }
 
 .cache-result.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Filters tab styles */
+.filter-type-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.filter-type-tab {
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-type-tab:hover {
+  color: var(--text-primary);
+}
+
+.filter-type-tab.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+}
+
+.filters-loading {
+  text-align: center;
+  padding: 32px;
+  color: var(--text-secondary);
+}
+
+.filters-empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-secondary);
+}
+
+.filters-empty svg {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  opacity: 0.5;
+}
+
+.filters-empty p {
+  margin: 8px 0;
+  font-size: 0.95rem;
+}
+
+.filters-empty-hint {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.filters-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filter-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.filter-item:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.filter-info {
+  flex: 1;
+}
+
+.filter-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.filter-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.filter-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.btn-action.small {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
+.btn-action.small svg {
+  width: 14px;
+  height: 14px;
+}
+
+.filter-result {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.filter-result.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.filter-result.error {
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
   border: 1px solid rgba(239, 68, 68, 0.3);

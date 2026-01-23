@@ -168,7 +168,14 @@
           </div>
         </div>
         
-        <button class="btn-secondary btn-sm" @click="clearFilters" style="margin-top: 8px;">Clear Filters</button>
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+          <button class="btn-secondary btn-sm" @click="clearFilters" style="flex: 1;">Clear Filters</button>
+          <button class="btn-secondary btn-sm" @click="showSaveFilterDialog = true" style="flex: 1;">Save Filter</button>
+          <select v-model="selectedFilterId" @change="loadSavedFilter" class="input-select btn-sm" style="flex: 1;">
+            <option value="">Load Filter...</option>
+            <option v-for="filter in savedFilters" :key="filter.id" :value="filter.id">{{ filter.name }}</option>
+          </select>
+        </div>
       </div>
       
       <!-- Scenarios List -->
