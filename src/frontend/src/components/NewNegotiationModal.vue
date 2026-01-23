@@ -1656,6 +1656,16 @@ async function loadSessionPresets() {
 }
 
 function buildSessionPreset(name) {
+  // Sanitize mechanism params - convert empty strings to null
+  const sanitizedMechanismParams = {}
+  for (const [key, value] of Object.entries(mechanismParams.value)) {
+    if (value === '' || value === undefined) {
+      sanitizedMechanismParams[key] = null
+    } else {
+      sanitizedMechanismParams[key] = value
+    }
+  }
+  
   return {
     name,
     scenario_path: selectedScenario.value?.path,
@@ -1668,7 +1678,7 @@ function buildSessionPreset(name) {
       params: n.params || {}
     })),
     mechanism_type: mechanismType.value,
-    mechanism_params: mechanismParams.value,
+    mechanism_params: sanitizedMechanismParams,
     share_ufuns: shareUfuns.value,
     mode: runMode.value,
     step_delay: stepDelay.value,
