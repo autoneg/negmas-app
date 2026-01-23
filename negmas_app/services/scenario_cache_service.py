@@ -423,11 +423,50 @@ class ScenarioCacheService:
 
                         rational_fraction = calculate_rational_fraction(scenario)
 
+                    # Detect format by looking at domain/utility files
+                    from negmas.inout import (
+                        find_domain_and_utility_files_yaml,
+                        find_domain_and_utility_files_xml,
+                        find_domain_and_utility_files_geniusweb,
+                    )
+
+                    domain_file = None
+                    format_type = None
+                    domain_path, ufun_files = find_domain_and_utility_files_yaml(
+                        scenario_dir
+                    )
+                    if domain_path:
+                        domain_file = domain_path.name
+                        format_type = "yaml"
+                    else:
+                        domain_path, ufun_files = find_domain_and_utility_files_xml(
+                            scenario_dir
+                        )
+                        if domain_path:
+                            domain_file = domain_path.name
+                            format_type = "xml"
+                        else:
+                            domain_path, ufun_files = (
+                                find_domain_and_utility_files_geniusweb(scenario_dir)
+                            )
+                            if domain_path:
+                                domain_file = domain_path.name
+                                format_type = "json"
+
+                    # Check if normalized
+                    try:
+                        normalized = scenario.is_normalized()
+                    except Exception:
+                        normalized = None
+
                     info_data = {
                         "n_outcomes": scenario.outcome_space.cardinality,
                         "n_issues": len(scenario.outcome_space.issues),
                         "n_negotiators": len(scenario.ufuns),
                         "rational_fraction": rational_fraction,  # Will be None if skipped
+                        "normalized": normalized,  # Whether utilities are normalized to [0,1]
+                        "format": format_type,  # "yaml", "xml", or "json"
+                        "domain_file": domain_file,  # Filename of domain file for quick access
                         "description": scenario_dir.name,  # Use directory name as description
                     }
 

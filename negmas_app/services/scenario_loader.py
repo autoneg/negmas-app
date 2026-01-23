@@ -106,33 +106,30 @@ class ScenarioLoader:
         if self._registered:
             return len(scenario_registry)
 
-        from negmas import register_scenario
+        from negmas import register_all_scenarios
 
         # Register built-in scenarios with source="app"
-        # Add all folder names from scenarios_root to scenario as tags
+        # Use register_all_scenarios which auto-detects format, normalized, etc.
         total_registered = 0
         if self.scenarios_root.exists():
             for category_dir in self.scenarios_root.iterdir():
                 if category_dir.is_dir() and not category_dir.name.startswith("."):
                     try:
-                        # Find all scenario directories
-                        for scenario_dir in category_dir.iterdir():
-                            if (
-                                scenario_dir.is_dir()
-                                and not scenario_dir.name.startswith(".")
-                            ):
-                                try:
-                                    # Extract tags: all folder names from scenarios/ onwards
-                                    tags = {category_dir.name}  # e.g., "anac2019"
-                                    register_scenario(
-                                        scenario_dir,
-                                        source="app",
-                                        tags=tags,
-                                    )
-                                    total_registered += 1
-                                except Exception as e:
-                                    # Silently skip scenarios that can't be registered
-                                    pass
+                        # Use category name as tag (e.g., "anac2019")
+                        # Also check if it's an ANAC directory
+                        tags = {category_dir.name}
+                        if category_dir.name.lower().startswith("anac"):
+                            tags.add("anac")
+
+                        # register_all_scenarios auto-detects: format (xml/json/yaml),
+                        # normalized, n_outcomes, n_negotiators, bilateral/multilateral
+                        infos = register_all_scenarios(
+                            category_dir,
+                            source="app",
+                            tags=tags,
+                            recursive=True,
+                        )
+                        total_registered += len(infos)
                     except Exception as e:
                         print(
                             f"Warning: Failed to register scenarios from {category_dir}: {e}"
@@ -140,63 +137,25 @@ class ScenarioLoader:
 
         # Register from custom scenario_paths
         # Each path gets scanned recursively, and scenarios use the folder name as source
-        # TODO: Update PathSettings.scenario_paths to be list[ScenarioSource] with explicit names
         settings = SettingsService.load_paths()
         for path_str in settings.scenario_paths:
             path = Path(path_str).expanduser()
             if path.exists():
                 # Use the folder name as the source name
                 source_name = path.name
-                total_registered += self._register_scenarios_from_path(
-                    path, source=source_name
-                )
+                try:
+                    # Build tags from folder structure
+                    infos = register_all_scenarios(
+                        path,
+                        source=source_name,
+                        recursive=True,
+                    )
+                    total_registered += len(infos)
+                except Exception as e:
+                    print(f"Warning: Failed to register scenarios from {path}: {e}")
 
         self._registered = True
         return total_registered
-
-    def _register_scenarios_from_path(self, base_path: Path, source: str) -> int:
-        """Recursively register all scenarios found under base_path with given source.
-
-        Args:
-            base_path: Directory to scan for scenarios
-            source: Source name to use for all scenarios found
-
-        Returns:
-            Number of scenarios registered
-        """
-        from negmas import register_scenario
-
-        count = 0
-        try:
-            for item in base_path.rglob("*"):
-                if item.is_dir() and not any(
-                    p.name.startswith(".") for p in item.parents
-                ):
-                    # Check if this looks like a scenario directory
-                    # (has domain/utility files)
-                    try:
-                        # Build tags from ALL folder names in path relative to base_path
-                        # This includes all subfolders leading to the scenario
-                        rel_path = item.relative_to(base_path)
-                        tags = set()
-                        # Add all parent folder names as tags
-                        for parent in rel_path.parents:
-                            if parent != Path("."):
-                                tags.add(parent.name)
-
-                        register_scenario(
-                            item,
-                            source=source,
-                            tags=tags,
-                        )
-                        count += 1
-                    except Exception:
-                        # Not a valid scenario, skip
-                        pass
-        except Exception as e:
-            print(f"Warning: Failed to scan {base_path} for scenarios: {e}")
-
-        return count
 
     def list_sources(self) -> list[str]:
         """List available scenario sources (app, user, etc.) from negmas registry."""
@@ -236,17 +195,18 @@ class ScenarioLoader:
                 len(ufun_files) if ufun_files else (reg_info.n_negotiators or 2)
             )
 
-            # negmas ScenarioInfo has: name, path, source, tags, n_outcomes, n_negotiators, opposition_level, description
+            # negmas ScenarioInfo has: name, path, source, tags, n_outcomes, n_negotiators,
+            # opposition_level, rational_fraction, description
             return ScenarioInfo(
                 path=str(reg_info.path),
                 name=reg_info.name,
                 n_negotiators=n_negotiators,
                 issues=[],  # Will be loaded on detail request
                 n_outcomes=reg_info.n_outcomes,
-                rational_fraction=None,  # Not in registry, loaded from _info.yaml on detail
+                rational_fraction=reg_info.rational_fraction,  # Available in registry
                 opposition=reg_info.opposition_level,
                 source=reg_info.source or "unknown",  # Use actual source from registry
-                tags=tags,  # All tags from registry (includes folder names)
+                tags=tags,  # All tags from registry (normalized, anac, file, xml/json/yaml, bilateral/multilateral, etc.)
                 description=reg_info.description or "",  # Description from registry
                 has_stats=has_stats,
                 has_info=has_info,

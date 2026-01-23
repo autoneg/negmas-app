@@ -52,55 +52,123 @@
           </div>
         </div>
         
-        <!-- Opposition Range -->
-        <div class="filter-group">
-          <label>Opposition</label>
-          <div class="range-inputs">
-            <input
-              v-model.number="localFilters.minOpposition"
-              type="number"
-              step="0.1"
-              placeholder="Min"
-              class="input-range"
-              @input="updateFilters"
-            />
-            <span>-</span>
-            <input
-              v-model.number="localFilters.maxOpposition"
-              type="number"
-              step="0.1"
-              placeholder="Max"
-              class="input-range"
-              @input="updateFilters"
-            />
+        <!-- Advanced Filters Toggle -->
+        <button class="btn-secondary btn-sm" @click="showAdvancedFilters = !showAdvancedFilters" style="margin-top: 8px;">
+          {{ showAdvancedFilters ? '▼' : '▶' }} Advanced Filters
+        </button>
+        
+        <!-- Advanced Filters (Collapsible) -->
+        <div v-show="showAdvancedFilters" class="advanced-filters">
+          <!-- Negotiators Range -->
+          <div class="filter-group">
+            <label>Negotiators</label>
+            <div class="range-inputs">
+              <input
+                v-model.number="localFilters.minNegotiators"
+                type="number"
+                placeholder="Min"
+                class="input-range"
+                @input="updateFilters"
+              />
+              <span>-</span>
+              <input
+                v-model.number="localFilters.maxNegotiators"
+                type="number"
+                placeholder="Max"
+                class="input-range"
+                @input="updateFilters"
+              />
+            </div>
+          </div>
+          
+          <!-- Opposition Range -->
+          <div class="filter-group">
+            <label>Opposition</label>
+            <div class="range-inputs">
+              <input
+                v-model.number="localFilters.minOpposition"
+                type="number"
+                step="0.1"
+                placeholder="Min"
+                class="input-range"
+                @input="updateFilters"
+              />
+              <span>-</span>
+              <input
+                v-model.number="localFilters.maxOpposition"
+                type="number"
+                step="0.1"
+                placeholder="Max"
+                class="input-range"
+                @input="updateFilters"
+              />
+            </div>
+          </div>
+          
+          <!-- Rational Fraction Range -->
+          <div class="filter-group">
+            <label>Rational Fraction</label>
+            <div class="range-inputs">
+              <input
+                v-model.number="localFilters.minRationalFraction"
+                type="number"
+                step="0.1"
+                placeholder="Min"
+                class="input-range"
+                @input="updateFilters"
+              />
+              <span>-</span>
+              <input
+                v-model.number="localFilters.maxRationalFraction"
+                type="number"
+                step="0.1"
+                placeholder="Max"
+                class="input-range"
+                @input="updateFilters"
+              />
+            </div>
+          </div>
+          
+          <!-- Boolean Filters -->
+          <div class="filter-group">
+            <label>Normalized</label>
+            <select v-model="localFilters.normalized" @change="updateFilters" class="input-select">
+              <option :value="null">Any</option>
+              <option :value="true">Yes</option>
+              <option :value="false">No</option>
+            </select>
+          </div>
+          
+          <div class="filter-group">
+            <label>ANAC</label>
+            <select v-model="localFilters.anac" @change="updateFilters" class="input-select">
+              <option :value="null">Any</option>
+              <option :value="true">Yes</option>
+              <option :value="false">No</option>
+            </select>
+          </div>
+          
+          <div class="filter-group">
+            <label>Type</label>
+            <select v-model="localFilters.file" @change="updateFilters" class="input-select">
+              <option :value="null">Any</option>
+              <option :value="false">Folder</option>
+              <option :value="true">File</option>
+            </select>
+          </div>
+          
+          <div class="filter-group">
+            <label>Format</label>
+            <select v-model="localFilters.format" @change="updateFilters" class="input-select">
+              <option value="">Any</option>
+              <option value="yaml">YAML</option>
+              <option value="xml">XML</option>
+              <option value="json">JSON</option>
+            </select>
           </div>
         </div>
         
-        <!-- Rational Fraction Range -->
-        <div class="filter-group">
-          <label>Rational Fraction</label>
-          <div class="range-inputs">
-            <input
-              v-model.number="localFilters.minRationalFraction"
-              type="number"
-              step="0.1"
-              placeholder="Min"
-              class="input-range"
-              @input="updateFilters"
-            />
-            <span>-</span>
-            <input
-              v-model.number="localFilters.maxRationalFraction"
-              type="number"
-              step="0.1"
-              placeholder="Max"
-              class="input-range"
-              @input="updateFilters"
-            />
-          </div>
-        </div>
-        
-        <button class="btn-secondary btn-sm" @click="clearFilters">Clear Filters</button>
+        <button class="btn-secondary btn-sm" @click="clearFilters" style="margin-top: 8px;">Clear Filters</button>
       </div>
       
       <!-- Scenarios List -->
@@ -430,13 +498,20 @@ const {
 // Local state for inputs (to avoid direct mutation of store)
 const localSearch = ref('')
 const localSource = ref('')
+const showAdvancedFilters = ref(false)
 const localFilters = ref({
   minOutcomes: null,
   maxOutcomes: null,
+  minNegotiators: null,
+  maxNegotiators: null,
   minOpposition: null,
   maxOpposition: null,
   minRationalFraction: null,
   maxRationalFraction: null,
+  normalized: null,
+  anac: null,
+  file: null,
+  format: '',
 })
 
 const plotDiv = ref(null)
@@ -504,10 +579,16 @@ function clearFilters() {
   localFilters.value = {
     minOutcomes: null,
     maxOutcomes: null,
+    minNegotiators: null,
+    maxNegotiators: null,
     minOpposition: null,
     maxOpposition: null,
     minRationalFraction: null,
     maxRationalFraction: null,
+    normalized: null,
+    anac: null,
+    file: null,
+    format: '',
   }
   scenariosStore.updateFilter({
     search: '',

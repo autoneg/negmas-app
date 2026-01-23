@@ -161,6 +161,13 @@ export const useScenariosStore = defineStore('scenarios', () => {
       if (filter.value.maxOutcomes !== null && scenario.n_outcomes !== null && scenario.n_outcomes > filter.value.maxOutcomes) {
         return false
       }
+      // Negotiators filter
+      if (filter.value.minNegotiators !== null && scenario.n_negotiators !== null && scenario.n_negotiators < filter.value.minNegotiators) {
+        return false
+      }
+      if (filter.value.maxNegotiators !== null && scenario.n_negotiators !== null && scenario.n_negotiators > filter.value.maxNegotiators) {
+        return false
+      }
       // Opposition filter - only filter if value is not null
       if (filter.value.minOpposition !== null && scenario.opposition !== null && scenario.opposition < filter.value.minOpposition) {
         return false
@@ -174,6 +181,34 @@ export const useScenariosStore = defineStore('scenarios', () => {
       }
       if (filter.value.maxRationalFraction !== null && scenario.rational_fraction !== null && scenario.rational_fraction > filter.value.maxRationalFraction) {
         return false
+      }
+      // Normalized filter (boolean or null)
+      if (filter.value.normalized !== null && filter.value.normalized !== undefined) {
+        const hasNormalizedTag = scenario.tags && scenario.tags.includes('normalized')
+        if (filter.value.normalized !== hasNormalizedTag) {
+          return false
+        }
+      }
+      // ANAC filter (boolean or null)
+      if (filter.value.anac !== null && filter.value.anac !== undefined) {
+        const hasAnacTag = scenario.tags && scenario.tags.includes('anac')
+        if (filter.value.anac !== hasAnacTag) {
+          return false
+        }
+      }
+      // File filter (boolean or null)
+      if (filter.value.file !== null && filter.value.file !== undefined) {
+        const hasFileTag = scenario.tags && scenario.tags.includes('file')
+        if (filter.value.file !== hasFileTag) {
+          return false
+        }
+      }
+      // Format filter (string or empty)
+      if (filter.value.format) {
+        const hasFormatTag = scenario.tags && scenario.tags.includes(filter.value.format)
+        if (!hasFormatTag) {
+          return false
+        }
       }
       return true
     })
