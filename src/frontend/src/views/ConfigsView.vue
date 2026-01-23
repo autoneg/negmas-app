@@ -178,23 +178,36 @@
         
         <!-- Tags Editor -->
         <div class="details-section">
-          <h4>Tags</h4>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h4 style="margin: 0;">Tags</h4>
+            <button v-if="!showTagInput" class="btn btn-ghost btn-sm" @click="showTagInput = true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Add Tag
+            </button>
+          </div>
           <div class="tags-editor">
-            <div class="tags-list">
-              <span v-for="(tag, idx) in selectedConfig.tags || []" :key="idx" class="tag">
+            <div class="tags-list" v-if="(selectedConfig.tags || []).length > 0">
+              <span v-for="(tag, idx) in selectedConfig.tags" :key="idx" class="tag">
                 {{ tag }}
                 <button class="tag-remove" @click="removeTag(idx)">×</button>
               </span>
             </div>
-            <div class="tag-input-group">
+            <div v-else class="empty-tags">No tags</div>
+            <div v-if="showTagInput" class="tag-input-group">
               <input 
                 v-model="newTag" 
                 type="text" 
                 placeholder="Add tag..." 
                 class="input-text"
                 @keyup.enter="addTag"
+                @keyup.esc="showTagInput = false"
+                ref="tagInput"
               />
-              <button class="btn btn-sm btn-secondary" @click="addTag">Add</button>
+              <button class="btn btn-sm btn-primary" @click="addTag">Add</button>
+              <button class="btn btn-sm btn-ghost" @click="showTagInput = false; newTag = ''">Cancel</button>
             </div>
           </div>
         </div>
@@ -232,9 +245,11 @@
           
           <div v-if="selectedConfig.mechanism_params" class="detail-subsection">
             <h5>Mechanism Parameters</h5>
-            <div v-for="(value, key) in selectedConfig.mechanism_params" :key="key" class="detail-row">
-              <span class="detail-label">{{ key }}:</span>
-              <span class="detail-value">{{ value !== null ? value : 'null' }}</span>
+            <div class="params-list">
+              <div v-for="(value, key) in selectedConfig.mechanism_params" :key="key" class="param-item">
+                <span class="param-key">{{ key }}:</span>
+                <span class="param-value">{{ value !== null ? value : 'null' }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -305,6 +320,7 @@ const statusFilter = ref('all')
 const loading = ref(false)
 const selectedConfig = ref(null)
 const newTag = ref('')
+const showTagInput = ref(false)
 const showJson = ref(false)
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
@@ -528,6 +544,7 @@ function addTag() {
   }
   
   newTag.value = ''
+  showTagInput.value = false
 }
 
 function removeTag(idx) {
@@ -752,12 +769,12 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  min-height: 32px;
 }
 
 .tag-input-group {
   display: flex;
   gap: 8px;
+  margin-top: 8px;
 }
 
 .tag-input-group .input-text {
@@ -788,6 +805,42 @@ onMounted(() => {
 .detail-subsection {
   margin-left: 20px;
   margin-top: 8px;
+}
+
+.params-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.param-item {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+.param-key {
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 200px;
+  flex-shrink: 0;
+  word-break: break-word;
+}
+
+.param-value {
+  color: var(--text-primary);
+  font-family: monospace;
+  flex: 1;
+  word-break: break-all;
+}
+
+.empty-tags {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-style: italic;
+  padding: 8px 0;
 }
 
 .negotiator-item {
