@@ -235,13 +235,23 @@
             <div class="panel panel-half">
               <div class="panel-header">
                 <h3 class="panel-title">Statistics</h3>
-                <button 
-                  v-if="!selectedScenario.has_stats && !loadingStats" 
-                  class="btn-secondary btn-sm" 
-                  @click="calculateStats"
-                >
-                  Calculate Stats
-                </button>
+                <div class="panel-header-actions">
+                  <button 
+                    v-if="statsLoaded" 
+                    class="btn-secondary btn-sm" 
+                    @click="showOutcomes = !showOutcomes"
+                    :title="showOutcomes ? 'Hide outcomes' : 'Show outcomes'"
+                  >
+                    {{ showOutcomes ? 'Hide' : 'Show' }} Outcomes
+                  </button>
+                  <button 
+                    v-if="!selectedScenario.has_stats && !loadingStats" 
+                    class="btn-secondary btn-sm" 
+                    @click="calculateStats"
+                  >
+                    Calculate Stats
+                  </button>
+                </div>
               </div>
             
             <div v-if="!statsLoaded && !loadingStats" class="panel-empty">
@@ -272,7 +282,7 @@
                 <label>Nash Point (Utils)</label>
                 <span>{{ formatUtilityList(selectedScenarioStats.nash_utils[0]) }}</span>
               </div>
-              <div class="stat-item full-width" v-if="selectedScenarioStats.nash_outcomes && selectedScenarioStats.nash_outcomes.length > 0">
+              <div class="stat-item full-width" v-if="showOutcomes && selectedScenarioStats.nash_outcomes && selectedScenarioStats.nash_outcomes.length > 0">
                 <label>Nash Outcome</label>
                 <span class="outcome-text">{{ formatOutcome(selectedScenarioStats.nash_outcomes[0]) }}</span>
               </div>
@@ -282,7 +292,7 @@
                 <label>Kalai Point (Utils)</label>
                 <span>{{ formatUtilityList(selectedScenarioStats.kalai_utils[0]) }}</span>
               </div>
-              <div class="stat-item full-width" v-if="selectedScenarioStats.kalai_outcomes && selectedScenarioStats.kalai_outcomes.length > 0">
+              <div class="stat-item full-width" v-if="showOutcomes && selectedScenarioStats.kalai_outcomes && selectedScenarioStats.kalai_outcomes.length > 0">
                 <label>Kalai Outcome</label>
                 <span class="outcome-text">{{ formatOutcome(selectedScenarioStats.kalai_outcomes[0]) }}</span>
               </div>
@@ -292,7 +302,7 @@
                 <label>KS Point (Utils)</label>
                 <span>{{ formatUtilityList(selectedScenarioStats.ks_utils[0]) }}</span>
               </div>
-              <div class="stat-item full-width" v-if="selectedScenarioStats.ks_outcomes && selectedScenarioStats.ks_outcomes.length > 0">
+              <div class="stat-item full-width" v-if="showOutcomes && selectedScenarioStats.ks_outcomes && selectedScenarioStats.ks_outcomes.length > 0">
                 <label>KS Outcome</label>
                 <span class="outcome-text">{{ formatOutcome(selectedScenarioStats.ks_outcomes[0]) }}</span>
               </div>
@@ -302,7 +312,7 @@
                 <label>Max Welfare (Utils)</label>
                 <span>{{ formatUtilityList(selectedScenarioStats.max_welfare_utils[0]) }}</span>
               </div>
-              <div class="stat-item full-width" v-if="selectedScenarioStats.max_welfare_outcomes && selectedScenarioStats.max_welfare_outcomes.length > 0">
+              <div class="stat-item full-width" v-if="showOutcomes && selectedScenarioStats.max_welfare_outcomes && selectedScenarioStats.max_welfare_outcomes.length > 0">
                 <label>Max Welfare Outcome</label>
                 <span class="outcome-text">{{ formatOutcome(selectedScenarioStats.max_welfare_outcomes[0]) }}</span>
               </div>
@@ -436,6 +446,7 @@ const useInteractivePlot = ref(false) // Default to cached PNG
 const refreshingCache = ref(false)
 const availablePlots = ref(null)
 const selectedPlotName = ref(null)
+const showOutcomes = ref(false) // Hide outcomes by default to save space
 const plotImageUrl = computed(() => {
   if (!selectedScenario.value) return null
   const basePath = `/api/scenarios/${encodeURIComponent(selectedScenario.value.path)}/plot-image`
