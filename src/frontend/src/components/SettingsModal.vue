@@ -544,6 +544,18 @@
                   </div>
                   <div class="filter-item-actions">
                     <button
+                      class="btn-action secondary small"
+                      @click="duplicateFilter(filter.id)"
+                      :disabled="duplicatingFilterId === filter.id"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                      <span v-if="duplicatingFilterId === filter.id">Duplicating...</span>
+                      <span v-else>Duplicate</span>
+                    </button>
+                    <button
                       v-if="filter.id !== defaultFilterId"
                       class="btn-action secondary small"
                       @click="setDefaultFilter(filter.id)"
@@ -755,6 +767,7 @@ const importFileInput = ref(null)
 const defaultFilterId = ref(null)
 const settingDefaultFilterId = ref(null)
 const clearingDefaultFilter = ref(false)
+const duplicatingFilterId = ref(null)
 
 const tabs = [
   { 
@@ -1157,6 +1170,33 @@ async function clearDefaultFilter() {
     filterResultClass.value = 'error'
   } finally {
     clearingDefaultFilter.value = false
+  }
+}
+
+async function duplicateFilter(filterId) {
+  duplicatingFilterId.value = filterId
+  filterActionResult.value = ''
+  
+  try {
+    const response = await fetch(`/api/filters/${filterId}/duplicate`, {
+      method: 'POST'
+    })
+    const data = await response.json()
+    
+    if (data.success) {
+      filterActionResult.value = `Filter duplicated as "${data.filter.name}"`
+      filterResultClass.value = 'success'
+      // Reload filters to show the new one
+      await loadFilters()
+    } else {
+      filterActionResult.value = 'Failed to duplicate filter'
+      filterResultClass.value = 'error'
+    }
+  } catch (error) {
+    filterActionResult.value = 'Error duplicating filter: ' + error.message
+    filterResultClass.value = 'error'
+  } finally {
+    duplicatingFilterId.value = null
   }
 }
 

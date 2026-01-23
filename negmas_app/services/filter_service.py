@@ -250,6 +250,61 @@ class FilterService:
 
         return filter_obj
 
+    def duplicate_filter(self, filter_id: str) -> SavedFilter | None:
+        """Duplicate an existing filter with a new name.
+
+        Args:
+            filter_id: ID of the filter to duplicate.
+
+        Returns:
+            The new duplicated SavedFilter if source found, None otherwise.
+        """
+        # Get the source filter
+        source_filter = self.get_filter(filter_id)
+        if source_filter is None:
+            return None
+
+        # Create new name with "(Copy)" suffix
+        base_name = source_filter.name
+        new_name = f"{base_name} (Copy)"
+
+        # Check for name collisions and increment if needed
+        settings = self.load_filters()
+        existing_names = [
+            f.name
+            for f in (
+                settings.scenario_filters
+                if source_filter.type == "scenario"
+                else settings.negotiator_filters
+            )
+        ]
+
+        counter = 1
+        while new_name in existing_names:
+            counter += 1
+            new_name = f"{base_name} (Copy {counter})"
+
+        # Create the duplicate with a new ID
+        new_filter = SavedFilter(
+            id=str(uuid.uuid4()),
+            name=new_name,
+            type=source_filter.type,
+            data=source_filter.data.copy(),  # Copy the data dict
+            description=source_filter.description,
+            created_at=datetime.utcnow().isoformat(),
+        )
+
+        # Add to appropriate list
+        if source_filter.type == "scenario":
+            settings.scenario_filters.append(new_filter)
+        else:
+            settings.negotiator_filters.append(new_filter)
+
+        # Save back to disk
+        self.save_filters(settings)
+
+        return new_filter
+
     def export_filters(
         self, filter_ids: list[str] | None = None, filter_type: str | None = None
     ) -> str:

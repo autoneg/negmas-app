@@ -189,6 +189,33 @@ def delete_filter(filter_id: str):
     return {"success": True}
 
 
+@router.post("/{filter_id}/duplicate")
+def duplicate_filter(filter_id: str):
+    """Duplicate a filter with a new name.
+
+    Args:
+        filter_id: ID of the filter to duplicate.
+
+    Returns:
+        The newly created duplicate filter.
+    """
+    new_filter = filter_service.duplicate_filter(filter_id)
+    if new_filter is None:
+        raise HTTPException(status_code=404, detail="Filter not found")
+
+    return {
+        "success": True,
+        "filter": {
+            "id": new_filter.id,
+            "name": new_filter.name,
+            "type": new_filter.type,
+            "data": new_filter.data,
+            "description": new_filter.description,
+            "created_at": new_filter.created_at,
+        },
+    }
+
+
 @router.post("/export")
 def export_filters(request: ExportFiltersRequest):
     """Export filters to JSON format.
