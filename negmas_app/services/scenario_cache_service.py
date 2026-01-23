@@ -17,11 +17,22 @@ class ScenarioCacheService:
 
         Args:
             scenarios_root: Root directory containing scenarios.
-                           Defaults to 'scenarios' folder next to negmas_app.
+                           Defaults to user directory (~/negmas/app/scenarios/).
+
+        Raises:
+            FileNotFoundError: If scenarios_root is None and user directory doesn't exist.
+                              Run 'negmas-app setup' to extract scenarios first.
         """
         if scenarios_root is None:
-            # Default: scenarios folder at same level as negmas_app package
-            scenarios_root = Path(__file__).parent.parent.parent / "scenarios"
+            # Use user directory (~/negmas/app/scenarios/)
+            user_scenarios = Path.home() / "negmas" / "app" / "scenarios"
+            if user_scenarios.exists():
+                scenarios_root = user_scenarios
+            else:
+                raise FileNotFoundError(
+                    f"Scenarios directory not found at {user_scenarios}. "
+                    "Run 'negmas-app setup' to extract bundled scenarios first."
+                )
         self.scenarios_root = Path(scenarios_root)
 
         # Load settings to respect limits
@@ -392,15 +403,30 @@ class ScenarioCacheService:
             if build_info:
                 info_file = scenario_dir / "_info.yaml"
                 if refresh or not info_file.exists():
-                    # Calculate rational fraction if needed
-                    from .scenario_loader import calculate_rational_fraction
+                    # Check if rationality should be calculated
+                    max_outcomes_rationality = (
+                        self.settings.performance.max_outcomes_rationality
+                    )
+                    calculate_rationality = True
+                    rational_fraction = None
 
-                    rational_fraction = calculate_rational_fraction(scenario)
+                    if (
+                        max_outcomes_rationality is not None
+                        and max_outcomes_rationality > 0
+                    ):
+                        if n_outcomes > max_outcomes_rationality:
+                            calculate_rationality = False
+
+                    if calculate_rationality:
+                        # Calculate rational fraction if within limit
+                        from .scenario_loader import calculate_rational_fraction
+
+                        rational_fraction = calculate_rational_fraction(scenario)
 
                     info_data = {
                         "n_outcomes": scenario.outcome_space.cardinality,
                         "n_issues": len(scenario.outcome_space.issues),
-                        "rational_fraction": rational_fraction,
+                        "rational_fraction": rational_fraction,  # Will be None if skipped
                         "description": scenario_dir.name,  # Use directory name as description
                     }
 
@@ -413,17 +439,29 @@ class ScenarioCacheService:
             if build_stats and not skip_stats:
                 stats_file = scenario_dir / "_stats.yaml"
                 if refresh or not stats_file.exists():
-                    # Calculate stats using negmas built-in method
-                    scenario.calc_stats()
+                    try:
+                        # Calculate stats using negmas built-in method
+                        scenario.calc_stats()
 
-                    # Save stats with include_pareto_frontier option
-                    scenario.save_stats(
-                        scenario_dir,
-                        compact=False,
-                        include_pareto_frontier=not compact,  # Exclude if compact=True
-                    )
+                        # Save stats with include_pareto_frontier option
+                        scenario.save_stats(
+                            scenario_dir,
+                            compact=False,
+                            include_pareto_frontier=not compact,  # Exclude if compact=True
+                        )
 
-                    result["stats_created"] = 1
+                        result["stats_created"] = 1
+                    except (KeyError, ValueError, TypeError) as e:
+                        # Some scenarios have malformed utility functions
+                        # Skip stats but don't fail the entire build
+                        result["stats_skipped"] = 1
+                        skip_msg = f"Stats failed: {str(e)}"
+                        if result.get("skip_reason"):
+                            result["skip_reason"] = (
+                                result["skip_reason"] + " " + skip_msg
+                            )
+                        else:
+                            result["skip_reason"] = skip_msg
             elif build_stats and skip_stats:
                 result["stats_skipped"] = 1
 
@@ -431,48 +469,73 @@ class ScenarioCacheService:
             if build_plots:
                 n_negotiators = len(scenario.ufuns)
 
-                # If stats are being built or already exist, ensure they're loaded
-                # so we can include special points in plots
-                if build_stats or (scenario_dir / "_stats.yaml").exists():
-                    if not hasattr(scenario, "stats") or scenario.stats is None:
-                        # Load stats from file if they exist
-                        stats_file = scenario_dir / "_stats.yaml"
-                        if stats_file.exists():
-                            scenario = Scenario.load(
-                                scenario_dir, load_stats=True, load_info=False
-                            )
-                    # If stats are being built, they're already calculated above
-                    # (scenario.calc_stats() was called)
+                # Skip plotting for very large scenarios (> 1M outcomes)
+                # Even with fast mode, negmas samples outcomes which is slow
+                skip_plots = False
+                if n_outcomes > 1_000_000:
+                    skip_plots = True
+                    skip_msg = f"Plots skipped: {n_outcomes:,} outcomes > 1M"
+                    if result.get("skip_reason"):
+                        result["skip_reason"] = result["skip_reason"] + " " + skip_msg
+                    else:
+                        result["skip_reason"] = skip_msg
 
-                if n_negotiators == 2:
-                    # Bilateral: single _plot.webp
-                    plot_file = scenario_dir / "_plot.webp"
-                    if refresh or not plot_file.exists():
-                        self._create_bilateral_plot(scenario, plot_file)
-                        result["plots_created"] = 1
-
+                if skip_plots:
+                    # Don't create any plots for very large scenarios
+                    pass
                 else:
-                    # Multilateral: _plots/ folder with multiple images
-                    plots_dir = scenario_dir / "_plots"
-                    plots_dir.mkdir(exist_ok=True)
+                    # If stats are being built or already exist, ensure they're loaded
+                    # so we can include special points in plots
+                    if build_stats or (scenario_dir / "_stats.yaml").exists():
+                        if not hasattr(scenario, "stats") or scenario.stats is None:
+                            # Load stats from file if they exist
+                            stats_file = scenario_dir / "_stats.yaml"
+                            if stats_file.exists():
+                                scenario = Scenario.load(
+                                    scenario_dir, load_stats=True, load_info=False
+                                )
+                        # If stats are being built, they're already calculated above
+                        # (scenario.calc_stats() was called)
 
-                    # Get ufun names
-                    ufun_names = [
-                        getattr(ufun, "name", f"ufun{i}")
-                        for i, ufun in enumerate(scenario.ufuns)
-                    ]
+                    try:
+                        if n_negotiators == 2:
+                            # Bilateral: single _plot.webp
+                            plot_file = scenario_dir / "_plot.webp"
+                            if refresh or not plot_file.exists():
+                                self._create_bilateral_plot(scenario, plot_file)
+                                result["plots_created"] = 1
 
-                    # Create plots for consecutive pairs: 0vs1, 1vs2, 2vs3, 3vs0
-                    for i in range(n_negotiators):
-                        next_i = (i + 1) % n_negotiators
-                        plot_name = f"{ufun_names[i]}-{ufun_names[next_i]}.webp"
-                        plot_file = plots_dir / plot_name
+                        else:
+                            # Multilateral: _plots/ folder with multiple images
+                            plots_dir = scenario_dir / "_plots"
+                            plots_dir.mkdir(exist_ok=True)
 
-                        if refresh or not plot_file.exists():
-                            self._create_multilateral_plot(
-                                scenario, i, next_i, plot_file
+                            # Get ufun names
+                            ufun_names = [
+                                getattr(ufun, "name", f"ufun{i}")
+                                for i, ufun in enumerate(scenario.ufuns)
+                            ]
+
+                            # Create plots for consecutive pairs: 0vs1, 1vs2, 2vs3, 3vs0
+                            for i in range(n_negotiators):
+                                next_i = (i + 1) % n_negotiators
+                                plot_name = f"{ufun_names[i]}-{ufun_names[next_i]}.webp"
+                                plot_file = plots_dir / plot_name
+
+                                if refresh or not plot_file.exists():
+                                    self._create_multilateral_plot(
+                                        scenario, i, next_i, plot_file
+                                    )
+                                    result["plots_created"] += 1
+                    except (KeyError, ValueError, TypeError) as e:
+                        # Plot generation failed due to malformed scenario
+                        skip_msg = f"Plots failed: {str(e)}"
+                        if result.get("skip_reason"):
+                            result["skip_reason"] = (
+                                result["skip_reason"] + " " + skip_msg
                             )
-                            result["plots_created"] += 1
+                        else:
+                            result["skip_reason"] = skip_msg
 
         except Exception as e:
             result["success"] = False
@@ -487,7 +550,7 @@ class ScenarioCacheService:
             scenario: Scenario with 2 negotiators
             output_file: Path to save the plot
         """
-        import plotly.graph_objects as go
+        from .plot_utils import save_scenario_plot
 
         # Check outcome limit for plotting
         max_outcomes_plots = self.settings.performance.max_outcomes_plots
@@ -498,102 +561,10 @@ class ScenarioCacheService:
             if n_outcomes > max_outcomes_plots:
                 show_outcomes = False
 
-        # Sample outcomes only if within limit
-        outcomes = []
-        utilities_0 = []
-        utilities_1 = []
-
-        if show_outcomes:
-            outcomes = list(
-                scenario.outcome_space.enumerate_or_sample(max_cardinality=5000)
-            )
-            if outcomes:
-                # Calculate utilities
-                utilities_0 = [scenario.ufuns[0](o) for o in outcomes]
-                utilities_1 = [scenario.ufuns[1](o) for o in outcomes]
-
-        # Create plot
-        fig = go.Figure()
-
-        # Add all outcomes if within limit
-        if show_outcomes and outcomes:
-            fig.add_trace(
-                go.Scatter(
-                    x=utilities_0,
-                    y=utilities_1,
-                    mode="markers",
-                    marker=dict(size=3, color="#6b7280", opacity=0.5),
-                    name="Outcomes",
-                    showlegend=False,
-                )
-            )
-
-        # Add Pareto frontier if stats are available
-        if (
-            hasattr(scenario, "stats")
-            and scenario.stats
-            and scenario.stats.pareto_utils
-        ):
-            pareto_x = [u[0] for u in scenario.stats.pareto_utils]
-            pareto_y = [u[1] for u in scenario.stats.pareto_utils]
-
-            fig.add_trace(
-                go.Scatter(
-                    x=pareto_x,
-                    y=pareto_y,
-                    mode="markers",
-                    marker=dict(size=6, color="red"),
-                    name="Pareto Frontier",
-                    showlegend=True,
-                )
-            )
-
-        # Add special points if stats are available
-        special_points = []
-        if hasattr(scenario, "stats") and scenario.stats:
-            if scenario.stats.nash_utils and len(scenario.stats.nash_utils) > 0:
-                special_points.append(("Nash", scenario.stats.nash_utils[0], "purple"))
-            if scenario.stats.kalai_utils and len(scenario.stats.kalai_utils) > 0:
-                special_points.append(("Kalai", scenario.stats.kalai_utils[0], "green"))
-            if scenario.stats.ks_utils and len(scenario.stats.ks_utils) > 0:
-                special_points.append(("KS", scenario.stats.ks_utils[0], "orange"))
-            if (
-                scenario.stats.max_welfare_utils
-                and len(scenario.stats.max_welfare_utils) > 0
-            ):
-                special_points.append(
-                    ("MaxWelfare", scenario.stats.max_welfare_utils[0], "blue")
-                )
-
-        for name, utils, color in special_points:
-            fig.add_trace(
-                go.Scatter(
-                    x=[utils[0]],
-                    y=[utils[1]],
-                    mode="markers",
-                    marker=dict(size=12, color=color, symbol="star"),
-                    name=name,
-                    showlegend=True,
-                )
-            )
-
-        fig.update_layout(
-            xaxis_title=getattr(scenario.ufuns[0], "name", "Negotiator 0"),
-            yaxis_title=getattr(scenario.ufuns[1], "name", "Negotiator 1"),
-            width=600,
-            height=500,
-            margin=dict(l=60, r=20, t=20, b=60),
-            plot_bgcolor="white",
-            paper_bgcolor="white",
-            showlegend=True,
-            legend=dict(x=1.05, y=1, xanchor="left", yanchor="top"),
+        # Use centralized plotting utility
+        save_scenario_plot(
+            scenario, output_file, ufun_indices=(0, 1), show_outcomes=show_outcomes
         )
-
-        fig.update_xaxes(gridcolor="#e0e0e0")
-        fig.update_yaxes(gridcolor="#e0e0e0")
-
-        # Save as webp
-        fig.write_image(output_file, format="webp")
 
     def _create_multilateral_plot(
         self, scenario: Scenario, idx1: int, idx2: int, output_file: Path
@@ -606,7 +577,7 @@ class ScenarioCacheService:
             idx2: Index of second negotiator
             output_file: Path to save the plot
         """
-        import plotly.graph_objects as go
+        from .plot_utils import save_scenario_plot
 
         # Check outcome limit for plotting
         max_outcomes_plots = self.settings.performance.max_outcomes_plots
@@ -617,102 +588,13 @@ class ScenarioCacheService:
             if n_outcomes > max_outcomes_plots:
                 show_outcomes = False
 
-        # Sample outcomes only if within limit
-        outcomes = []
-        utilities_1 = []
-        utilities_2 = []
-
-        if show_outcomes:
-            outcomes = list(
-                scenario.outcome_space.enumerate_or_sample(max_cardinality=5000)
-            )
-            if outcomes:
-                # Calculate utilities for the two negotiators
-                utilities_1 = [scenario.ufuns[idx1](o) for o in outcomes]
-                utilities_2 = [scenario.ufuns[idx2](o) for o in outcomes]
-
-        # Create plot
-        fig = go.Figure()
-
-        # Add all outcomes if within limit
-        if show_outcomes and outcomes:
-            fig.add_trace(
-                go.Scatter(
-                    x=utilities_1,
-                    y=utilities_2,
-                    mode="markers",
-                    marker=dict(size=3, color="#6b7280", opacity=0.5),
-                    name="Outcomes",
-                    showlegend=False,
-                )
-            )
-
-        # Add Pareto frontier if stats are available (project to 2D)
-        if (
-            hasattr(scenario, "stats")
-            and scenario.stats
-            and scenario.stats.pareto_utils
-        ):
-            pareto_x = [u[idx1] for u in scenario.stats.pareto_utils]
-            pareto_y = [u[idx2] for u in scenario.stats.pareto_utils]
-
-            fig.add_trace(
-                go.Scatter(
-                    x=pareto_x,
-                    y=pareto_y,
-                    mode="markers",
-                    marker=dict(size=6, color="red"),
-                    name="Pareto Frontier",
-                    showlegend=True,
-                )
-            )
-
-        # Add special points if stats are available (project to 2D)
-        special_points = []
-        if hasattr(scenario, "stats") and scenario.stats:
-            if scenario.stats.nash_utils and len(scenario.stats.nash_utils) > 0:
-                special_points.append(("Nash", scenario.stats.nash_utils[0], "purple"))
-            if scenario.stats.kalai_utils and len(scenario.stats.kalai_utils) > 0:
-                special_points.append(("Kalai", scenario.stats.kalai_utils[0], "green"))
-            if scenario.stats.ks_utils and len(scenario.stats.ks_utils) > 0:
-                special_points.append(("KS", scenario.stats.ks_utils[0], "orange"))
-            if (
-                scenario.stats.max_welfare_utils
-                and len(scenario.stats.max_welfare_utils) > 0
-            ):
-                special_points.append(
-                    ("MaxWelfare", scenario.stats.max_welfare_utils[0], "blue")
-                )
-
-        for name, utils, color in special_points:
-            fig.add_trace(
-                go.Scatter(
-                    x=[utils[idx1]],
-                    y=[utils[idx2]],
-                    mode="markers",
-                    marker=dict(size=12, color=color, symbol="star"),
-                    name=name,
-                    showlegend=True,
-                )
-            )
-
-        fig.update_layout(
-            xaxis_title=getattr(scenario.ufuns[idx1], "name", f"Negotiator {idx1}"),
-            yaxis_title=getattr(scenario.ufuns[idx2], "name", f"Negotiator {idx2}"),
-            width=600,
-            height=500,
-            margin=dict(l=60, r=20, t=20, b=60),
-            plot_bgcolor="white",
-            paper_bgcolor="white",
-            showlegend=True,
-            legend=dict(x=1.05, y=1, xanchor="left", yanchor="top"),
+        # Use centralized plotting utility
+        save_scenario_plot(
+            scenario,
+            output_file,
+            ufun_indices=(idx1, idx2),
+            show_outcomes=show_outcomes,
         )
-
-        fig.update_xaxes(gridcolor="#e0e0e0")
-        fig.update_yaxes(gridcolor="#e0e0e0")
-
-        # Save as webp
-        fig.write_image(output_file, format="webp")
 
     def clear_caches(
         self,

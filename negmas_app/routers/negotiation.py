@@ -16,8 +16,16 @@ from ..services.negotiation_storage import NegotiationStorageService
 
 router = APIRouter(prefix="/api/negotiation", tags=["negotiation"])
 
-# Shared session manager
-_manager = SessionManager()
+# Shared session manager (initialized lazily)
+_manager: SessionManager | None = None
+
+
+def get_manager() -> SessionManager:
+    """Get or create the session manager instance."""
+    global _manager
+    if _manager is None:
+        _manager = SessionManager()
+    return _manager
 
 
 class NegotiatorConfigRequest(BaseModel):
@@ -88,7 +96,7 @@ async def start_negotiation(request: StartNegotiationRequest):
     ]
 
     # Create session
-    session = _manager.create_session(
+    session = get_manager().create_session(
         scenario_path=request.scenario_path,
         negotiator_configs=configs,
         mechanism_type=request.mechanism_type,
@@ -123,7 +131,7 @@ async def start_negotiation_background(request: StartNegotiationRequest):
     ]
 
     # Create session
-    session = _manager.create_session(
+    session = get_manager().create_session(
         scenario_path=request.scenario_path,
         negotiator_configs=configs,
         mechanism_type=request.mechanism_type,
@@ -136,7 +144,7 @@ async def start_negotiation_background(request: StartNegotiationRequest):
 
     # Run negotiation in background task (non-blocking)
     async def run_negotiation_task():
-        async for event in _manager.run_session_stream(
+        async for event in get_manager().run_session_stream(
             session.id, configs, step_delay=0.0, share_ufuns=request.share_ufuns
         ):
             pass  # Just consume events, don't stream
@@ -164,17 +172,17 @@ async def stream_negotiation(
     - complete: Negotiation finished (includes result)
     - error: Error occurred
     """
-    session = _manager.get_session(session_id)
+    session = get_manager().get_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    configs = _manager.get_configs(session_id)
+    configs = get_manager().get_configs(session_id)
     if configs is None:
         raise HTTPException(status_code=404, detail="Session configs not found")
 
     async def event_generator():
         try:
-            async for event in _manager.run_session_stream(
+            async for event in get_manager().run_session_stream(
                 session_id, configs, step_delay=step_delay, share_ufuns=share_ufuns
             ):
                 if isinstance(event, SessionInitEvent):
@@ -282,7 +290,7 @@ async def stream_negotiation(
 @router.get("/{session_id}/progress")
 async def get_negotiation_progress(session_id: str):
     """Get current progress of a running negotiation."""
-    session = _manager.get_session(session_id)
+    session = get_manager().get_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -298,7 +306,7 @@ async def get_negotiation_progress(session_id: str):
 @router.post("/{session_id}/cancel")
 async def cancel_negotiation(session_id: str):
     """Cancel a running negotiation."""
-    success = _manager.cancel_session(session_id)
+    success = get_manager().cancel_session(session_id)
     if not success:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"status": "cancelled"}
@@ -307,7 +315,7 @@ async def cancel_negotiation(session_id: str):
 @router.post("/{session_id}/pause")
 async def pause_negotiation(session_id: str):
     """Pause a running negotiation."""
-    success = _manager.pause_session(session_id)
+    success = get_manager().pause_session(session_id)
     if not success:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"status": "paused"}
@@ -316,7 +324,7 @@ async def pause_negotiation(session_id: str):
 @router.post("/{session_id}/resume")
 async def resume_negotiation(session_id: str):
     """Resume a paused negotiation."""
-    success = _manager.resume_session(session_id)
+    success = get_manager().resume_session(session_id)
     if not success:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"status": "running"}
@@ -329,7 +337,7 @@ async def list_sessions():
     Returns sessions grouped by status (running, completed, failed).
     """
     sessions = []
-    for session in _manager.sessions.values():
+    for session in get_manager().sessions.values():
         sessions.append(
             {
                 "id": session.id,
@@ -367,7 +375,7 @@ async def get_all_tags():
 @router.get("/{session_id}")
 async def get_session(session_id: str):
     """Get current session state."""
-    session = _manager.get_session(session_id)
+    session = get_manager().get_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 

@@ -20,8 +20,16 @@ from ..services.tournament_storage import TournamentStorageService
 
 router = APIRouter(prefix="/api/tournament", tags=["tournament"])
 
-# Shared tournament manager
-_manager = TournamentManager()
+# Shared tournament manager (initialized lazily)
+_manager: TournamentManager | None = None
+
+
+def get_manager() -> TournamentManager:
+    """Get or create the tournament manager instance."""
+    global _manager
+    if _manager is None:
+        _manager = TournamentManager()
+    return _manager
 
 
 class TournamentConfigRequest(BaseModel):
@@ -161,7 +169,7 @@ async def start_tournament(request: TournamentConfigRequest):
         path_exists=request.path_exists,
     )
 
-    session = _manager.create_session(config)
+    session = get_manager().create_session(config)
 
     return {
         "session_id": session.id,
@@ -183,13 +191,13 @@ async def stream_tournament(session_id: str):
     - complete: Tournament finished (includes results)
     - error: Error occurred
     """
-    session = _manager.get_session(session_id)
+    session = get_manager().get_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
     async def event_generator():
         try:
-            async for event in _manager.run_tournament_stream(session_id):
+            async for event in get_manager().run_tournament_stream(session_id):
                 if isinstance(event, TournamentGridInit):
                     yield {
                         "event": "grid_init",
@@ -374,7 +382,7 @@ async def cancel_tournament(session_id: str, request: CancelRequest | None = Non
         Status dict with cancellation result.
     """
     delete_results = request.delete_results if request else False
-    result = _manager.cancel_session(session_id, delete_results=delete_results)
+    result = get_manager().cancel_session(session_id, delete_results=delete_results)
     if not result.get("success"):
         raise HTTPException(
             status_code=404, detail=result.get("error", "Session not found")
@@ -389,7 +397,7 @@ async def list_sessions():
     Returns sessions grouped by status.
     """
     sessions = []
-    for session in _manager.list_sessions():
+    for session in get_manager().list_sessions():
         config_data = None
         if session.config is not None:
             config_data = {
@@ -430,7 +438,7 @@ async def list_sessions():
 @router.get("/{session_id}")
 async def get_session(session_id: str):
     """Get current session state."""
-    session = _manager.get_session(session_id)
+    session = get_manager().get_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -504,7 +512,7 @@ async def run_batch(session_id: str):
     without streaming progress. Results will be available when the request completes.
     """
     try:
-        session = await _manager.run_tournament_batch(session_id)
+        session = await get_manager().run_tournament_batch(session_id)
 
         results_data = None
         if session.results is not None:
@@ -577,7 +585,7 @@ async def continue_tournament(tournament_id: str):
 
     # Create a session for continuing this tournament
     try:
-        session = _manager.continue_session(str(tournament_path))
+        session = get_manager().continue_session(str(tournament_path))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -41,7 +41,9 @@ def clear_scenario_cache() -> None:
     _SCENARIO_DETAIL_CACHE.clear()
 
 
-def calculate_rational_fraction(scenario: Scenario, max_samples: int = 50000) -> float:
+def calculate_rational_fraction(
+    scenario: Scenario, max_samples: int = 50000
+) -> float | None:
     """Calculate the fraction of outcomes that are rational for all negotiators.
 
     An outcome is rational if its utility is >= reserved value for all negotiators.
@@ -51,16 +53,21 @@ def calculate_rational_fraction(scenario: Scenario, max_samples: int = 50000) ->
         max_samples: Maximum number of outcomes to sample for large spaces.
 
     Returns:
-        Fraction of rational outcomes (0.0 to 1.0).
+        Fraction of rational outcomes (0.0 to 1.0), or None if calculation fails.
     """
-    outcomes = list(
-        scenario.outcome_space.enumerate_or_sample(max_cardinality=max_samples)
-    )
-    if not outcomes:
-        return 0.0
+    try:
+        outcomes = list(
+            scenario.outcome_space.enumerate_or_sample(max_cardinality=max_samples)
+        )
+        if not outcomes:
+            return 0.0
 
-    n_rational = sum(1 for o in outcomes if is_rational(scenario.ufuns, o))
-    return n_rational / len(outcomes)
+        n_rational = sum(1 for o in outcomes if is_rational(scenario.ufuns, o))
+        return n_rational / len(outcomes)
+    except (KeyError, ValueError, TypeError) as e:
+        # Some scenarios have malformed utility functions that can't be evaluated
+        # Return None to indicate the calculation failed
+        return None
 
 
 class ScenarioLoader:
@@ -71,11 +78,22 @@ class ScenarioLoader:
 
         Args:
             scenarios_root: Root directory containing scenarios.
-                           Defaults to 'scenarios' folder next to negmas_app.
+                           Defaults to user directory (~/negmas/app/scenarios/).
+
+        Raises:
+            FileNotFoundError: If scenarios_root is None and user directory doesn't exist.
+                              Run 'negmas-app setup' to extract scenarios first.
         """
         if scenarios_root is None:
-            # Default: scenarios folder at same level as negmas_app package
-            scenarios_root = Path(__file__).parent.parent.parent / "scenarios"
+            # Use user directory (~/negmas/app/scenarios/)
+            user_scenarios = Path.home() / "negmas" / "app" / "scenarios"
+            if user_scenarios.exists():
+                scenarios_root = user_scenarios
+            else:
+                raise FileNotFoundError(
+                    f"Scenarios directory not found at {user_scenarios}. "
+                    "Run 'negmas-app setup' to extract bundled scenarios first."
+                )
         self.scenarios_root = Path(scenarios_root)
         self._registered = False
 
@@ -462,7 +480,7 @@ class ScenarioLoader:
         # Load performance settings to check limits
         perf_settings = SettingsService.load_performance()
         max_stats = perf_settings.max_outcomes_stats
-        max_info = perf_settings.max_outcomes_info
+        max_rationality = perf_settings.max_outcomes_rationality
 
         # Get n_outcomes early (always calculate this)
         n_outcomes = scenario.outcome_space.cardinality
@@ -470,7 +488,11 @@ class ScenarioLoader:
         # Determine what can be calculated based on limits
         # 0 or None means no limit
         can_calc_stats = max_stats is None or max_stats == 0 or n_outcomes <= max_stats
-        can_calc_info = max_info is None or max_info == 0 or n_outcomes <= max_info
+        can_calc_rationality = (
+            max_rationality is None
+            or max_rationality == 0
+            or n_outcomes <= max_rationality
+        )
 
         # Calculate stats if needed and allowed
         needs_stats = scenario.stats is None or force
@@ -496,10 +518,13 @@ class ScenarioLoader:
             scenario.info["n_outcomes"] = n_outcomes
             scenario.info["n_issues"] = len(scenario.outcome_space.issues)
 
-            # Only calculate rational_fraction if within info limits
-            if can_calc_info:
+            # Only calculate rational_fraction if within rationality limits
+            if can_calc_rationality:
                 rational_fraction = calculate_rational_fraction(scenario)
                 scenario.info["rational_fraction"] = rational_fraction
+            else:
+                # Set to None when skipped due to limit
+                scenario.info["rational_fraction"] = None
 
         # Save if caching is enabled and something was calculated
         something_calculated = (needs_stats and can_calc_stats) or needs_info

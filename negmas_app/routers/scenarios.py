@@ -26,8 +26,16 @@ from ..models.scenario import (
 
 router = APIRouter(prefix="/api/scenarios", tags=["scenarios"])
 
-# Shared scenario loader
-_loader = ScenarioLoader()
+# Shared scenario loader (initialized lazily)
+_loader: ScenarioLoader | None = None
+
+
+def get_loader() -> ScenarioLoader:
+    """Get or create the scenario loader instance."""
+    global _loader
+    if _loader is None:
+        _loader = ScenarioLoader()
+    return _loader
 
 
 @router.get("")
@@ -40,14 +48,14 @@ async def list_scenarios(source: str | None = None):
     Returns:
         List of scenario info objects.
     """
-    scenarios = await asyncio.to_thread(_loader.list_scenarios, source=source)
+    scenarios = await asyncio.to_thread(get_loader().list_scenarios, source=source)
     return {"scenarios": [_scenario_to_dict(s) for s in scenarios]}
 
 
 @router.get("/sources")
 async def list_sources():
     """List available scenario sources."""
-    sources = await asyncio.to_thread(_loader.list_sources)
+    sources = await asyncio.to_thread(get_loader().list_sources)
     return {"sources": sources}
 
 
@@ -114,7 +122,7 @@ async def get_scenario_stats(path: str):
     Returns:
         Scenario statistics if available.
     """
-    stats = await asyncio.to_thread(_loader.get_scenario_stats, path)
+    stats = await asyncio.to_thread(get_loader().get_scenario_stats, path)
     return asdict(stats)
 
 
@@ -129,7 +137,7 @@ async def calculate_scenario_stats(path: str, force: bool = False):
     Returns:
         Computed scenario statistics.
     """
-    stats = await asyncio.to_thread(_loader.calculate_and_save_stats, path, force)
+    stats = await asyncio.to_thread(get_loader().calculate_and_save_stats, path, force)
     return asdict(stats)
 
 
@@ -149,7 +157,7 @@ async def get_scenario_plot_data(
     """
 
     def _compute():
-        scenario = _loader.load_scenario(path, load_stats=True, load_info=True)
+        scenario = get_loader().load_scenario(path, load_stats=True, load_info=True)
         if scenario is None:
             return None
 
@@ -247,7 +255,7 @@ async def get_scenario(path: str):
     Returns:
         Scenario info with full details.
     """
-    info = await asyncio.to_thread(_loader.get_scenario_info, path)
+    info = await asyncio.to_thread(get_loader().get_scenario_info, path)
     if info is None:
         raise HTTPException(status_code=404, detail="Scenario not found")
     return _scenario_to_dict(info)
@@ -303,7 +311,7 @@ async def bulk_calculate_stats(data: dict[str, Any]):
             try:
                 # Calculate stats in thread pool
                 stats = await asyncio.to_thread(
-                    _loader.calculate_and_save_stats, path, force
+                    get_loader().calculate_and_save_stats, path, force
                 )
                 completed += 1
 
@@ -447,14 +455,16 @@ async def create_scenario(data: ScenarioCreateInput):
         )
 
         save_path = Path(data.save_path) if data.save_path else None
-        scenario, created_path, error = _loader.create_scenario(definition, save_path)
+        scenario, created_path, error = get_loader().create_scenario(
+            definition, save_path
+        )
 
         if error:
             return {"success": False, "error": error}
 
         # Get info for the created scenario
         if scenario is not None and created_path is not None:
-            info = _loader.get_scenario_info(str(created_path))
+            info = get_loader().get_scenario_info(str(created_path))
             if info:
                 return {
                     "success": True,
