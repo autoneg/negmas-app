@@ -25,11 +25,11 @@
               Recent
             </button>
             <div v-if="recentDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
-              <div v-if="negotiationsStore.recentSessions.length === 0" class="dropdown-item text-muted">
+              <div v-if="enabledRecentSessions.length === 0" class="dropdown-item text-muted">
                 No recent sessions
               </div>
               <div
-                v-for="session in negotiationsStore.recentSessions"
+                v-for="session in enabledRecentSessions"
                 :key="session.name + session.last_used_at"
                 class="dropdown-item"
                 @click="loadFullSession(session); recentDropdownOpen = false"
@@ -58,18 +58,17 @@
             <div v-if="savedDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
               <!-- Debug info -->
               <div style="background: yellow; padding: 4px; font-size: 10px; border-bottom: 1px solid #ccc;">
-                DEBUG: {{ negotiationsStore.sessionPresets?.length || 0 }} presets, open={{ savedDropdownOpen }}, loading={{ isLoadingPresets }}
+                DEBUG: {{ enabledSessionPresets?.length || 0 }} presets, open={{ savedDropdownOpen }}, loading={{ isLoadingPresets }}
               </div>
-              
               <div v-if="isLoadingPresets" class="dropdown-item text-muted">
-                Loading saved sessions...
+                Loading...
               </div>
-              <div v-else-if="negotiationsStore.sessionPresets.length === 0" class="dropdown-item text-muted">
+              <div v-else-if="enabledSessionPresets.length === 0" class="dropdown-item text-muted">
                 No saved sessions
               </div>
               <div
                 v-else
-                v-for="preset in negotiationsStore.sessionPresets"
+                v-for="preset in enabledSessionPresets"
                 :key="preset.name"
                 class="dropdown-item"
                 style="display: flex; justify-content: space-between; align-items: center;"
@@ -1121,6 +1120,16 @@ watch(() => props.show, (newVal, oldVal) => {
 watch(() => negotiationsStore.sessionPresets, (newVal) => {
   console.log('[NewNegotiationModal] sessionPresets changed:', newVal?.length || 0, newVal)
 }, { immediate: true, deep: true })
+
+// Filter out disabled presets for the Load dropdown
+const enabledSessionPresets = computed(() => {
+  return (negotiationsStore.sessionPresets || []).filter(preset => !preset.disabled)
+})
+
+// Filter out disabled presets from Recent sessions
+const enabledRecentSessions = computed(() => {
+  return (negotiationsStore.recentSessions || []).filter(session => !session.disabled)
+})
 
 // Tab management
 const currentTab = ref('scenario')

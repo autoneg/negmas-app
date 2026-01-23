@@ -96,7 +96,7 @@
           <div class="config-item-header">
             <div class="config-item-title">
               {{ config.name }}
-              <span v-if="isConfigDisabled(config)" class="badge badge-neutral">Disabled</span>
+              <span v-if="isConfigDisabled(config)" class="badge badge-disabled">Disabled</span>
             </div>
           </div>
           <div class="config-item-meta">
@@ -673,7 +673,23 @@ onMounted(() => {
 }
 
 .config-item.disabled {
-  opacity: 0.5;
+  opacity: 0.6;
+  background: var(--bg-tertiary);
+}
+
+.config-item.disabled .config-item-title {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+.badge-disabled {
+  background: rgba(220, 38, 38, 0.15);
+  color: rgb(220, 38, 38);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
 .config-item-header {
