@@ -1,5 +1,5 @@
 <template>
-  <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
+  <div v-if="show" class="modal-overlay active" @click.self="$emit('close')">
     <div class="modal help-modal">
       <div class="modal-header">
         <h2 class="modal-title">Keyboard Shortcuts</h2>

@@ -263,7 +263,7 @@
     
     <!-- Rename Modal -->
     <Teleport to="body">
-      <div v-if="showRenameModal" class="modal-overlay" @click.self="showRenameModal = false">
+      <div v-if="showRenameModal" class="modal-overlay active" @click.self="showRenameModal = false">
         <div class="modal small">
           <div class="modal-header">
             <h3 class="modal-title">Rename Configuration</h3>
@@ -434,10 +434,13 @@ async function onConfigSaved() {
 function onNegotiationStart(data) {
   console.log('[ConfigsView] Negotiation started:', data)
   closeModals()
-  // Navigate to the new negotiation
+  // Navigate to the new negotiation with from=configs query param
   if (data && data.session_id) {
     console.log('[ConfigsView] Navigating to /negotiations/' + data.session_id)
-    router.push(`/negotiations/${data.session_id}`)
+    router.push({
+      path: `/negotiations/${data.session_id}`,
+      query: { from: 'configs' }
+    })
   } else {
     console.error('[ConfigsView] No session_id in response:', data)
   }

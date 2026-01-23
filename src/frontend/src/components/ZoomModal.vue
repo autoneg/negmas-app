@@ -1,6 +1,6 @@
 <template>
   <!-- Zoom Modal - Fullscreen Panel View -->
-  <div v-if="show" class="modal-overlay modal-fullscreen" @click.self="$emit('close')">
+  <div v-if="show" class="modal-overlay modal-fullscreen active" @click.self="$emit('close')">
     <div class="modal-content modal-zoom">
       <!-- Header -->
       <div class="modal-header" style="padding: 12px 16px; border-bottom: 1px solid var(--border-color);">

@@ -245,7 +245,7 @@
     </div>
     
     <!-- Create Virtual Negotiator Modal -->
-    <div v-if="showCreateVirtual" class="modal-overlay" @click="showCreateVirtual = false">
+    <div v-if="showCreateVirtual" class="modal-overlay active" @click="showCreateVirtual = false">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h3>Create Virtual Negotiator</h3>
