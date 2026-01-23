@@ -60,4 +60,5 @@ issues:
   - valueL
   - valueM
 name: domain02
+path: __PATH__:/Users/yasser/code/projects/negmas-app/scenarios/anac2021/domain022021/domain02.yml
 type: DiscreteCartesianOutcomeSpace

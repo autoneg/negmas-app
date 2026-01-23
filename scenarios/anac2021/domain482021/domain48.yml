@@ -59,4 +59,5 @@ issues:
   - valueS
   - valueT
 name: domain48
+path: __PATH__:/Users/yasser/code/projects/negmas-app/scenarios/anac2021/domain482021/domain48.yml
 type: DiscreteCartesianOutcomeSpace
