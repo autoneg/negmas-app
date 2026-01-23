@@ -109,13 +109,18 @@ class PerformanceSettings:
     # (Pareto, Nash, Kalai, etc.) - above this, only info is calculated
     max_outcomes_stats: int | None = 1_000_000
 
-    # Maximum number of outcomes for generating plots
+    # Maximum number of outcomes for generating plots with full outcome space
     # Above this, plots show special points only (no background outcome space)
     max_outcomes_plots: int | None = 500_000
 
-    # Maximum number of outcomes for calculating any scenario info
-    # (other than n_outcomes itself)
-    max_outcomes_info: int | None = 10_000_000
+    # Maximum number of outcomes for showing Pareto frontier in plots
+    # Computing Pareto frontier is expensive for large outcome spaces
+    max_outcomes_pareto: int | None = 1_000_000
+
+    # Maximum number of outcomes for calculating rationality fraction
+    # Above this, rationality calculation is skipped (info still calculated)
+    # Note: Rationality calculation uses sampling but is still expensive for large spaces
+    max_outcomes_rationality: int | None = 500_000
 
     # Maximum number of outcomes for showing histogram panel
     # Above this threshold, histogram is disabled for enumerated outcome spaces

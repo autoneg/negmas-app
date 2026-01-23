@@ -254,11 +254,25 @@
               
               <div class="setting-row">
                 <div class="setting-info">
-                  <div class="setting-name">Max Outcomes for Info</div>
-                  <div class="setting-desc">Maximum outcomes for calculating any scenario info</div>
+                  <div class="setting-name">Max Outcomes for Pareto Frontier</div>
+                  <div class="setting-desc">Maximum outcomes for showing Pareto frontier in plots (0 = no limit)</div>
                 </div>
                 <input
-                  v-model.number="localSettings.performance.max_outcomes_info"
+                  v-model.number="localSettings.performance.max_outcomes_pareto"
+                  type="number"
+                  min="0"
+                  class="setting-input number"
+                  placeholder="1000000"
+                />
+              </div>
+              
+              <div class="setting-row">
+                <div class="setting-info">
+                  <div class="setting-name">Max Outcomes for Rationality</div>
+                  <div class="setting-desc">Maximum outcomes for calculating rationality fraction (0 = no limit)</div>
+                </div>
+                <input
+                  v-model.number="localSettings.performance.max_outcomes_rationality"
                   type="number"
                   min="0"
                   class="setting-input number"

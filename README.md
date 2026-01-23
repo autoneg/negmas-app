@@ -156,7 +156,7 @@ NegMAS App is built with a modern Vue.js stack optimized for real-time visualiza
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Browser (Frontend)                      │
+│                      Browser (Frontend)                     │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
 │  │   Vue 3     │  │  Plotly.js  │  │   Vue Router        │  │
 │  │   (UI)      │  │   (Charts)  │  │   (Navigation)      │  │
@@ -168,7 +168,7 @@ NegMAS App is built with a modern Vue.js stack optimized for real-time visualiza
 └────────────────────────────┬────────────────────────────────┘
                              │ HTTP/SSE
 ┌────────────────────────────┴────────────────────────────────┐
-│                    FastAPI (Backend)                         │
+│                    FastAPI (Backend)                        │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
 │  │   Routers   │  │  Services   │  │      Models         │  │
 │  │   (API)     │  │  (Logic)    │  │   (Dataclasses)     │  │
@@ -176,7 +176,7 @@ NegMAS App is built with a modern Vue.js stack optimized for real-time visualiza
 └────────────────────────────┬────────────────────────────────┘
                              │
 ┌────────────────────────────┴────────────────────────────────┐
-│                     NegMAS Library                           │
+│                     NegMAS Library                          │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
 │  │ Mechanisms  │  │ Negotiators │  │     Scenarios       │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │

@@ -93,7 +93,13 @@ async def update_all_settings(settings: dict[str, Any]) -> dict[str, Any]:
     paths_filtered = {k: v for k, v in paths_data.items() if k in paths_keys}
 
     performance_data = settings.get("performance", {})
-    performance_keys = {"max_outcomes_run", "max_outcomes_stats", "max_outcomes_info"}
+    performance_keys = {
+        "max_outcomes_run",
+        "max_outcomes_stats",
+        "max_outcomes_plots",
+        "max_outcomes_pareto",
+        "max_outcomes_rationality",
+    }
     performance_filtered = {
         k: v for k, v in performance_data.items() if k in performance_keys
     }
@@ -183,7 +189,13 @@ async def get_performance_settings() -> dict[str, Any]:
 async def update_performance_settings(settings: dict[str, Any]) -> dict[str, Any]:
     """Update performance settings."""
     # Convert 0 to None for "no limit" semantics
-    for key in ["max_outcomes_run", "max_outcomes_stats", "max_outcomes_info"]:
+    for key in [
+        "max_outcomes_run",
+        "max_outcomes_stats",
+        "max_outcomes_plots",
+        "max_outcomes_pareto",
+        "max_outcomes_rationality",
+    ]:
         if key in settings and settings[key] == 0:
             settings[key] = None
     performance = PerformanceSettings(**settings)

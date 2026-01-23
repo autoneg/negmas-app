@@ -2,8 +2,10 @@
 
 from pathlib import Path
 
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import matplotlib
+import matplotlib.pyplot as plt
+
+matplotlib.use("Agg")  # Non-interactive backend
 
 from ..models.session import NegotiationSession, OutcomeSpaceData
 from .settings_service import SettingsService
@@ -113,6 +115,8 @@ class NegotiationPreviewService:
     @staticmethod
     def _generate_utility2d_preview(session: NegotiationSession, session_dir: Path):
         """Generate 2D utility space preview showing negotiation trace."""
+        import matplotlib.pyplot as plt
+
         plot_file = _get_preview_path(session_dir, "utility2d")
         image_format = _get_preview_format()
 
@@ -130,37 +134,33 @@ class NegotiationPreviewService:
         x_utils = [u[x_idx] for u in data.outcome_utilities]
         y_utils = [u[y_idx] for u in data.outcome_utilities]
 
-        # Create figure
-        fig = go.Figure()
-
-        # Add outcome scatter
-        fig.add_trace(
-            go.Scatter(
-                x=x_utils,
-                y=y_utils,
-                mode="markers",
-                marker=dict(
-                    size=2, color="rgba(100, 149, 237, 0.3)", line=dict(width=0)
-                ),
-                name="Outcomes",
-                showlegend=True,
-            )
+        # Get names
+        x_name = (
+            negotiator_names[x_idx] if x_idx < len(negotiator_names) else f"Neg {x_idx}"
+        )
+        y_name = (
+            negotiator_names[y_idx] if y_idx < len(negotiator_names) else f"Neg {y_idx}"
         )
 
-        # Add Pareto frontier (scatter only, no lines)
+        # Create figure
+        fig, ax = plt.subplots(figsize=(6, 6))
+
+        # Add outcome scatter
+        ax.scatter(
+            x_utils,
+            y_utils,
+            s=2,
+            alpha=0.3,
+            color="#6495ED",  # Cornflower blue
+            label="Outcomes",
+            zorder=1,
+        )
+
+        # Add Pareto frontier
         if data.pareto_utilities:
             pareto_x = [u[x_idx] for u in data.pareto_utilities]
             pareto_y = [u[y_idx] for u in data.pareto_utilities]
-            fig.add_trace(
-                go.Scatter(
-                    x=pareto_x,
-                    y=pareto_y,
-                    mode="markers",
-                    marker=dict(size=4, color="red"),
-                    name="Pareto",
-                    showlegend=True,
-                )
-            )
+            ax.scatter(pareto_x, pareto_y, s=4, color="red", label="Pareto", zorder=5)
 
         # Add negotiation trace (offers made during negotiation)
         if session.offers and len(session.offers) > 0:
@@ -176,93 +176,97 @@ class NegotiationPreviewService:
             ]
 
             if offer_x and offer_y:
-                fig.add_trace(
-                    go.Scatter(
-                        x=offer_x,
-                        y=offer_y,
-                        mode="lines+markers",
-                        marker=dict(size=5, color="orange", opacity=0.7),
-                        line=dict(color="orange", width=1, dash="dot"),
-                        name="Offers",
-                        showlegend=True,
-                    )
+                ax.plot(
+                    offer_x,
+                    offer_y,
+                    marker="o",
+                    markersize=5,
+                    linestyle=":",
+                    color="orange",
+                    alpha=0.7,
+                    label="Offers",
+                    zorder=7,
                 )
 
         # Add special points
-        special_points = []
-        if data.nash_point:
-            special_points.append(("Nash", data.nash_point.utilities, "purple"))
-        if data.kalai_point:
-            special_points.append(("Kalai", data.kalai_point.utilities, "green"))
-        if data.kalai_smorodinsky_point:
-            special_points.append(
-                ("KS", data.kalai_smorodinsky_point.utilities, "cyan")
+        if data.nash_point and len(data.nash_point.utilities) > max(x_idx, y_idx):
+            ax.scatter(
+                [data.nash_point.utilities[x_idx]],
+                [data.nash_point.utilities[y_idx]],
+                s=100,
+                marker="*",
+                color="purple",
+                label="Nash",
+                zorder=10,
             )
-        if data.max_welfare_point:
-            special_points.append(
-                ("MaxWelfare", data.max_welfare_point.utilities, "blue")
+        if data.kalai_point and len(data.kalai_point.utilities) > max(x_idx, y_idx):
+            ax.scatter(
+                [data.kalai_point.utilities[x_idx]],
+                [data.kalai_point.utilities[y_idx]],
+                s=100,
+                marker="*",
+                color="green",
+                label="Kalai",
+                zorder=10,
             )
-
-        for name, utils, color in special_points:
-            if len(utils) > max(x_idx, y_idx):
-                fig.add_trace(
-                    go.Scatter(
-                        x=[utils[x_idx]],
-                        y=[utils[y_idx]],
-                        mode="markers",
-                        marker=dict(size=10, color=color, symbol="star"),
-                        name=name,
-                        showlegend=True,
-                    )
-                )
+        if data.kalai_smorodinsky_point and len(
+            data.kalai_smorodinsky_point.utilities
+        ) > max(x_idx, y_idx):
+            ax.scatter(
+                [data.kalai_smorodinsky_point.utilities[x_idx]],
+                [data.kalai_smorodinsky_point.utilities[y_idx]],
+                s=100,
+                marker="*",
+                color="cyan",
+                label="KS",
+                zorder=10,
+            )
+        if data.max_welfare_point and len(data.max_welfare_point.utilities) > max(
+            x_idx, y_idx
+        ):
+            ax.scatter(
+                [data.max_welfare_point.utilities[x_idx]],
+                [data.max_welfare_point.utilities[y_idx]],
+                s=100,
+                marker="*",
+                color="blue",
+                label="MaxWelfare",
+                zorder=10,
+            )
 
         # Add agreement point if available
         if session.agreement and session.final_utilities:
-            fig.add_trace(
-                go.Scatter(
-                    x=[session.final_utilities[x_idx]],
-                    y=[session.final_utilities[y_idx]],
-                    mode="markers",
-                    marker=dict(size=14, color="black", symbol="x", line=dict(width=2)),
-                    name="Agreement",
-                    showlegend=True,
-                )
+            ax.scatter(
+                [session.final_utilities[x_idx]],
+                [session.final_utilities[y_idx]],
+                s=150,
+                marker="x",
+                color="black",
+                linewidths=2,
+                label="Agreement",
+                zorder=15,
             )
 
-        # Update layout
-        x_name = (
-            negotiator_names[x_idx] if x_idx < len(negotiator_names) else f"Neg {x_idx}"
-        )
-        y_name = (
-            negotiator_names[y_idx] if y_idx < len(negotiator_names) else f"Neg {y_idx}"
-        )
-
-        fig.update_layout(
-            title=f"Negotiation Trace",
-            xaxis_title=x_name,
-            yaxis_title=y_name,
-            width=600,
-            height=600,
-            plot_bgcolor="white",
-            showlegend=True,
-            legend=dict(x=1.05, y=1, xanchor="left", yanchor="top", font=dict(size=10)),
-            margin=dict(l=60, r=100, t=40, b=60),
-        )
-
-        fig.update_xaxes(showgrid=True, gridcolor="lightgray")
-        fig.update_yaxes(showgrid=True, gridcolor="lightgray")
+        # Configure plot
+        ax.set_xlabel(x_name)
+        ax.set_ylabel(y_name)
+        ax.set_title("Negotiation Trace")
+        ax.grid(True, alpha=0.3, color="lightgray")
+        ax.set_facecolor("white")
+        fig.patch.set_facecolor("white")
+        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), frameon=True, fontsize=8)
 
         # Save preview image
         try:
-            fig.write_image(
-                str(plot_file), format=image_format, width=600, height=600, scale=1.5
-            )
+            fig.savefig(plot_file, format=image_format, dpi=100, bbox_inches="tight")
         except Exception as e:
             print(f"Warning: Failed to save utility2d preview to {plot_file}: {e}")
+        finally:
+            plt.close(fig)
 
     @staticmethod
     def _generate_timeline_preview(session: NegotiationSession, session_dir: Path):
-        """Generate timeline preview."""
+        """Generate timeline preview using matplotlib."""
         plot_file = _get_preview_path(session_dir, "timeline")
         image_format = _get_preview_format()
 
@@ -277,7 +281,7 @@ class NegotiationPreviewService:
             return
 
         # Create figure
-        fig = go.Figure()
+        fig, ax = plt.subplots(figsize=(8, 4))
 
         # Use step-based x-axis for preview
         colors = [
@@ -303,44 +307,36 @@ class NegotiationPreviewService:
             )
             color = colors[i % len(colors)]
 
-            fig.add_trace(
-                go.Scatter(
-                    x=steps,
-                    y=utilities,
-                    mode="lines+markers",
-                    name=name,
-                    line=dict(color=color, width=2),
-                    marker=dict(size=4, color=color),
-                )
+            ax.plot(
+                steps,
+                utilities,
+                marker="o",
+                markersize=4,
+                linewidth=2,
+                color=color,
+                label=name,
             )
 
-        # Update layout
-        fig.update_layout(
-            title="Utility Timeline",
-            xaxis_title="Step",
-            yaxis_title="Utility",
-            width=800,
-            height=400,
-            plot_bgcolor="white",
-            showlegend=True,
-            legend=dict(x=1.05, y=1, xanchor="left", yanchor="top", font=dict(size=10)),
-            margin=dict(l=60, r=100, t=40, b=60),
-        )
-
-        fig.update_xaxes(showgrid=True, gridcolor="lightgray")
-        fig.update_yaxes(showgrid=True, gridcolor="lightgray")
+        # Configure plot
+        ax.set_xlabel("Step")
+        ax.set_ylabel("Utility")
+        ax.set_title("Utility Timeline")
+        ax.grid(True, alpha=0.3, color="lightgray")
+        ax.set_facecolor("white")
+        fig.patch.set_facecolor("white")
+        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), frameon=True, fontsize=8)
 
         # Save preview image
         try:
-            fig.write_image(
-                str(plot_file), format=image_format, width=800, height=400, scale=1.5
-            )
+            fig.savefig(plot_file, format=image_format, dpi=100, bbox_inches="tight")
         except Exception as e:
             print(f"Warning: Failed to save timeline preview to {plot_file}: {e}")
+        finally:
+            plt.close(fig)
 
     @staticmethod
     def _generate_histogram_preview(session: NegotiationSession, session_dir: Path):
-        """Generate histogram preview (utility distribution)."""
+        """Generate histogram preview (utility distribution) using matplotlib."""
         plot_file = _get_preview_path(session_dir, "histogram")
         image_format = _get_preview_format()
 
@@ -352,16 +348,11 @@ class NegotiationPreviewService:
             return
 
         # Create subplots for each negotiator
-        fig = make_subplots(
-            rows=1,
-            cols=n_negotiators,
-            subplot_titles=[
-                session.negotiator_names[i]
-                if i < len(session.negotiator_names)
-                else f"Neg {i}"
-                for i in range(n_negotiators)
-            ],
+        fig, axes = plt.subplots(
+            1, n_negotiators, figsize=(min(3 * n_negotiators, 10), 4)
         )
+        if n_negotiators == 1:
+            axes = [axes]  # Make it iterable
 
         colors = [
             "#4a6fa5",
@@ -380,72 +371,59 @@ class NegotiationPreviewService:
                 for offer in session.offers
             ]
             color = colors[i % len(colors)]
-
-            fig.add_trace(
-                go.Histogram(
-                    x=utilities,
-                    name=session.negotiator_names[i]
-                    if i < len(session.negotiator_names)
-                    else f"Neg {i}",
-                    marker_color=color,
-                    showlegend=False,
-                    nbinsx=20,
-                ),
-                row=1,
-                col=i + 1,
+            name = (
+                session.negotiator_names[i]
+                if i < len(session.negotiator_names)
+                else f"Neg {i}"
             )
 
-        # Update layout
-        fig.update_layout(
-            title_text="Utility Distribution",
-            width=min(300 * n_negotiators, 1000),
-            height=400,
-            plot_bgcolor="white",
-            showlegend=False,
-            margin=dict(l=60, r=20, t=60, b=60),
-        )
+            ax = axes[i]
+            ax.hist(utilities, bins=20, color=color, alpha=0.7, edgecolor="black")
+            ax.set_title(name, fontsize=10)
+            ax.set_xlabel("Utility")
+            ax.set_ylabel("Count")
+            ax.grid(True, alpha=0.3, color="lightgray", axis="y")
+            ax.set_facecolor("white")
 
-        fig.update_xaxes(title_text="Utility", showgrid=True, gridcolor="lightgray")
-        fig.update_yaxes(title_text="Count", showgrid=True, gridcolor="lightgray")
+        fig.suptitle("Utility Distribution")
+        fig.patch.set_facecolor("white")
+        plt.tight_layout()
 
         # Save preview image
         try:
-            fig.write_image(
-                str(plot_file),
-                format=image_format,
-                width=min(300 * n_negotiators, 1000),
-                height=400,
-                scale=1.5,
-            )
+            fig.savefig(plot_file, format=image_format, dpi=100, bbox_inches="tight")
         except Exception as e:
             print(f"Warning: Failed to save histogram preview to {plot_file}: {e}")
+        finally:
+            plt.close(fig)
 
     @staticmethod
     def _generate_result_preview(session: NegotiationSession, session_dir: Path):
-        """Generate result preview (text-based summary as image)."""
+        """Generate result preview (text-based summary as image) using matplotlib."""
         plot_file = _get_preview_path(session_dir, "result")
         image_format = _get_preview_format()
 
         # Create a simple text-based figure
-        fig = go.Figure()
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.axis("off")
 
         # Build result text
         lines = []
-        lines.append(f"<b>Status:</b> {session.status.value.upper()}")
+        lines.append(f"Status: {session.status.value.upper()}")
 
         if session.end_reason:
-            lines.append(f"<b>End Reason:</b> {session.end_reason}")
+            lines.append(f"End Reason: {session.end_reason}")
 
         if session.agreement:
-            lines.append(f"<b>Agreement:</b> Yes")
+            lines.append(f"Agreement: Yes")
             if session.agreement_dict:
                 for key, val in session.agreement_dict.items():
                     lines.append(f"  • {key}: {val}")
         else:
-            lines.append(f"<b>Agreement:</b> No")
+            lines.append(f"Agreement: No")
 
         if session.final_utilities:
-            lines.append(f"<b>Final Utilities:</b>")
+            lines.append(f"Final Utilities:")
             for i, util in enumerate(session.final_utilities):
                 name = (
                     session.negotiator_names[i]
@@ -454,39 +432,31 @@ class NegotiationPreviewService:
                 )
                 lines.append(f"  • {name}: {util:.3f}")
 
-        lines.append(f"<b>Steps:</b> {session.current_step}")
+        lines.append(f"Steps: {session.current_step}")
 
         if session.duration_seconds():
-            lines.append(f"<b>Duration:</b> {session.duration_seconds():.2f}s")
+            lines.append(f"Duration: {session.duration_seconds():.2f}s")
 
-        # Add text annotation
-        text = "<br>".join(lines)
-
-        fig.add_annotation(
-            x=0.5,
-            y=0.5,
-            text=text,
-            showarrow=False,
-            font=dict(size=14, family="monospace"),
-            align="left",
-            xref="paper",
-            yref="paper",
+        # Add text
+        text = "\n".join(lines)
+        ax.text(
+            0.5,
+            0.5,
+            text,
+            ha="center",
+            va="center",
+            fontsize=12,
+            family="monospace",
+            transform=ax.transAxes,
         )
 
-        fig.update_layout(
-            title="Negotiation Result",
-            width=600,
-            height=400,
-            plot_bgcolor="white",
-            xaxis=dict(visible=False),
-            yaxis=dict(visible=False),
-            margin=dict(l=40, r=40, t=60, b=40),
-        )
+        fig.suptitle("Negotiation Result")
+        fig.patch.set_facecolor("white")
 
         # Save preview image
         try:
-            fig.write_image(
-                str(plot_file), format=image_format, width=600, height=400, scale=1.5
-            )
+            fig.savefig(plot_file, format=image_format, dpi=100, bbox_inches="tight")
         except Exception as e:
             print(f"Warning: Failed to save result preview to {plot_file}: {e}")
+        finally:
+            plt.close(fig)
