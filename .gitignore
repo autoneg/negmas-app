@@ -261,3 +261,5 @@ dist/
 _store/                           # Storage for old code, scenarios, etc. (not for distribution)
 scenarios/                        # Extracted scenarios (extracted from scenarios.zip)
 negmas_app/legacy_main.py        # Alpine.js version (legacy, moved to _store)
+
+DataObjects/

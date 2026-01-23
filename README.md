@@ -4,46 +4,23 @@ A modern web GUI for [NegMAS](https://github.com/yasserfarouk/negmas) - the Nego
 
 > **Note**: This project was designed by humans but primarily implemented by AI (Claude Opus 4 and [OpenCode](https://opencode.ai)). The architecture, features, and design decisions were made by the maintainers, while the bulk of the code was generated through AI-assisted development.
 
-**Run automated negotiations visually, analyze results in real-time, and explore negotiation scenarios.**
-
-## Features
-
-### Real-time Negotiation Visualization
-
-- **2D Utility Space**: Visualize offers with Pareto frontier overlay
-- **Utility Timeline**: Track utilities over negotiation rounds
-- **Offer History**: Complete history with utility values
-- **Offer Histogram**: Distribution of proposed values per issue
-- **Result Analysis**: Compare outcomes against Nash, Kalai, and welfare optima
-
-### Tournament System
-
-- **Grid Visualization**: Real-time progress grid showing all matchups
-- **Live Leaderboard**: Watch rankings update as negotiations complete
-- **Score Analysis**: Analyze results by metric, scenario, or opponent
-- **Raw Data Export**: Access detailed tournament data for analysis
-
-### Scenario Management
-
-- **Scenario Explorer**: Browse ANAC competition scenarios (2010-2022)
-- **Scenario Creator**: Design custom scenarios with the built-in wizard
-- **Statistics Calculation**: Compute Pareto frontiers, Nash points, and welfare optima
-- **Quick Start**: Launch negotiations directly from the explorer
-
-### Negotiator Support
-
-- **Native NegMAS Agents**: All built-in NegMAS negotiators
-- **Genius Agents**: ANAC competition agents via Genius Bridge
-- **BOA Architecture**: Build custom agents from components
-- **Virtual Negotiators**: Save configured agents for reuse
-
-# NegMAS App
-
-A modern web GUI for [NegMAS](https://github.com/yasserfarouk/negmas) - the Negotiation Agents and Mechanisms Simulation library.
-
-> **Note**: This project was designed by humans but primarily implemented by AI (Claude Opus 4 and [OpenCode](https://opencode.ai)). The architecture, features, and design decisions were made by the maintainers, while the bulk of the code was generated through AI-assisted development.
-
 **Run automated negotiations visually, analyze results in real-time, and explore negotiation scenarios with a modern Vue.js interface.**
+
+## ⚠️ First-Time Setup Required
+
+After installing NegMAS App, you **must run the setup command** to extract bundled scenarios:
+
+```bash
+negmas-app setup
+```
+
+This command will:
+- Extract 279 scenarios from the bundled `scenarios.zip` file to `~/negmas/app/scenarios/`
+- Check for Genius Bridge and offer to download it if not found (required for ANAC/Genius agents)
+
+The app will prompt you interactively if you try to run it without scenarios.
+
+**Safe to run multiple times** - only copies missing files, preserves your modifications.
 
 ## Features
 
@@ -76,6 +53,7 @@ A modern web GUI for [NegMAS](https://github.com/yasserfarouk/negmas) - the Nego
 - **Quick Filters**: Search and filter by tags, year, domain
 - **Statistics Calculation**: Compute Pareto frontiers, Nash points, and welfare optima
 - **Quick Start**: Launch negotiations directly from the explorer
+- **Pre-built Caches**: Fast loading with optional pre-generated info, stats, and plots
 
 ### Negotiator Support
 
@@ -101,6 +79,33 @@ pip install negmas-app
 
 # Or using uv (recommended)
 uv pip install negmas-app
+```
+
+### First-Time Setup
+
+After installation, run the setup command to copy bundled scenarios to your user directory:
+
+```bash
+# Copy scenarios to ~/negmas/app/scenarios/
+negmas-app setup
+
+# Skip pre-generated cache files (faster, smaller)
+negmas-app setup --skip-cache
+
+# Force overwrite existing files
+negmas-app setup --force
+```
+
+**Important**: Once scenarios are copied to `~/negmas/app/scenarios/`, they take priority over package scenarios. You can customize or add scenarios in this directory without modifying the package.
+
+To update scenarios from the package later:
+
+```bash
+# Update scenarios (skips existing by default)
+negmas-app update-scenarios
+
+# Force overwrite all scenarios
+negmas-app update-scenarios --force
 ```
 
 ### Running
@@ -212,6 +217,8 @@ negmas-app/
 
 ## Commands
 
+### Basic Commands
+
 ```bash
 # Start the app
 negmas-app start          # Start both backend and frontend
@@ -224,10 +231,179 @@ negmas-app start --no-dev  # Production mode (no auto-reload)
 # Manage servers
 negmas-app kill           # Kill both servers
 negmas-app restart        # Restart both servers
-
-# Legacy Alpine.js version
-negmas-legacy run         # Run old version (for comparison)
 ```
+
+### Setup Commands
+
+```bash
+# First-time setup (required)
+negmas-app setup          # Extract scenarios with cache files
+
+# Setup options
+negmas-app setup --skip-cache     # Extract scenarios without cache files
+negmas-app setup --force          # Overwrite existing files
+
+# Update scenarios (safe - preserves modifications)
+negmas-app update-scenarios       # Add missing scenarios only
+negmas-app update-scenarios --force   # Overwrite all scenarios
+```
+
+### Cache Management
+
+Caching significantly improves performance by pre-computing scenario information:
+
+```bash
+# Build caches
+negmas-app cache build scenarios --all              # Build all caches (info, stats, plots)
+negmas-app cache build scenarios --info --stats     # Build specific caches
+negmas-app cache build scenarios --plots --refresh  # Rebuild plot caches
+negmas-app cache build scenarios --stats --compact  # Stats without Pareto points (saves 50% space)
+
+# Build for custom directory
+negmas-app cache build scenarios --path ~/my-scenarios --all
+
+# Clear caches
+negmas-app cache clear scenarios --all              # Clear all caches
+negmas-app cache clear scenarios --plots            # Clear only plots
+negmas-app cache clear scenarios --force            # Skip confirmation
+```
+
+**Cache Types:**
+
+| Cache Type | Files | Purpose | Size |
+|------------|-------|---------|------|
+| **Info** | `_info.yaml` | Basic scenario metadata (outcome count, issue names, etc.) | ~1 MB |
+| **Stats** | `_stats.yaml` | Pre-computed Pareto frontier, Nash, Kalai, KS points | ~1-5 MB |
+| **Plots** | `_plot.webp` or `_plots/` | Pre-rendered outcome space visualizations | ~10-20 MB |
+
+**Performance Impact:**
+
+- **Without caches**: Scenario loading takes 1-5 seconds, stats calculation 2-10 seconds
+- **With info cache**: Scenario loading < 100ms
+- **With stats cache**: Stats display instant (no calculation)
+- **With plot cache**: Plot display instant (no rendering)
+
+**Compact Mode:**
+
+Use `--compact` when building stats to exclude individual Pareto frontier points, saving ~50% disk space. The app will still show Pareto curves by computing them on demand when needed.
+
+### Legacy Commands
+
+```bash
+# Alpine.js version (legacy)
+negmas-legacy run         # Run old version (for comparison)
+negmas-legacy kill        # Kill legacy server
+```
+
+## Setup & Scenarios
+
+### First-Time Setup
+
+NegMAS App includes 279 bundled scenarios from ANAC competitions (2010-2022). These are stored as a compressed `scenarios.zip` file (~570 KB) in the package and must be extracted before use.
+
+**Interactive Setup:**
+
+When you first run `negmas-app start`, you'll be prompted to set up scenarios:
+
+```
+┌─────────────────── Scenarios Not Found ────────────────────┐
+│                                                            │
+│  NegMAS App requires scenarios to be extracted from       │
+│  the bundled scenarios.zip file.                          │
+│                                                            │
+│  Scenarios will be extracted to:                          │
+│  ~/negmas/app/scenarios                                   │
+│                                                            │
+└────────────────────────────────────────────────────────────┘
+
+Would you like to extract scenarios now? [Y/n]:
+```
+
+The setup wizard will then ask you about cache options:
+
+```
+Cache Options
+
+┌──────────┬──────────────────────────────────────┬────────┐
+│ Type     │ Description                          │ Size   │
+├──────────┼──────────────────────────────────────┼────────┤
+│ Info     │ Basic scenario information           │ ~1 MB  │
+│          │ → Speeds up scenario browsing        │        │
+├──────────┼──────────────────────────────────────┼────────┤
+│ Stats    │ Pre-calculated statistics            │ ~1-5MB │
+│          │ → Speeds up initial scenario view    │        │
+├──────────┼──────────────────────────────────────┼────────┤
+│ Plots    │ Pre-rendered visualizations          │ ~10MB  │
+│          │ → Instant plot display               │        │
+└──────────┴──────────────────────────────────────┴────────┘
+
+Build info cache? [Y/n]:
+Build stats cache? [Y/n]:
+Build plots cache? [y/N]:
+```
+
+**Manual Setup:**
+
+```bash
+negmas-app setup
+```
+
+### Scenario Directory Structure
+
+After setup, scenarios are organized by competition year:
+
+```
+~/negmas/app/scenarios/
+├── anac2010/        # 3 scenarios
+├── anac2011/        # 9 scenarios
+├── anac2012/        # 73 scenarios
+├── anac2013/        # 19 scenarios
+├── anac2015/        # 16 scenarios
+├── anac2016/        # 17 scenarios
+├── anac2017/        # 11 scenarios
+├── anac2018/        # 5 scenarios
+├── anac2019/        # 6 scenarios
+├── anac2020/        # 5 scenarios
+├── anac2021/        # 51 scenarios
+├── anac2022/        # 51 scenarios
+└── others/          # 13 scenarios
+```
+
+Each scenario directory contains:
+- `domain.yml` or `domain.xml` - Domain definition
+- `util1.yml`, `util2.yml`, etc. - Utility functions
+- `_info.yaml` - Cached scenario info (optional)
+- `_stats.yaml` - Cached statistics (optional)
+- `_plot.webp` - Cached plot (optional)
+
+### Safe Re-running
+
+The setup command is **safe to run multiple times**:
+
+```bash
+negmas-app setup       # Skips existing files, adds missing ones
+negmas-app setup --force   # Overwrites everything
+```
+
+This is useful if:
+- You accidentally deleted some scenarios
+- A new version adds more scenarios
+- You want to restore default versions
+
+### Custom Scenarios
+
+You can add your own scenarios alongside the bundled ones:
+
+```bash
+# Add to user directory
+mkdir -p ~/negmas/app/scenarios/my-scenarios
+cp my-domain.yml ~/negmas/app/scenarios/my-scenarios/
+
+# Or configure additional paths in settings
+echo "scenario_paths:\n  - ~/my-other-scenarios" >> ~/negmas/app/settings.yaml
+```
+
+The app will automatically discover and load scenarios from all configured paths.
 
 ## Documentation
 
