@@ -336,10 +336,24 @@ class ScenarioLoader:
             issues = []
             for issue in scenario.outcome_space.issues:
                 values = list(issue.all) if hasattr(issue, "all") else None
+                # Include min/max for continuous/integer issues
+                min_value = None
+                max_value = None
+                if hasattr(issue, "min_value"):
+                    min_value = float(issue.min_value)
+                if hasattr(issue, "max_value"):
+                    max_value = float(issue.max_value)
+
+                # Limit discrete issue values to 100 to avoid huge data transfers
+                if values and len(values) > 100:
+                    values = values[:100]
+
                 issue_info = IssueInfo(
                     name=issue.name,
                     type=type(issue).__name__,
-                    values=values[:20] if values and len(values) > 20 else values,
+                    values=values,
+                    min_value=min_value,
+                    max_value=max_value,
                 )
                 issues.append(issue_info)
 

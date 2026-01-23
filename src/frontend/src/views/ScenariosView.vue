@@ -281,15 +281,37 @@
               <div class="description-text">{{ selectedScenario.description }}</div>
             </div>
             
-            <!-- Issues -->
+            <!-- Issues (Expandable) -->
             <div v-if="selectedScenario.issues && selectedScenario.issues.length > 0" class="issues-section">
-              <h4>Issues</h4>
+              <div class="section-header">
+                <h4>Issues ({{ selectedScenario.issues.length }})</h4>
+                <button class="btn-text btn-sm" @click="showIssueValues = !showIssueValues">
+                  {{ showIssueValues ? '▼ Hide Values' : '▶ Show Values' }}
+                </button>
+              </div>
               <div class="issues-list">
                 <div v-for="(issue, idx) in selectedScenario.issues" :key="idx" class="issue-item">
-                  <div class="issue-name">{{ issue.name }}</div>
-                  <div class="issue-type">{{ issue.type }}</div>
-                  <div class="issue-values" v-if="issue.values && issue.values.length > 0">
-                    {{ issue.values.length }} values
+                  <div class="issue-header">
+                    <span class="issue-name">{{ issue.name }}</span>
+                    <span class="issue-meta">
+                      <span class="issue-type badge">{{ issue.type }}</span>
+                      <span v-if="issue.values && issue.values.length > 0" class="issue-count">
+                        {{ issue.values.length }} values
+                      </span>
+                      <span v-else-if="issue.min_value !== null && issue.max_value !== null" class="issue-range">
+                        [{{ issue.min_value }}, {{ issue.max_value }}]
+                      </span>
+                    </span>
+                  </div>
+                  <div v-if="showIssueValues && issue.values && issue.values.length > 0" class="issue-values">
+                    <div class="values-grid">
+                      <span v-for="(value, vIdx) in issue.values.slice(0, 50)" :key="vIdx" class="value-chip">
+                        {{ value }}
+                      </span>
+                      <span v-if="issue.values.length > 50" class="value-more">
+                        +{{ issue.values.length - 50 }} more...
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -579,6 +601,7 @@ const refreshingCache = ref(false)
 const availablePlots = ref(null)
 const selectedPlotName = ref(null)
 const showOutcomes = ref(false) // Hide outcomes by default to save space
+const showIssueValues = ref(false) // Hide issue values by default
 
 // Filter save/load state
 const showSaveFilterDialog = ref(false)
@@ -1523,23 +1546,103 @@ function formatNumber(num) {
 
 .issue-item {
   display: flex;
-  gap: 12px;
-  align-items: center;
-  padding: 8px 12px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: 6px;
+}
+
+.issue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 
 .issue-name {
-  flex: 1;
-  font-weight: 500;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
 }
 
-.issue-type,
-.issue-values {
+.issue-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 0.85rem;
+}
+
+.issue-type {
+  padding: 2px 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.issue-count,
+.issue-range {
   color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.issue-values {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.values-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.value-chip {
+  padding: 4px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+.value-more {
+  padding: 4px 10px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.section-header h4 {
+  margin: 0;
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-weight: 500;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  transition: opacity 0.2s;
+}
+
+.btn-text:hover {
+  opacity: 0.8;
 }
 
 .tags {
