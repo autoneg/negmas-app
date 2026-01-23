@@ -709,13 +709,15 @@ onMounted(() => {
   display: flex;
   padding: 10px 0;
   border-bottom: 1px solid var(--border-color);
+  gap: 16px;
 }
 
 .detail-label {
   font-weight: 600;
   color: var(--text-secondary);
-  width: 240px;
+  min-width: 320px;
   flex-shrink: 0;
+  word-break: break-word;
 }
 
 .detail-value {
