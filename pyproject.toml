@@ -46,14 +46,14 @@ docs = [
 [project.scripts]
 negmas-app = "negmas_app.main:cli"
 negmas-legacy = "negmas_app.legacy_main:cli"
-negmas-helper = "negmas_app.helper_main:cli"
 
 
 [tool.hatch.build.targets.wheel]
-packages = ["negmas_app", "scenarios"]
+packages = ["negmas_app"]
+include = ["scenarios.zip"]
 
 [tool.hatch.build.targets.sdist]
-include = ["negmas_app", "scenarios"]
+include = ["negmas_app", "scenarios.zip"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
