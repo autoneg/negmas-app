@@ -6,6 +6,8 @@ from typing import Any
 import yaml
 from negmas import Scenario
 
+from ..services.settings_service import SettingsService
+
 
 class ScenarioCacheService:
     """Service for building and clearing scenario cache files."""
@@ -21,6 +23,9 @@ class ScenarioCacheService:
             # Default: scenarios folder at same level as negmas_app package
             scenarios_root = Path(__file__).parent.parent.parent / "scenarios"
         self.scenarios_root = Path(scenarios_root)
+
+        # Load settings to respect limits
+        self.settings = SettingsService.load_all()
 
     def _find_all_scenario_dirs(self) -> list[Path]:
         """Find all scenario directories recursively.
@@ -78,8 +83,10 @@ class ScenarioCacheService:
             "failed": 0,
             "info_created": 0,
             "stats_created": 0,
+            "stats_skipped": 0,
             "plots_created": 0,
             "errors": [],
+            "skipped": [],  # List of (scenario_name, reason) tuples
         }
 
         scenario_dirs = self._find_all_scenario_dirs()
@@ -99,7 +106,12 @@ class ScenarioCacheService:
                     results["successful"] += 1
                     results["info_created"] += success["info_created"]
                     results["stats_created"] += success["stats_created"]
+                    results["stats_skipped"] += success.get("stats_skipped", 0)
                     results["plots_created"] += success["plots_created"]
+                    if success.get("skip_reason"):
+                        results["skipped"].append(
+                            (scenario_dir.name, success["skip_reason"])
+                        )
                 else:
                     results["failed"] += 1
                     if success["error"]:
@@ -148,8 +160,10 @@ class ScenarioCacheService:
             "failed": 0,
             "info_created": 0,
             "stats_created": 0,
+            "stats_skipped": 0,
             "plots_created": 0,
             "errors": [],
+            "skipped": [],  # List of (scenario_name, reason) tuples
         }
 
         scenario_dirs = self._find_all_scenario_dirs()
@@ -188,7 +202,12 @@ class ScenarioCacheService:
                         results["successful"] += 1
                         results["info_created"] += success["info_created"]
                         results["stats_created"] += success["stats_created"]
+                        results["stats_skipped"] += success.get("stats_skipped", 0)
                         results["plots_created"] += success["plots_created"]
+                        if success.get("skip_reason"):
+                            results["skipped"].append(
+                                (scenario_dir.name, success["skip_reason"])
+                            )
                     else:
                         results["failed"] += 1
                         if success["error"]:
@@ -331,7 +350,9 @@ class ScenarioCacheService:
             "error": None,
             "info_created": 0,
             "stats_created": 0,
+            "stats_skipped": 0,
             "plots_created": 0,
+            "skip_reason": None,
         }
 
         try:
@@ -341,6 +362,23 @@ class ScenarioCacheService:
                 load_info=build_info,
                 load_stats=build_stats,
             )
+
+            # Get outcome limit from settings
+            max_outcomes_stats = self.settings.performance.max_outcomes_stats
+            n_outcomes = scenario.outcome_space.cardinality
+
+            # Check if stats should be skipped due to size
+            skip_stats = False
+            if (
+                build_stats
+                and max_outcomes_stats is not None
+                and max_outcomes_stats > 0
+            ):
+                if n_outcomes > max_outcomes_stats:
+                    skip_stats = True
+                    result["skip_reason"] = (
+                        f"Stats skipped: {n_outcomes:,} outcomes > limit {max_outcomes_stats:,}"
+                    )
 
             # Build info cache
             if build_info:
@@ -364,7 +402,7 @@ class ScenarioCacheService:
                     result["info_created"] = 1
 
             # Build stats cache
-            if build_stats:
+            if build_stats and not skip_stats:
                 stats_file = scenario_dir / "_stats.yaml"
                 if not stats_file.exists():
                     # Calculate stats using negmas built-in method
@@ -378,6 +416,8 @@ class ScenarioCacheService:
                     )
 
                     result["stats_created"] = 1
+            elif build_stats and skip_stats:
+                result["stats_skipped"] = 1
 
             # Build plot cache
             if build_plots:

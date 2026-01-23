@@ -133,12 +133,26 @@ def cache_build(
         table.add_row(
             "Stats Files Created", f"[magenta]{results['stats_created']}[/magenta]"
         )
+        if results.get("stats_skipped", 0) > 0:
+            table.add_row(
+                "Stats Skipped (too large)",
+                f"[yellow]{results['stats_skipped']}[/yellow]",
+            )
     if plots:
         table.add_row(
             "Plot Files Created", f"[yellow]{results['plots_created']}[/yellow]"
         )
 
     console.print(table)
+
+    if results.get("skipped"):
+        console.print(
+            f"\n[yellow]Scenarios skipped ({len(results['skipped'])}):[/yellow]"
+        )
+        for scenario_name, reason in results["skipped"][:10]:  # Show first 10
+            console.print(f"  [yellow]•[/yellow] {scenario_name}: {reason}")
+        if len(results["skipped"]) > 10:
+            console.print(f"  [dim]... and {len(results['skipped']) - 10} more[/dim]")
 
     if results["errors"]:
         console.print(
