@@ -511,31 +511,49 @@ async function refreshPlot() {
 
 // Watch for plot data changes and render plot
 watch(selectedScenarioPlotData, async (data) => {
-  if (data && plotDiv.value && useInteractivePlot.value) {
+  if (data && useInteractivePlot.value) {
     await nextTick()
-    renderPlot()
+    if (plotDiv.value) {
+      renderPlot()
+    }
   }
 })
 
 // Watch for interactive mode changes
 watch(useInteractivePlot, async (isInteractive) => {
-  if (isInteractive && selectedScenarioPlotData.value && plotDiv.value) {
+  if (isInteractive && selectedScenarioPlotData.value) {
     await nextTick()
-    renderPlot()
+    // Check plotDiv after DOM update
+    if (plotDiv.value) {
+      renderPlot()
+    }
   }
 })
 
 // Watch for stats changes and render plot if plot data is loaded
 watch(selectedScenarioStats, async (stats) => {
-  if (stats && selectedScenarioPlotData.value && plotDiv.value) {
+  if (stats && selectedScenarioPlotData.value && useInteractivePlot.value) {
     await nextTick()
-    renderPlot()
+    if (plotDiv.value) {
+      renderPlot()
+    }
   }
 })
 
 function renderPlot() {
   const data = selectedScenarioPlotData.value
-  if (!plotDiv.value || !data || !data.outcome_utilities) return
+  if (!plotDiv.value) {
+    console.warn('renderPlot: plotDiv not available')
+    return
+  }
+  if (!data) {
+    console.warn('renderPlot: no plot data')
+    return
+  }
+  if (!data.outcome_utilities) {
+    console.warn('renderPlot: no outcome_utilities in data')
+    return
+  }
   
   const utilities = data.outcome_utilities
   const stats = selectedScenarioStats.value
