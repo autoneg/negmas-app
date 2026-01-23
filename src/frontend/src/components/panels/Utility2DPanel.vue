@@ -205,7 +205,8 @@ const hasData = computed(() => {
 // Preview image URL for compact mode
 const previewImageUrl = computed(() => {
   if (props.compact && props.negotiation?.id && props.negotiation?.source === 'saved') {
-    return `/api/negotiation/saved/${props.negotiation.id}/preview/utility2d`
+    const timestamp = props.negotiation.saved_at || Date.now()
+    return `/api/negotiation/saved/${props.negotiation.id}/preview/utility2d?t=${timestamp}`
   }
   return null
 })

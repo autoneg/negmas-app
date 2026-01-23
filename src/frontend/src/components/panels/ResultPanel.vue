@@ -237,7 +237,8 @@ const showInteractive = ref(false)
 // Preview image URL for compact mode
 const previewImageUrl = computed(() => {
   if (props.compact && props.negotiation?.id && props.negotiation?.source === 'saved') {
-    return `/api/negotiation/saved/${props.negotiation.id}/preview/result`
+    const timestamp = props.negotiation.saved_at || Date.now()
+    return `/api/negotiation/saved/${props.negotiation.id}/preview/result?t=${timestamp}`
   }
   return null
 })

@@ -169,6 +169,7 @@
                 class="clickable-row"
               >
                 <td class="date-cell">{{ formatDate(neg.timestamp || neg.created_at) }}</td>
+                <td class="id-cell">{{ neg.id }}</td>
                 <td class="scenario-cell">{{ neg.scenario_name || 'Unknown' }}</td>
                 <td class="negotiators-cell">
                   <div class="negotiators-list">
@@ -564,6 +565,7 @@ async function loadPreviewData(neg) {
     previewData.value = {
       id: fullData.id,
       source: neg.source, // Add source field for preview image detection
+      saved_at: fullData.created_at || fullData.start_time || neg.created_at, // For cache busting
       scenario_name: fullData.scenario_name,
       negotiator_names: fullData.negotiator_names,
       negotiator_colors: fullData.negotiator_colors,

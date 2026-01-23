@@ -118,7 +118,8 @@ const hasOffers = computed(() => {
 // Preview image URL for compact mode
 const previewImageUrl = computed(() => {
   if (props.compact && props.negotiation?.id && props.negotiation?.source === 'saved') {
-    return `/api/negotiation/saved/${props.negotiation.id}/preview/histogram`
+    const timestamp = props.negotiation.saved_at || Date.now()
+    return `/api/negotiation/saved/${props.negotiation.id}/preview/histogram?t=${timestamp}`
   }
   return null
 })
