@@ -263,14 +263,25 @@ async def get_scenario(path: str):
 
 def _scenario_to_dict(info) -> dict:
     """Convert ScenarioInfo to dict for JSON response."""
+    import math
+
+    # Helper to sanitize numeric values for JSON
+    def sanitize_number(val):
+        if val is None:
+            return None
+        if isinstance(val, (int, float)):
+            if math.isinf(val) or math.isnan(val):
+                return None  # Convert inf/nan to None for JSON compatibility
+        return val
+
     return {
         "path": info.path,
         "name": info.name,
         "n_negotiators": info.n_negotiators,
         "n_issues": info.n_issues,
-        "n_outcomes": info.n_outcomes,
-        "rational_fraction": info.rational_fraction,
-        "opposition": info.opposition,
+        "n_outcomes": sanitize_number(info.n_outcomes),
+        "rational_fraction": sanitize_number(info.rational_fraction),
+        "opposition": sanitize_number(info.opposition),
         "source": info.source,
         "tags": info.tags,
         "has_stats": info.has_stats,
