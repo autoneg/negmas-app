@@ -531,7 +531,7 @@ async function deleteConfig() {
   }
 }
 
-function addTag() {
+async function addTag() {
   if (!selectedConfig.value || !newTag.value.trim()) return
   
   if (!selectedConfig.value.tags) {
@@ -540,18 +540,28 @@ function addTag() {
   
   if (!selectedConfig.value.tags.includes(newTag.value.trim())) {
     selectedConfig.value.tags.push(newTag.value.trim())
-    negotiationsStore.saveSessionPreset(selectedConfig.value)
+    await negotiationsStore.saveSessionPreset(selectedConfig.value)
+    
+    // Reload the selected config after save to get fresh data
+    const configName = selectedConfig.value.name
+    await loadData()
+    selectedConfig.value = configs.value.find(c => c.name === configName) || null
   }
   
   newTag.value = ''
   showTagInput.value = false
 }
 
-function removeTag(idx) {
+async function removeTag(idx) {
   if (!selectedConfig.value || !selectedConfig.value.tags) return
   
   selectedConfig.value.tags.splice(idx, 1)
-  negotiationsStore.saveSessionPreset(selectedConfig.value)
+  await negotiationsStore.saveSessionPreset(selectedConfig.value)
+  
+  // Reload the selected config after save to get fresh data
+  const configName = selectedConfig.value.name
+  await loadData()
+  selectedConfig.value = configs.value.find(c => c.name === configName) || null
 }
 
 onMounted(() => {
