@@ -95,6 +95,40 @@ class PathSettings:
 
 
 @dataclass
+class SavedFilter:
+    """A saved filter configuration."""
+
+    # Unique identifier
+    id: str
+
+    # Display name
+    name: str
+
+    # Filter type: "scenario" or "negotiator"
+    type: str
+
+    # Filter data (all filter values)
+    data: dict[str, Any] = field(default_factory=dict)
+
+    # Description
+    description: str = ""
+
+    # Creation timestamp (ISO format)
+    created_at: str = ""
+
+
+@dataclass
+class FilterSettings:
+    """Settings for saved filters."""
+
+    # Saved scenario filters
+    scenario_filters: list[SavedFilter] = field(default_factory=list)
+
+    # Saved negotiator filters
+    negotiator_filters: list[SavedFilter] = field(default_factory=list)
+
+
+@dataclass
 class PerformanceSettings:
     """Performance settings for limiting resource-intensive operations.
 

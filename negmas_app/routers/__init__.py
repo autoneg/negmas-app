@@ -10,6 +10,7 @@ from .tournament import router as tournament_router
 from .sources import router as sources_router
 from .components import router as components_router
 from .cache import router as cache_router
+from .filters import router as filters_router
 
 __all__ = [
     "scenarios_router",
@@ -22,4 +23,5 @@ __all__ = [
     "sources_router",
     "components_router",
     "cache_router",
+    "filters_router",
 ]

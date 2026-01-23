@@ -29,6 +29,7 @@ from .routers import (
     sources_router,
     components_router,
     cache_router,
+    filters_router,
 )
 
 # Create FastAPI app
@@ -63,6 +64,7 @@ app.include_router(tournament_router)
 app.include_router(sources_router)
 app.include_router(components_router)
 app.include_router(cache_router)
+app.include_router(filters_router)
 
 
 @app.get("/api/identity")
