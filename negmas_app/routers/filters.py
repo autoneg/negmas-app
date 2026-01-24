@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from ..services.filter_service import FilterService
 
-router = APIRouter(prefix="/filters", tags=["filters"])
+router = APIRouter(prefix="/api/filters", tags=["filters"])
 
 # Initialize filter service
 filter_service = FilterService()
