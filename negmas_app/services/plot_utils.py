@@ -21,6 +21,26 @@ def save_scenario_plot(
         ufun_indices: Tuple of (i, j) specifying which pair of utility functions to plot.
             If None, plots the first two ufuns (indices 0 and 1).
         show_outcomes: Whether to show outcome space background (set False for large spaces)
+
+    Important Note:
+        For multilateral scenarios (>2 negotiators), there is a known discrepancy between
+        cached plots and interactive plots:
+
+        - Cached plots (this function): Uses scenario.plot() which calls negmas's plot_2dutils
+          with only the 2 selected ufuns. The special solution points (Nash, Kalai, KS,
+          Max Welfare) are calculated for ONLY these 2 ufuns, not for all negotiators.
+
+        - Interactive plots (frontend): Uses pre-calculated scenario.stats which contains
+          solution points calculated for ALL ufuns, then projects them to the 2D view.
+
+        This means the solution points may appear in different locations. The interactive
+        plot shows the correct global solution points, while the cached plot shows solution
+        points for the 2D sub-problem.
+
+        This is a limitation in negmas's plot_2dutils function (as of version checked),
+        which recalculates solution points from the provided ufuns rather than accepting
+        pre-calculated stats. A potential enhancement would be to modify negmas to accept
+        optional pre-calculated stats points.
     """
     # Load performance settings to control what's shown
     settings = SettingsService.load_performance()
