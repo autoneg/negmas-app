@@ -139,6 +139,81 @@ class ScenarioCacheService:
 
         return results
 
+    def build_caches_with_callback(
+        self,
+        build_info: bool = False,
+        build_stats: bool = False,
+        build_plots: bool = False,
+        compact: bool = False,
+        refresh: bool = False,
+        progress_callback=None,
+    ) -> dict[str, Any]:
+        """Build cache files for all scenarios with progress callback.
+
+        Args:
+            build_info: Build _info.yaml files
+            build_stats: Build _stats.yaml files
+            build_plots: Build plot files (_plot.webp or _plots/)
+            compact: If True, exclude Pareto frontier from stats (saves space)
+            refresh: If True, rebuild existing cache files (default: skip existing)
+            progress_callback: Callable(current, total, scenario_name) called for each scenario
+
+        Returns:
+            Dictionary with build results (no progress_events list).
+        """
+        results = {
+            "total": 0,
+            "successful": 0,
+            "failed": 0,
+            "info_created": 0,
+            "stats_created": 0,
+            "stats_skipped": 0,
+            "plots_created": 0,
+            "errors": [],
+            "skipped": [],  # List of (scenario_name, reason) tuples
+        }
+
+        scenario_dirs = self._find_all_scenario_dirs()
+        results["total"] = len(scenario_dirs)
+
+        for idx, scenario_dir in enumerate(scenario_dirs):
+            # Send progress event
+            if progress_callback:
+                progress_callback(idx + 1, results["total"], scenario_dir.name)
+
+            try:
+                success = self._build_scenario_cache(
+                    scenario_dir,
+                    build_info=build_info,
+                    build_stats=build_stats,
+                    build_plots=build_plots,
+                    compact=compact,
+                    refresh=refresh,
+                )
+
+                if success["success"]:
+                    results["successful"] += 1
+                    results["info_created"] += success["info_created"]
+                    results["stats_created"] += success["stats_created"]
+                    results["stats_skipped"] += success.get("stats_skipped", 0)
+                    results["plots_created"] += success["plots_created"]
+                    if success.get("skip_reason"):
+                        results["skipped"].append(
+                            (scenario_dir.name, success["skip_reason"])
+                        )
+                else:
+                    results["failed"] += 1
+                    if success["error"]:
+                        results["errors"].append(
+                            f"{scenario_dir.name}: {success['error']}"
+                        )
+
+            except Exception as e:
+                results["failed"] += 1
+                results["errors"].append(f"{scenario_dir.name}: {str(e)}")
+
+        return results
+
     def build_caches_with_progress(
         self,
         build_info: bool = False,

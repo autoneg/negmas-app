@@ -410,6 +410,30 @@
                   <div class="setting-name">Build Caches</div>
                   <div class="setting-desc">Generate cache files for scenarios (info, stats, or plots)</div>
                 </div>
+                
+                <!-- Base folder selection -->
+                <div class="setting-group">
+                  <label class="setting-label">Base Folder</label>
+                  <div class="folder-input-group">
+                    <input
+                      type="text"
+                      v-model="cacheBuildFolder"
+                      placeholder="~/negmas/app/scenarios"
+                      class="folder-input"
+                    />
+                    <button
+                      class="btn-action secondary small"
+                      @click="resetCacheBuildFolder"
+                      title="Reset to default"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div class="setting-hint">Leave empty to use default: ~/negmas/app/scenarios</div>
+                </div>
+                
                 <div class="cache-options">
                   <label class="checkbox-label">
                     <input type="checkbox" v-model="buildOptions.info" />
@@ -443,6 +467,28 @@
                   <span v-if="buildingCaches">Building...</span>
                   <span v-else>Build Caches</span>
                 </button>
+                
+                <!-- Progress bar -->
+                <div v-if="buildProgress" class="cache-progress">
+                  <div class="progress-header">
+                    <span class="progress-text">
+                      Building {{ buildProgress.current }}/{{ buildProgress.total }} scenarios
+                    </span>
+                    <span class="progress-percent">
+                      {{ Math.round((buildProgress.current / buildProgress.total) * 100) }}%
+                    </span>
+                  </div>
+                  <div class="progress-bar">
+                    <div
+                      class="progress-fill"
+                      :style="{ width: `${(buildProgress.current / buildProgress.total) * 100}%` }"
+                    ></div>
+                  </div>
+                  <div v-if="buildCurrentScenario" class="progress-current">
+                    Current: {{ buildCurrentScenario }}
+                  </div>
+                </div>
+                
                 <p v-if="buildResult" class="cache-result" :class="buildResultClass">
                   {{ buildResult }}
                 </p>
@@ -909,6 +955,9 @@ const buildResult = ref('')
 const clearResult = ref('')
 const buildResultClass = ref('')
 const clearResultClass = ref('')
+const cacheBuildFolder = ref('')
+const buildProgress = ref(null)
+const buildCurrentScenario = ref('')
 
 const buildOptions = ref({
   info: false,
@@ -953,6 +1002,8 @@ async function buildCaches() {
   
   buildingCaches.value = true
   buildResult.value = ''
+  buildProgress.value = null
+  buildCurrentScenario.value = ''
   
   try {
     const params = new URLSearchParams()
@@ -961,42 +1012,72 @@ async function buildCaches() {
     if (buildOptions.value.plots) params.append('plots', 'true')
     if (buildOptions.value.compact) params.append('compact', 'true')
     if (buildOptions.value.refresh) params.append('refresh', 'true')
+    if (cacheBuildFolder.value) params.append('base_path', cacheBuildFolder.value)
     
-    const response = await fetch(`/api/cache/scenarios/build?${params}`, {
-      method: 'POST',
-    })
-    const data = await response.json()
+    // Use EventSource for SSE to get progress updates
+    const eventSource = new EventSource(`/api/cache/scenarios/build-stream?${params}`)
     
-    if (data.success) {
-      const results = data.results
-      buildResult.value = `Built caches for ${results.successful}/${results.total} scenarios. `
-      if (buildOptions.value.info) buildResult.value += `Info: ${results.info_created}. `
-      if (buildOptions.value.stats) {
-        buildResult.value += `Stats: ${results.stats_created}`
-        if (buildOptions.value.compact) buildResult.value += ' (compact)'
-        buildResult.value += '. '
-      }
-      if (buildOptions.value.plots) buildResult.value += `Plots: ${results.plots_created}. `
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data)
       
-      if (results.failed > 0) {
-        buildResult.value += `(${results.failed} failed)`
-        buildResultClass.value = 'warning'
-      } else {
-        buildResultClass.value = 'success'
+      if (data.type === 'progress') {
+        buildProgress.value = data
+        buildCurrentScenario.value = data.current_scenario || ''
+      } else if (data.type === 'complete') {
+        eventSource.close()
+        
+        const results = data.results
+        buildResult.value = `Built caches for ${results.successful}/${results.total} scenarios. `
+        if (buildOptions.value.info) buildResult.value += `Info: ${results.info_created}. `
+        if (buildOptions.value.stats) {
+          buildResult.value += `Stats: ${results.stats_created}`
+          if (buildOptions.value.compact) buildResult.value += ' (compact)'
+          buildResult.value += '. '
+        }
+        if (buildOptions.value.plots) buildResult.value += `Plots: ${results.plots_created}. `
+        
+        if (results.failed > 0) {
+          buildResult.value += `(${results.failed} failed)`
+          buildResultClass.value = 'warning'
+        } else {
+          buildResultClass.value = 'success'
+        }
+        
+        buildingCaches.value = false
+        buildProgress.value = null
+        buildCurrentScenario.value = ''
+        
+        // Reload cache status
+        loadCacheStatus()
+      } else if (data.type === 'error') {
+        eventSource.close()
+        buildResult.value = 'Error: ' + (data.error || 'Unknown error')
+        buildResultClass.value = 'error'
+        buildingCaches.value = false
+        buildProgress.value = null
+        buildCurrentScenario.value = ''
       }
-      
-      // Reload cache status
-      await loadCacheStatus()
-    } else {
-      buildResult.value = 'Error: ' + (data.error || 'Unknown error')
+    }
+    
+    eventSource.onerror = () => {
+      eventSource.close()
+      buildResult.value = 'Connection error during cache build'
       buildResultClass.value = 'error'
+      buildingCaches.value = false
+      buildProgress.value = null
+      buildCurrentScenario.value = ''
     }
   } catch (error) {
     buildResult.value = 'Failed to build caches: ' + error.message
     buildResultClass.value = 'error'
-  } finally {
     buildingCaches.value = false
+    buildProgress.value = null
+    buildCurrentScenario.value = ''
   }
+}
+
+function resetCacheBuildFolder() {
+  cacheBuildFolder.value = ''
 }
 
 async function clearCaches() {
@@ -1871,6 +1952,86 @@ function handleReset() {
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
   border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Folder input group */
+.folder-input-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.folder-input {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: 'Courier New', monospace;
+}
+
+.folder-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.setting-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Cache progress bar */
+.cache-progress {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+
+.progress-text {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.progress-percent {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.progress-bar {
+  height: 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--primary-color);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.progress-current {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Filters tab styles */

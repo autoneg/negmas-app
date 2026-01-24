@@ -1,9 +1,13 @@
 """API router for cache management."""
 
 import asyncio
+import json
+from pathlib import Path
+from queue import Queue
 from typing import Annotated
 
 from fastapi import APIRouter, Query
+from sse_starlette.sse import EventSourceResponse
 
 from ..services.scenario_cache_service import ScenarioCacheService
 
@@ -61,6 +65,163 @@ async def build_scenario_caches(
         "success": True,
         "results": results,
     }
+
+
+@router.get("/scenarios/build-stream")
+async def build_scenario_caches_stream(
+    info: Annotated[bool, Query(description="Build info cache")] = False,
+    stats: Annotated[bool, Query(description="Build stats cache")] = False,
+    plots: Annotated[bool, Query(description="Build plot caches")] = False,
+    all: Annotated[bool, Query(description="Build all caches")] = False,
+    compact: Annotated[
+        bool, Query(description="Exclude Pareto frontier from stats")
+    ] = False,
+    refresh: Annotated[
+        bool, Query(description="Force rebuild existing cache files")
+    ] = False,
+    base_path: Annotated[
+        str | None,
+        Query(description="Base path for scenarios (default: ~/negmas/app/scenarios)"),
+    ] = None,
+):
+    """Build cache files for all scenarios with SSE progress streaming.
+
+    Query parameters:
+        - info: Build _info.yaml files
+        - stats: Build _stats.yaml files
+        - plots: Build plot files (_plot.webp or _plots/)
+        - all: Build all cache types
+        - compact: Exclude Pareto frontier from stats (saves disk space)
+        - refresh: Force rebuild existing files (default: skip existing)
+        - base_path: Custom base path for scenarios
+
+    Streams progress events and final results via SSE.
+    """
+    # If all is specified, enable all cache types
+    if all:
+        info = stats = plots = True
+
+    if not (info or stats or plots):
+
+        async def error_generator():
+            yield {
+                "event": "error",
+                "data": json.dumps(
+                    {
+                        "type": "error",
+                        "error": "Must specify at least one cache type (info, stats, plots, or all)",
+                    }
+                ),
+            }
+
+        return EventSourceResponse(error_generator())
+
+    async def event_generator():
+        try:
+            # Convert base_path to Path if provided
+            scenarios_root = Path(base_path) if base_path else None
+
+            # Create cache service with custom root
+            cache_service = ScenarioCacheService(scenarios_root=scenarios_root)
+
+            # Get total count first
+            scenario_dirs = cache_service._find_all_scenario_dirs()
+            total = len(scenario_dirs)
+
+            if total == 0:
+                yield {
+                    "event": "message",
+                    "data": json.dumps(
+                        {
+                            "type": "complete",
+                            "results": {
+                                "total": 0,
+                                "successful": 0,
+                                "failed": 0,
+                                "info_created": 0,
+                                "stats_created": 0,
+                                "stats_skipped": 0,
+                                "plots_created": 0,
+                                "errors": [],
+                                "skipped": [],
+                            },
+                        }
+                    ),
+                }
+                return
+
+            # Create queue for progress events
+            progress_queue: Queue = Queue()
+
+            # Progress callback that puts events in queue
+            def on_progress(current: int, total: int, scenario_name: str):
+                progress_queue.put(
+                    {
+                        "type": "progress",
+                        "current": current,
+                        "total": total,
+                        "current_scenario": scenario_name,
+                    }
+                )
+
+            # Run build in background thread
+            build_task = asyncio.create_task(
+                asyncio.to_thread(
+                    cache_service.build_caches_with_callback,
+                    build_info=info,
+                    build_stats=stats,
+                    build_plots=plots,
+                    compact=compact,
+                    refresh=refresh,
+                    progress_callback=on_progress,
+                )
+            )
+
+            # Stream progress events as they arrive
+            while not build_task.done():
+                # Check for progress events (non-blocking)
+                while not progress_queue.empty():
+                    event = progress_queue.get()
+                    yield {"event": "message", "data": json.dumps(event)}
+                # Small delay to avoid busy-waiting
+                await asyncio.sleep(0.1)
+
+            # Drain any remaining events
+            while not progress_queue.empty():
+                event = progress_queue.get()
+                yield {"event": "message", "data": json.dumps(event)}
+
+            # Get final results
+            results = await build_task
+
+            # Send final completion event
+            yield {
+                "event": "message",
+                "data": json.dumps(
+                    {
+                        "type": "complete",
+                        "results": {
+                            "total": results["total"],
+                            "successful": results["successful"],
+                            "failed": results["failed"],
+                            "info_created": results["info_created"],
+                            "stats_created": results["stats_created"],
+                            "stats_skipped": results["stats_skipped"],
+                            "plots_created": results["plots_created"],
+                            "errors": results["errors"],
+                            "skipped": results["skipped"],
+                        },
+                    }
+                ),
+            }
+
+        except Exception as e:
+            yield {
+                "event": "message",
+                "data": json.dumps({"type": "error", "error": str(e)}),
+            }
+
+    return EventSourceResponse(event_generator())
 
 
 @router.post("/scenarios/clear")
