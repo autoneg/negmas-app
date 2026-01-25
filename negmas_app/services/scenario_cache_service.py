@@ -478,76 +478,10 @@ class ScenarioCacheService:
             if build_info:
                 info_file = scenario_dir / "_info.yaml"
                 if refresh or not info_file.exists():
-                    # Check if rationality should be calculated
-                    max_outcomes_rationality = (
-                        self.settings.performance.max_outcomes_rationality
-                    )
-                    calculate_rationality = True
-                    rational_fraction = None
-
-                    if (
-                        max_outcomes_rationality is not None
-                        and max_outcomes_rationality > 0
-                    ):
-                        if n_outcomes > max_outcomes_rationality:
-                            calculate_rationality = False
-
-                    if calculate_rationality:
-                        # Calculate rational fraction if within limit
-                        from .scenario_loader import calculate_rational_fraction
-
-                        rational_fraction = calculate_rational_fraction(scenario)
-
-                    # Detect format by looking at domain/utility files
-                    from negmas.inout import (
-                        find_domain_and_utility_files_yaml,
-                        find_domain_and_utility_files_xml,
-                        find_domain_and_utility_files_geniusweb,
-                    )
-
-                    domain_file = None
-                    format_type = None
-                    domain_path, ufun_files = find_domain_and_utility_files_yaml(
-                        scenario_dir
-                    )
-                    if domain_path:
-                        domain_file = domain_path.name
-                        format_type = "yaml"
-                    else:
-                        domain_path, ufun_files = find_domain_and_utility_files_xml(
-                            scenario_dir
-                        )
-                        if domain_path:
-                            domain_file = domain_path.name
-                            format_type = "xml"
-                        else:
-                            domain_path, ufun_files = (
-                                find_domain_and_utility_files_geniusweb(scenario_dir)
-                            )
-                            if domain_path:
-                                domain_file = domain_path.name
-                                format_type = "json"
-
-                    # Check if normalized
-                    try:
-                        normalized = scenario.is_normalized()
-                    except Exception:
-                        normalized = None
-
-                    info_data = {
-                        "n_outcomes": scenario.outcome_space.cardinality,
-                        "n_issues": len(scenario.outcome_space.issues),
-                        "n_negotiators": len(scenario.ufuns),
-                        "rational_fraction": rational_fraction,  # Will be None if skipped
-                        "normalized": normalized,  # Whether utilities are normalized to [0,1]
-                        "format": format_type,  # "yaml", "xml", or "json"
-                        "domain_file": domain_file,  # Filename of domain file for quick access
-                        "description": scenario_dir.name,  # Use directory name as description
-                    }
-
-                    with open(info_file, "w") as f:
-                        yaml.dump(info_data, f, default_flow_style=False)
-
+                    # Info will be saved via scenario.update() if refresh=True
+                    # For non-refresh, save individually
+                    if not refresh:
+                        scenario.save_info(scenario_dir)
                     result["info_created"] = 1
 
             # Build stats cache
@@ -558,12 +492,15 @@ class ScenarioCacheService:
                         # Calculate stats using negmas built-in method
                         scenario.calc_stats()
 
-                        # Save stats with include_pareto_frontier option
-                        scenario.save_stats(
-                            scenario_dir,
-                            compact=False,
-                            include_pareto_frontier=not compact,  # Exclude if compact=True
-                        )
+                        # Stats will be saved via scenario.update() if refresh=True
+                        # For non-refresh, save individually
+                        if not refresh:
+                            # Save stats with include_pareto_frontier option
+                            scenario.save_stats(
+                                scenario_dir,
+                                compact=False,
+                                include_pareto_frontier=not compact,  # Exclude if compact=True
+                            )
 
                         result["stats_created"] = 1
                     except (KeyError, ValueError, TypeError) as e:
@@ -664,6 +601,20 @@ class ScenarioCacheService:
                             )
                         else:
                             result["skip_reason"] = skip_msg
+
+            # If refresh=True, use scenario.update() to save everything atomically
+            # This ensures info, stats, and potentially plots are all saved together
+            if refresh and (build_info or build_stats or build_plots):
+                try:
+                    scenario.update(
+                        save_info=build_info,
+                        save_stats=build_stats,
+                        save_plot=False,  # We handle plots separately above
+                        include_pareto_frontier=not compact,
+                    )
+                except Exception as e:
+                    # Ignore update errors (may be read-only scenario)
+                    pass
 
         except Exception as e:
             result["success"] = False

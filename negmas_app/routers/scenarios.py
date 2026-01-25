@@ -356,8 +356,19 @@ async def get_scenario_plot_image(scenario_id: str, plot_name: str | None = None
     }
     media_type = media_types.get(ext, "image/webp")
 
+    # Add cache headers to prevent browser from caching stale plots
+    # Use file modification time as ETag for proper cache invalidation
+    file_mtime = plot_path.stat().st_mtime
+    headers = {
+        "Cache-Control": "no-cache, must-revalidate",
+        "ETag": f'"{int(file_mtime)}"',
+    }
+
     return FileResponse(
-        plot_path, media_type=media_type, filename=f"{Path(path).name}_plot{ext}"
+        plot_path,
+        media_type=media_type,
+        filename=f"{Path(path).name}_plot{ext}",
+        headers=headers,
     )
 
 

@@ -789,14 +789,21 @@ const saveFilterError = ref('')
 const saveFilterSuccess = ref('')
 const savedFilters = ref([])
 const selectedFilterId = ref('')
+const plotCacheBuster = ref(Date.now()) // Timestamp to force browser to reload plot images
 
 const plotImageUrl = computed(() => {
   if (!selectedScenario.value) return null
   const basePath = `/api/scenarios/${selectedScenario.value.id}/plot-image`
+  const params = new URLSearchParams()
+  
   if (selectedPlotName.value) {
-    return `${basePath}?plot_name=${encodeURIComponent(selectedPlotName.value)}`
+    params.set('plot_name', selectedPlotName.value)
   }
-  return basePath
+  
+  // Add cache buster to prevent browser from using stale cached images
+  params.set('_t', plotCacheBuster.value.toString())
+  
+  return `${basePath}?${params.toString()}`
 })
 const showNewNegotiationModal = ref(false)
 const router = useRouter()
@@ -1037,9 +1044,10 @@ async function selectScenario(scenario) {
   
   scenariosStore.selectScenario(scenario)
   
-  // Reset plot selection
+  // Reset plot selection and update cache buster for fresh plot
   availablePlots.value = null
   selectedPlotName.value = null
+  plotCacheBuster.value = Date.now()
   
   // Reset ufun details
   ufunDetails.value = []
@@ -1097,6 +1105,9 @@ async function onFileSaved() {
   // Only reload the currently selected scenario's details, not all scenarios
   // This is much faster - we don't need to reload the entire list
   if (selectedScenario.value) {
+    // Update plot cache buster to force browser to reload image
+    plotCacheBuster.value = Date.now()
+    
     // Reload detailed info for this scenario
     await selectScenario(selectedScenario.value)
     
@@ -1183,11 +1194,18 @@ async function openScenarioFolder() {
 
 async function loadPlotData(forceRegenerate = false) {
   if (!selectedScenario.value) return
+  
+  // Update cache buster when regenerating plot
+  if (forceRegenerate) {
+    plotCacheBuster.value = Date.now()
+  }
+  
   await scenariosStore.loadScenarioPlotData(selectedScenario.value.id, 10000, forceRegenerate)
 }
 
 async function refreshPlot() {
   // Force regenerate the plot (both cached image and interactive data)
+  plotCacheBuster.value = Date.now()
   await loadPlotData(true)
 }
 

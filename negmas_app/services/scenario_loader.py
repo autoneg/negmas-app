@@ -587,14 +587,28 @@ class ScenarioLoader:
         if something_calculated:
             settings = SettingsService.load_general()
             if settings.cache_scenario_stats:
-                try:
-                    # Use save_info and save_stats to avoid rewriting original scenario files
-                    if needs_info and scenario.info:
-                        scenario.save_info(path)
-                    if needs_stats and can_calc_stats and scenario.stats:
-                        scenario.save_stats(path)
-                except Exception:
-                    pass  # Ignore save errors (e.g., read-only filesystem)
+                # Check if scenario is read-only before trying to save
+                scenario_info = self.get_scenario_info(path)
+                is_readonly = scenario_info.readonly if scenario_info else False
+
+                if not is_readonly:
+                    try:
+                        # Use scenario.update() for atomic save of info and stats
+                        # This is more reliable than separate save_info() and save_stats() calls
+                        scenario.update(
+                            save_info=needs_info and scenario.info is not None,
+                            save_stats=needs_stats
+                            and can_calc_stats
+                            and scenario.stats is not None,
+                            save_plot=False,  # Don't save plots here
+                            include_pareto_frontier=True,  # Include full pareto frontier
+                        )
+                    except Exception as e:
+                        # Log error but don't fail - may be filesystem issues
+                        print(f"Warning: Could not save stats/info for {path}: {e}")
+                else:
+                    # Don't try to save for read-only scenarios
+                    pass
 
             # Invalidate in-memory caches so next list_scenarios picks up new stats
             path_str = str(path)
