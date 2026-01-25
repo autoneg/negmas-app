@@ -98,7 +98,7 @@ const fileInfo = computed(() => {
 
 // Watch for show changes to load content
 watch(() => props.show, async (show) => {
-  if (show && props.scenarioPath && props.filePath) {
+  if (show && props.scenarioId && props.filePath) {
     await loadFile()
   } else {
     // Reset state when closing
@@ -114,7 +114,7 @@ async function loadFile() {
   error.value = ''
   
   try {
-    const response = await fetch(`/api/scenarios/${encodeURIComponent(props.scenarioPath)}/files/${props.filePath}`)
+    const response = await fetch(`/api/scenarios/${props.scenarioId}/files/${props.filePath}`)
     const data = await response.json()
     
     if (data.success) {
@@ -137,7 +137,7 @@ async function save() {
   
   try {
     const response = await fetch(
-      `/api/scenarios/${encodeURIComponent(props.scenarioPath)}/files/${props.filePath}`,
+      `/api/scenarios/${props.scenarioId}/files/${props.filePath}`,
       {
         method: 'PUT',
         headers: {
@@ -190,10 +190,41 @@ function close() {
 </script>
 
 <style scoped>
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal-content {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
 .modal-xl {
   max-width: 1000px;
   width: 95%;
   max-height: 90vh;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  border-radius: 12px 12px 0 0;
+  position: relative;
+  z-index: 1;
 }
 
 .file-editor-modal .modal-body {
@@ -207,18 +238,56 @@ function close() {
   flex-direction: column;
   gap: 4px;
   flex: 1;
+  min-width: 0;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
 }
 
 .file-path {
   font-size: 0.85rem;
   color: var(--text-secondary);
   font-family: 'Monaco', 'Courier New', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
+}
+
+.modal-close-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.modal-close-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.modal-close-btn svg {
+  width: 20px;
+  height: 20px;
 }
 
 .editor-container {

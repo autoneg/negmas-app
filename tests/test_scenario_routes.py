@@ -241,3 +241,65 @@ class TestScenarioEndpoints:
 
             if not found:
                 pytest.skip(f"No ufun of type {expected_type} found in {scenario_path}")
+
+    def test_plot_data_includes_reserved_values(
+        self, client: TestClient, app_scenario: str | None
+    ):
+        """Test that plot data includes reserved values for plotting.
+
+        This prevents regression where reserved value lines weren't showing
+        in the interactive plot.
+        """
+        if app_scenario is None:
+            pytest.skip("App scenario not available")
+
+        scenario_id = encode_path(app_scenario)
+        response = client.get(
+            f"/api/scenarios/{scenario_id}/plot-data?max_samples=1000&force_regenerate=false"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should have reserved_values field
+        assert "reserved_values" in data or "outcome_utilities" in data
+
+        # If reserved_values is present, it should match number of negotiators
+        if "reserved_values" in data and data["reserved_values"]:
+            assert len(data["reserved_values"]) == len(data["negotiator_names"])
+
+    def test_file_editor_get_content(
+        self, client: TestClient, camera_b_scenario: str | None
+    ):
+        """Test getting file content for editing.
+
+        Verifies that the file editor can load actual file content.
+        """
+        if camera_b_scenario is None:
+            pytest.skip("CameraB scenario not available")
+
+        scenario_id = encode_path(camera_b_scenario)
+
+        # Get ufuns to find a file path
+        ufuns_response = client.get(f"/api/scenarios/{scenario_id}/ufuns")
+        assert ufuns_response.status_code == 200
+        ufuns_data = ufuns_response.json()
+
+        if not ufuns_data["ufuns"] or not ufuns_data["ufuns"][0].get("file_path"):
+            pytest.skip("No file path available")
+
+        file_path = ufuns_data["ufuns"][0]["file_path"]
+
+        # Get file content
+        response = client.get(f"/api/scenarios/{scenario_id}/files/{file_path}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "content" in data
+        assert len(data["content"]) > 0  # Should have actual content
+        assert data["file_path"] == file_path
+
+        # For XML files, content should contain XML tags
+        if file_path.endswith(".xml"):
+            assert "<" in data["content"] and ">" in data["content"]
