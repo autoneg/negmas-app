@@ -1,5 +1,23 @@
 <template>
   <div class="scenarios-view">
+    <!-- Registration Loading Overlay -->
+    <div v-if="!registrationStatus.registered && registrationStatus.in_progress" class="registration-overlay">
+      <div class="registration-modal">
+        <h3>Loading Scenarios...</h3>
+        <p>Registering scenario databases. This happens once on server startup.</p>
+        <div class="progress-bar">
+          <div 
+            class="progress-fill" 
+            :style="{ width: registrationProgress + '%' }"
+          ></div>
+        </div>
+        <p class="progress-text">
+          {{ registrationStatus.progress.current }} / {{ registrationStatus.progress.total }} categories
+          <span v-if="registrationStatus.total_scenarios > 0">({{ registrationStatus.total_scenarios }} scenarios found)</span>
+        </p>
+      </div>
+    </div>
+
     <!-- Scenarios List Panel -->
     <div class="scenarios-list-panel">
       <!-- Filters -->
@@ -178,6 +196,37 @@
         </div>
       </div>
       
+      <!-- List Header with Count and Bulk Actions -->
+      <div class="list-header">
+        <div class="list-count">
+          {{ filteredScenarios.length }} scenario{{ filteredScenarios.length !== 1 ? 's' : '' }}
+        </div>
+        <div class="bulk-actions" v-if="filteredScenarios.length > 0">
+          <button 
+            class="btn-icon" 
+            @click="showBulkActionsMenu = !showBulkActionsMenu"
+            title="Bulk actions for filtered scenarios"
+          >
+            ⋮
+          </button>
+          <div v-if="showBulkActionsMenu" class="bulk-menu">
+            <button class="bulk-menu-item" @click="bulkUpdateStatus('enabled')">
+              ✓ Enable All
+            </button>
+            <button class="bulk-menu-item" @click="bulkUpdateStatus('disabled')">
+              ⊘ Disable All
+            </button>
+            <button class="bulk-menu-item" @click="bulkUpdateStatus('archived')">
+              📦 Archive All
+            </button>
+            <hr class="bulk-menu-divider">
+            <button class="bulk-menu-item bulk-delete" @click="bulkDelete">
+              🗑 Delete All
+            </button>
+          </div>
+        </div>
+      </div>
+      
       <!-- Scenarios List -->
       <div class="scenarios-list">
         <div v-if="loading" class="loading-state">
@@ -236,6 +285,53 @@
             </button>
           </div>
           <div class="header-actions">
+            <!-- Status dropdown -->
+            <div class="status-dropdown" v-if="!selectedScenario.readonly">
+              <button 
+                class="btn-secondary btn-sm dropdown-toggle"
+                @click="toggleStatusDropdown"
+                :class="{ 
+                  'status-disabled': selectedScenario.status === 'disabled',
+                  'status-archived': selectedScenario.status === 'archived'
+                }"
+              >
+                {{ getStatusLabel(selectedScenario.status) }}
+                <span class="dropdown-arrow">▼</span>
+              </button>
+              <div v-if="showStatusDropdown" class="dropdown-menu">
+                <button 
+                  class="dropdown-item"
+                  @click="updateScenarioStatus('enabled')"
+                  :class="{ active: selectedScenario.status === 'enabled' }"
+                >
+                  ✓ Enabled
+                </button>
+                <button 
+                  class="dropdown-item"
+                  @click="updateScenarioStatus('disabled')"
+                  :class="{ active: selectedScenario.status === 'disabled' }"
+                >
+                  ⊘ Disabled
+                </button>
+                <button 
+                  class="dropdown-item"
+                  @click="updateScenarioStatus('archived')"
+                  :class="{ active: selectedScenario.status === 'archived' }"
+                >
+                  📦 Archived
+                </button>
+              </div>
+            </div>
+            
+            <button 
+              v-if="!selectedScenario.readonly"
+              class="btn-danger btn-sm" 
+              @click="deleteScenario"
+              title="Delete scenario from disk"
+            >
+              🗑 Delete
+            </button>
+            
             <button 
               class="btn-secondary btn-sm" 
               @click="refreshAllCaches"
@@ -707,7 +803,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useScenariosStore } from '../stores/scenarios'
 import { useNegotiationsStore } from '../stores/negotiations'
@@ -767,6 +863,10 @@ const showFileEditor = ref(false)
 const editingFile = ref(null)
 const editingFileTitle = ref('')
 
+// Status dropdown state
+const showStatusDropdown = ref(false)
+const showBulkActionsMenu = ref(false)
+
 // Collapsible panel states
 const panelsCollapsed = ref({
   info: false,
@@ -807,8 +907,21 @@ const plotImageUrl = computed(() => {
 })
 const showNewNegotiationModal = ref(false)
 const router = useRouter()
+const registrationStatus = ref({
+  registered: false,
+  in_progress: false,
+  progress: { total: 0, current: 0, status: 'not_started' },
+  total_scenarios: 0
+})
+let registrationPollInterval = null
 
 // Computed properties
+const registrationProgress = computed(() => {
+  const { total, current } = registrationStatus.value.progress
+  if (total === 0) return 0
+  return Math.round((current / total) * 100)
+})
+
 const statsLoaded = computed(() => selectedScenarioStats.value !== null)
 const plotDataLoaded = computed(() => selectedScenarioPlotData.value !== null)
 const isMultilateral = computed(() => availablePlots.value?.type === 'multilateral')
@@ -825,10 +938,44 @@ const negotiatorNamesForPlot = computed(() => {
 
 // Load data on mount
 onMounted(async () => {
+  // Start polling registration status
+  await checkRegistrationStatus()
+  startRegistrationPolling()
+  
   await loadData()
   await loadSavedFilters()
   await loadDefaultFilter()
 })
+
+onBeforeUnmount(() => {
+  // Stop polling when component unmounts
+  if (registrationPollInterval) {
+    clearInterval(registrationPollInterval)
+  }
+})
+
+async function checkRegistrationStatus() {
+  try {
+    const response = await fetch('/api/scenarios/registration-status')
+    const data = await response.json()
+    registrationStatus.value = data
+    
+    // If registration is complete, stop polling
+    if (data.registered && registrationPollInterval) {
+      clearInterval(registrationPollInterval)
+      registrationPollInterval = null
+    }
+  } catch (error) {
+    console.error('Failed to check registration status:', error)
+  }
+}
+
+function startRegistrationPolling() {
+  // Poll every 500ms while registration is in progress
+  registrationPollInterval = setInterval(async () => {
+    await checkRegistrationStatus()
+  }, 500)
+}
 
 async function loadData() {
   await Promise.all([
@@ -1479,9 +1626,258 @@ function formatNumber(num) {
   if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K'
   return num.toString()
 }
+
+// Status management functions
+function getStatusLabel(status) {
+  switch (status) {
+    case 'disabled':
+      return '⊘ Disabled'
+    case 'archived':
+      return '📦 Archived'
+    default:
+      return '✓ Enabled'
+  }
+}
+
+function toggleStatusDropdown() {
+  showStatusDropdown.value = !showStatusDropdown.value
+}
+
+// Close dropdown when clicking outside
+onMounted(() => {
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.status-dropdown')) {
+      showStatusDropdown.value = false
+    }
+    if (!e.target.closest('.bulk-actions')) {
+      showBulkActionsMenu.value = false
+    }
+  })
+})
+
+async function updateScenarioStatus(newStatus) {
+  if (!selectedScenario.value) return
+  
+  try {
+    const response = await fetch(`/api/scenarios/${selectedScenario.value.id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to update status')
+    }
+    
+    // Update local state
+    selectedScenario.value.status = newStatus
+    
+    // Reload scenarios list to reflect status change
+    await loadData()
+    
+    showStatusDropdown.value = false
+  } catch (error) {
+    console.error('Failed to update scenario status:', error)
+    alert(`Failed to update status: ${error.message}`)
+  }
+}
+
+async function deleteScenario() {
+  if (!selectedScenario.value) return
+  
+  const scenarioName = selectedScenario.value.name
+  const confirmed = confirm(
+    `Are you sure you want to delete "${scenarioName}"?\n\n` +
+    `This will permanently delete the scenario from disk. This action cannot be undone.`
+  )
+  
+  if (!confirmed) return
+  
+  try {
+    const response = await fetch(`/api/scenarios/${selectedScenario.value.id}`, {
+      method: 'DELETE'
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to delete scenario')
+    }
+    
+    // Clear selection
+    scenariosStore.selectScenario(null)
+    
+    // Reload scenarios list
+    await loadData()
+    
+    alert(`Scenario "${scenarioName}" deleted successfully`)
+  } catch (error) {
+    console.error('Failed to delete scenario:', error)
+    alert(`Failed to delete scenario: ${error.message}`)
+  }
+}
+
+// Bulk operations
+async function bulkUpdateStatus(newStatus) {
+  showBulkActionsMenu.value = false
+  
+  const count = filteredScenarios.value.length
+  const statusLabel = getStatusLabel(newStatus).toLowerCase()
+  
+  const confirmed = confirm(
+    `Are you sure you want to ${statusLabel.replace(/[✓⊘📦]\s/, '')} ${count} scenario${count !== 1 ? 's' : ''}?`
+  )
+  
+  if (!confirmed) return
+  
+  try {
+    const paths = filteredScenarios.value.map(s => s.path)
+    
+    const response = await fetch('/api/scenarios/bulk-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paths, status: newStatus })
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to update statuses')
+    }
+    
+    const result = await response.json()
+    
+    // Reload scenarios list
+    await loadData()
+    
+    alert(
+      `Successfully updated ${result.successful} scenario${result.successful !== 1 ? 's' : ''}.` +
+      (result.failed > 0 ? `\n${result.failed} failed.` : '')
+    )
+  } catch (error) {
+    console.error('Failed to bulk update statuses:', error)
+    alert(`Failed to update statuses: ${error.message}`)
+  }
+}
+
+async function bulkDelete() {
+  showBulkActionsMenu.value = false
+  
+  const count = filteredScenarios.value.length
+  const readonlyCount = filteredScenarios.value.filter(s => s.readonly).length
+  
+  if (readonlyCount === count) {
+    alert('All filtered scenarios are read-only and cannot be deleted.')
+    return
+  }
+  
+  const deletableCount = count - readonlyCount
+  const message = readonlyCount > 0
+    ? `This will permanently delete ${deletableCount} scenario${deletableCount !== 1 ? 's' : ''} from disk.\n(${readonlyCount} read-only scenario${readonlyCount !== 1 ? 's' : ''} will be skipped)\n\nThis action cannot be undone. Are you sure?`
+    : `This will permanently delete ${count} scenario${count !== 1 ? 's' : ''} from disk.\n\nThis action cannot be undone. Are you sure?`
+  
+  const confirmed = confirm(message)
+  
+  if (!confirmed) return
+  
+  try {
+    // Filter out readonly scenarios
+    const paths = filteredScenarios.value
+      .filter(s => !s.readonly)
+      .map(s => s.path)
+    
+    const response = await fetch('/api/scenarios/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paths })
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to delete scenarios')
+    }
+    
+    const result = await response.json()
+    
+    // Clear selection if it was deleted
+    if (selectedScenario.value && paths.includes(selectedScenario.value.path)) {
+      scenariosStore.selectScenario(null)
+    }
+    
+    // Reload scenarios list
+    await loadData()
+    
+    alert(
+      `Successfully deleted ${result.successful} scenario${result.successful !== 1 ? 's' : ''}.` +
+      (result.failed > 0 ? `\n${result.failed} failed.` : '')
+    )
+  } catch (error) {
+    console.error('Failed to bulk delete:', error)
+    alert(`Failed to delete scenarios: ${error.message}`)
+  }
+}
+
+
 </script>
 
 <style scoped>
+/* Registration Loading Overlay */
+.registration-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.registration-modal {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  padding: 32px;
+  min-width: 400px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.registration-modal h3 {
+  margin: 0 0 12px 0;
+  font-size: 1.5rem;
+  color: var(--color-primary);
+}
+
+.registration-modal p {
+  margin: 8px 0;
+  color: var(--text-secondary);
+}
+
+.progress-bar {
+  width: 100%;
+  height: 24px;
+  background: var(--bg-primary);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 20px 0;
+  border: 1px solid var(--border-color);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-success));
+  transition: width 0.3s ease;
+  border-radius: 12px;
+}
+
+.progress-text {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
 .scenarios-view {
   display: grid;
   grid-template-columns: 350px 1fr;
@@ -1556,6 +1952,89 @@ function formatNumber(num) {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-size: 0.85rem;
+}
+
+/* List header with count and bulk actions */
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.list-count {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.bulk-actions {
+  position: relative;
+}
+
+.btn-icon {
+  padding: 4px 8px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1.2rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.btn-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.bulk-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 160px;
+  overflow: hidden;
+}
+
+.bulk-menu-item {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background 0.15s;
+}
+
+.bulk-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.bulk-menu-item.bulk-delete {
+  color: #dc3545;
+}
+
+.bulk-menu-item.bulk-delete:hover {
+  background: #fee;
+}
+
+.bulk-menu-divider {
+  margin: 4px 0;
+  border: none;
+  border-top: 1px solid var(--border-color);
 }
 
 .scenarios-list {
@@ -1694,6 +2173,96 @@ function formatNumber(num) {
 .header-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+/* Status dropdown */
+.status-dropdown {
+  position: relative;
+}
+
+.dropdown-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.dropdown-toggle:hover {
+  background: var(--bg-hover);
+  border-color: var(--primary-color);
+}
+
+.dropdown-toggle.status-disabled {
+  background: #fee;
+  border-color: #f88;
+  color: #c00;
+}
+
+.dropdown-toggle.status-archived {
+  background: #ffeaa7;
+  border-color: #fdcb6e;
+  color: #856404;
+}
+
+.dropdown-arrow {
+  font-size: 0.7rem;
+  margin-left: 4px;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 140px;
+  overflow: hidden;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background 0.15s;
+}
+
+.dropdown-item:hover {
+  background: var(--bg-hover);
+}
+
+.dropdown-item.active {
+  background: var(--primary-color);
+  color: white;
+  font-weight: 500;
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+  border: 1px solid #dc3545;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+  border-color: #bd2130;
 }
 
 .details-content {

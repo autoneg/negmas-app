@@ -64,6 +64,12 @@ class ScenarioInfo:
     # Whether the scenario is read-only (from a read-only source)
     readonly: bool = False
 
+    # Status of the scenario: "enabled", "disabled", "archived"
+    # - enabled: normal, available for negotiations/tournaments
+    # - disabled: marked as disabled, excluded from negotiations/tournaments
+    # - archived: moved to archive, excluded from default listings
+    status: str = "enabled"
+
     @property
     def n_issues(self) -> int:
         return len(self.issues)

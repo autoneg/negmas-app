@@ -1,5 +1,6 @@
 """Load and manage negotiation scenarios."""
 
+import json
 import re
 import time
 from pathlib import Path
@@ -96,6 +97,236 @@ class ScenarioLoader:
                 )
         self.scenarios_root = Path(scenarios_root)
         self._registered = False
+        self._registration_in_progress = False
+        self._registration_progress = {
+            "total": 0,
+            "current": 0,
+            "status": "not_started",
+        }
+        self._cache_file = Path.home() / ".negmas" / "scenario_registry_cache.json"
+        self._status_file = Path.home() / ".negmas" / "scenario_statuses.json"
+        self._statuses: dict[str, str] = {}  # path -> status mapping
+        self._load_statuses()
+
+    def _load_statuses(self) -> None:
+        """Load scenario statuses from disk."""
+        if not self._status_file.exists():
+            return
+        try:
+            with open(self._status_file, "r") as f:
+                self._statuses = json.load(f)
+        except Exception as e:
+            print(f"Warning: Failed to load scenario statuses: {e}")
+            self._statuses = {}
+
+    def _save_statuses(self) -> None:
+        """Save scenario statuses to disk."""
+        try:
+            self._status_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._status_file, "w") as f:
+                json.dump(self._statuses, f, indent=2)
+        except Exception as e:
+            print(f"Warning: Failed to save scenario statuses: {e}")
+
+    def get_scenario_status(self, path: str | Path) -> str:
+        """Get the status of a scenario.
+
+        Args:
+            path: Path to the scenario directory.
+
+        Returns:
+            Status: "enabled", "disabled", or "archived"
+        """
+        return self._statuses.get(str(path), "enabled")
+
+    def set_scenario_status(self, path: str | Path, status: str) -> bool:
+        """Set the status of a scenario.
+
+        Args:
+            path: Path to the scenario directory.
+            status: New status ("enabled", "disabled", "archived")
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        if status not in ("enabled", "disabled", "archived"):
+            return False
+
+        path_str = str(path)
+        self._statuses[path_str] = status
+        self._save_statuses()
+
+        # Invalidate caches
+        if path_str in _SCENARIO_INFO_CACHE:
+            del _SCENARIO_INFO_CACHE[path_str]
+        if path_str in _SCENARIO_DETAIL_CACHE:
+            del _SCENARIO_DETAIL_CACHE[path_str]
+
+        return True
+
+    def delete_scenario(self, path: str | Path) -> tuple[bool, str | None]:
+        """Delete a scenario from disk.
+
+        Args:
+            path: Path to the scenario directory.
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        import shutil
+
+        path = Path(path)
+        path_str = str(path)
+
+        # Check if scenario exists
+        if not path.exists():
+            return False, "Scenario not found"
+
+        # Check if scenario is read-only
+        self.ensure_scenarios_registered()
+        for reg_info in scenario_registry.values():
+            if str(reg_info.path) == path_str:
+                if getattr(reg_info, "read_only", False):
+                    return False, "Cannot delete read-only scenario"
+                break
+
+        # Delete from disk
+        try:
+            shutil.rmtree(path)
+        except Exception as e:
+            return False, f"Failed to delete scenario: {e}"
+
+        # Remove from status tracking
+        if path_str in self._statuses:
+            del self._statuses[path_str]
+            self._save_statuses()
+
+        # Invalidate caches
+        if path_str in _SCENARIO_INFO_CACHE:
+            del _SCENARIO_INFO_CACHE[path_str]
+        if path_str in _SCENARIO_DETAIL_CACHE:
+            del _SCENARIO_DETAIL_CACHE[path_str]
+
+        # Remove from registry
+        if path_str in scenario_registry:
+            del scenario_registry[path_str]
+
+        return True, None
+
+    def _save_registry_cache(self) -> None:
+        """Save the scenario registry to disk cache for fast startup."""
+        try:
+            # Create cache directory if it doesn't exist
+            self._cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+            # Serialize registry data
+            cache_data = {"version": "1.0", "timestamp": time.time(), "scenarios": []}
+
+            for path_str, reg_info in scenario_registry.items():
+                try:
+                    scenario_data = {
+                        "path": str(reg_info.path),
+                        "name": reg_info.name,
+                        "source": reg_info.source,
+                        "tags": list(reg_info.tags) if reg_info.tags else [],
+                        "n_outcomes": reg_info.n_outcomes,
+                        "n_negotiators": reg_info.n_negotiators,
+                        "opposition_level": reg_info.opposition_level,
+                        "rational_fraction": reg_info.rational_fraction,
+                        "description": reg_info.description or "",
+                        "read_only": getattr(reg_info, "read_only", False),
+                    }
+                    cache_data["scenarios"].append(scenario_data)
+                except Exception as e:
+                    # Skip scenarios that fail to serialize
+                    print(f"Warning: Failed to cache scenario {path_str}: {e}")
+                    continue
+
+            # Write cache file
+            with open(self._cache_file, "w") as f:
+                json.dump(cache_data, f, indent=2)
+
+            print(f"Saved {len(cache_data['scenarios'])} scenarios to cache")
+        except Exception as e:
+            print(f"Warning: Failed to save registry cache: {e}")
+
+    def _load_registry_cache(self) -> bool:
+        """Load the scenario registry from disk cache.
+
+        Returns:
+            True if cache was loaded successfully, False otherwise
+        """
+        if not self._cache_file.exists():
+            return False
+
+        try:
+            with open(self._cache_file, "r") as f:
+                cache_data = json.load(f)
+
+            # Check cache version
+            if cache_data.get("version") != "1.0":
+                print("Cache version mismatch, will rebuild")
+                return False
+
+            # Check if cache is stale (older than 7 days)
+            cache_age = time.time() - cache_data.get("timestamp", 0)
+            if cache_age > 7 * 24 * 3600:
+                print("Cache is stale (>7 days), will rebuild")
+                return False
+
+            # Check if scenarios directories have been modified since cache
+            # If any directory is newer than cache, invalidate
+            cache_time = cache_data.get("timestamp", 0)
+            if self.scenarios_root.exists():
+                for category_dir in self.scenarios_root.iterdir():
+                    if category_dir.is_dir() and not category_dir.name.startswith("."):
+                        if category_dir.stat().st_mtime > cache_time:
+                            print(
+                                f"Directory {category_dir.name} modified since cache, will rebuild"
+                            )
+                            return False
+
+            # Populate the negmas scenario_registry from cache
+            # We need to reconstruct ScenarioInfo objects and add them to the registry
+            from negmas.registry import ScenarioInfo as NegmasScenarioInfo
+
+            loaded_count = 0
+            for scenario_data in cache_data.get("scenarios", []):
+                try:
+                    # Reconstruct ScenarioInfo object
+                    info = NegmasScenarioInfo(
+                        path=Path(scenario_data["path"]),
+                        name=scenario_data["name"],
+                        source=scenario_data["source"],
+                        tags=set(scenario_data.get("tags", [])),
+                        n_outcomes=scenario_data.get("n_outcomes"),
+                        n_negotiators=scenario_data.get("n_negotiators"),
+                        opposition_level=scenario_data.get("opposition_level"),
+                        rational_fraction=scenario_data.get("rational_fraction"),
+                        description=scenario_data.get("description", ""),
+                        read_only=scenario_data.get("read_only", False),
+                    )
+
+                    # Add to registry using the path as key
+                    scenario_registry[str(info.path)] = info
+                    loaded_count += 1
+
+                except Exception as e:
+                    print(f"Warning: Failed to load cached scenario: {e}")
+                    continue
+
+            print(f"Loaded {loaded_count} scenarios from cache")
+
+            # Mark as registered
+            self._registered = True
+            self._registration_progress["status"] = "loaded_from_cache"
+            self._registration_progress["total"] = 1
+            self._registration_progress["current"] = 1
+
+            return True
+        except Exception as e:
+            print(f"Warning: Failed to load registry cache: {e}")
+            return False
 
     def ensure_scenarios_registered(self) -> int:
         """Register all scenarios with negmas scenario_registry if not already done.
@@ -106,57 +337,104 @@ class ScenarioLoader:
         if self._registered:
             return len(scenario_registry)
 
+        if self._registration_in_progress:
+            return len(scenario_registry)  # Return current count if in progress
+
+        # Try loading from cache first (instant startup on subsequent runs)
+        if self._load_registry_cache():
+            return len(scenario_registry)
+
+        self._registration_in_progress = True
+        self._registration_progress["status"] = "registering"
+
+        # Count total categories first for progress tracking
+        categories = []
+        if self.scenarios_root.exists():
+            categories = [
+                d
+                for d in self.scenarios_root.iterdir()
+                if d.is_dir() and not d.name.startswith(".")
+            ]
+
+        settings = SettingsService.load_paths()
+        custom_paths = [
+            Path(p).expanduser()
+            for p in settings.scenario_paths
+            if Path(p).expanduser().exists()
+        ]
+
+        total_categories = len(categories) + len(custom_paths)
+        self._registration_progress["total"] = total_categories
+        self._registration_progress["current"] = 0
+
         # Register built-in scenarios from ~/negmas/app/scenarios with source="app"
         # These are USER scenarios and should be editable (read_only=False)
         # Use register_all_scenarios which auto-detects format, normalized, etc.
         total_registered = 0
-        if self.scenarios_root.exists():
-            for category_dir in self.scenarios_root.iterdir():
-                if category_dir.is_dir() and not category_dir.name.startswith("."):
-                    try:
-                        # Use category name as tag (e.g., "anac2019")
-                        # Also check if it's an ANAC directory
-                        tags = {category_dir.name}
-                        if category_dir.name.lower().startswith("anac"):
-                            tags.add("anac")
 
-                        # register_all_scenarios auto-detects: format (xml/json/yaml),
-                        # normalized, n_outcomes, n_negotiators, bilateral/multilateral
-                        # read_only=False because these are user scenarios that can be edited
-                        infos = register_all_scenarios(
-                            category_dir,
-                            source="app",
-                            tags=tags,
-                            recursive=True,
-                            read_only=False,  # User scenarios are editable
-                        )
-                        total_registered += len(infos)
-                    except Exception as e:
-                        print(
-                            f"Warning: Failed to register scenarios from {category_dir}: {e}"
-                        )
+        for category_dir in categories:
+            try:
+                # Use category name as tag (e.g., "anac2019")
+                # Also check if it's an ANAC directory
+                tags = {category_dir.name}
+                if category_dir.name.lower().startswith("anac"):
+                    tags.add("anac")
+
+                # register_all_scenarios auto-detects: format (xml/json/yaml),
+                # normalized, n_outcomes, n_negotiators, bilateral/multilateral
+                # read_only=False because these are user scenarios that can be edited
+                infos = register_all_scenarios(
+                    category_dir,
+                    source="app",
+                    tags=tags,
+                    recursive=True,
+                    read_only=False,  # User scenarios are editable
+                )
+                total_registered += len(infos)
+                self._registration_progress["current"] += 1
+            except Exception as e:
+                print(f"Warning: Failed to register scenarios from {category_dir}: {e}")
+                self._registration_progress["current"] += 1
 
         # Register from custom scenario_paths
         # Each path gets scanned recursively, and scenarios use the folder name as source
-        settings = SettingsService.load_paths()
-        for path_str in settings.scenario_paths:
-            path = Path(path_str).expanduser()
-            if path.exists():
-                # Use the folder name as the source name
-                source_name = path.name
-                try:
-                    # Build tags from folder structure
-                    infos = register_all_scenarios(
-                        path,
-                        source=source_name,
-                        recursive=True,
-                    )
-                    total_registered += len(infos)
-                except Exception as e:
-                    print(f"Warning: Failed to register scenarios from {path}: {e}")
+        for path in custom_paths:
+            # Use the folder name as the source name
+            source_name = path.name
+            try:
+                # Build tags from folder structure
+                infos = register_all_scenarios(
+                    path,
+                    source=source_name,
+                    recursive=True,
+                )
+                total_registered += len(infos)
+                self._registration_progress["current"] += 1
+            except Exception as e:
+                print(f"Warning: Failed to register scenarios from {path}: {e}")
+                self._registration_progress["current"] += 1
 
         self._registered = True
+        self._registration_in_progress = False
+        self._registration_progress["status"] = "completed"
+
+        # Save to disk cache for instant next startup
+        self._save_registry_cache()
+
         return total_registered
+
+    def get_registration_status(self) -> dict:
+        """Get the current registration status and progress.
+
+        Returns:
+            Dict with 'registered', 'in_progress', 'progress' keys
+        """
+        return {
+            "registered": self._registered,
+            "in_progress": self._registration_in_progress,
+            "progress": self._registration_progress.copy(),
+            "total_scenarios": len(scenario_registry),
+        }
 
     def list_sources(self) -> list[str]:
         """List available scenario sources (app, user, etc.) from negmas registry."""
@@ -197,6 +475,9 @@ class ScenarioLoader:
             # Get read_only status from registry (negmas package scenarios have read_only=True)
             readonly = getattr(reg_info, "read_only", False)
 
+            # Get status from our status tracking
+            status = self.get_scenario_status(reg_info.path)
+
             return ScenarioInfo(
                 path=str(reg_info.path),
                 name=reg_info.name,
@@ -213,6 +494,7 @@ class ScenarioLoader:
                 normalized=normalized,
                 format=format_type,
                 readonly=readonly,  # Use read_only from negmas registry
+                status=status,  # Include status
             )
         except Exception as e:
             print(f"Warning: Failed to convert registry info: {e}")
@@ -436,6 +718,9 @@ class ScenarioLoader:
                     readonly = getattr(reg_info, "read_only", False)
                     break
 
+            # Get status from our status tracking
+            status = self.get_scenario_status(path)
+
             info = ScenarioInfo(
                 path=str(path),
                 name=path.name,
@@ -451,6 +736,7 @@ class ScenarioLoader:
                 normalized=normalized,
                 format=format_type,
                 readonly=readonly,  # Use read_only from negmas registry
+                status=status,  # Include status
             )
 
             # Store in detail cache

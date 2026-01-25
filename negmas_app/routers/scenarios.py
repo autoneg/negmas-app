@@ -92,6 +92,20 @@ async def list_sources():
     return {"sources": sources}
 
 
+@router.get("/registration-status")
+async def get_registration_status():
+    """Get the current registration status and progress.
+
+    Returns status information about scenario registration including:
+    - registered: Whether registration is complete
+    - in_progress: Whether registration is currently running
+    - progress: Progress information (total, current, status)
+    - total_scenarios: Number of scenarios currently in registry
+    """
+    status = await asyncio.to_thread(get_loader().get_registration_status)
+    return status
+
+
 @router.get("/{scenario_id}/quick-info")
 async def get_quick_info(scenario_id: str):
     """Calculate basic info (n_outcomes, opposition) quickly on-demand.
@@ -419,6 +433,7 @@ def _scenario_to_dict(info) -> dict:
         "format": info.format,
         "description": info.description,
         "readonly": info.readonly,
+        "status": info.status,
         "issues": [
             {
                 "name": i.name,
@@ -948,11 +963,180 @@ async def open_scenario_folder(scenario_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    if plot_file.exists():
-        plot_file.unlink()
 
-    plots_dir = scenario_path / "_plots"
-    if plots_dir.exists() and plots_dir.is_dir():
-        import shutil
 
-        shutil.rmtree(plots_dir)
+class StatusUpdateRequest(BaseModel):
+    """Request body for updating scenario status."""
+
+    status: str  # "enabled", "disabled", "archived"
+
+
+@router.put("/{scenario_id}/status")
+async def update_scenario_status(scenario_id: str, request: StatusUpdateRequest):
+    """Update the status of a scenario.
+
+    Args:
+        scenario_id: Base64-encoded scenario path.
+        request: Request body with new status.
+
+    Returns:
+        Dict with success status.
+    """
+    try:
+        path = decode_scenario_path(scenario_id)
+
+        # Validate status
+        if request.status not in ("enabled", "disabled", "archived"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status: {request.status}. Must be 'enabled', 'disabled', or 'archived'.",
+            )
+
+        # Update status
+        success = await asyncio.to_thread(
+            get_loader().set_scenario_status, path, request.status
+        )
+
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update status")
+
+        return {
+            "success": True,
+            "status": request.status,
+            "message": f"Scenario status updated to: {request.status}",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{scenario_id}")
+async def delete_scenario(scenario_id: str):
+    """Delete a scenario from disk.
+
+    Args:
+        scenario_id: Base64-encoded scenario path.
+
+    Returns:
+        Dict with success status.
+    """
+    try:
+        path = decode_scenario_path(scenario_id)
+
+        # Delete scenario
+        success, error = await asyncio.to_thread(get_loader().delete_scenario, path)
+
+        if not success:
+            raise HTTPException(
+                status_code=400, detail=error or "Failed to delete scenario"
+            )
+
+        return {
+            "success": True,
+            "message": f"Scenario deleted successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class BulkStatusRequest(BaseModel):
+    """Request body for bulk status operations."""
+
+    paths: list[str]
+    status: str  # "enabled", "disabled", "archived"
+
+
+@router.post("/bulk-status")
+async def bulk_update_status(request: BulkStatusRequest):
+    """Update the status of multiple scenarios.
+
+    Args:
+        request: Request body with paths and new status.
+
+    Returns:
+        Dict with results for each scenario.
+    """
+    try:
+        # Validate status
+        if request.status not in ("enabled", "disabled", "archived"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status: {request.status}. Must be 'enabled', 'disabled', or 'archived'.",
+            )
+
+        results = []
+        for path in request.paths:
+            try:
+                success = await asyncio.to_thread(
+                    get_loader().set_scenario_status, path, request.status
+                )
+                results.append({"path": path, "success": success})
+            except Exception as e:
+                results.append({"path": path, "success": False, "error": str(e)})
+
+        successful = sum(1 for r in results if r["success"])
+        return {
+            "success": True,
+            "total": len(request.paths),
+            "successful": successful,
+            "failed": len(request.paths) - successful,
+            "results": results,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class BulkDeleteRequest(BaseModel):
+    """Request body for bulk delete operations."""
+
+    paths: list[str]
+
+
+@router.post("/bulk-delete")
+async def bulk_delete(request: BulkDeleteRequest):
+    """Delete multiple scenarios.
+
+    Args:
+        request: Request body with paths to delete.
+
+    Returns:
+        Dict with results for each scenario.
+    """
+    try:
+        results = []
+        for path in request.paths:
+            try:
+                success, error = await asyncio.to_thread(
+                    get_loader().delete_scenario, path
+                )
+                results.append(
+                    {
+                        "path": path,
+                        "success": success,
+                        "error": error if not success else None,
+                    }
+                )
+            except Exception as e:
+                results.append({"path": path, "success": False, "error": str(e)})
+
+        successful = sum(1 for r in results if r["success"])
+        return {
+            "success": True,
+            "total": len(request.paths),
+            "successful": successful,
+            "failed": len(request.paths) - successful,
+            "results": results,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

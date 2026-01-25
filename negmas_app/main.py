@@ -1,10 +1,12 @@
 """NegMAS App - Vue.js version entry point."""
 
+import asyncio
 import os
 import signal
 import subprocess
 import sys
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
@@ -16,6 +18,36 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich import box
+
+
+# Lifespan context manager for startup/shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle startup and shutdown events."""
+    # Startup: Start background scenario registration
+    from .routers.scenarios import get_loader
+
+    console = Console()
+    console.print("[yellow]Starting background scenario registration...[/yellow]")
+
+    # Start registration in background thread
+    loader = get_loader()
+
+    async def register_scenarios():
+        try:
+            count = await asyncio.to_thread(loader.ensure_scenarios_registered)
+            console.print(f"[green]✓ Registered {count} scenarios[/green]")
+        except Exception as e:
+            console.print(f"[red]✗ Registration failed: {e}[/red]")
+
+    # Don't wait for registration to complete - let it run in background
+    asyncio.create_task(register_scenarios())
+
+    yield
+
+    # Shutdown
+    # Nothing to clean up currently
+
 
 # Import routers
 from .routers import (
@@ -32,11 +64,12 @@ from .routers import (
     filters_router,
 )
 
-# Create FastAPI app
+# Create FastAPI app with lifespan
 app = FastAPI(
     title="NegMAS App",
     description="Vue.js frontend for NegMAS - Run and monitor negotiations",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Add CORS middleware for development (Vite dev server runs on different port)
