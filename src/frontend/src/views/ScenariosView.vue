@@ -452,10 +452,50 @@
                   <span class="collapse-icon">{{ panelsCollapsed.ufuns ? '▶' : '▼' }}</span>
                   Utility Functions
                 </h3>
+                <div class="panel-header-actions" @click.stop v-if="scenarioFiles?.domain_file">
+                  <button 
+                    class="btn-secondary btn-sm" 
+                    @click="openFileEditor(scenarioFiles.domain_file, 'Domain')"
+                    title="Edit domain file"
+                  >
+                    Edit Domain
+                  </button>
+                </div>
               </div>
               
               <div v-if="!panelsCollapsed.ufuns" class="panel-content">
-                <div v-if="selectedScenarioStats?.negotiator_names" class="ufuns-info">
+                <div v-if="ufunDetails.length > 0" class="ufuns-info">
+                  <div v-for="(ufun, idx) in ufunDetails" :key="idx" class="ufun-item">
+                    <div class="ufun-header">
+                      <div class="ufun-title-row">
+                        <span class="ufun-name">{{ ufun.name || `Negotiator ${idx + 1}` }}</span>
+                        <span class="ufun-type badge">{{ ufun.type }}</span>
+                      </div>
+                      <button 
+                        v-if="ufun.file_path" 
+                        class="btn-edit-ufun" 
+                        @click="openFileEditor(ufun.file_path, ufun.name)"
+                        title="Edit utility function file"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    <div class="ufun-details">
+                      <span v-if="selectedScenarioPlotData?.reserved_values && selectedScenarioPlotData.reserved_values[idx] !== null" class="ufun-meta">
+                        Reserved Value: {{ selectedScenarioPlotData.reserved_values[idx].toFixed(3) }}
+                      </span>
+                      <span v-if="selectedScenarioStats && selectedScenarioStats.nash_utils" class="ufun-meta">
+                        Nash Util: {{ selectedScenarioStats.nash_utils[0]?.[idx]?.toFixed(3) || 'N/A' }}
+                      </span>
+                    </div>
+                    
+                    <!-- Display negmas string representation -->
+                    <div v-if="ufun.string_representation" class="ufun-representation">
+                      <pre>{{ ufun.string_representation }}</pre>
+                    </div>
+                  </div>
+                </div>
+                <div v-else-if="selectedScenarioStats?.negotiator_names" class="ufuns-info">
                   <div v-for="(name, idx) in selectedScenarioStats.negotiator_names" :key="idx" class="ufun-item">
                     <div class="ufun-header">
                       <span class="ufun-name">{{ name || `Negotiator ${idx + 1}` }}</span>
@@ -578,6 +618,18 @@
       />
     </Teleport>
     
+    <!-- File Editor Modal -->
+    <Teleport to="body">
+      <FileEditorModal
+        :show="showFileEditor"
+        :scenario-path="selectedScenario?.path"
+        :file-path="editingFile"
+        :title="`Edit ${editingFileTitle}`"
+        @close="showFileEditor = false"
+        @saved="onFileSaved"
+      />
+    </Teleport>
+    
     <!-- Save Filter Dialog -->
     <Teleport to="body">
       <div v-if="showSaveFilterDialog" class="modal-overlay" @click="showSaveFilterDialog = false">
@@ -638,6 +690,7 @@ import { useNegotiationsStore } from '../stores/negotiations'
 import { storeToRefs } from 'pinia'
 import Plotly from 'plotly.js-dist-min'
 import NewNegotiationModal from '../components/NewNegotiationModal.vue'
+import FileEditorModal from '../components/FileEditorModal.vue'
 
 const scenariosStore = useScenariosStore()
 const negotiationsStore = useNegotiationsStore()
@@ -683,6 +736,13 @@ const selectedPlotName = ref(null)
 const showOutcomes = ref(false) // Hide outcomes by default to save space
 const showIssueValues = ref(false) // Hide issue values by default
 
+// UFun details and file editor state
+const ufunDetails = ref([])
+const scenarioFiles = ref(null)
+const showFileEditor = ref(false)
+const editingFile = ref(null)
+const editingFileTitle = ref('')
+
 // Collapsible panel states
 const panelsCollapsed = ref({
   info: false,
@@ -708,7 +768,7 @@ const selectedFilterId = ref('')
 
 const plotImageUrl = computed(() => {
   if (!selectedScenario.value) return null
-  const basePath = `/api/scenarios/${encodeURIComponent(selectedScenario.value.path)}/plot-image`
+  const basePath = `/api/scenarios/${selectedScenario.value.id}/plot-image`
   if (selectedPlotName.value) {
     return `${basePath}?plot_name=${encodeURIComponent(selectedPlotName.value)}`
   }
@@ -939,35 +999,97 @@ async function loadSavedFilter() {
 }
 
 async function selectScenario(scenario) {
+  // First, load full scenario details (includes issues)
+  try {
+    const response = await fetch(`/api/scenarios/${scenario.id}/info`)
+    const data = await response.json()
+    if (data) {
+      // Update scenario with full details
+      Object.assign(scenario, data)
+    }
+  } catch (error) {
+    console.error('Failed to load scenario details:', error)
+  }
+  
   scenariosStore.selectScenario(scenario)
   
   // Reset plot selection
   availablePlots.value = null
   selectedPlotName.value = null
   
+  // Reset ufun details
+  ufunDetails.value = []
+  scenarioFiles.value = null
+  
   // Load available plots
   await loadAvailablePlots()
   
+  // Load ufun details
+  await loadUfunDetails()
+  
   // Auto-load stats when selecting a scenario
   if (scenario.has_stats) {
-    await scenariosStore.loadScenarioStats(scenario.path)
+    await scenariosStore.loadScenarioStats(scenario.id)
   }
   // Auto-load plot data
-  await scenariosStore.loadScenarioPlotData(scenario.path)
+  await scenariosStore.loadScenarioPlotData(scenario.id)
 }
 
 async function loadStats() {
   if (!selectedScenario.value) return
   if (selectedScenarioStats.value) return // Already loaded
   
-  await scenariosStore.loadScenarioStats(selectedScenario.value.path)
+  await scenariosStore.loadScenarioStats(selectedScenario.value.id)
+}
+
+async function loadUfunDetails() {
+  if (!selectedScenario.value) return
+  
+  try {
+    const response = await fetch(`/api/scenarios/${selectedScenario.value.id}/ufuns`)
+    const data = await response.json()
+    if (data.success) {
+      ufunDetails.value = data.ufuns
+      scenarioFiles.value = data.files
+    } else {
+      console.error('Failed to load ufun details:', data.error)
+      ufunDetails.value = []
+      scenarioFiles.value = null
+    }
+  } catch (error) {
+    console.error('Failed to load ufun details:', error)
+    ufunDetails.value = []
+    scenarioFiles.value = null
+  }
+}
+
+function openFileEditor(filePath, title) {
+  editingFile.value = filePath
+  editingFileTitle.value = title
+  showFileEditor.value = true
+}
+
+async function onFileSaved() {
+  // Reload scenario data after file save
+  await scenariosStore.loadScenarios()
+  
+  // Reselect the scenario to refresh stats/plot
+  if (selectedScenario.value) {
+    const updated = scenariosStore.scenarios.find(s => s.path === selectedScenario.value.path)
+    if (updated) {
+      await selectScenario(updated)
+    }
+  }
+  
+  // Reload ufun details
+  await loadUfunDetails()
 }
 
 async function loadAvailablePlots() {
   if (!selectedScenario.value) return
   
   try {
-    const response = await fetch(`/api/scenarios/${encodeURIComponent(selectedScenario.value.path)}/available-plots`)
+    const response = await fetch(`/api/scenarios/${selectedScenario.value.id}/available-plots`)
     const data = await response.json()
     availablePlots.value = data
     
@@ -1577,11 +1699,11 @@ function formatNumber(num) {
   gap: 12px;
 }
 
-/* Compact info grid - 2 columns */
+/* Compact info grid - 4 columns */
 .info-grid-compact {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px 16px;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 8px 12px;
 }
 
 /* Compact stats grid - 2 columns */
@@ -2055,12 +2177,50 @@ function formatNumber(num) {
 
 .ufun-header {
   margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.ufun-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
 }
 
 .ufun-name {
   font-weight: 600;
   color: var(--text-primary);
   font-size: 0.9rem;
+}
+
+.ufun-type {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  background: var(--primary-light);
+  color: var(--primary-color);
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.btn-edit-ufun {
+  padding: 4px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-edit-ufun:hover {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
 }
 
 .ufun-details {
@@ -2072,6 +2232,24 @@ function formatNumber(num) {
 .ufun-meta {
   font-size: 0.85rem;
   color: var(--text-secondary);
+}
+
+
+.ufun-representation {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--bg-primary);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  overflow-x: auto;
+}
+
+.ufun-representation pre {
+  margin: 0;
+  font-family: 'Monaco', 'Courier New', monospace;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 .text-secondary {

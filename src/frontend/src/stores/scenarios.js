@@ -57,10 +57,10 @@ export const useScenariosStore = defineStore('scenarios', () => {
     }
   }
 
-  async function loadScenarioStats(path) {
+  async function loadScenarioStats(scenarioId) {
     loadingStats.value = true
     try {
-      const response = await fetch(`/api/scenarios/${encodeURIComponent(path)}/stats`)
+      const response = await fetch(`/api/scenarios/${scenarioId}/stats`)
       const data = await response.json()
       selectedScenarioStats.value = data
       return data
@@ -73,10 +73,10 @@ export const useScenariosStore = defineStore('scenarios', () => {
     }
   }
 
-  async function calculateScenarioStats(path, force = false) {
+  async function calculateScenarioStats(scenarioId, force = false) {
     loadingStats.value = true
     try {
-      const url = `/api/scenarios/${encodeURIComponent(path)}/stats/calculate${force ? '?force=true' : ''}`
+      const url = `/api/scenarios/${scenarioId}/stats/calculate${force ? '?force=true' : ''}`
       const response = await fetch(url, { method: 'POST' })
       const data = await response.json()
       selectedScenarioStats.value = data
@@ -89,10 +89,10 @@ export const useScenariosStore = defineStore('scenarios', () => {
     }
   }
 
-  async function loadScenarioPlotData(path, maxSamples = 10000, forceRegenerate = false) {
+  async function loadScenarioPlotData(scenarioId, maxSamples = 10000, forceRegenerate = false) {
     loadingPlotData.value = true
     try {
-      const url = `/api/scenarios/${encodeURIComponent(path)}/plot-data?max_samples=${maxSamples}&force_regenerate=${forceRegenerate}`
+      const url = `/api/scenarios/${scenarioId}/plot-data?max_samples=${maxSamples}&force_regenerate=${forceRegenerate}`
       const response = await fetch(url)
       const data = await response.json()
       selectedScenarioPlotData.value = data
@@ -114,7 +114,7 @@ export const useScenariosStore = defineStore('scenarios', () => {
     // If scenario is missing quick info (n_outcomes or opposition), fetch it
     if (scenario && (scenario.n_outcomes === null || scenario.opposition === null)) {
       try {
-        const response = await fetch(`/api/scenarios/${encodeURIComponent(scenario.path)}/quick-info`)
+        const response = await fetch(`/api/scenarios/${scenario.id}/quick-info`)
         const data = await response.json()
         
         // Update the scenario object with the quick info
@@ -124,7 +124,7 @@ export const useScenariosStore = defineStore('scenarios', () => {
           scenario.rational_fraction = data.rational_fraction ?? scenario.rational_fraction
           
           // Also update in the scenarios array to persist the data
-          const index = scenarios.value.findIndex(s => s.path === scenario.path)
+          const index = scenarios.value.findIndex(s => s.id === scenario.id)
           if (index !== -1) {
             scenarios.value[index] = { ...scenarios.value[index], ...data }
           }

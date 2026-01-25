@@ -106,8 +106,6 @@ class ScenarioLoader:
         if self._registered:
             return len(scenario_registry)
 
-        from negmas import register_all_scenarios
-
         # Register built-in scenarios with source="app"
         # Use register_all_scenarios which auto-detects format, normalized, etc.
         total_registered = 0
@@ -195,6 +193,14 @@ class ScenarioLoader:
                 len(ufun_files) if ufun_files else (reg_info.n_negotiators or 2)
             )
 
+            # Extract normalized and format from tags
+            normalized = "normalized" in tags if tags else None
+            format_type = None
+            for tag in tags:
+                if tag in ("yaml", "xml", "json"):
+                    format_type = tag
+                    break
+
             # negmas ScenarioInfo has: name, path, source, tags, n_outcomes, n_negotiators,
             # opposition_level, rational_fraction, description
             return ScenarioInfo(
@@ -210,6 +216,8 @@ class ScenarioLoader:
                 description=reg_info.description or "",  # Description from registry
                 has_stats=has_stats,
                 has_info=has_info,
+                normalized=normalized,
+                format=format_type,
             )
         except Exception as e:
             print(f"Warning: Failed to convert registry info: {e}")
@@ -377,6 +385,53 @@ class ScenarioLoader:
                 if match:
                     opposition = float(match.group(1))
 
+            # Get normalized from scenario.info (cached) or detect from scenario
+            normalized = None
+            format_type = None
+            if scenario.info:
+                normalized = scenario.info.get("normalized")
+                format_type = scenario.info.get("format")
+
+            # If not in cache, detect and save to cache
+            needs_save = False
+            if normalized is None:
+                # Check if scenario has is_normalized property
+                try:
+                    normalized = (
+                        bool(scenario.is_normalized)
+                        if hasattr(scenario, "is_normalized")
+                        else None
+                    )
+                    if normalized is not None:
+                        if scenario.info is None:
+                            scenario.info = {}
+                        scenario.info["normalized"] = normalized
+                        needs_save = True
+                except Exception:
+                    normalized = None
+
+            if format_type is None:
+                # Detect format from files
+                if (path / "domain.xml").exists():
+                    format_type = "xml"
+                elif (path / "domain.json").exists():
+                    format_type = "json"
+                elif (path / "domain.yaml").exists() or (path / "domain.yml").exists():
+                    format_type = "yaml"
+
+                if format_type is not None:
+                    if scenario.info is None:
+                        scenario.info = {}
+                    scenario.info["format"] = format_type
+                    needs_save = True
+
+            # Save info if we added new fields
+            if needs_save:
+                try:
+                    scenario.save_info(path)
+                except Exception:
+                    pass  # Ignore save errors
+
             info = ScenarioInfo(
                 path=str(path),
                 name=path.name,
@@ -389,6 +444,33 @@ class ScenarioLoader:
                 has_stats=has_stats,
                 has_info=scenario.info is not None
                 and "rational_fraction" in scenario.info,
+                normalized=normalized,
+                format=format_type,
+            )
+
+            # Detect format from path
+            format_type = None
+            if (path / "domain.xml").exists():
+                format_type = "xml"
+            elif (path / "domain.json").exists():
+                format_type = "json"
+            elif (path / "domain.yaml").exists() or (path / "domain.yml").exists():
+                format_type = "yaml"
+
+            info = ScenarioInfo(
+                path=str(path),
+                name=path.name,
+                n_negotiators=len(scenario.ufuns),
+                issues=issues,
+                n_outcomes=n_outcomes,
+                rational_fraction=rational_fraction,
+                opposition=opposition,
+                source=source,
+                has_stats=has_stats,
+                has_info=scenario.info is not None
+                and "rational_fraction" in scenario.info,
+                normalized=normalized,
+                format=format_type,
             )
 
             # Store in detail cache

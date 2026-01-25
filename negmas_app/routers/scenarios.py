@@ -1,12 +1,13 @@
 """Scenario API endpoints."""
 
 import asyncio
+import base64
 import json
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
@@ -29,6 +30,10 @@ router = APIRouter(prefix="/api/scenarios", tags=["scenarios"])
 # Shared scenario loader (initialized lazily)
 _loader: ScenarioLoader | None = None
 
+# Cache for loaded scenarios within a request (path -> Scenario)
+# This avoids reloading the same scenario multiple times
+_scenario_cache: dict[str, Any] = {}
+
 
 def get_loader() -> ScenarioLoader:
     """Get or create the scenario loader instance."""
@@ -36,6 +41,34 @@ def get_loader() -> ScenarioLoader:
     if _loader is None:
         _loader = ScenarioLoader()
     return _loader
+
+
+def encode_scenario_path(path: str | Path) -> str:
+    """Encode a scenario path for use in URLs."""
+    return base64.urlsafe_b64encode(str(path).encode()).decode()
+
+
+def decode_scenario_path(encoded: str) -> str:
+    """Decode a scenario path from URL."""
+    return base64.urlsafe_b64decode(encoded.encode()).decode()
+
+
+async def get_cached_scenario(
+    path: str, load_stats: bool = True, load_info: bool = True
+):
+    """Get a scenario from cache or load it.
+
+    This ensures we only load a scenario once per request.
+    """
+    from negmas import Scenario
+
+    cache_key = f"{path}:{load_stats}:{load_info}"
+    if cache_key not in _scenario_cache:
+        scenario = await asyncio.to_thread(
+            Scenario.load, Path(path), load_stats=load_stats, load_info=load_info
+        )
+        _scenario_cache[cache_key] = scenario
+    return _scenario_cache[cache_key]
 
 
 @router.get("")
@@ -59,15 +92,15 @@ async def list_sources():
     return {"sources": sources}
 
 
-@router.get("/{path:path}/quick-info")
-async def get_quick_info(path: str):
+@router.get("/{scenario_id}/quick-info")
+async def get_quick_info(scenario_id: str):
     """Calculate basic info (n_outcomes, opposition) quickly on-demand.
 
     This is faster than full stats calculation and useful for displaying
     basic info when selecting a scenario.
 
     Args:
-        path: Full path to scenario directory.
+        scenario_id: Base64-encoded scenario path.
 
     Returns:
         Dict with n_outcomes, opposition, rational_fraction
@@ -77,6 +110,7 @@ async def get_quick_info(path: str):
 
     try:
         # Load scenario
+        path = decode_scenario_path(scenario_id)
         scenario_path = Path(path)
         scenario = await asyncio.to_thread(Scenario.load, scenario_path)
 
@@ -112,49 +146,52 @@ async def get_quick_info(path: str):
         )
 
 
-@router.get("/{path:path}/stats")
-async def get_scenario_stats(path: str):
-    """Get scenario statistics.
+@router.get("/{scenario_id}/stats")
+async def get_scenario_stats(scenario_id: str):
+    """Get cached stats for a scenario.
 
     Args:
-        path: Full path to scenario directory.
+        scenario_id: Base64-encoded scenario path.
 
     Returns:
-        Scenario statistics if available.
+        Cached scenario statistics.
     """
+    path = decode_scenario_path(scenario_id)
     stats = await asyncio.to_thread(get_loader().get_scenario_stats, path)
     return asdict(stats)
 
 
-@router.post("/{path:path}/stats/calculate")
-async def calculate_scenario_stats(path: str, force: bool = False):
+@router.post("/{scenario_id}/stats/calculate")
+async def calculate_scenario_stats(scenario_id: str, force: bool = False):
     """Calculate and save scenario statistics.
 
     Args:
-        path: Full path to scenario directory.
+        scenario_id: Base64-encoded scenario path.
         force: If True, recalculate even if stats exist.
 
     Returns:
         Computed scenario statistics.
     """
+    path = decode_scenario_path(scenario_id)
     stats = await asyncio.to_thread(get_loader().calculate_and_save_stats, path, force)
     return asdict(stats)
 
 
-@router.get("/{path:path}/plot-data")
+@router.get("/{scenario_id}/plot-data")
 async def get_scenario_plot_data(
-    path: str, max_samples: int = 10000, force_regenerate: bool = False
+    scenario_id: str, max_samples: int = 10000, force_regenerate: bool = False
 ):
-    """Get outcome utilities for plotting and generate/cache plot image.
+    """Get plot data for a scenario.
 
     Args:
-        path: Full path to scenario directory.
-        max_samples: Maximum number of outcomes to sample.
-        force_regenerate: If True, regenerate plot even if cached version exists.
+        scenario_id: Base64-encoded scenario path.
+        max_samples: Maximum number of outcome samples for plot.
+        force_regenerate: Force regeneration even if cached.
 
     Returns:
-        Outcome utilities and negotiator names for plotting, plus plot metadata.
+        Plot data with utilities, outcomes, etc.
     """
+    path = decode_scenario_path(scenario_id)
 
     def _compute():
         scenario = get_loader().load_scenario(path, load_stats=True, load_info=True)
@@ -208,18 +245,19 @@ async def get_scenario_plot_data(
     return result
 
 
-@router.get("/{path:path}/available-plots")
-async def get_available_plots(path: str):
+@router.get("/{scenario_id}/available-plots")
+async def get_available_plots(scenario_id: str):
     """Get list of available plot files for a scenario.
 
     Args:
-        path: Full path to scenario directory.
+        scenario_id: Base64-encoded scenario path.
 
     Returns:
         List of plot file information for bilateral or multilateral scenarios.
     """
     from pathlib import Path
 
+    path = decode_scenario_path(scenario_id)
     scenario_dir = Path(path)
     plots_dir = scenario_dir / "_plots"
 
@@ -254,12 +292,12 @@ async def get_available_plots(path: str):
             return {"type": "bilateral", "plots": []}
 
 
-@router.get("/{path:path}/plot-image")
-async def get_scenario_plot_image(path: str, plot_name: str | None = None):
+@router.get("/{scenario_id}/plot-image")
+async def get_scenario_plot_image(scenario_id: str, plot_name: str | None = None):
     """Serve the cached plot image for a scenario.
 
     Args:
-        path: Full path to scenario directory.
+        scenario_id: Base64-encoded scenario path.
         plot_name: Optional plot name for multilateral scenarios (e.g., "util1-util2").
                    If not provided, returns the default/first plot.
 
@@ -268,6 +306,7 @@ async def get_scenario_plot_image(path: str, plot_name: str | None = None):
     """
     from pathlib import Path
 
+    path = decode_scenario_path(scenario_id)
     scenario_dir = Path(path)
     plots_dir = scenario_dir / "_plots"
 
@@ -322,16 +361,17 @@ async def get_scenario_plot_image(path: str, plot_name: str | None = None):
     )
 
 
-@router.get("/{path:path}")
-async def get_scenario(path: str):
+@router.get("/{scenario_id}")
+async def get_scenario(scenario_id: str):
     """Get details for a specific scenario.
 
     Args:
-        path: Full path to scenario directory.
+        scenario_id: Base64-encoded scenario path.
 
     Returns:
         Scenario info with full details.
     """
+    path = decode_scenario_path(scenario_id)
     info = await asyncio.to_thread(get_loader().get_scenario_info, path)
     if info is None:
         raise HTTPException(status_code=404, detail="Scenario not found")
@@ -352,6 +392,7 @@ def _scenario_to_dict(info) -> dict:
         return val
 
     return {
+        "id": encode_scenario_path(info.path),  # Base64-encoded ID for URLs
         "path": info.path,
         "name": info.name,
         "n_negotiators": info.n_negotiators,
@@ -363,15 +404,122 @@ def _scenario_to_dict(info) -> dict:
         "tags": info.tags,
         "has_stats": info.has_stats,
         "has_info": info.has_info,
+        "normalized": info.normalized,
+        "format": info.format,
+        "description": info.description,
         "issues": [
             {
                 "name": i.name,
                 "type": i.type,
                 "values": i.values,
+                "min_value": i.min_value,
+                "max_value": i.max_value,
             }
             for i in info.issues
         ],
     }
+
+
+@router.get("/{scenario_id}/info")
+async def get_scenario_info(scenario_id: str):
+    """Get full details for a specific scenario by loading it directly.
+
+    This loads the Scenario object and extracts all information from it,
+    including issues from outcome_space, ufuns, and cached stats/info.
+
+    Args:
+        scenario_id: Base64-encoded scenario path.
+
+    Returns:
+        Scenario info with full details including issues, ufuns, stats.
+    """
+    try:
+        # Decode the path
+        path = decode_scenario_path(scenario_id)
+        scenario_path = Path(path)
+
+        # Load scenario once and cache it
+        scenario = await get_cached_scenario(path, load_stats=True, load_info=True)
+
+        # Extract issue information from outcome_space
+        issues = []
+        for issue in scenario.outcome_space.issues:
+            issue_info = {
+                "name": issue.name,
+                "type": type(issue).__name__,
+                "values": issue.values
+                if hasattr(issue, "values") and issue.values
+                else None,
+                "min_value": issue.min_value if hasattr(issue, "min_value") else None,
+                "max_value": issue.max_value if hasattr(issue, "max_value") else None,
+            }
+            issues.append(issue_info)
+
+        # Extract basic info
+        n_outcomes = scenario.outcome_space.cardinality
+        if n_outcomes == float("inf"):
+            # Sample for infinite spaces
+            n_outcomes = len(
+                list(scenario.outcome_space.enumerate_or_sample(max_cardinality=50000))
+            )
+
+        # Get cached stats if available
+        has_stats = (
+            (scenario_path / "_stats.yaml").exists()
+            if scenario_path.is_dir()
+            else False
+        )
+        has_info = (
+            (scenario_path / "_info.yaml").exists() if scenario_path.is_dir() else False
+        )
+
+        # Extract from scenario.info dict if available
+        info_dict = scenario.info or {}
+        normalized = info_dict.get(
+            "normalized",
+            scenario.is_normalized if hasattr(scenario, "is_normalized") else None,
+        )
+        description = info_dict.get("description", "")
+
+        # Detect format from files
+        format_type = None
+        if scenario_path.is_dir():
+            if (scenario_path / "domain.xml").exists():
+                format_type = "xml"
+            elif (scenario_path / "domain.yaml").exists():
+                format_type = "yaml"
+            elif (scenario_path / "domain.json").exists():
+                format_type = "json"
+
+        return {
+            "id": encode_scenario_path(str(scenario_path)),
+            "path": str(scenario_path),
+            "name": scenario_path.name
+            if scenario_path.is_dir()
+            else scenario_path.stem,
+            "n_negotiators": len(scenario.ufuns),
+            "n_issues": len(scenario.outcome_space.issues),
+            "n_outcomes": n_outcomes if n_outcomes != float("inf") else None,
+            "rational_fraction": info_dict.get("rational_fraction"),
+            "opposition": info_dict.get("opposition"),
+            "source": scenario_path.parent.name
+            if scenario_path.is_dir()
+            else "unknown",
+            "tags": [],
+            "has_stats": has_stats,
+            "has_info": has_info,
+            "normalized": normalized,
+            "format": format_type,
+            "description": description,
+            "issues": issues,
+        }
+
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Scenario not found: {path}")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to load scenario: {str(e)}"
+        )
 
 
 @router.post("/bulk-calculate-stats")
@@ -568,3 +716,173 @@ async def create_scenario(data: ScenarioCreateInput):
             status_code=400, detail=result.get("error", "Unknown error")
         )
     return result
+
+
+@router.get("/{scenario_id}/ufuns")
+async def get_ufun_details(scenario_id: str):
+    """Get detailed information about all utility functions in a scenario.
+
+    This uses the cached scenario to avoid reloading.
+
+    Args:
+        scenario_id: Base64-encoded scenario path.
+
+    Returns:
+        Dict with ufuns array and scenario files information.
+    """
+    from ..services.ufun_info_service import get_ufun_info, get_scenario_files
+
+    try:
+        # Decode path
+        path = decode_scenario_path(scenario_id)
+        scenario_path = Path(path)
+
+        # Use cached scenario
+        scenario = await get_cached_scenario(path, load_info=True, load_stats=False)
+
+        # Get file information
+        files_info = get_scenario_files(scenario_path)
+
+        # Extract ufun details
+        ufuns = []
+        for i, ufun in enumerate(scenario.ufuns):
+            ufun_info = get_ufun_info(ufun, scenario_path)
+            ufun_info["index"] = i
+            ufuns.append(ufun_info)
+
+        return {
+            "success": True,
+            "ufuns": ufuns,
+            "files": files_info,
+        }
+
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Scenario not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{scenario_id}/files/{file_path:path}")
+async def get_scenario_file_content(scenario_id: str, file_path: str):
+    """Get the content of a scenario file for editing.
+
+    Args:
+        scenario_id: Base64-encoded scenario path.
+        file_path: Relative path to the file within the scenario.
+
+    Returns:
+        Dict with file content and metadata.
+    """
+    try:
+        path = decode_scenario_path(scenario_id)
+        scenario_path = Path(path)
+        full_file_path = scenario_path / file_path
+
+        # Security check - ensure file is within scenario directory
+        if not full_file_path.resolve().is_relative_to(scenario_path.resolve()):
+            raise HTTPException(
+                status_code=403, detail="Access denied: file outside scenario directory"
+            )
+
+        if not full_file_path.exists():
+            raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+        if not full_file_path.is_file():
+            raise HTTPException(status_code=400, detail=f"Not a file: {file_path}")
+
+        # Read file content
+        content = full_file_path.read_text(encoding="utf-8")
+
+        return {
+            "success": True,
+            "content": content,
+            "file_path": file_path,
+            "full_path": str(full_file_path),
+            "size": len(content),
+            "extension": full_file_path.suffix,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class FileUpdateRequest(BaseModel):
+    """Request body for updating a scenario file."""
+
+    content: str
+
+
+@router.put("/{scenario_id}/files/{file_path:path}")
+async def update_scenario_file(
+    scenario_id: str, file_path: str, request: FileUpdateRequest
+):
+    """Update the content of a scenario file and invalidate related caches.
+
+    Args:
+        scenario_id: Base64-encoded scenario path.
+        file_path: Relative path to the file within the scenario.
+        request: Request body with new file content.
+
+    Returns:
+        Dict with success status.
+    """
+    try:
+        path = decode_scenario_path(scenario_id)
+        scenario_path = Path(path)
+        full_file_path = scenario_path / file_path
+
+        # Security check - ensure file is within scenario directory
+        if not full_file_path.resolve().is_relative_to(scenario_path.resolve()):
+            raise HTTPException(
+                status_code=403, detail="Access denied: file outside scenario directory"
+            )
+
+        if not full_file_path.exists():
+            raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+        # Write updated content
+        full_file_path.write_text(request.content, encoding="utf-8")
+
+        # Invalidate caches
+        await _invalidate_scenario_caches(scenario_path)
+
+        return {
+            "success": True,
+            "message": f"File updated: {file_path}",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _invalidate_scenario_caches(scenario_path: Path):
+    """Delete cache files for a scenario after modification.
+
+    Args:
+        scenario_path: Path to the scenario directory.
+    """
+    # Delete info cache
+    for info_file in ["_info.yaml", "_info.yml"]:
+        cache_file = scenario_path / info_file
+        if cache_file.exists():
+            cache_file.unlink()
+
+    # Delete stats cache
+    stats_file = scenario_path / "_stats.yaml"
+    if stats_file.exists():
+        stats_file.unlink()
+
+    # Delete plot caches
+    plot_file = scenario_path / "_plot.webp"
+    if plot_file.exists():
+        plot_file.unlink()
+
+    plots_dir = scenario_path / "_plots"
+    if plots_dir.exists() and plots_dir.is_dir():
+        import shutil
+
+        shutil.rmtree(plots_dir)

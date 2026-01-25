@@ -55,6 +55,12 @@ class ScenarioInfo:
     # Whether info is cached
     has_info: bool = False
 
+    # Whether utilities are normalized (0-1 range)
+    normalized: bool | None = None
+
+    # Format of the scenario files (yaml, xml, json)
+    format: str | None = None
+
     @property
     def n_issues(self) -> int:
         return len(self.issues)
