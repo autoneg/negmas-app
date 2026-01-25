@@ -448,31 +448,6 @@ class ScenarioLoader:
                 format=format_type,
             )
 
-            # Detect format from path
-            format_type = None
-            if (path / "domain.xml").exists():
-                format_type = "xml"
-            elif (path / "domain.json").exists():
-                format_type = "json"
-            elif (path / "domain.yaml").exists() or (path / "domain.yml").exists():
-                format_type = "yaml"
-
-            info = ScenarioInfo(
-                path=str(path),
-                name=path.name,
-                n_negotiators=len(scenario.ufuns),
-                issues=issues,
-                n_outcomes=n_outcomes,
-                rational_fraction=rational_fraction,
-                opposition=opposition,
-                source=source,
-                has_stats=has_stats,
-                has_info=scenario.info is not None
-                and "rational_fraction" in scenario.info,
-                normalized=normalized,
-                format=format_type,
-            )
-
             # Store in detail cache
             _SCENARIO_DETAIL_CACHE[path_str] = (info, current_time)
 
