@@ -61,6 +61,9 @@ class ScenarioInfo:
     # Format of the scenario files (yaml, xml, json)
     format: str | None = None
 
+    # Whether the scenario is read-only (from a read-only source)
+    readonly: bool = False
+
     @property
     def n_issues(self) -> int:
         return len(self.issues)
@@ -124,6 +127,7 @@ class ScenarioSource:
     name: str
     path: Path
     is_builtin: bool = False
+    readonly: bool = False  # If True, scenarios from this source cannot be edited
 
 
 # --- Scenario Creation Models ---

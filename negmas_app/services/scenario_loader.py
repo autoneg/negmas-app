@@ -106,7 +106,8 @@ class ScenarioLoader:
         if self._registered:
             return len(scenario_registry)
 
-        # Register built-in scenarios with source="app"
+        # Register built-in scenarios from ~/negmas/app/scenarios with source="app"
+        # These are USER scenarios and should be editable (read_only=False)
         # Use register_all_scenarios which auto-detects format, normalized, etc.
         total_registered = 0
         if self.scenarios_root.exists():
@@ -121,11 +122,13 @@ class ScenarioLoader:
 
                         # register_all_scenarios auto-detects: format (xml/json/yaml),
                         # normalized, n_outcomes, n_negotiators, bilateral/multilateral
+                        # read_only=False because these are user scenarios that can be edited
                         infos = register_all_scenarios(
                             category_dir,
                             source="app",
                             tags=tags,
                             recursive=True,
+                            read_only=False,  # User scenarios are editable
                         )
                         total_registered += len(infos)
                     except Exception as e:
@@ -168,30 +171,17 @@ class ScenarioLoader:
         return sorted(sources)
 
     def _convert_registry_info(self, reg_info: Any) -> ScenarioInfo | None:
-        """Convert negmas ScenarioInfo to our ScenarioInfo model."""
+        """Convert negmas ScenarioInfo to our ScenarioInfo model.
+
+        This is used for lightweight listing - no file I/O operations.
+        All data comes from the registry which was populated during registration.
+        """
         try:
             # Use tags directly from registry
             tags = list(reg_info.tags) if reg_info.tags else []
 
-            # Check if cached stats/info files exist
-            scenario_path = Path(reg_info.path)
-            stats_file = scenario_path / "_stats.yaml"
-            has_stats = stats_file.exists()
-            # Check both .yml and .yaml extensions for info file
-            has_info = (scenario_path / "_info.yml").exists() or (
-                scenario_path / "_info.yaml"
-            ).exists()
-
-            # Count actual utility function files to get correct n_negotiators
-            # Don't trust registry value, count files directly
-            _, ufun_files = find_domain_and_utility_files_yaml(scenario_path)
-            if not ufun_files:
-                _, ufun_files = find_domain_and_utility_files_xml(scenario_path)
-            if not ufun_files:
-                _, ufun_files = find_domain_and_utility_files_geniusweb(scenario_path)
-            n_negotiators = (
-                len(ufun_files) if ufun_files else (reg_info.n_negotiators or 2)
-            )
+            # Use n_negotiators from registry (already accurate from registration)
+            n_negotiators = reg_info.n_negotiators or 2
 
             # Extract normalized and format from tags
             normalized = "normalized" in tags if tags else None
@@ -202,7 +192,11 @@ class ScenarioLoader:
                     break
 
             # negmas ScenarioInfo has: name, path, source, tags, n_outcomes, n_negotiators,
-            # opposition_level, rational_fraction, description
+            # opposition_level, rational_fraction, description, read_only
+
+            # Get read_only status from registry (negmas package scenarios have read_only=True)
+            readonly = getattr(reg_info, "read_only", False)
+
             return ScenarioInfo(
                 path=str(reg_info.path),
                 name=reg_info.name,
@@ -214,10 +208,11 @@ class ScenarioLoader:
                 source=reg_info.source or "unknown",  # Use actual source from registry
                 tags=tags,  # All tags from registry (normalized, anac, file, xml/json/yaml, bilateral/multilateral, etc.)
                 description=reg_info.description or "",  # Description from registry
-                has_stats=has_stats,
-                has_info=has_info,
+                has_stats=False,  # Not needed for listing - will be loaded on detail view
+                has_info=False,  # Not needed for listing - will be loaded on detail view
                 normalized=normalized,
                 format=format_type,
+                readonly=readonly,  # Use read_only from negmas registry
             )
         except Exception as e:
             print(f"Warning: Failed to convert registry info: {e}")
@@ -432,6 +427,15 @@ class ScenarioLoader:
                 except Exception:
                     pass  # Ignore save errors
 
+            # Determine if scenario is read-only by checking the registry
+            # Negmas package scenarios have read_only=True
+            readonly = False
+            self.ensure_scenarios_registered()
+            for reg_info in scenario_registry.values():
+                if str(reg_info.path) == str(path):
+                    readonly = getattr(reg_info, "read_only", False)
+                    break
+
             info = ScenarioInfo(
                 path=str(path),
                 name=path.name,
@@ -446,6 +450,7 @@ class ScenarioLoader:
                 and "rational_fraction" in scenario.info,
                 normalized=normalized,
                 format=format_type,
+                readonly=readonly,  # Use read_only from negmas registry
             )
 
             # Store in detail cache

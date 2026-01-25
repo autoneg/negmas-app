@@ -407,6 +407,7 @@ def _scenario_to_dict(info) -> dict:
         "normalized": info.normalized,
         "format": info.format,
         "description": info.description,
+        "readonly": info.readonly,
         "issues": [
             {
                 "name": i.name,
@@ -831,6 +832,15 @@ async def update_scenario_file(
     try:
         path = decode_scenario_path(scenario_id)
         scenario_path = Path(path)
+
+        # Check if scenario is read-only
+        scenario_info = get_loader().get_scenario_info(str(scenario_path))
+        if scenario_info and scenario_info.readonly:
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot modify read-only scenario. This scenario is from a read-only source.",
+            )
+
         full_file_path = scenario_path / file_path
 
         # Security check - ensure file is within scenario directory
@@ -878,6 +888,55 @@ async def _invalidate_scenario_caches(scenario_path: Path):
 
     # Delete plot caches
     plot_file = scenario_path / "_plot.webp"
+    if plot_file.exists():
+        plot_file.unlink()
+
+    plots_dir = scenario_path / "_plots"
+    if plots_dir.exists() and plots_dir.is_dir():
+        import shutil
+
+        shutil.rmtree(plots_dir)
+
+
+@router.post("/{scenario_id}/open-folder")
+async def open_scenario_folder(scenario_id: str):
+    """Open the scenario folder in the system file explorer.
+
+    Args:
+        scenario_id: Base64-encoded scenario path.
+
+    Returns:
+        Dict with success status.
+    """
+    import subprocess
+    import sys
+
+    try:
+        path = decode_scenario_path(scenario_id)
+        scenario_path = Path(path)
+
+        if not scenario_path.exists():
+            raise HTTPException(status_code=404, detail=f"Scenario not found: {path}")
+
+        # Open folder in system file explorer based on OS
+        if sys.platform == "darwin":  # macOS
+            subprocess.run(["open", str(scenario_path)], check=True)
+        elif sys.platform == "win32":  # Windows
+            subprocess.run(["explorer", str(scenario_path)], check=True)
+        else:  # Linux
+            subprocess.run(["xdg-open", str(scenario_path)], check=True)
+
+        return {
+            "success": True,
+            "message": f"Opened folder: {scenario_path.name}",
+        }
+
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to open folder: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     if plot_file.exists():
         plot_file.unlink()
 

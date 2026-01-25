@@ -225,7 +225,16 @@
       <div v-else class="scenario-details">
         <!-- Header -->
         <div class="details-header">
-          <h2>{{ selectedScenario.name }}</h2>
+          <div class="details-header-title">
+            <h2>{{ selectedScenario.name }}</h2>
+            <button 
+              class="btn-icon-folder" 
+              @click="openScenarioFolder"
+              title="Open scenario folder in file explorer"
+            >
+              📁
+            </button>
+          </div>
           <div class="header-actions">
             <button 
               class="btn-secondary btn-sm" 
@@ -464,7 +473,7 @@
                   <span class="collapse-icon">{{ panelsCollapsed.ufuns ? '▶' : '▼' }}</span>
                   Utility Functions
                 </h3>
-                <div class="panel-header-actions" @click.stop v-if="scenarioFiles?.domain_file">
+                <div class="panel-header-actions" @click.stop v-if="scenarioFiles?.domain_file && !selectedScenario?.readonly">
                   <button 
                     class="btn-secondary btn-sm" 
                     @click="openFileEditor(scenarioFiles.domain_file, 'Domain')"
@@ -472,6 +481,9 @@
                   >
                     Edit Domain
                   </button>
+                </div>
+                <div class="panel-header-actions" v-if="selectedScenario?.readonly">
+                  <span class="readonly-badge" title="This scenario is from a read-only source">Read-Only</span>
                 </div>
               </div>
               
@@ -484,7 +496,7 @@
                         <span class="ufun-type badge">{{ ufun.type }}</span>
                       </div>
                       <button 
-                        v-if="ufun.file_path" 
+                        v-if="ufun.file_path && !selectedScenario?.readonly" 
                         class="btn-edit-ufun" 
                         @click="openFileEditor(ufun.file_path, ufun.name)"
                         title="Edit utility function file"
@@ -1082,19 +1094,15 @@ function openFileEditor(filePath, title) {
 }
 
 async function onFileSaved() {
-  // Reload scenario data after file save
-  await scenariosStore.loadScenarios()
-  
-  // Reselect the scenario to refresh stats/plot
+  // Only reload the currently selected scenario's details, not all scenarios
+  // This is much faster - we don't need to reload the entire list
   if (selectedScenario.value) {
-    const updated = scenariosStore.scenarios.find(s => s.path === selectedScenario.value.path)
-    if (updated) {
-      await selectScenario(updated)
-    }
+    // Reload detailed info for this scenario
+    await selectScenario(selectedScenario.value)
+    
+    // Reload ufun details (they may have changed)
+    await loadUfunDetails()
   }
-  
-  // Reload ufun details
-  await loadUfunDetails()
 }
 
 async function loadAvailablePlots() {
@@ -1153,6 +1161,23 @@ async function refreshAllCaches() {
     console.error('Failed to refresh caches:', error)
   } finally {
     refreshingCache.value = false
+  }
+}
+
+async function openScenarioFolder() {
+  if (!selectedScenario.value) return
+  
+  try {
+    const response = await fetch(`/api/scenarios/${selectedScenario.value.id}/open-folder`, {
+      method: 'POST',
+    })
+    
+    if (!response.ok) {
+      throw new Error('Failed to open folder')
+    }
+  } catch (error) {
+    console.error('Failed to open scenario folder:', error)
+    alert('Failed to open scenario folder. See console for details.')
   }
 }
 
@@ -1614,9 +1639,38 @@ function formatNumber(num) {
   border-bottom: 1px solid var(--border-color);
 }
 
+.details-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .details-header h2 {
   margin: 0;
   font-size: 1.3rem;
+}
+
+.btn-icon-folder {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon-folder:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--primary-color);
+  transform: scale(1.05);
+}
+
+.btn-icon-folder:active {
+  transform: scale(0.95);
 }
 
 .header-actions {
@@ -2454,5 +2508,18 @@ textarea.input-text {
 .btn-sm {
   font-size: 0.85rem;
   padding: 6px 12px;
+}
+
+/* Read-only badge styling */
+.readonly-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  background: #fbbf24;
+  color: #78350f;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 </style>
