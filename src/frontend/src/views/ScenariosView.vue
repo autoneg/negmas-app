@@ -402,8 +402,20 @@
                   <span class="collapse-icon">{{ panelsCollapsed.outcomeSpace ? '▶' : '▼' }}</span>
                   Outcome Space
                 </h3>
-                <div class="panel-header-actions" @click.stop v-if="selectedScenario.issues && selectedScenario.issues.length > 0">
-                  <button class="btn-text btn-sm" @click="showIssueValues = !showIssueValues">
+                <div class="panel-header-actions" @click.stop>
+                  <button 
+                    v-if="scenarioFiles?.domain_file" 
+                    class="btn-secondary btn-sm" 
+                    @click="openFileEditor(scenarioFiles.domain_file, 'Domain')"
+                    title="Edit domain file to modify outcome space"
+                  >
+                    Edit Domain
+                  </button>
+                  <button 
+                    v-if="selectedScenario.issues && selectedScenario.issues.length > 0"
+                    class="btn-text btn-sm" 
+                    @click="showIssueValues = !showIssueValues"
+                  >
                     {{ showIssueValues ? 'Hide Values' : 'Show Values' }}
                   </button>
                 </div>
@@ -1105,7 +1117,7 @@ async function loadAvailablePlots() {
 
 async function calculateStats() {
   if (!selectedScenario.value) return
-  await scenariosStore.calculateScenarioStats(selectedScenario.value.path, true)
+  await scenariosStore.calculateScenarioStats(selectedScenario.value.id, true)
 }
 
 async function refreshAllCaches() {
@@ -1113,10 +1125,11 @@ async function refreshAllCaches() {
   
   refreshingCache.value = true
   try {
+    const scenarioId = selectedScenario.value.id
     const scenarioPath = selectedScenario.value.path
     
     // Recalculate stats with force=true (respects max_outcomes_pareto and max_outcomes_rationality from settings)
-    await scenariosStore.calculateScenarioStats(scenarioPath, true)
+    await scenariosStore.calculateScenarioStats(scenarioId, true)
     
     // Regenerate plot with force_regenerate=true
     await loadPlotData(true)
@@ -1131,7 +1144,7 @@ async function refreshAllCaches() {
       selectedScenario.value = updatedScenario
       
       // Reload stats from the refreshed cache
-      await scenariosStore.loadScenarioStats(scenarioPath)
+      await scenariosStore.loadScenarioStats(scenarioId)
       
       // Reload plot data from the refreshed cache
       await loadPlotData(false) // false because we already regenerated above
@@ -1145,7 +1158,7 @@ async function refreshAllCaches() {
 
 async function loadPlotData(forceRegenerate = false) {
   if (!selectedScenario.value) return
-  await scenariosStore.loadScenarioPlotData(selectedScenario.value.path, 10000, forceRegenerate)
+  await scenariosStore.loadScenarioPlotData(selectedScenario.value.id, 10000, forceRegenerate)
 }
 
 async function refreshPlot() {
@@ -2097,16 +2110,22 @@ function formatNumber(num) {
 .plot-image-wrapper {
   width: 100%;
   max-height: 350px;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--border-color);
   border-radius: 4px;
   background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .plot-image-compact {
-  width: 100%;
+  max-width: 100%;
+  max-height: 350px;
+  width: auto;
   height: auto;
   display: block;
+  object-fit: contain;
 }
 
 .plot-selector-compact {
