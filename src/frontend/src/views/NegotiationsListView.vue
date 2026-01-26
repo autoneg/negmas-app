@@ -633,6 +633,7 @@ async function loadPreviewData(neg) {
       issue_names: fullData.issue_names,
       n_steps: fullData.n_steps,
       step: fullData.current_step || fullData.step,
+      relative_time: fullData.relative_time || (fullData.offers?.[fullData.offers.length - 1]?.relative_time) || 0,
       offers: fullData.offers || [],
       outcome_space_data: fullData.outcome_space_data,
       agreement: fullData.agreement,
