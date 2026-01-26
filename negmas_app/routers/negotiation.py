@@ -428,9 +428,17 @@ async def get_session(session_id: str):
             for o in session.offers
         ],
         "outcome_space_data": {
-            "outcome_utilities": session.outcome_space_data.outcome_utilities,
-            "pareto_utilities": session.outcome_space_data.pareto_utilities,
-            "reserved_values": session.outcome_space_data.reserved_values,
+            "outcome_utilities": sanitize_utilities(
+                session.outcome_space_data.outcome_utilities
+            ),
+            "pareto_utilities": sanitize_utilities(
+                session.outcome_space_data.pareto_utilities
+            ),
+            "reserved_values": [
+                sanitize_float(v) for v in session.outcome_space_data.reserved_values
+            ]
+            if session.outcome_space_data.reserved_values
+            else None,
             "nash_point": {
                 "outcome": session.outcome_space_data.nash_point.outcome_dict,
                 "utilities": session.outcome_space_data.nash_point.utilities,
@@ -540,9 +548,17 @@ async def get_saved_negotiation(session_id: str):
             for o in session.offers
         ],
         "outcome_space_data": {
-            "outcome_utilities": session.outcome_space_data.outcome_utilities,
-            "pareto_utilities": session.outcome_space_data.pareto_utilities,
-            "reserved_values": session.outcome_space_data.reserved_values,
+            "outcome_utilities": sanitize_utilities(
+                session.outcome_space_data.outcome_utilities
+            ),
+            "pareto_utilities": sanitize_utilities(
+                session.outcome_space_data.pareto_utilities
+            ),
+            "reserved_values": [
+                sanitize_float(v) for v in session.outcome_space_data.reserved_values
+            ]
+            if session.outcome_space_data.reserved_values
+            else None,
             "nash_point": {
                 "outcome": session.outcome_space_data.nash_point.outcome_dict,
                 "utilities": session.outcome_space_data.nash_point.utilities,
