@@ -86,17 +86,90 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     
     eventSource.value.addEventListener('cell_start', (event) => {
       const data = JSON.parse(event.data)
-      cellStates.value[data.cell_id] = { status: 'running', ...data }
+      // Create cell key using names from gridInit
+      if (gridInit.value) {
+        const competitor = gridInit.value.competitors[data.competitor_idx]
+        const opponent = gridInit.value.opponents[data.opponent_idx]
+        const scenario = gridInit.value.scenarios[data.scenario_idx]
+        const cellKey = `${competitor}::${opponent}::${scenario}`
+        
+        // Initialize or update cell state with aggregation support
+        if (!cellStates.value[cellKey]) {
+          cellStates.value[cellKey] = {
+            status: 'running',
+            total: gridInit.value.n_repetitions * (gridInit.value.rotate_ufuns ? 2 : 1),
+            completed: 0,
+            agreements: 0,
+            timeouts: 0,
+            errors: 0,
+            running: 1
+          }
+        } else {
+          cellStates.value[cellKey].status = 'running'
+          cellStates.value[cellKey].running = (cellStates.value[cellKey].running || 0) + 1
+        }
+      }
     })
     
     eventSource.value.addEventListener('cell_complete', (event) => {
       const data = JSON.parse(event.data)
-      cellStates.value[data.cell_id] = { status: 'complete', ...data }
+      // Create cell key using names from gridInit
+      if (gridInit.value) {
+        const competitor = gridInit.value.competitors[data.competitor_idx]
+        const opponent = gridInit.value.opponents[data.opponent_idx]
+        const scenario = gridInit.value.scenarios[data.scenario_idx]
+        const cellKey = `${competitor}::${opponent}::${scenario}`
+        
+        // Update or initialize cell state with aggregated data
+        if (!cellStates.value[cellKey]) {
+          cellStates.value[cellKey] = {
+            status: 'complete',
+            total: gridInit.value.n_repetitions * (gridInit.value.rotate_ufuns ? 2 : 1),
+            completed: 1,
+            agreements: 0,
+            timeouts: 0,
+            errors: 0,
+            running: 0,
+            has_agreement: false
+          }
+        } else {
+          cellStates.value[cellKey].completed = (cellStates.value[cellKey].completed || 0) + 1
+          cellStates.value[cellKey].running = Math.max(0, (cellStates.value[cellKey].running || 0) - 1)
+        }
+        
+        // Update aggregated stats
+        if (data.end_reason === 'agreement') {
+          cellStates.value[cellKey].agreements = (cellStates.value[cellKey].agreements || 0) + 1
+          cellStates.value[cellKey].has_agreement = true
+        } else if (data.end_reason === 'timeout') {
+          cellStates.value[cellKey].timeouts = (cellStates.value[cellKey].timeouts || 0) + 1
+        } else if (data.end_reason === 'error' || data.end_reason === 'broken') {
+          cellStates.value[cellKey].errors = (cellStates.value[cellKey].errors || 0) + 1
+          cellStates.value[cellKey].has_error = true
+        }
+        
+        // Update overall status
+        const allComplete = cellStates.value[cellKey].completed >= cellStates.value[cellKey].total
+        if (allComplete) {
+          if (cellStates.value[cellKey].errors > 0) {
+            cellStates.value[cellKey].status = 'error'
+          } else if (cellStates.value[cellKey].agreements > 0) {
+            cellStates.value[cellKey].status = 'complete'
+          } else if (cellStates.value[cellKey].timeouts > 0) {
+            cellStates.value[cellKey].status = 'timeout'
+          } else {
+            cellStates.value[cellKey].status = 'complete'
+          }
+        } else if (cellStates.value[cellKey].running > 0) {
+          cellStates.value[cellKey].status = 'running'
+        }
+      }
     })
     
     eventSource.value.addEventListener('leaderboard', (event) => {
       const data = JSON.parse(event.data)
-      leaderboard.value = data.leaderboard || []
+      // Backend sends array directly, not wrapped in {leaderboard: [...]}
+      leaderboard.value = Array.isArray(data) ? data : []
     })
     
     eventSource.value.addEventListener('progress', (event) => {
