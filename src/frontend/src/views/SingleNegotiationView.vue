@@ -474,6 +474,10 @@ async function loadNegotiationData(sessionId) {
               // Store interval for cleanup
               negotiationsStore._singleViewPollInterval = pollInterval
             }
+            
+            // Data is loaded, set loading to false
+            console.log('[SingleNegotiationView] Running negotiation data loaded, setting loading=false')
+            loading.value = false
           }
         } catch (err) {
           console.error('Failed to load current state:', err)
