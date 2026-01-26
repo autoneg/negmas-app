@@ -362,6 +362,11 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
 
   function selectSession(session) {
     currentSession.value = session
+    // Clear previous session's streaming data to avoid showing stale data
+    // New data will be loaded by the view component
+    sessionInit.value = null
+    offers.value = []
+    sessionComplete.value = null
   }
 
   // Session preset management

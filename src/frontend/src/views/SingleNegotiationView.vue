@@ -347,14 +347,17 @@ watch(() => sessionComplete.value?.error, (errorMsg) => {
   }
 }, { immediate: true })
 
-onMounted(async () => {
-  const sessionId = route.params.id
-  
+// Extract data loading into a reusable function
+async function loadNegotiationData(sessionId) {
   if (!sessionId) {
     error.value = 'No negotiation ID provided'
     loading.value = false
     return
   }
+  
+  // Reset state
+  loading.value = true
+  error.value = null
   
   // Load panel settings from localStorage
   const settingsKey = `negotiation_settings_${sessionId}`
@@ -551,6 +554,25 @@ onMounted(async () => {
     setTimeout(() => {
       router.push({ name: 'NegotiationsList' })
     }, 2000)
+  }
+}
+
+// Load data on mount
+onMounted(async () => {
+  const sessionId = route.params.id
+  await loadNegotiationData(sessionId)
+})
+
+// Watch for route changes and reload data when navigating to a different negotiation
+watch(() => route.params.id, async (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    console.log('[SingleNegotiationView] Route changed, loading new negotiation:', newId)
+    // Cleanup any existing polling
+    if (negotiationsStore._singleViewPollInterval) {
+      clearInterval(negotiationsStore._singleViewPollInterval)
+      negotiationsStore._singleViewPollInterval = null
+    }
+    await loadNegotiationData(newId)
   }
 })
 
