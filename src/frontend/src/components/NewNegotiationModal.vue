@@ -1540,7 +1540,8 @@ async function startNegotiation() {
       auto_save: autoSave.value,
     }
 
-    const response = await fetch('/api/negotiation/start', {
+    // Use background endpoint so negotiation continues even if we navigate away
+    const response = await fetch('/api/negotiation/start_background', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
@@ -1563,7 +1564,13 @@ async function startNegotiation() {
       localStorage.setItem(`negotiation_settings_${data.session_id}`, JSON.stringify(panelSettings))
     }
     
-    emit('start', data)
+    // Return data in same format as SSE start (with fake stream_url for compatibility)
+    const result = {
+      session_id: data.session_id,
+      stream_url: `/api/negotiation/${data.session_id}/stream?step_delay=${stepDelay.value / 1000}&share_ufuns=${shareUfuns.value}`
+    }
+    
+    emit('start', result)
     emit('close')
   } catch (error) {
     console.error('Failed to start negotiation:', error)
