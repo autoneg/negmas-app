@@ -413,7 +413,11 @@ onMounted(async () => {
                 error: currentState.error,
               }
             } else {
-              // Still running - poll for updates instead of streaming
+              // Still running - clear any old completion data and poll for updates
+              // IMPORTANT: Clear sessionComplete to avoid showing old agreement markers
+              sessionComplete.value = null
+              
+              // Poll for updates instead of streaming
               // (SSE stream would restart the negotiation from beginning!)
               console.log('[SingleNegotiationView] Setting up polling for running negotiation')
               const pollInterval = setInterval(async () => {

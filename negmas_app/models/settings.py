@@ -32,7 +32,7 @@ class NegotiationSettings:
 
     default_max_steps: int = 100
     default_step_delay_ms: int = 100
-    default_time_limit: int | None = None
+    default_time_limit: float | None = None
 
 
 @dataclass
