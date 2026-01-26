@@ -1,5 +1,10 @@
 <template>
   <div class="single-negotiation-view">
+    <!-- Debug info (remove after fixing) -->
+    <div style="position: fixed; top: 60px; right: 10px; background: red; color: white; padding: 10px; z-index: 9999; font-size: 12px;">
+      DEBUG: loading={{ loading }}, error={{ !!error }}, negotiation={{ !!negotiation }}, currentSession={{ !!currentSession }}
+    </div>
+    
     <!-- Loading State -->
     <div v-if="loading" class="empty-state">
       <p>Loading negotiation...</p>
@@ -310,13 +315,10 @@ const negotiation = computed(() => {
     return null
   }
   
-  // If we're loading, return null to show loading state
-  if (loading.value) {
-    console.log('[SingleNegotiationView] negotiation computed: currently loading')
-    return null
-  }
-  
+  // Don't return null during loading - instead return whatever data we have
+  // The template shows loading state separately via v-if="loading"
   console.log('[SingleNegotiationView] negotiation computed: building negotiation object', {
+    loading: loading.value,
     hasCurrentSession: !!currentSession.value,
     hasSessionInit: !!sessionInit.value,
     hasOffers: offers.value.length,
