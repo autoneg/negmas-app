@@ -381,7 +381,7 @@ async function initPlot() {
         line: { 
           color: negColors[i % negColors.length], 
           width: 2,
-          dash: isColorBlind ? LINE_DASHES[i % LINE_DASHES.length] : 'solid'
+          dash: isColorBlind ? LINE_DASHES[i % LINE_DASHES.length] : 'dot'
         },
         marker: { 
           color: negColors[i % negColors.length], 
