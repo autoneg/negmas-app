@@ -363,6 +363,9 @@ async def list_sessions():
                 "negotiator_names": session.negotiator_names,
                 "current_step": session.current_step,
                 "n_steps": session.n_steps,
+                "relative_time": session.offers[-1].relative_time
+                if session.offers
+                else 0.0,
                 "start_time": session.start_time.isoformat()
                 if session.start_time
                 else None,

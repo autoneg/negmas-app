@@ -85,18 +85,12 @@
                   <td class="progress-cell">
                     <div class="progress-info">
                       <div class="progress-text">
-                        <span v-if="neg.current_step !== undefined && neg.n_steps">
-                          {{ neg.current_step }} / {{ neg.n_steps }} steps
-                        </span>
-                        <span v-else-if="neg.current_step !== undefined">
-                          {{ neg.current_step }} steps
-                        </span>
-                        <span v-else>Starting...</span>
+                        {{ formatRelativeTime(neg.relative_time) }}
                       </div>
-                      <div class="progress-bar-mini" v-if="neg.n_steps">
+                      <div class="progress-bar-mini">
                         <div 
                           class="progress-bar-fill" 
-                          :style="{ width: getProgressPercent(neg) + '%' }"
+                          :style="{ width: getRelativeTimePercent(neg.relative_time) + '%' }"
                         ></div>
                       </div>
                     </div>
@@ -733,7 +727,24 @@ function getNegotiatorColor(index, colors) {
   return fallbackColors[index % fallbackColors.length]
 }
 
+function getRelativeTimePercent(relativeTime) {
+  if (relativeTime === undefined || relativeTime === null) return 0
+  // relative_time is 0.0 to 1.0, convert to percentage
+  return Math.min(100, Math.max(0, relativeTime * 100))
+}
+
+function formatRelativeTime(relativeTime) {
+  if (relativeTime === undefined || relativeTime === null) return 'Starting...'
+  // Format as percentage with 1 decimal place
+  const percent = relativeTime * 100
+  return `${percent.toFixed(1)}%`
+}
+
 function getProgressPercent(neg) {
+  // Fallback for compatibility - prefer relative_time
+  if (neg.relative_time !== undefined && neg.relative_time !== null) {
+    return getRelativeTimePercent(neg.relative_time)
+  }
   if (!neg.n_steps || !neg.current_step) return 0
   return Math.min(100, (neg.current_step / neg.n_steps) * 100)
 }
