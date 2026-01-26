@@ -792,6 +792,8 @@ async def rerun_negotiation(session_id: str):
     Creates a new negotiation session using the scenario, negotiators,
     and mechanism parameters from the saved negotiation.
 
+    The negotiation runs in background and continues even if client disconnects.
+
     Returns session ID for the new negotiation.
     """
     # Load the saved negotiation metadata
@@ -851,9 +853,21 @@ async def rerun_negotiation(session_id: str):
         auto_save=True,
     )
 
+    # Run negotiation in background task (continues even if client disconnects)
+    async def run_negotiation_task():
+        async for event in get_manager().run_session_stream(
+            new_session.id, configs, step_delay=0.0, share_ufuns=False
+        ):
+            pass  # Just consume events, negotiation runs in background
+
+    # Start background task
+    import asyncio
+
+    asyncio.create_task(run_negotiation_task())
+
     return {
         "session_id": new_session.id,
         "original_session_id": session_id,
-        "status": new_session.status.value,
+        "status": "running",
         "stream_url": f"/api/negotiation/{new_session.id}/stream?step_delay=0.1&share_ufuns=false",
     }

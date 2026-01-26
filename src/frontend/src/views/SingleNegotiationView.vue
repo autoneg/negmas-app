@@ -256,7 +256,22 @@ import IssueSpace2DPanel from '../components/panels/IssueSpace2DPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
-const negotiationsStore = useNegotiationsStore()
+
+// Try to initialize store with error handling
+let negotiationsStore
+try {
+  negotiationsStore = useNegotiationsStore()
+  console.log('[SingleNegotiationView] Store type:', typeof negotiationsStore, 'Value:', negotiationsStore)
+  
+  if (!negotiationsStore) {
+    throw new Error('useNegotiationsStore() returned null/undefined')
+  }
+} catch (e) {
+  console.error('[SingleNegotiationView] Failed to get store:', e)
+  // Re-throw to show error to user
+  throw new Error(`Failed to initialize negotiations store: ${e.message}`)
+}
+
 const {
   currentSession,
   streamingSession,
