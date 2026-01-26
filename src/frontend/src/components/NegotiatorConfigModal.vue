@@ -314,7 +314,7 @@ async function loadParameters() {
   error.value = null
   
   try {
-    const response = await fetch(`/api/negotiators/${encodeURIComponent(props.negotiatorType)}/params`)
+    const response = await fetch(`/api/negotiators/${encodeURIComponent(props.negotiatorType)}/parameters`)
     if (!response.ok) {
       throw new Error(`Failed to load parameters: ${response.statusText}`)
     }
