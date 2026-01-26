@@ -172,6 +172,13 @@
           >
             Parameters
           </button>
+          <button
+            class="tab"
+            :class="{ active: activeTab === 'virtual' }"
+            @click="activeTab = 'virtual'; loadVirtualNegotiators()"
+          >
+            Virtual Negotiators
+          </button>
         </div>
         
         <!-- Info Tab -->
@@ -244,6 +251,88 @@
               </div>
               <div v-if="param.description" class="param-description">
                 {{ param.description }}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Virtual Negotiators Tab -->
+        <div v-if="activeTab === 'virtual'" class="tab-content">
+          <div class="virtual-header" style="margin-bottom: 16px;">
+            <p class="text-muted" style="font-size: 13px; margin-bottom: 12px;">
+              Virtual negotiators based on <strong>{{ selectedNegotiator.name }}</strong>
+            </p>
+            <button class="btn-secondary btn-sm" @click="loadVirtualNegotiators">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+              </svg>
+              Refresh
+            </button>
+          </div>
+          
+          <div v-if="loadingVirtual" class="loading-state">
+            <span class="spinner"></span> Loading virtual negotiators...
+          </div>
+          
+          <div v-else-if="!virtualNegotiatorsForBase || virtualNegotiatorsForBase.length === 0" class="empty-state">
+            <p>No virtual negotiators based on this type</p>
+            <p class="text-muted" style="font-size: 13px; margin-top: 8px;">
+              Create virtual negotiators by configuring parameters in the New Negotiation modal
+            </p>
+          </div>
+          
+          <div v-else class="virtual-list">
+            <div v-for="vn in virtualNegotiatorsForBase" :key="vn.id" class="virtual-item">
+              <div class="virtual-item-header">
+                <div>
+                  <h4 class="virtual-name">{{ vn.name }}</h4>
+                  <p v-if="vn.description" class="virtual-description">{{ vn.description }}</p>
+                </div>
+                <div class="virtual-actions">
+                  <button 
+                    class="btn-icon" 
+                    @click="editVirtualNegotiator(vn)"
+                    title="Edit"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                  </button>
+                  <button 
+                    class="btn-icon" 
+                    @click="deleteVirtualNegotiator(vn)"
+                    title="Delete"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Tags -->
+              <div v-if="vn.tags && vn.tags.length > 0" class="virtual-tags">
+                <span v-for="tag in vn.tags" :key="tag" class="badge">{{ tag }}</span>
+              </div>
+              
+              <!-- Parameters Preview -->
+              <details v-if="vn.params && Object.keys(vn.params).length > 0" class="virtual-params">
+                <summary style="cursor: pointer; font-size: 13px; color: var(--text-muted);">
+                  {{ Object.keys(vn.params).length }} custom parameter(s)
+                </summary>
+                <div style="margin-top: 8px; padding: 8px; background: var(--bg-tertiary); border-radius: 4px;">
+                  <div v-for="(value, key) in vn.params" :key="key" style="font-size: 12px; margin-bottom: 4px;">
+                    <code style="color: var(--text-primary);">{{ key }}</code>: 
+                    <span style="color: var(--text-muted);">{{ JSON.stringify(value) }}</span>
+                  </div>
+                </div>
+              </details>
+              
+              <div class="virtual-meta" style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+                Created: {{ formatDate(vn.created_at) }}
               </div>
             </div>
           </div>
@@ -488,6 +577,57 @@ async function loadParameters() {
   if (selectedNegotiatorParams.value && selectedNegotiatorParams.value.length > 0) return // Already loaded
   
   await negotiatorsStore.loadNegotiatorParameters(selectedNegotiator.value.type_name)
+}
+
+// Virtual negotiators management
+const loadingVirtual = ref(false)
+const virtualNegotiatorsForBase = ref([])
+
+async function loadVirtualNegotiators() {
+  if (!selectedNegotiator.value) return
+  
+  loadingVirtual.value = true
+  try {
+    const response = await fetch(`/api/negotiators/virtual/by-base/${encodeURIComponent(selectedNegotiator.value.type_name)}`)
+    const data = await response.json()
+    virtualNegotiatorsForBase.value = data.virtual_negotiators || []
+  } catch (error) {
+    console.error('Failed to load virtual negotiators:', error)
+  } finally {
+    loadingVirtual.value = false
+  }
+}
+
+async function editVirtualNegotiator(vn) {
+  // TODO: Open edit modal with virtual negotiator data
+  console.log('Edit virtual negotiator:', vn)
+}
+
+async function deleteVirtualNegotiator(vn) {
+  if (!confirm(`Are you sure you want to delete "${vn.name}"?`)) return
+  
+  try {
+    const response = await fetch(`/api/negotiators/virtual/${vn.id}`, {
+      method: 'DELETE'
+    })
+    
+    if (response.ok) {
+      // Reload the list
+      await loadVirtualNegotiators()
+    } else {
+      const data = await response.json()
+      alert(`Failed to delete: ${data.detail || 'Unknown error'}`)
+    }
+  } catch (error) {
+    console.error('Failed to delete virtual negotiator:', error)
+    alert(`Failed to delete: ${error.message}`)
+  }
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return 'Unknown'
+  const date = new Date(dateStr)
+  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 async function createVirtual() {
@@ -1205,5 +1345,66 @@ textarea.input-text {
 .btn-sm {
   font-size: 0.85rem;
   padding: 6px 12px;
+}
+
+/* Virtual Negotiators List */
+.virtual-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.virtual-item {
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  transition: border-color 0.2s;
+}
+
+.virtual-item:hover {
+  border-color: var(--primary);
+}
+
+.virtual-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 8px;
+}
+
+.virtual-name {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+  color: var(--text-primary);
+}
+
+.virtual-description {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.virtual-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.virtual-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.virtual-params {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.virtual-meta {
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
 }
 </style>

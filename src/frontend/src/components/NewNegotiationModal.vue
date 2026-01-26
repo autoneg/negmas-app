@@ -1072,11 +1072,23 @@
       </div>
     </div>
   </div>
+  
+  <!-- Negotiator Configuration Modal -->
+  <NegotiatorConfigModal
+    :show="showConfigModal"
+    :negotiator-type="configNegotiatorIndex !== null ? negotiators[configNegotiatorIndex]?.type_name : ''"
+    :negotiator-name="configNegotiatorIndex !== null ? negotiators[configNegotiatorIndex]?.name : ''"
+    :existing-params="configNegotiatorIndex !== null ? negotiators[configNegotiatorIndex]?.params || {} : {}"
+    @close="showConfigModal = false"
+    @apply="applyNegotiatorConfig"
+    @virtual-saved="handleVirtualSaved"
+  />
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useNegotiationsStore } from '../stores/negotiations'
+import NegotiatorConfigModal from './NegotiatorConfigModal.vue'
 
 const negotiationsStore = useNegotiationsStore()
 
@@ -1221,6 +1233,10 @@ const recentDropdownOpen = ref(false)
 const savedDropdownOpen = ref(false)
 const isLoadingPresets = ref(false)
 const saveSuccessMessage = ref('')
+
+// Negotiator configuration modal
+const showConfigModal = ref(false)
+const configNegotiatorIndex = ref(null)
 
 // Computed
 const filteredScenarios = computed(() => {
@@ -1414,8 +1430,21 @@ function selectNegotiatorForSlot(negotiator) {
 }
 
 function openNegotiatorConfig(index) {
-  // TODO: Implement negotiator parameter configuration modal
-  console.log('Open config for negotiator', index)
+  configNegotiatorIndex.value = index
+  showConfigModal.value = true
+}
+
+function applyNegotiatorConfig(params) {
+  if (configNegotiatorIndex.value !== null) {
+    negotiators.value[configNegotiatorIndex.value].params = params
+  }
+  showConfigModal.value = false
+}
+
+function handleVirtualSaved() {
+  // Optionally reload negotiators list if needed
+  // For now, just show a success message in the UI
+  console.log('Virtual negotiator saved successfully')
 }
 
 async function loadBOAComponents() {

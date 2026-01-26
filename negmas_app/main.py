@@ -24,13 +24,26 @@ from rich import box
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle startup and shutdown events."""
-    # Startup: Start background scenario registration
+    # Startup
     from .routers.scenarios import get_loader
+    from .services.registry_service import initialize_registry
 
     console = Console()
-    console.print("[yellow]Starting background scenario registration...[/yellow]")
 
-    # Start registration in background thread
+    # Initialize registry with virtual negotiators/mechanisms
+    console.print("[yellow]Initializing registry...[/yellow]")
+    try:
+        results = await asyncio.to_thread(initialize_registry)
+        console.print(
+            f"[green]✓ Registry initialized: "
+            f"{results['virtual_negotiators']} virtual negotiators, "
+            f"{results['virtual_mechanisms']} virtual mechanisms[/green]"
+        )
+    except Exception as e:
+        console.print(f"[red]✗ Registry initialization failed: {e}[/red]")
+
+    # Start background scenario registration
+    console.print("[yellow]Starting background scenario registration...[/yellow]")
     loader = get_loader()
 
     async def register_scenarios():
