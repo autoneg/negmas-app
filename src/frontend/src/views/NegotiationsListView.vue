@@ -215,6 +215,13 @@
                   </button>
                   <button 
                     class="btn-icon-small" 
+                    @click="rerunNegotiation(neg.id)" 
+                    title="Rerun negotiation"
+                  >
+                    🔄
+                  </button>
+                  <button 
+                    class="btn-icon-small" 
                     @click="editTags(neg)" 
                     title="Edit tags"
                   >
@@ -467,11 +474,17 @@ onMounted(async () => {
   await loadData()
   // Add keyboard event listener for arrow navigation
   window.addEventListener('keydown', handleKeyNavigation)
+  
+  // Start polling for running negotiations
+  startPolling()
 })
 
 onUnmounted(() => {
   // Clean up keyboard event listener
   window.removeEventListener('keydown', handleKeyNavigation)
+  
+  // Stop polling
+  stopPolling()
 })
 
 // Keyboard navigation
@@ -536,6 +549,45 @@ async function loadData() {
   await negotiationsStore.loadSavedNegotiations(showArchived.value)
 }
 
+// Polling for running negotiations
+let pollingInterval = null
+
+function startPolling() {
+  console.log('[NegotiationsListView] Starting polling')
+  // Poll every 2 seconds when there are running negotiations
+  pollingInterval = setInterval(async () => {
+    if (runningNegotiations.value.length > 0) {
+      console.log('[NegotiationsListView] Polling: found', runningNegotiations.value.length, 'running negotiations')
+      // Only reload sessions (not saved negotiations) to update progress
+      await negotiationsStore.loadSessions()
+      console.log('[NegotiationsListView] Sessions reloaded, current_step:', 
+        runningNegotiations.value.map(n => ({ id: n.id, step: n.current_step })))
+    } else if (pollingInterval) {
+      // No running negotiations, reduce polling frequency
+      // This will catch when a negotiation completes and moves to saved
+      console.log('[NegotiationsListView] No running negotiations, switching to slow polling')
+      clearInterval(pollingInterval)
+      pollingInterval = setInterval(async () => {
+        await negotiationsStore.loadSessions()
+        await negotiationsStore.loadSavedNegotiations(showArchived.value)
+        
+        // If we found running negotiations, switch back to fast polling
+        if (runningNegotiations.value.length > 0) {
+          stopPolling()
+          startPolling()
+        }
+      }, 10000) // Check every 10 seconds when idle
+    }
+  }, 2000) // Update every 2 seconds when running
+}
+
+function stopPolling() {
+  if (pollingInterval) {
+    clearInterval(pollingInterval)
+    pollingInterval = null
+  }
+}
+
 async function selectNegotiation(neg) {
   selectedNegotiation.value = neg
   
@@ -552,8 +604,8 @@ async function loadPreviewData(neg) {
     if (neg.source === 'saved') {
       fullData = await negotiationsStore.loadSavedNegotiation(neg.id)
     } else {
-      // For running/completed sessions, get from session
-      fullData = neg
+      // For running/completed sessions, get full session data from API
+      fullData = await negotiationsStore.getSession(neg.id)
     }
     
     if (!fullData) {
@@ -716,6 +768,28 @@ function getResultTooltip(neg) {
 
 function viewNegotiation(sessionId) {
   router.push({ name: 'SingleNegotiation', params: { id: sessionId } })
+}
+
+async function rerunNegotiation(sessionId) {
+  try {
+    const data = await negotiationsStore.rerunNegotiation(sessionId)
+    
+    if (data?.session_id) {
+      // Extract step_delay and share_ufuns from the stream_url
+      const url = new URL(data.stream_url, window.location.origin)
+      const stepDelay = parseFloat(url.searchParams.get('step_delay') || '0.1')
+      const shareUfuns = url.searchParams.get('share_ufuns') === 'true'
+      
+      // Start streaming the new negotiation
+      negotiationsStore.startStreaming(data.session_id, stepDelay, shareUfuns)
+      
+      // Navigate to the new negotiation
+      router.push({ name: 'SingleNegotiation', params: { id: data.session_id } })
+    }
+  } catch (error) {
+    console.error('Failed to rerun negotiation:', error)
+    alert('Failed to rerun negotiation: ' + error.message)
+  }
 }
 
 async function deleteSaved(sessionId) {

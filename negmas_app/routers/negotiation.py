@@ -28,6 +28,19 @@ def get_manager() -> SessionManager:
     return _manager
 
 
+def sanitize_nan_values(obj):
+    """Recursively replace NaN and Inf values with None for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: sanitize_nan_values(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_nan_values(item) for item in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    return obj
+
+
 class NegotiatorConfigRequest(BaseModel):
     """Request model for negotiator configuration."""
 
@@ -402,7 +415,7 @@ async def get_session(session_id: str):
         "final_utilities": session.final_utilities,
         "end_reason": session.end_reason,
         "error": session.error,
-        "optimality_stats": session.optimality_stats,
+        "optimality_stats": sanitize_nan_values(session.optimality_stats),
         "offers": [
             {
                 "step": o.step,
@@ -418,16 +431,34 @@ async def get_session(session_id: str):
             "outcome_utilities": session.outcome_space_data.outcome_utilities,
             "pareto_utilities": session.outcome_space_data.pareto_utilities,
             "reserved_values": session.outcome_space_data.reserved_values,
-            "nash_point": session.outcome_space_data.nash_point.utilities
+            "nash_point": {
+                "outcome": session.outcome_space_data.nash_point.outcome_dict,
+                "utilities": session.outcome_space_data.nash_point.utilities,
+                "welfare": sum(session.outcome_space_data.nash_point.utilities),
+            }
             if session.outcome_space_data.nash_point
             else None,
-            "kalai_point": session.outcome_space_data.kalai_point.utilities
+            "kalai_point": {
+                "outcome": session.outcome_space_data.kalai_point.outcome_dict,
+                "utilities": session.outcome_space_data.kalai_point.utilities,
+                "welfare": sum(session.outcome_space_data.kalai_point.utilities),
+            }
             if session.outcome_space_data.kalai_point
             else None,
-            "kalai_smorodinsky_point": session.outcome_space_data.kalai_smorodinsky_point.utilities
+            "kalai_smorodinsky_point": {
+                "outcome": session.outcome_space_data.kalai_smorodinsky_point.outcome_dict,
+                "utilities": session.outcome_space_data.kalai_smorodinsky_point.utilities,
+                "welfare": sum(
+                    session.outcome_space_data.kalai_smorodinsky_point.utilities
+                ),
+            }
             if session.outcome_space_data.kalai_smorodinsky_point
             else None,
-            "max_welfare_point": session.outcome_space_data.max_welfare_point.utilities
+            "max_welfare_point": {
+                "outcome": session.outcome_space_data.max_welfare_point.outcome_dict,
+                "utilities": session.outcome_space_data.max_welfare_point.utilities,
+                "welfare": sum(session.outcome_space_data.max_welfare_point.utilities),
+            }
             if session.outcome_space_data.max_welfare_point
             else None,
             "total_outcomes": session.outcome_space_data.total_outcomes,
@@ -496,7 +527,7 @@ async def get_saved_negotiation(session_id: str):
         "final_utilities": session.final_utilities,
         "end_reason": session.end_reason,
         "error": session.error,
-        "optimality_stats": session.optimality_stats,
+        "optimality_stats": sanitize_nan_values(session.optimality_stats),
         "offers": [
             {
                 "step": o.step,
@@ -512,16 +543,34 @@ async def get_saved_negotiation(session_id: str):
             "outcome_utilities": session.outcome_space_data.outcome_utilities,
             "pareto_utilities": session.outcome_space_data.pareto_utilities,
             "reserved_values": session.outcome_space_data.reserved_values,
-            "nash_point": session.outcome_space_data.nash_point.utilities
+            "nash_point": {
+                "outcome": session.outcome_space_data.nash_point.outcome_dict,
+                "utilities": session.outcome_space_data.nash_point.utilities,
+                "welfare": sum(session.outcome_space_data.nash_point.utilities),
+            }
             if session.outcome_space_data.nash_point
             else None,
-            "kalai_point": session.outcome_space_data.kalai_point.utilities
+            "kalai_point": {
+                "outcome": session.outcome_space_data.kalai_point.outcome_dict,
+                "utilities": session.outcome_space_data.kalai_point.utilities,
+                "welfare": sum(session.outcome_space_data.kalai_point.utilities),
+            }
             if session.outcome_space_data.kalai_point
             else None,
-            "kalai_smorodinsky_point": session.outcome_space_data.kalai_smorodinsky_point.utilities
+            "kalai_smorodinsky_point": {
+                "outcome": session.outcome_space_data.kalai_smorodinsky_point.outcome_dict,
+                "utilities": session.outcome_space_data.kalai_smorodinsky_point.utilities,
+                "welfare": sum(
+                    session.outcome_space_data.kalai_smorodinsky_point.utilities
+                ),
+            }
             if session.outcome_space_data.kalai_smorodinsky_point
             else None,
-            "max_welfare_point": session.outcome_space_data.max_welfare_point.utilities
+            "max_welfare_point": {
+                "outcome": session.outcome_space_data.max_welfare_point.outcome_dict,
+                "utilities": session.outcome_space_data.max_welfare_point.utilities,
+                "welfare": sum(session.outcome_space_data.max_welfare_point.utilities),
+            }
             if session.outcome_space_data.max_welfare_point
             else None,
             "total_outcomes": session.outcome_space_data.total_outcomes,
@@ -718,3 +767,77 @@ async def open_negotiation_folder(session_id: str):
             status_code=500,
             detail=f"File explorer command not found for platform: {system}",
         )
+
+
+@router.post("/saved/{session_id}/rerun")
+async def rerun_negotiation(session_id: str):
+    """Rerun a saved negotiation with the same configuration.
+
+    Creates a new negotiation session using the scenario, negotiators,
+    and mechanism parameters from the saved negotiation.
+
+    Returns session ID for the new negotiation.
+    """
+    # Load the saved negotiation metadata
+    session_dir = NegotiationStorageService.get_session_dir(session_id)
+    metadata_path = session_dir / "metadata.json"
+
+    if not metadata_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Saved negotiation not found: {session_id}",
+        )
+
+    try:
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to read negotiation metadata: {str(e)}",
+        )
+
+    # Extract negotiator configs
+    negotiator_configs_data = metadata.get("negotiator_configs")
+    if not negotiator_configs_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot rerun: negotiation was saved without negotiator configurations",
+        )
+
+    # Convert to internal NegotiatorConfig objects
+    configs = [
+        NegotiatorConfig(
+            type_name=c["type_name"],
+            name=c.get("name"),
+            params=c.get("params", {}),
+        )
+        for c in negotiator_configs_data
+    ]
+
+    # Extract mechanism parameters from metadata
+    # For backwards compatibility, default to empty dict if not present
+    mechanism_params = {}
+    if "n_steps" in metadata and metadata["n_steps"] is not None:
+        mechanism_params["n_steps"] = metadata["n_steps"]
+    if "time_limit" in metadata and metadata["time_limit"] is not None:
+        mechanism_params["time_limit"] = metadata["time_limit"]
+
+    # Create new session with same configuration
+    new_session = get_manager().create_session(
+        scenario_path=metadata["scenario_path"],
+        negotiator_configs=configs,
+        mechanism_type=metadata.get("mechanism_type", "SAOMechanism"),
+        mechanism_params=mechanism_params,
+        ignore_discount=False,  # Use defaults for these
+        ignore_reserved=False,
+        normalize=False,
+        auto_save=True,
+    )
+
+    return {
+        "session_id": new_session.id,
+        "original_session_id": session_id,
+        "status": new_session.status.value,
+        "stream_url": f"/api/negotiation/{new_session.id}/stream?step_delay=0.1&share_ufuns=false",
+    }

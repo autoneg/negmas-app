@@ -103,27 +103,19 @@
         </div>
       </div>
       
-      <!-- Row 2: Summary Section (when complete) -->
+      <!-- Row 2: Summary Section (when complete) - 2 lines only -->
       <div v-if="showSummary" class="info-summary">
         <div class="summary-row">
-          <span class="summary-label">Mechanism:</span>
-          <span class="summary-value">SAO (Stacked Alternating Offers)</span>
-        </div>
-        <div class="summary-row" v-if="negotiation?.agreement">
           <span class="summary-label">Result:</span>
-          <span class="summary-value success">Agreement Reached</span>
-        </div>
-        <div class="summary-row" v-else-if="negotiation?.end_reason">
-          <span class="summary-label">Result:</span>
-          <span class="summary-value">{{ endReasonText }}</span>
+          <span class="summary-value" :class="{ 'success': negotiation?.agreement }">
+            {{ negotiation?.agreement ? 'Agreement Reached' : endReasonText }}
+          </span>
+          <span class="summary-label" style="margin-left: 12px;">Steps:</span>
+          <span class="summary-value">{{ negotiation?.step || 0 }} / {{ negotiation?.n_steps || '∞' }}</span>
         </div>
         <div class="summary-row" v-if="negotiation?.final_utilities">
           <span class="summary-label">Utilities:</span>
           <span class="summary-value">{{ formatUtilities }}</span>
-        </div>
-        <div class="summary-row" v-if="negotiation?.n_steps">
-          <span class="summary-label">Total Steps:</span>
-          <span class="summary-value">{{ negotiation.step || 0 }} / {{ negotiation.n_steps }}</span>
         </div>
       </div>
       

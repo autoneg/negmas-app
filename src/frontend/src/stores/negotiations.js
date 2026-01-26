@@ -161,10 +161,23 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     })
     
     eventSource.value.addEventListener('error', (event) => {
-      console.error('SSE error:', event)
-      const data = event.data ? JSON.parse(event.data) : { error: 'Unknown error' }
-      sessionComplete.value = { error: data.error, status: 'failed' }
+      console.error('[negotiations store] SSE error event:', event)
+      let errorMessage = 'Connection error or negotiation failed'
+      
+      // Try to parse error data if available
+      if (event.data) {
+        try {
+          const data = JSON.parse(event.data)
+          errorMessage = data.error || errorMessage
+        } catch (e) {
+          console.error('[negotiations store] Failed to parse error data:', e)
+        }
+      }
+      
+      sessionComplete.value = { error: errorMessage, status: 'failed' }
+      console.log('[negotiations store] Setting sessionComplete with error:', errorMessage)
       stopStreaming()
+      loadSessions() // Refresh sessions list to show failed status
     })
   }
 
@@ -284,6 +297,23 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     } catch (error) {
       console.error('Failed to delete saved negotiation:', error)
       return null
+    }
+  }
+
+  async function rerunNegotiation(sessionId) {
+    try {
+      const response = await fetch(`/api/negotiation/saved/${sessionId}/rerun`, {
+        method: 'POST'
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || 'Failed to rerun negotiation')
+      }
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Failed to rerun negotiation:', error)
+      throw error
     }
   }
 
@@ -491,6 +521,7 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     loadSavedNegotiations,
     loadSavedNegotiation,
     deleteSavedNegotiation,
+    rerunNegotiation,
     clearAllSavedNegotiations,
     updateNegotiationTags,
     loadSessionPresets,

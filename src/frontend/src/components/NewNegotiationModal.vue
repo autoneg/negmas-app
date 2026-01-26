@@ -17,7 +17,7 @@
         <div class="modal-header-actions">
           <!-- Recent Sessions Dropdown -->
           <div class="dropdown">
-            <button class="btn btn-sm btn-secondary" @click="recentDropdownOpen = !recentDropdownOpen; loadRecentSessions()">
+            <button class="btn btn-sm btn-secondary" @click.stop="recentDropdownOpen = !recentDropdownOpen; loadRecentSessions()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                 <circle cx="12" cy="12" r="10"></circle>
                 <polyline points="12 6 12 12 16 14"></polyline>
@@ -46,7 +46,7 @@
           <div class="dropdown">
             <button 
               class="btn btn-sm btn-secondary" 
-              @click="savedDropdownOpen = !savedDropdownOpen"
+              @click.stop="savedDropdownOpen = !savedDropdownOpen; loadSessionPresets()"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
@@ -56,10 +56,6 @@
               Load
             </button>
             <div v-if="savedDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
-              <!-- Debug info -->
-              <div style="background: yellow; padding: 4px; font-size: 10px; border-bottom: 1px solid #ccc;">
-                DEBUG: {{ enabledSessionPresets?.length || 0 }} presets, open={{ savedDropdownOpen }}, loading={{ isLoadingPresets }}
-              </div>
               <div v-if="isLoadingPresets" class="dropdown-item text-muted">
                 Loading...
               </div>
@@ -88,7 +84,7 @@
           </div>
           
           <!-- Save Session Button -->
-          <button class="btn btn-sm btn-primary" @click="showSaveModal = true" :disabled="!selectedScenario">
+          <button class="btn btn-sm btn-primary" @click.stop="showSaveModal = true" :disabled="!selectedScenario">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
               <polyline points="17 21 17 13 7 13 7 21"></polyline>
@@ -1094,32 +1090,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'start', 'saved'])
 
-// Debug: Watch show prop
-watch(() => props.show, (newVal, oldVal) => {
-  console.log('NewNegotiationModal show prop changed:', { from: oldVal, to: newVal })
-  if (newVal) {
-    // Check if modal actually renders
-    setTimeout(() => {
-      const overlay = document.querySelector('.modal-overlay')
-      console.log('Modal overlay in DOM?', overlay ? 'YES' : 'NO')
-      if (overlay) {
-        const styles = window.getComputedStyle(overlay)
-        console.log('Modal overlay computed styles:', {
-          display: styles.display,
-          position: styles.position,
-          zIndex: styles.zIndex,
-          visibility: styles.visibility,
-          opacity: styles.opacity
-        })
-      }
-    }, 100)
-  }
-})
 
-// Debug: Watch sessionPresets
-watch(() => negotiationsStore.sessionPresets, (newVal) => {
-  console.log('[NewNegotiationModal] sessionPresets changed:', newVal?.length || 0, newVal)
-}, { immediate: true, deep: true })
 
 // Filter out disabled presets for the Load dropdown
 const enabledSessionPresets = computed(() => {
@@ -2005,7 +1976,7 @@ onUnmounted(() => {
   right: 0 !important;
   z-index: 1050 !important;
   background: var(--bg-secondary) !important;
-  border: 2px solid red !important;
+  border: 1px solid var(--border-color) !important;
   border-radius: 8px !important;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
   visibility: visible !important;

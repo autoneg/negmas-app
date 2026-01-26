@@ -163,30 +163,58 @@ class NegotiationPreviewService:
             ax.scatter(pareto_x, pareto_y, s=4, color="red", label="Pareto", zorder=5)
 
         # Add negotiation trace (offers made during negotiation)
+        # Separate traces by proposer to show different colors per negotiator
         if session.offers and len(session.offers) > 0:
-            offer_x = [
-                offer.utilities[x_idx]
-                for offer in session.offers
-                if len(offer.utilities) > max(x_idx, y_idx)
+            # Get colors for negotiators
+            colors = session.negotiator_infos and [
+                info.color for info in session.negotiator_infos
             ]
-            offer_y = [
-                offer.utilities[y_idx]
-                for offer in session.offers
-                if len(offer.utilities) > max(x_idx, y_idx)
-            ]
+            if not colors:
+                # Fallback to default colors
+                colors = [
+                    "#4a6fa5",
+                    "#22a06b",
+                    "#9f6b0a",
+                    "#943d73",
+                    "#0891b2",
+                    "#dc2626",
+                    "#7c3aed",
+                    "#059669",
+                ]
 
-            if offer_x and offer_y:
-                ax.plot(
-                    offer_x,
-                    offer_y,
-                    marker="o",
-                    markersize=5,
-                    linestyle=":",
-                    color="orange",
-                    alpha=0.7,
-                    label="Offers",
-                    zorder=7,
-                )
+            # Group offers by proposer
+            n_negotiators = len(negotiator_names) if negotiator_names else 0
+            for neg_idx in range(n_negotiators):
+                # Get offers made by this negotiator
+                neg_offers = [
+                    offer
+                    for offer in session.offers
+                    if offer.proposer_index == neg_idx
+                    and len(offer.utilities) > max(x_idx, y_idx)
+                ]
+
+                if neg_offers:
+                    offer_x = [offer.utilities[x_idx] for offer in neg_offers]
+                    offer_y = [offer.utilities[y_idx] for offer in neg_offers]
+
+                    neg_name = (
+                        negotiator_names[neg_idx]
+                        if neg_idx < len(negotiator_names)
+                        else f"Neg {neg_idx}"
+                    )
+                    color = colors[neg_idx % len(colors)]
+
+                    ax.plot(
+                        offer_x,
+                        offer_y,
+                        marker="o",
+                        markersize=4,
+                        linestyle=":",
+                        color=color,
+                        alpha=0.7,
+                        label=f"{neg_name} offers",
+                        zorder=7,
+                    )
 
         # Add special points
         if data.nash_point and len(data.nash_point.utilities) > max(x_idx, y_idx):
@@ -336,56 +364,64 @@ class NegotiationPreviewService:
 
     @staticmethod
     def _generate_histogram_preview(session: NegotiationSession, session_dir: Path):
-        """Generate histogram preview (utility distribution) using matplotlib."""
+        """Generate histogram preview (per-issue value distribution) using matplotlib."""
         plot_file = _get_preview_path(session_dir, "histogram")
         image_format = _get_preview_format()
 
-        if not session.offers:
+        if not session.offers or not session.issue_names:
             return
 
-        n_negotiators = len(session.negotiator_names) if session.negotiator_names else 0
-        if n_negotiators == 0:
+        n_issues = len(session.issue_names)
+        if n_issues == 0:
             return
 
-        # Create subplots for each negotiator
-        fig, axes = plt.subplots(
-            1, n_negotiators, figsize=(min(3 * n_negotiators, 10), 4)
-        )
-        if n_negotiators == 1:
+        # Create subplots for each issue
+        fig, axes = plt.subplots(1, n_issues, figsize=(min(3 * n_issues, 12), 4))
+        if n_issues == 1:
             axes = [axes]  # Make it iterable
 
-        colors = [
-            "#4a6fa5",
-            "#22a06b",
-            "#9f6b0a",
-            "#943d73",
-            "#0891b2",
-            "#dc2626",
-            "#7c3aed",
-            "#059669",
-        ]
-
-        for i in range(n_negotiators):
-            utilities = [
-                offer.utilities[i] if i < len(offer.utilities) else 0
-                for offer in session.offers
-            ]
-            color = colors[i % len(colors)]
-            name = (
-                session.negotiator_names[i]
-                if i < len(session.negotiator_names)
-                else f"Neg {i}"
-            )
-
+        # Process offers to count value occurrences per issue
+        for i, issue_name in enumerate(session.issue_names):
             ax = axes[i]
-            ax.hist(utilities, bins=20, color=color, alpha=0.7, edgecolor="black")
-            ax.set_title(name, fontsize=10)
-            ax.set_xlabel("Utility")
+
+            # Collect values for this issue from all offers
+            value_counts = {}
+            for offer in session.offers:
+                if offer.offer_dict and issue_name in offer.offer_dict:
+                    value = offer.offer_dict[issue_name]
+                    value_str = str(value)  # Convert to string for categorical data
+                    value_counts[value_str] = value_counts.get(value_str, 0) + 1
+
+            if not value_counts:
+                # No data for this issue
+                ax.text(
+                    0.5,
+                    0.5,
+                    "No data",
+                    ha="center",
+                    va="center",
+                    transform=ax.transAxes,
+                )
+                ax.set_title(issue_name, fontsize=10)
+                ax.set_facecolor("white")
+                continue
+
+            # Sort by value for consistent display
+            sorted_items = sorted(value_counts.items())
+            values = [item[0] for item in sorted_items]
+            counts = [item[1] for item in sorted_items]
+
+            # Create bar chart
+            x_positions = range(len(values))
+            ax.bar(x_positions, counts, color="#4a6fa5", alpha=0.7, edgecolor="black")
+            ax.set_xticks(x_positions)
+            ax.set_xticklabels(values, rotation=45, ha="right", fontsize=8)
+            ax.set_title(issue_name, fontsize=10)
             ax.set_ylabel("Count")
             ax.grid(True, alpha=0.3, color="lightgray", axis="y")
             ax.set_facecolor("white")
 
-        fig.suptitle("Utility Distribution")
+        fig.suptitle("Issue Value Distribution")
         fig.patch.set_facecolor("white")
         plt.tight_layout()
 

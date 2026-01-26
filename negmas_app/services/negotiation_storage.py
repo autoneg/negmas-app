@@ -246,11 +246,18 @@ class NegotiationStorageService:
             # Create session from metadata
             from ..models.session import SessionStatus
 
+            # Use scenario_path name as fallback if scenario_name is empty
+            scenario_name = metadata.get("scenario_name", "")
+            if not scenario_name:
+                scenario_path = metadata.get("scenario_path", "")
+                if scenario_path:
+                    scenario_name = Path(scenario_path).name
+
             session = NegotiationSession(
                 id=metadata["id"],
                 status=SessionStatus(metadata.get("status", "completed")),
                 scenario_path=metadata.get("scenario_path", ""),
-                scenario_name=metadata.get("scenario_name", ""),
+                scenario_name=scenario_name,
                 mechanism_type=metadata.get("mechanism_type", "SAOMechanism"),
                 negotiator_names=metadata.get("negotiator_names", []),
                 negotiator_types=metadata.get("negotiator_types", []),
@@ -414,10 +421,19 @@ class NegotiationStorageService:
                 with open(metadata_path) as f:
                     metadata = json.load(f)
 
+                # Use scenario_path name as fallback if scenario_name is empty
+                scenario_name = metadata.get("scenario_name")
+                if not scenario_name:
+                    scenario_path = metadata.get("scenario_path", "")
+                    if scenario_path:
+                        scenario_name = Path(scenario_path).name
+                    else:
+                        scenario_name = "Unknown"
+
                 summary = {
                     "id": metadata.get("id"),
                     "status": metadata.get("status", "completed"),
-                    "scenario_name": metadata.get("scenario_name"),
+                    "scenario_name": scenario_name,
                     "scenario_path": metadata.get("scenario_path"),
                     "mechanism_type": metadata.get("mechanism_type"),
                     "negotiator_names": metadata.get("negotiator_names", []),

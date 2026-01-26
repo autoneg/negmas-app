@@ -233,6 +233,7 @@ class SessionManager:
             issue_names = [i.name for i in scenario.outcome_space.issues]
             session.issue_names = issue_names
             session.negotiator_types = [c.type_name for c in negotiator_configs]
+            session.scenario_name = Path(session.scenario_path).name
 
             # Create negotiator infos with colors
             negotiator_colors = []

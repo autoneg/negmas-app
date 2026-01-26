@@ -65,6 +65,21 @@
             </svg>
             <span>Stats</span>
           </button>
+          <!-- Rerun button (only for saved negotiations) -->
+          <button 
+            v-if="negotiation?.isSaved && !fromTournament" 
+            class="btn btn-ghost btn-sm" 
+            @click="handleRerunNegotiation" 
+            title="Rerun this negotiation with same configuration"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M21 2v6h-6"></path>
+              <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+              <path d="M3 22v-6h6"></path>
+              <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+            </svg>
+            <span>Rerun</span>
+          </button>
           <button class="btn btn-primary btn-sm" @click="showNewNegotiationModal = true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
               <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -177,6 +192,47 @@
           style="width: 100%; height: 100%;"
         />
       </ZoomModal>
+      
+      <!-- Error Modal -->
+      <div v-if="showErrorModal" class="modal-overlay active" @click.self="showErrorModal = false">
+        <div class="modal-content" style="max-width: 500px; background: var(--bg-secondary);">
+          <div class="modal-header" style="background: var(--bg-secondary);">
+            <h3 class="modal-title">Negotiation Failed</h3>
+            <button class="modal-close-btn" @click="showErrorModal = false" title="Close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body" style="background: var(--bg-secondary);">
+            <div style="display: flex; align-items: flex-start; gap: 16px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24" style="color: var(--danger); flex-shrink: 0; margin-top: 2px;">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              <div style="flex: 1;">
+                <p style="margin: 0 0 12px 0; color: var(--text-primary); line-height: 1.5;">
+                  The negotiation failed to start or encountered an error during execution.
+                </p>
+                <div style="padding: 12px; background: var(--bg-tertiary); border-radius: 6px; border-left: 3px solid var(--danger);">
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;">Error Details</div>
+                  <div style="font-family: monospace; font-size: 12px; color: var(--text-primary); white-space: pre-wrap; word-break: break-word;">{{ errorMessage }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer" style="background: var(--bg-secondary);">
+            <button class="btn btn-secondary" @click="showErrorModal = false">
+              Close
+            </button>
+            <button class="btn btn-primary" @click="showErrorModal = false; handleBackNavigation()">
+              Go Back
+            </button>
+          </div>
+        </div>
+      </div>
     </Teleport>
   </div>
 </template>
@@ -212,6 +268,8 @@ const {
 const showNewNegotiationModal = ref(false)
 const showStatsModal = ref(false)
 const showZoomModal = ref(false)
+const showErrorModal = ref(false)
+const errorMessage = ref('')
 const zoomPanelTitle = ref('')
 const zoomPanelType = ref('')
 const zoomPanelComponent = shallowRef(null)
@@ -265,6 +323,15 @@ watch(() => sessionInit.value, (newVal) => {
   })
 }, { immediate: true, deep: true })
 
+// Watch for errors in sessionComplete and show error dialog
+watch(() => sessionComplete.value?.error, (errorMsg) => {
+  if (errorMsg) {
+    console.log('[SingleNegotiationView] Error detected:', errorMsg)
+    errorMessage.value = errorMsg
+    showErrorModal.value = true
+  }
+}, { immediate: true })
+
 onMounted(async () => {
   const sessionId = route.params.id
   
@@ -295,8 +362,75 @@ onMounted(async () => {
       negotiationsStore.selectSession(session)
       
       if (session.status === 'running' || session.status === 'pending') {
-        // Start streaming for running sessions
-        negotiationsStore.startStreaming(sessionId)
+        // For running sessions, load current state first, then start streaming
+        try {
+          const currentState = await negotiationsStore.getSession(sessionId)
+          if (currentState) {
+            // Populate with current state
+            sessionInit.value = {
+              scenario_name: currentState.scenario_name,
+              negotiator_names: currentState.negotiator_names,
+              negotiator_types: currentState.negotiator_types,
+              negotiator_colors: currentState.negotiator_colors,
+              issue_names: currentState.issue_names,
+              n_steps: currentState.n_steps,
+              time_limit: currentState.time_limit,
+              outcome_space_data: currentState.outcome_space_data,
+            }
+            
+            offers.value = currentState.offers || []
+            
+            // If already completed, show completion state
+            if (currentState.status === 'completed' || currentState.status === 'failed') {
+              sessionComplete.value = {
+                agreement: currentState.agreement,
+                final_utilities: currentState.final_utilities,
+                optimality_stats: currentState.optimality_stats,
+                end_reason: currentState.end_reason,
+                error: currentState.error,
+              }
+            } else {
+              // Still running - start streaming for future updates
+              // Use a custom streaming that doesn't clear existing data
+              negotiationsStore.streamingSession = sessionId
+              const url = `/api/negotiation/${sessionId}/stream?step_delay=0.1&share_ufuns=false`
+              const eventSource = new EventSource(url)
+              
+              eventSource.addEventListener('offer', (event) => {
+                const data = JSON.parse(event.data)
+                offers.value.push(data)
+              })
+              
+              eventSource.addEventListener('complete', (event) => {
+                const data = JSON.parse(event.data)
+                sessionComplete.value = data
+                eventSource.close()
+                negotiationsStore.loadSessions()
+              })
+              
+              eventSource.addEventListener('error', (event) => {
+                console.error('[SingleNegotiationView] SSE error:', event)
+                let errorMsg = 'Connection error or negotiation failed'
+                if (event.data) {
+                  try {
+                    const data = JSON.parse(event.data)
+                    errorMsg = data.error || errorMsg
+                  } catch (e) {}
+                }
+                sessionComplete.value = { error: errorMsg, status: 'failed' }
+                eventSource.close()
+                negotiationsStore.loadSessions()
+              })
+              
+              // Store the event source for cleanup
+              negotiationsStore.eventSource = eventSource
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load current state:', err)
+          // Fallback to normal streaming
+          negotiationsStore.startStreaming(sessionId)
+        }
       } else if (session.status === 'completed' || session.status === 'failed') {
         // Try to load saved data for completed/failed sessions
         const savedData = await negotiationsStore.loadSavedNegotiation(sessionId)
@@ -374,20 +508,30 @@ onMounted(async () => {
         
         loading.value = false
       } else {
-        // Not found anywhere
-        error.value = 'Negotiation not found'
-        loading.value = false
+        // Not found anywhere - redirect to negotiations list
+        console.log('[SingleNegotiationView] Negotiation not found, redirecting to list')
+        router.push({ name: 'NegotiationsList' })
       }
     }
   } catch (err) {
     console.error('Error loading negotiation:', err)
     error.value = 'Failed to load negotiation'
     loading.value = false
+    // Auto-redirect after showing error briefly
+    setTimeout(() => {
+      router.push({ name: 'NegotiationsList' })
+    }, 2000)
   }
 })
 
 onUnmounted(() => {
+  // Cleanup streaming
   negotiationsStore.stopStreaming()
+  
+  // Also cleanup any event source we created directly
+  if (negotiationsStore.eventSource) {
+    negotiationsStore.eventSource.close()
+  }
 })
 
 function onNegotiationStart(data) {
@@ -432,6 +576,30 @@ function handleShowStats() {
   console.log('[SingleNegotiationView] negotiation:', negotiation.value)
   console.log('[SingleNegotiationView] outcome_space_data:', negotiation.value?.outcome_space_data)
   showStatsModal.value = true
+}
+
+async function handleRerunNegotiation() {
+  if (!currentSession.value?.id) return
+  
+  try {
+    const data = await negotiationsStore.rerunNegotiation(currentSession.value.id)
+    
+    if (data?.session_id) {
+      // Extract step_delay and share_ufuns from the stream_url
+      const url = new URL(data.stream_url, window.location.origin)
+      const stepDelay = parseFloat(url.searchParams.get('step_delay') || '0.1')
+      const shareUfuns = url.searchParams.get('share_ufuns') === 'true'
+      
+      // Start streaming the new negotiation
+      negotiationsStore.startStreaming(data.session_id, stepDelay, shareUfuns)
+      
+      // Navigate to the new negotiation
+      router.push({ name: 'SingleNegotiation', params: { id: data.session_id } })
+    }
+  } catch (error) {
+    console.error('Failed to rerun negotiation:', error)
+    alert('Failed to rerun negotiation: ' + error.message)
+  }
 }
 
 function showZoomPanel(title, panelType) {
@@ -639,5 +807,29 @@ function handleBackNavigation() {
 
 .btn-secondary:hover {
   background: var(--bg-hover);
+}
+
+.modal-close-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-close-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.modal-close-btn svg {
+  width: 18px;
+  height: 18px;
 }
 </style>
