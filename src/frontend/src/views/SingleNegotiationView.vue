@@ -96,6 +96,9 @@
       </div>
       
       <!-- Panel System Layout -->
+      <div style="background: yellow; padding: 10px; margin: 10px;">
+        DEBUG: About to render PanelLayout. negotiation.id={{ negotiation?.id }}, issue_names={{ negotiation?.issue_names?.length || 0 }}, offers={{ negotiation?.offers?.length || 0 }}
+      </div>
       <PanelLayout>
         <!-- Left Column -->
         <template #left>
