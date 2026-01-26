@@ -1,10 +1,5 @@
 <template>
   <div class="single-negotiation-view">
-    <!-- Debug info (remove after fixing) -->
-    <div style="position: fixed; top: 60px; right: 10px; background: red; color: white; padding: 10px; z-index: 9999; font-size: 12px;">
-      DEBUG: loading={{ loading }}, error={{ !!error }}, negotiation={{ !!negotiation }}, currentSession={{ !!currentSession }}
-    </div>
-    
     <!-- Loading State -->
     <div v-if="loading" class="empty-state">
       <p>Loading negotiation...</p>
@@ -96,9 +91,6 @@
       </div>
       
       <!-- Panel System Layout -->
-      <div style="background: yellow; padding: 10px; margin: 10px;">
-        DEBUG: About to render PanelLayout. negotiation.id={{ negotiation?.id }}, issue_names={{ negotiation?.issue_names?.length || 0 }}, offers={{ negotiation?.offers?.length || 0 }}
-      </div>
       <PanelLayout>
         <!-- Left Column -->
         <template #left>
