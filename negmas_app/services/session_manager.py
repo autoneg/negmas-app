@@ -128,16 +128,15 @@ class SessionManager:
         session_id: str,
         negotiator_configs: list[NegotiatorConfig],
         step_delay: float = 0.1,
-        max_outcome_samples: int = 10000,
         share_ufuns: bool = False,
-    ) -> AsyncGenerator[SessionInitEvent | OfferEvent | NegotiationSession, None]:
-        """Run a negotiation session with real-time streaming.
+        max_outcome_samples: int = 50000,
+    ) -> AsyncGenerator:
+        """Run a negotiation session and stream events.
 
         Args:
             session_id: Session ID to run.
-            negotiator_configs: Negotiator configurations.
-            step_delay: Delay between steps for visualization.
-            max_outcome_samples: Max outcomes to sample for outcome space analysis.
+            negotiator_configs: List of negotiator configurations.
+            step_delay: Delay between steps (seconds) for real-time visualization.
             share_ufuns: If True, share utility functions between negotiators.
 
         Yields:
@@ -145,6 +144,14 @@ class SessionManager:
         """
         session = self.sessions.get(session_id)
         if session is None:
+            return
+
+        # CRITICAL: Prevent re-running a session that has already started
+        # If a session is RUNNING, COMPLETED, FAILED, or CANCELLED, it should not be re-run
+        # Only PENDING sessions should be allowed to run
+        if session.status != SessionStatus.PENDING:
+            # Session has already run or is currently running
+            # Do not create a new mechanism - this would restart from step 0!
             return
 
         try:

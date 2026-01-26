@@ -29,7 +29,22 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     try {
       const response = await fetch('/api/negotiation/sessions/list')
       const data = await response.json()
+      const oldSessions = sessions.value
       sessions.value = data.sessions || []
+      console.log('[negotiations store] loadSessions completed:', {
+        count: sessions.value.length,
+        sessions: sessions.value.map(s => ({ id: s.id, step: s.current_step, status: s.status }))
+      })
+      // Log if any session changed
+      if (oldSessions.length > 0 && sessions.value.length > 0) {
+        const changes = sessions.value.filter((newS, idx) => {
+          const oldS = oldSessions[idx]
+          return oldS && oldS.current_step !== newS.current_step
+        })
+        if (changes.length > 0) {
+          console.log('[negotiations store] Session progress changed:', changes.map(s => ({ id: s.id, step: s.current_step })))
+        }
+      }
     } catch (error) {
       console.error('Failed to load negotiation sessions:', error)
       sessions.value = []

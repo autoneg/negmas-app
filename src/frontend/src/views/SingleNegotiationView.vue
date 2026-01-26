@@ -364,7 +364,14 @@ onMounted(async () => {
       if (session.status === 'running' || session.status === 'pending') {
         // For running sessions, load current state first, then start streaming
         try {
+          console.log('[SingleNegotiationView] Loading current state for session:', sessionId)
           const currentState = await negotiationsStore.getSession(sessionId)
+          console.log('[SingleNegotiationView] Current state loaded:', {
+            hasData: !!currentState,
+            status: currentState?.status,
+            current_step: currentState?.current_step,
+            offers_count: currentState?.offers?.length || 0
+          })
           if (currentState) {
             // Populate with current state
             sessionInit.value = {
@@ -379,6 +386,7 @@ onMounted(async () => {
             }
             
             offers.value = currentState.offers || []
+            console.log('[SingleNegotiationView] Set offers.value to:', offers.value.length, 'offers')
             
             // If already completed, show completion state
             if (currentState.status === 'completed' || currentState.status === 'failed') {
@@ -390,46 +398,49 @@ onMounted(async () => {
                 error: currentState.error,
               }
             } else {
-              // Still running - start streaming for future updates
-              // Use a custom streaming that doesn't clear existing data
-              negotiationsStore.streamingSession = sessionId
-              const url = `/api/negotiation/${sessionId}/stream?step_delay=0.1&share_ufuns=false`
-              const eventSource = new EventSource(url)
-              
-              eventSource.addEventListener('offer', (event) => {
-                const data = JSON.parse(event.data)
-                offers.value.push(data)
-              })
-              
-              eventSource.addEventListener('complete', (event) => {
-                const data = JSON.parse(event.data)
-                sessionComplete.value = data
-                eventSource.close()
-                negotiationsStore.loadSessions()
-              })
-              
-              eventSource.addEventListener('error', (event) => {
-                console.error('[SingleNegotiationView] SSE error:', event)
-                let errorMsg = 'Connection error or negotiation failed'
-                if (event.data) {
-                  try {
-                    const data = JSON.parse(event.data)
-                    errorMsg = data.error || errorMsg
-                  } catch (e) {}
+              // Still running - poll for updates instead of streaming
+              // (SSE stream would restart the negotiation from beginning!)
+              console.log('[SingleNegotiationView] Setting up polling for running negotiation')
+              const pollInterval = setInterval(async () => {
+                try {
+                  const updated = await negotiationsStore.getSession(sessionId)
+                  if (updated) {
+                    // Update offers if there are new ones
+                    if (updated.offers && updated.offers.length > offers.value.length) {
+                      offers.value = updated.offers
+                      console.log('[SingleNegotiationView] Updated offers:', offers.value.length)
+                    }
+                    
+                    // Check if completed
+                    if (updated.status === 'completed' || updated.status === 'failed') {
+                      sessionComplete.value = {
+                        agreement: updated.agreement,
+                        final_utilities: updated.final_utilities,
+                        optimality_stats: updated.optimality_stats,
+                        end_reason: updated.end_reason,
+                        error: updated.error,
+                      }
+                      clearInterval(pollInterval)
+                      await negotiationsStore.loadSessions()
+                      console.log('[SingleNegotiationView] Negotiation completed, stopped polling')
+                    }
+                  }
+                } catch (err) {
+                  console.error('[SingleNegotiationView] Polling error:', err)
                 }
-                sessionComplete.value = { error: errorMsg, status: 'failed' }
-                eventSource.close()
-                negotiationsStore.loadSessions()
-              })
+              }, 1000) // Poll every second
               
-              // Store the event source for cleanup
-              negotiationsStore.eventSource = eventSource
+              // Store interval for cleanup
+              negotiationsStore._singleViewPollInterval = pollInterval
             }
           }
         } catch (err) {
           console.error('Failed to load current state:', err)
-          // Fallback to normal streaming
-          negotiationsStore.startStreaming(sessionId)
+          error.value = 'Failed to load negotiation'
+          loading.value = false
+          setTimeout(() => {
+            router.push({ name: 'NegotiationsList' })
+          }, 2000)
         }
       } else if (session.status === 'completed' || session.status === 'failed') {
         // Try to load saved data for completed/failed sessions
@@ -531,6 +542,12 @@ onUnmounted(() => {
   // Also cleanup any event source we created directly
   if (negotiationsStore.eventSource) {
     negotiationsStore.eventSource.close()
+  }
+  
+  // Cleanup polling interval if it exists
+  if (negotiationsStore._singleViewPollInterval) {
+    clearInterval(negotiationsStore._singleViewPollInterval)
+    negotiationsStore._singleViewPollInterval = null
   }
 })
 
