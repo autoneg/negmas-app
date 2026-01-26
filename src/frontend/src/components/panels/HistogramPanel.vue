@@ -274,11 +274,13 @@ async function initHistogram(retryCount = 0) {
     } else {
       // Issue-based: subplots per issue
       const numIssues = issues.length
-      const cols = Math.min(numIssues, 2)
+      // Use 3 columns for better visibility with more rows
+      const cols = Math.min(numIssues, 3)
       const rows = Math.ceil(numIssues / cols)
       
-      const hGap = 0.12
-      const vGap = 0.15
+      // Adjust gaps based on number of rows for better spacing
+      const hGap = cols > 1 ? 0.10 : 0
+      const vGap = rows > 1 ? 0.12 : 0
       const plotWidth = (1 - hGap * (cols - 1)) / cols
       const plotHeight = (1 - vGap * (rows - 1)) / rows
       
