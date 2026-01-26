@@ -298,7 +298,7 @@ async function initPlot() {
       })
     }
     
-    // 3. Nash point - filled triangle
+    // 3. Nash point - outlined triangle
     if (osd.nash_point && osd.nash_point.length > Math.max(xIdx, yIdx)) {
       traces.push({
         x: [osd.nash_point[xIdx]],
@@ -307,14 +307,15 @@ async function initPlot() {
         mode: 'markers',
         name: 'Nash',
         marker: { 
-          color: colors.nashColor,
-          size: 12, 
-          symbol: 'triangle-left'
+          color: 'rgba(0,0,0,0)',
+          size: 14, 
+          symbol: 'triangle-left',
+          line: { color: colors.nashColor, width: 2.5 }
         }
       })
     }
     
-    // 4. Kalai point - filled triangle
+    // 4. Kalai point - outlined triangle
     if (osd.kalai_point && osd.kalai_point.length > Math.max(xIdx, yIdx)) {
       traces.push({
         x: [osd.kalai_point[xIdx]],
@@ -323,14 +324,15 @@ async function initPlot() {
         mode: 'markers',
         name: 'Kalai',
         marker: { 
-          color: colors.kalaiColor,
-          size: 12, 
-          symbol: 'triangle-down'
+          color: 'rgba(0,0,0,0)',
+          size: 14, 
+          symbol: 'triangle-down',
+          line: { color: colors.kalaiColor, width: 2.5 }
         }
       })
     }
     
-    // 5. Kalai-Smorodinsky point - filled triangle
+    // 5. Kalai-Smorodinsky point - outlined triangle
     if (osd.kalai_smorodinsky_point && osd.kalai_smorodinsky_point.length > Math.max(xIdx, yIdx)) {
       traces.push({
         x: [osd.kalai_smorodinsky_point[xIdx]],
@@ -339,14 +341,15 @@ async function initPlot() {
         mode: 'markers',
         name: 'Kalai-Smorodinsky',
         marker: { 
-          color: colors.kalaiSmorodinskyColor,
-          size: 12, 
-          symbol: 'triangle-up'
+          color: 'rgba(0,0,0,0)',
+          size: 14, 
+          symbol: 'triangle-up',
+          line: { color: colors.kalaiSmorodinskyColor, width: 2.5 }
         }
       })
     }
     
-    // 6. Max welfare point - filled triangle
+    // 6. Max welfare point - outlined triangle
     if (osd.max_welfare_point && osd.max_welfare_point.length > Math.max(xIdx, yIdx)) {
       traces.push({
         x: [osd.max_welfare_point[xIdx]],
@@ -355,9 +358,10 @@ async function initPlot() {
         mode: 'markers',
         name: 'Max Welfare',
         marker: { 
-          color: colors.maxWelfareColor,
-          size: 12, 
-          symbol: 'triangle-right'
+          color: 'rgba(0,0,0,0)',
+          size: 14, 
+          symbol: 'triangle-right',
+          line: { color: colors.maxWelfareColor, width: 2.5 }
         }
       })
     }
