@@ -562,6 +562,21 @@ function startPolling() {
       await negotiationsStore.loadSessions()
       console.log('[NegotiationsListView] Sessions reloaded, current_step:', 
         runningNegotiations.value.map(n => ({ id: n.id, step: n.current_step })))
+      
+      // If a running negotiation is selected for preview, reload its preview data
+      if (selectedNegotiation.value && 
+          selectedNegotiation.value.status === 'running' && 
+          selectedPreview.value !== 'none') {
+        // Find the updated session data
+        const updatedSession = negotiationsStore.sessions.find(s => s.id === selectedNegotiation.value.id)
+        if (updatedSession) {
+          // Update selectedNegotiation with latest data
+          selectedNegotiation.value = updatedSession
+          // Reload preview with updated data
+          await loadPreviewData(updatedSession)
+          console.log('[NegotiationsListView] Updated preview for running negotiation:', updatedSession.id)
+        }
+      }
     } else if (pollingInterval) {
       // No running negotiations, reduce polling frequency
       // This will catch when a negotiation completes and moves to saved

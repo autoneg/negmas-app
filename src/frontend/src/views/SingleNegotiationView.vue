@@ -304,7 +304,24 @@ const fromConfigs = computed(() => route.query.from === 'configs')
 
 // Computed negotiation data for panels
 const negotiation = computed(() => {
-  if (!streamingSession.value && !currentSession.value) return null
+  // Return null only if we have no session data at all
+  if (!streamingSession.value && !currentSession.value) {
+    console.log('[SingleNegotiationView] negotiation computed: no session data')
+    return null
+  }
+  
+  // If we're loading, return null to show loading state
+  if (loading.value) {
+    console.log('[SingleNegotiationView] negotiation computed: currently loading')
+    return null
+  }
+  
+  console.log('[SingleNegotiationView] negotiation computed: building negotiation object', {
+    hasCurrentSession: !!currentSession.value,
+    hasSessionInit: !!sessionInit.value,
+    hasOffers: offers.value.length,
+    hasSessionComplete: !!sessionComplete.value
+  })
   
   // Merge session data with streaming data
   return {
@@ -349,6 +366,8 @@ watch(() => sessionComplete.value?.error, (errorMsg) => {
 
 // Extract data loading into a reusable function
 async function loadNegotiationData(sessionId) {
+  console.log('[SingleNegotiationView] loadNegotiationData called for:', sessionId)
+  
   if (!sessionId) {
     error.value = 'No negotiation ID provided'
     loading.value = false
@@ -358,6 +377,7 @@ async function loadNegotiationData(sessionId) {
   // Reset state
   loading.value = true
   error.value = null
+  console.log('[SingleNegotiationView] Set loading=true, clearing error')
   
   // Load panel settings from localStorage
   const settingsKey = `negotiation_settings_${sessionId}`
@@ -372,8 +392,10 @@ async function loadNegotiationData(sessionId) {
   
   try {
     // First check running/completed sessions
+    console.log('[SingleNegotiationView] Loading sessions list...')
     await negotiationsStore.loadSessions()
     const session = negotiationsStore.sessions.find(s => s.id === sessionId)
+    console.log('[SingleNegotiationView] Session found:', !!session, session?.status)
     
     if (session) {
       // Found in sessions list
@@ -492,6 +514,7 @@ async function loadNegotiationData(sessionId) {
         }
       }
       
+      console.log('[SingleNegotiationView] Data loading complete, setting loading=false')
       loading.value = false
     } else {
       // Not in sessions list - try loading from saved
