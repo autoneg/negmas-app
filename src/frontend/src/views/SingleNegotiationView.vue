@@ -587,12 +587,22 @@ async function loadNegotiationData(sessionId) {
 
 // Load data on mount
 onMounted(async () => {
+  console.log('[SingleNegotiationView] onMounted called')
   const sessionId = route.params.id
   await loadNegotiationData(sessionId)
 })
 
 // Watch for route changes and reload data when navigating to a different negotiation
+// IMPORTANT: Don't trigger on initial load (onMounted handles that)
+let isInitialMount = true
 watch(() => route.params.id, async (newId, oldId) => {
+  // Skip the first run (initial mount)
+  if (isInitialMount) {
+    isInitialMount = false
+    console.log('[SingleNegotiationView] Route watcher: skipping initial mount')
+    return
+  }
+  
   if (newId && newId !== oldId) {
     console.log('[SingleNegotiationView] Route changed, loading new negotiation:', newId)
     // Cleanup any existing polling
