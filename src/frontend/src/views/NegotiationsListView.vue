@@ -23,6 +23,24 @@
         </template>
       </div>
       <div class="header-right">
+        <!-- Active Filters Display -->
+        <div v-if="route.query.competitor || route.query.opponent || route.query.scenario" class="active-filters">
+          <span class="filter-label">Filters:</span>
+          <span v-if="route.query.competitor" class="filter-badge">
+            Competitor: {{ route.query.competitor }}
+            <button class="filter-remove" @click="removeFilter('competitor')" title="Remove filter">×</button>
+          </span>
+          <span v-if="route.query.opponent" class="filter-badge">
+            Opponent: {{ route.query.opponent }}
+            <button class="filter-remove" @click="removeFilter('opponent')" title="Remove filter">×</button>
+          </span>
+          <span v-if="route.query.scenario" class="filter-badge">
+            Scenario: {{ route.query.scenario.split('/').pop() }}
+            <button class="filter-remove" @click="removeFilter('scenario')" title="Remove filter">×</button>
+          </span>
+          <button class="btn-clear-filters" @click="clearAllFilters">Clear All</button>
+        </div>
+        
         <!-- Preview Selector -->
         <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
           <span>Preview:</span>
@@ -505,6 +523,34 @@ const allNegotiations = computed(() => {
 const filteredAndSortedNegotiations = computed(() => {
   let result = completedNegotiations.value
   
+  // Filter by query parameters (from grid cell click)
+  if (route.query.competitor || route.query.opponent || route.query.scenario) {
+    result = result.filter(neg => {
+      const negotiatorNames = neg.negotiator_names || []
+      const scenarioName = neg.scenario_name || ''
+      
+      let match = true
+      
+      // Filter by competitor (first negotiator)
+      if (route.query.competitor) {
+        match = match && negotiatorNames.some(name => name.includes(route.query.competitor))
+      }
+      
+      // Filter by opponent (second negotiator)
+      if (route.query.opponent) {
+        match = match && negotiatorNames.some(name => name.includes(route.query.opponent))
+      }
+      
+      // Filter by scenario
+      if (route.query.scenario) {
+        const scenarioShort = route.query.scenario.split('/').pop()
+        match = match && scenarioName.includes(scenarioShort)
+      }
+      
+      return match
+    })
+  }
+  
   // Filter by tag
   if (tagFilter.value) {
     result = result.filter(neg => neg.tags && neg.tags.includes(tagFilter.value))
@@ -659,6 +705,17 @@ function goBackToTournament() {
   if (tournamentId.value) {
     router.push({ name: 'SingleTournament', params: { id: tournamentId.value } })
   }
+}
+
+// Filter management
+function removeFilter(filterName) {
+  const query = { ...route.query }
+  delete query[filterName]
+  router.replace({ query })
+}
+
+function clearAllFilters() {
+  router.replace({ query: {} })
 }
 
 // Polling for running negotiations (only in normal mode)
@@ -1044,6 +1101,70 @@ function onNegotiationStart(data) {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.active-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.filter-remove {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 2px;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.filter-remove:hover {
+  opacity: 1;
+}
+
+.btn-clear-filters {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-clear-filters:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--primary-color);
 }
 
 .content-area {

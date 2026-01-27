@@ -1066,6 +1066,35 @@ function getScenarioCellPercent(i, j) {
   justify-content: center;
   position: relative;
   font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tournament-cell:not(.self-play):hover {
+  background: var(--bg-hover);
+  transform: scale(1.02);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tournament-cell.has-running {
+  background: rgba(59, 130, 246, 0.08);
+  animation: pulse-running 2s ease-in-out infinite;
+}
+
+.cell-running-indicator {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 10;
+}
+
+.spinner-cell {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(59, 130, 246, 0.2);
+  border-top-color: rgb(59, 130, 246);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
 .cell-metrics-display {
@@ -1166,6 +1195,15 @@ function getScenarioCellPercent(i, j) {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-running {
+  0%, 100% { 
+    background: rgba(59, 130, 246, 0.08);
+  }
+  50% { 
+    background: rgba(59, 130, 246, 0.15);
+  }
 }
 
 @keyframes pulse-cell {

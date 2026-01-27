@@ -138,6 +138,7 @@
               :cellStates="cellStates"
               :selfPlay="currentSession.self_play || false"
               :status="currentSession.status"
+              :tournamentId="tournamentId"
             />
           </div>
           
