@@ -388,6 +388,68 @@ async function loadNegotiationData(sessionId) {
   }
   
   try {
+    // Check if this is a tournament negotiation
+    if (sessionId.startsWith('tournament:') || route.query.tournament_id) {
+      // Handle tournament negotiation
+      const tournamentId = route.query.tournament_id || sessionId.split(':')[1]
+      const index = route.query.index || sessionId.split(':')[2]
+      
+      if (!tournamentId || index === undefined) {
+        throw new Error('Invalid tournament negotiation reference')
+      }
+      
+      console.log('[SingleNegotiationView] Loading tournament negotiation:', tournamentId, index)
+      const response = await fetch(`/api/tournament/saved/${tournamentId}/negotiation/${index}`)
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          error.value = `Tournament negotiation not found: ${tournamentId}/${index}`
+        } else {
+          error.value = `Failed to load tournament negotiation: ${response.statusText}`
+        }
+        loading.value = false
+        return
+      }
+      
+      const fullData = await response.json()
+      console.log('[SingleNegotiationView] Tournament negotiation loaded:', fullData)
+      
+      // Map history to offers format (offers array with step, offer, time, proposer)
+      const offers = (fullData.history || []).map((item, idx) => ({
+        step: item.step || idx,
+        offer: item.offer || item.current_offer,
+        time: item.time || item.relative_time || 0,
+        proposer: item.proposer || item.current_proposer || 0,
+        relative_time: item.relative_time || 0
+      }))
+      
+      // Populate session data
+      sessionInit.value = {
+        scenario_name: fullData.scenario,
+        negotiator_names: fullData.partners || [],
+        negotiator_types: fullData.negotiator_types || [],
+        negotiator_colors: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, (fullData.partners || []).length),
+        issue_names: fullData.issue_names || [],
+        n_steps: fullData.n_steps || offers.length,
+        time_limit: fullData.time_limit,
+        outcome_space_data: fullData.outcome_space_data,
+      }
+      
+      offers.value = offers
+      
+      sessionComplete.value = {
+        agreement: fullData.agreement,
+        final_utilities: fullData.utilities || [],
+        optimality_stats: fullData.optimality_stats,
+        end_reason: fullData.has_agreement ? 'agreement' : 'disagreement',
+        error: fullData.error,
+      }
+      
+      loading.value = false
+      return
+    }
+    
+    // Regular negotiation handling (existing code)
     // First check running/completed sessions
     console.log('[SingleNegotiationView] Loading sessions list...')
     await negotiationsStore.loadSessions()

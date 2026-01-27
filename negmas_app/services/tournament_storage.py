@@ -614,6 +614,25 @@ class TournamentStorageService:
                 elif neg.get("timedout", False):
                     status = "timeout"
 
+                # Helper to safely get boolean values (handles arrays, Series, etc.)
+                def _safe_bool(value, default=False):
+                    if value is None:
+                        return default
+                    # Handle numpy/pandas arrays or Series
+                    if hasattr(value, "__iter__") and not isinstance(value, str):
+                        try:
+                            # Try to get first element for arrays/Series
+                            return bool(value[0]) if len(value) > 0 else default
+                        except (TypeError, IndexError):
+                            return default
+                    return bool(value)
+
+                # Get boolean values safely
+                has_agreement = _safe_bool(neg.get("has_agreement", False))
+                has_error = _safe_bool(neg.get("has_error", False))
+                timedout = _safe_bool(neg.get("timedout", False))
+                broken = _safe_bool(neg.get("broken", False))
+
                 # If cell doesn't exist yet, create it
                 if cell_id not in cellStates:
                     cellStates[cell_id] = {
@@ -622,27 +641,27 @@ class TournamentStorageService:
                         "competitor": competitor,
                         "opponent": opponent,
                         "scenario": scenario,
-                        "has_agreement": neg.get("has_agreement", False),
+                        "has_agreement": has_agreement,
                         "utilities": neg.get("utilities"),
                         "total": 1,
                         "completed": 1,
-                        "agreements": 1 if neg.get("has_agreement", False) else 0,
-                        "errors": 1 if neg.get("has_error", False) else 0,
-                        "timeouts": 1 if neg.get("timedout", False) else 0,
-                        "broken": 1 if neg.get("broken", False) else 0,
+                        "agreements": 1 if has_agreement else 0,
+                        "errors": 1 if has_error else 0,
+                        "timeouts": 1 if timedout else 0,
+                        "broken": 1 if broken else 0,
                     }
                 else:
                     # Aggregate multiple repetitions
                     cell = cellStates[cell_id]
                     cell["total"] += 1
                     cell["completed"] += 1
-                    if neg.get("has_agreement", False):
+                    if has_agreement:
                         cell["agreements"] += 1
-                    if neg.get("has_error", False):
+                    if has_error:
                         cell["errors"] += 1
-                    if neg.get("timedout", False):
+                    if timedout:
                         cell["timeouts"] += 1
-                    if neg.get("broken", False):
+                    if broken:
                         cell["broken"] += 1
 
                     # Update status to worst case (error > timeout > broken > complete)
@@ -656,7 +675,7 @@ class TournamentStorageService:
                         cell["status"] = "complete"
 
                     # Update has_agreement to reflect if ANY had agreement
-                    if neg.get("has_agreement", False):
+                    if has_agreement:
                         cell["has_agreement"] = True
 
         return gridInit, cellStates

@@ -457,12 +457,33 @@ function convertTournamentCompletedNegotiation(neg) {
     neg.scenario.split('/').pop() : 
     'Unknown'
   
+  // Ensure partners is always an array (not a string)
+  let partners = neg.partners || []
+  if (typeof partners === 'string') {
+    // If it's a string, try to parse it or split by common separators
+    try {
+      partners = JSON.parse(partners)
+    } catch {
+      partners = partners.includes(',') ? partners.split(',').map(s => s.trim()) : [partners]
+    }
+  }
+  if (!Array.isArray(partners)) {
+    partners = [partners]
+  }
+  
+  // Create a special ID format for tournament negotiations that includes tournament context
+  // Format: tournament:{tournament_id}:{index}
+  const tournamentId = tournamentSession.value?.id || route.params.tournamentId
+  const negotiationId = tournamentId && neg.index !== undefined 
+    ? `tournament:${tournamentId}:${neg.index}` 
+    : (neg.id || `neg_${neg.index}`)
+  
   return {
-    id: neg.id || `neg_${neg.index}`,
+    id: negotiationId,
     status: neg.has_error ? 'failed' : 'completed',
     scenario_name: scenarioName,
-    negotiator_names: neg.partners || [],
-    negotiator_colors: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, (neg.partners || []).length),
+    negotiator_names: partners,
+    negotiator_colors: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, partners.length),
     agreement: neg.agreement,
     agreement_dict: neg.agreement_dict,
     final_utilities: neg.utilities || [],
@@ -471,6 +492,7 @@ function convertTournamentCompletedNegotiation(neg) {
     timestamp: neg.timestamp || Date.now(),
     source: 'tournament',
     index: neg.index,
+    tournament_id: tournamentId, // Keep this for reference
   }
 }
 
@@ -787,15 +809,41 @@ async function selectNegotiation(neg) {
 }
 
 async function loadPreviewData(neg) {
+  if (!neg) {
+    previewData.value = null
+    return
+  }
+  
   try {
     // Load full negotiation data if not already loaded
     let fullData
     
-    if (neg.source === 'saved') {
+    if (neg.source === 'tournament') {
+      // For tournament negotiations, use tournament-specific API
+      if (neg.tournament_id && neg.index !== undefined) {
+        const response = await fetch(`/api/tournament/saved/${neg.tournament_id}/negotiation/${neg.index}`)
+        if (response.ok) {
+          fullData = await response.json()
+        } else {
+          console.error('Failed to load tournament negotiation:', response.status)
+          previewData.value = null
+          return
+        }
+      } else {
+        console.error('Missing tournament_id or index for tournament negotiation')
+        previewData.value = null
+        return
+      }
+    } else if (neg.source === 'saved') {
       fullData = await negotiationsStore.loadSavedNegotiation(neg.id)
     } else {
       // For running/completed sessions, get full session data from API
       fullData = await negotiationsStore.getSession(neg.id)
+    }
+    
+    if (!fullData) {
+      previewData.value = null
+      return
     }
     
     if (!fullData) {
@@ -982,6 +1030,23 @@ function getResultTooltip(neg) {
 }
 
 function viewNegotiation(sessionId) {
+  // Check if this is a tournament negotiation (format: tournament:{tournament_id}:{index})
+  if (sessionId.startsWith('tournament:')) {
+    const parts = sessionId.split(':')
+    if (parts.length === 3) {
+      const tournamentId = parts[1]
+      const index = parts[2]
+      // Navigate to SingleNegotiation with tournament context in query
+      router.push({ 
+        name: 'SingleNegotiation', 
+        params: { id: sessionId },
+        query: { tournament_id: tournamentId, index: index }
+      })
+      return
+    }
+  }
+  
+  // Regular negotiation
   router.push({ name: 'SingleNegotiation', params: { id: sessionId } })
 }
 
