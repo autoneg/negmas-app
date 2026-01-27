@@ -1037,10 +1037,20 @@ function viewNegotiation(sessionId) {
       const tournamentId = parts[1]
       const index = parts[2]
       // Navigate to SingleNegotiation with tournament context in query
+      // Add fromList=true if we're in tournament mode so back button returns to list
+      const query = { 
+        tournament_id: tournamentId, 
+        index: index
+      }
+      
+      if (isTournamentMode.value) {
+        query.fromList = 'true'
+      }
+      
       router.push({ 
         name: 'SingleNegotiation', 
         params: { id: sessionId },
-        query: { tournament_id: tournamentId, index: index }
+        query: query
       })
       return
     }

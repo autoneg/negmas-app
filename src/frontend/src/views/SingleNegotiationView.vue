@@ -777,8 +777,14 @@ function handleSaveResults() {
 }
 
 function backToTournament() {
-  // Navigate back to the tournament this negotiation came from
-  if (tournamentId.value) {
+  // If we have a fromList query param, navigate back to the tournament negotiations list
+  if (route.query.fromList === 'true' && tournamentId.value) {
+    router.push({ 
+      name: 'TournamentNegotiationsList', 
+      params: { tournamentId: tournamentId.value } 
+    })
+  } else if (tournamentId.value) {
+    // Otherwise go to tournament detail view
     router.push({ name: 'SingleTournament', params: { id: tournamentId.value } })
   } else {
     // Fallback to tournaments list
