@@ -766,13 +766,43 @@ class TournamentStorageService:
                             except (ValueError, TypeError):
                                 pass
 
+                # Get agreement data
+                agreement_val = row.get("agreement")
+                has_agreement = (
+                    agreement_val is not None
+                    and str(agreement_val) != ""
+                    and str(agreement_val) != "None"
+                    and pd.notna(agreement_val)
+                )
+
+                # Parse agreement dict if available
+                agreement_dict = None
+                if has_agreement:
+                    try:
+                        if isinstance(agreement_val, dict):
+                            agreement_dict = agreement_val
+                        elif isinstance(agreement_val, str):
+                            agreement_dict = ast.literal_eval(agreement_val)
+                    except (ValueError, SyntaxError):
+                        pass
+
+                # Get timestamp - check various possible fields
+                timestamp = None
+                for key in ["timestamp", "time", "completed_at", "end_time"]:
+                    val = row.get(key)
+                    if val is not None and pd.notna(val):
+                        timestamp = val
+                        break
+
                 negotiations.append(
                     {
                         "index": idx,
                         "scenario": scenario,
                         "partners": partners,
                         "has_agreement": has_agreement,
+                        "agreement_dict": agreement_dict,
                         "utilities": utilities if utilities else None,
+                        "timestamp": timestamp,
                         "raw_data": cls._sanitize_for_json(
                             row.to_dict() if hasattr(row, "to_dict") else dict(row)
                         ),
