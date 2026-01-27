@@ -136,7 +136,7 @@
             <TournamentGridPanel 
               :gridInit="gridInit"
               :cellStates="cellStates"
-              :selfPlay="currentSession.self_play || false"
+              :selfPlay="currentSession.config?.self_play ?? true"
               :status="currentSession.status"
               :tournamentId="tournamentId"
             />
