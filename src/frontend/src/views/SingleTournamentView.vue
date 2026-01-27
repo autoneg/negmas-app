@@ -278,7 +278,58 @@ const tournamentStats = computed(() => {
     }
   }
   
-  // Fallback to liveNegotiations for completed tournaments
+  // Fallback to cellStates for saved tournaments (aggregate cell-level stats)
+  if (cellStates.value && Object.keys(cellStates.value).length > 0) {
+    let totalNegs = 0
+    let completedNegs = 0
+    let agreementsCount = 0
+    let timeoutsCount = 0
+    let errorsCount = 0
+    
+    Object.values(cellStates.value).forEach(cell => {
+      totalNegs += cell.total || 0
+      completedNegs += cell.completed || 0
+      agreementsCount += cell.agreements || 0
+      timeoutsCount += cell.timeouts || 0
+      errorsCount += cell.errors || 0
+    })
+    
+    if (totalNegs === 0) {
+      return {
+        total: 0,
+        agreements: 0,
+        timeouts: 0,
+        errors: 0,
+        ended: 0,
+        completed: 0,
+        agreementRate: 0,
+        timeoutRate: 0,
+        errorRate: 0,
+        endedRate: 0,
+        successRate: 0,
+        completionRate: 0
+      }
+    }
+    
+    const successfulNegs = completedNegs - errorsCount
+    
+    return {
+      total: totalNegs,
+      agreements: agreementsCount,
+      timeouts: timeoutsCount,
+      errors: errorsCount,
+      ended: 0,  // Not tracked at cell level
+      completed: completedNegs,
+      agreementRate: completedNegs > 0 ? (agreementsCount / completedNegs * 100).toFixed(1) : 0,
+      timeoutRate: completedNegs > 0 ? (timeoutsCount / completedNegs * 100).toFixed(1) : 0,
+      errorRate: completedNegs > 0 ? (errorsCount / completedNegs * 100).toFixed(1) : 0,
+      endedRate: 0,
+      successRate: completedNegs > 0 ? (successfulNegs / completedNegs * 100).toFixed(1) : 0,
+      completionRate: (completedNegs / totalNegs * 100).toFixed(1)
+    }
+  }
+  
+  // Last fallback: liveNegotiations for completed tournaments
   const total = liveNegotiations.value?.length || 0
   if (total === 0) {
     return {

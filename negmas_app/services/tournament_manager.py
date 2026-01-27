@@ -200,12 +200,14 @@ class TournamentManager:
         Returns:
             Created session (not yet started).
         """
-        session_id = str(uuid.uuid4())[:8]
+        # Generate session ID with timestamp for uniqueness and consistency with save path
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        short_uuid = str(uuid.uuid4())[:8]
+        session_id = f"{timestamp}_{short_uuid}"
 
         # Set default save_path if not provided
         if config.save_path is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            config.save_path = str(self.tournaments_dir / f"{timestamp}_{session_id}")
+            config.save_path = str(self.tournaments_dir / session_id)
 
         session = TournamentSession(
             id=session_id,
