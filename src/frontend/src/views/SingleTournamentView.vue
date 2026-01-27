@@ -18,31 +18,62 @@
     <div v-else-if="currentSession" class="tournament-viewer">
       <!-- Compact Header -->
       <div class="viewer-header">
-        <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
           <button class="btn btn-ghost btn-sm" @click="router.push({ name: 'TournamentsList' })" title="Back to tournaments list">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
               <polyline points="15 18 9 12 15 6"></polyline>
             </svg>
             Back
           </button>
-          <div>
-            <h2>{{ currentSession.name || `Tournament ${currentSession.id.slice(0, 12)}` }}</h2>
-            <div v-if="gridInit" class="tournament-info">
-              <span>{{ gridInit.competitors?.length || 0 }} competitors</span>
-              <span>×</span>
-              <span>{{ gridInit.scenarios?.length || 0 }} scenarios</span>
-              <span>=</span>
-              <span>{{ gridInit.total_negotiations || 0 }} negotiations</span>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+              <div>
+                <h2>{{ currentSession.name || `Tournament ${currentSession.id.slice(0, 12)}` }}</h2>
+                <div v-if="gridInit" class="tournament-info">
+                  <span>{{ gridInit.competitors?.length || 0 }} competitors</span>
+                  <span>×</span>
+                  <span>{{ gridInit.scenarios?.length || 0 }} scenarios</span>
+                  <span>=</span>
+                  <span>{{ gridInit.total_negotiations || 0 }} negotiations</span>
+                </div>
+              </div>
+              <!-- Progress bar in header -->
+              <div v-if="gridInit" class="header-progress">
+                <div class="header-progress-text">
+                  <span class="progress-percentage">{{ tournamentStats.completionRate }}%</span>
+                  <span class="progress-count">{{ tournamentStats.completed }}/{{ gridInit.total_negotiations || 0 }}</span>
+                </div>
+                <div class="header-progress-bar">
+                  <div class="header-progress-fill" :style="{ width: tournamentStats.completionRate + '%' }"></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
         <div class="header-actions">
           <button
+            v-if="currentSession.status === 'running' || currentSession.status === 'completed'"
+            class="btn btn-ghost btn-sm"
+            @click="viewNegotiations"
+            title="View all negotiations"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="9" y1="3" x2="9" y2="21"></line>
+            </svg>
+            View Negotiations
+            <span v-if="negotiationsCount > 0" class="count-badge-sm">{{ negotiationsCount }}</span>
+          </button>
+          <button
             v-if="currentSession.status === 'running'"
             class="btn btn-secondary btn-sm"
-            @click="cancelTournament"
+            @click="stopTournament"
+            title="Stop and save tournament progress"
           >
-            Cancel
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <rect x="6" y="6" width="12" height="12" rx="1"></rect>
+            </svg>
+            Stop
           </button>
           <button class="btn btn-primary btn-sm" @click="showNewTournamentModal = true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -54,7 +85,7 @@
         </div>
       </div>
       
-      <!-- Stats Bar (single line with inline stats) -->
+      <!-- Stats Bar (comprehensive statistics) -->
       <div v-if="currentSession.status === 'running' || currentSession.status === 'completed'" class="stats-bar">
         <!-- Setup Progress (before grid_init) -->
         <div v-if="setupProgress && !gridInit" class="setup-progress">
@@ -67,36 +98,32 @@
           </div>
         </div>
         
-        <!-- Running Stats (after grid_init) -->
+        <!-- Comprehensive Stats (after grid_init) -->
         <div v-else class="stats-inline">
           <span class="stat-inline">
-            <span class="stat-label">Negotiations:</span>
-            <span class="stat-value">
-              {{ currentSession.status === 'completed' 
-                ? (currentSession.n_negotiations || 0) 
-                : `${progress?.completed || 0}/${progress?.total || 0}` 
-              }}
-            </span>
+            <span class="stat-label">Completion:</span>
+            <span class="stat-value">{{ tournamentStats.completionRate }}%</span>
           </span>
-          <span class="stat-inline" v-if="currentSession.status === 'completed' && currentSession.n_agreements !== undefined">
-            <span class="stat-label">Agreements:</span>
-            <span class="stat-value">
-              {{ currentSession.n_agreements || 0 }} ({{ Math.round((currentSession.agreement_rate || 0) * 100) }}%)
-            </span>
+          <span class="stat-inline">
+            <span class="stat-label">Success:</span>
+            <span class="stat-value">{{ tournamentStats.successRate }}%</span>
           </span>
-          <span class="stat-inline" v-if="currentSession.status === 'running' && progress">
-            <span class="stat-label">Progress:</span>
-            <span class="stat-value">{{ Math.round(progress.percent || 0) }}%</span>
+          <span class="stat-inline">
+            <span class="stat-label">Agreement:</span>
+            <span class="stat-value">{{ tournamentStats.agreementRate }}%</span>
+          </span>
+          <span class="stat-inline">
+            <span class="stat-label">Timeout:</span>
+            <span class="stat-value">{{ tournamentStats.timeoutRate }}%</span>
+          </span>
+          <span class="stat-inline" v-if="tournamentStats.errors > 0">
+            <span class="stat-label">Errors:</span>
+            <span class="stat-value error-value">{{ tournamentStats.errorRate }}%</span>
           </span>
           <span v-if="streamingSession" class="stat-inline live-indicator">
             <span class="status-dot"></span>
             LIVE
           </span>
-        </div>
-        
-        <!-- Progress bar for running tournaments (after grid_init) -->
-        <div v-if="currentSession.status === 'running' && progress && gridInit" class="progress-bar-inline">
-          <div class="progress-fill" :style="{ width: progress.percent + '%' }"></div>
         </div>
       </div>
       
@@ -123,26 +150,12 @@
           </div>
         </div>
         
-        <!-- Bottom Row: View Negotiations Button -->
-        <div 
-          v-if="currentSession.status === 'running' || currentSession.status === 'completed'" 
-          class="negotiations-section"
-        >
-          <button class="btn btn-negotiations" @click="viewNegotiations">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="9" y1="3" x2="9" y2="21"></line>
-            </svg>
-            View Negotiations
-            <span v-if="negotiationsCount > 0" class="count-badge">{{ negotiationsCount }}</span>
-          </button>
-          
-          <!-- Optional: Show live indicator for running negotiations -->
-          <div v-if="runningNegotiations && runningNegotiations.size > 0" class="live-indicator-small">
-            <span class="status-dot-small"></span>
-            {{ runningNegotiations.size }} running
-          </div>
-        </div>
+        <!-- Bottom Row: Errors Panel -->
+        <TournamentErrorsPanel
+          v-if="currentSession.status === 'running' || currentSession.status === 'completed'"
+          :errors="errorNegotiations"
+          :status="currentSession.status"
+        />
       </div>
     </div>
     
@@ -174,6 +187,7 @@ import { storeToRefs } from 'pinia'
 import NewTournamentModal from '../components/NewTournamentModal.vue'
 import TournamentGridPanel from '../components/TournamentGridPanel.vue'
 import TournamentScoresPanel from '../components/TournamentScoresPanel.vue'
+import TournamentErrorsPanel from '../components/TournamentErrorsPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -190,6 +204,7 @@ const {
   setupProgress,
   liveNegotiations,
   runningNegotiations,
+  errorNegotiations,
 } = storeToRefs(tournamentsStore)
 
 const showNewTournamentModal = ref(false)
@@ -211,6 +226,62 @@ const negotiationsCount = computed(() => {
   const running = runningNegotiations.value?.size || 0
   const completed = liveNegotiations.value?.length || 0
   return running + completed
+})
+
+// Computed statistics from cellStates and liveNegotiations
+const tournamentStats = computed(() => {
+  const total = liveNegotiations.value?.length || 0
+  if (total === 0) {
+    return {
+      total: 0,
+      agreements: 0,
+      timeouts: 0,
+      errors: 0,
+      ended: 0,
+      completed: 0,
+      agreementRate: 0,
+      timeoutRate: 0,
+      errorRate: 0,
+      endedRate: 0,
+      successRate: 0,
+      completionRate: 0
+    }
+  }
+
+  let agreements = 0
+  let timeouts = 0
+  let errors = 0
+  let ended = 0
+
+  liveNegotiations.value.forEach(neg => {
+    if (neg.has_agreement || neg.end_reason === 'agreement') {
+      agreements++
+    } else if (neg.end_reason === 'timeout') {
+      timeouts++
+    } else if (neg.has_error || neg.end_reason === 'error' || neg.end_reason === 'broken') {
+      errors++
+    } else if (neg.end_reason === 'ended') {
+      ended++
+    }
+  })
+
+  const expectedTotal = gridInit.value?.total_negotiations || total
+  const successfulNegs = total - errors
+
+  return {
+    total,
+    agreements,
+    timeouts,
+    errors,
+    ended,
+    completed: total,
+    agreementRate: (agreements / total * 100).toFixed(1),
+    timeoutRate: (timeouts / total * 100).toFixed(1),
+    errorRate: (errors / total * 100).toFixed(1),
+    endedRate: (ended / total * 100).toFixed(1),
+    successRate: (successfulNegs / total * 100).toFixed(1),
+    completionRate: (total / expectedTotal * 100).toFixed(1)
+  }
 })
 
 // Navigation to negotiations list
@@ -309,13 +380,16 @@ function onTournamentStart(data) {
   }
 }
 
-async function cancelTournament() {
+async function stopTournament() {
   if (!currentSession.value) return
-  if (confirm('Are you sure you want to cancel this tournament?')) {
+  if (confirm('Stop this tournament and save progress? You can continue it later from the tournaments list.')) {
     await tournamentsStore.cancelSession(currentSession.value.id)
     router.push({ name: 'TournamentsList' })
   }
 }
+
+// Keep cancelTournament as alias for backwards compatibility
+const cancelTournament = stopTournament
 
 function handleViewNegotiation(neg) {
   // For running tournaments, click on a negotiation to view its live data
@@ -738,5 +812,61 @@ async function handleLoadTrace(tournamentId, negIndex) {
     opacity: 0.6;
     transform: scale(1.2);
   }
+}
+
+/* Header Progress Bar */
+.header-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+}
+
+.header-progress-text {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.progress-percentage {
+  font-weight: 600;
+  color: var(--primary-color);
+  font-size: 14px;
+}
+
+.progress-count {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.header-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.header-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-hover));
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.count-badge-sm {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--primary-color);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.error-value {
+  color: var(--color-error);
+  font-weight: 600;
 }
 </style>

@@ -17,6 +17,12 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   const tournamentComplete = ref(null)
   const liveNegotiations = ref([]) // Live negotiations as they complete
   const runningNegotiations = ref({}) // Map of run_id -> negotiation progress data
+  const errorNegotiations = ref([]) // Failed negotiations with error details
+  
+  // Grid display settings
+  const gridDisplayModes = ref([
+    'completion'  // Default: show completion percentage
+  ])
   
   // Tournament presets (saved configurations)
   const tournamentPresets = ref([])
@@ -78,6 +84,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     leaderboard.value = []
     liveNegotiations.value = []
     runningNegotiations.value = {}
+    errorNegotiations.value = []
     progress.value = null
     setupProgress.value = null
     tournamentComplete.value = null
@@ -203,19 +210,34 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         
         // Add to live negotiations if we have the detailed data
         if (data.issue_names && data.scenario_path) {
-          liveNegotiations.value.push({
+          const negotiation = {
             index: liveNegotiations.value.length,
             scenario: data.scenario_path || scenario,
             scenario_path: data.scenario_path,
             partners: [competitor, opponent],
             end_reason: data.end_reason,
             has_agreement: data.end_reason === 'agreement',
+            has_error: data.end_reason === 'error' || data.end_reason === 'broken',
             agreement: data.agreement || null,
             utilities: data.utilities || {},
             n_steps: data.n_steps || 0,
             issue_names: data.issue_names || [],
-            offers: data.offers || []
-          })
+            offers: data.offers || [],
+            error: data.error || null
+          }
+          liveNegotiations.value.push(negotiation)
+          
+          // Track errors separately for error panel
+          if (negotiation.has_error) {
+            errorNegotiations.value.push({
+              timestamp: Date.now(),
+              scenario: data.scenario_path || scenario,
+              partners: [competitor, opponent],
+              error: data.error || 'Unknown error',
+              n_steps: data.n_steps || 0,
+              cellKey
+            })
+          }
         }
       }
     })
@@ -523,6 +545,8 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     leaderboard,
     liveNegotiations,
     runningNegotiations,
+    errorNegotiations,
+    gridDisplayModes,
     progress,
     setupProgress,
     tournamentComplete,
