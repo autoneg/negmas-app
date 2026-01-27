@@ -87,8 +87,8 @@
       
       <!-- Stats Bar (comprehensive statistics) -->
       <div v-if="currentSession.status === 'running' || currentSession.status === 'completed'" class="stats-bar">
-        <!-- Setup Progress (before grid_init) -->
-        <div v-if="setupProgress && !gridInit" class="setup-progress">
+        <!-- Setup Progress (shown during initialization phase) -->
+        <div v-if="setupProgress && setupProgress.current < setupProgress.total" class="setup-progress">
           <div class="setup-progress-header">
             <div class="spinner-sm"></div>
             <span class="setup-message">{{ setupProgress.message || 'Initializing tournament...' }}</span>
@@ -98,8 +98,8 @@
           </div>
         </div>
         
-        <!-- Comprehensive Stats (after grid_init) -->
-        <div v-else class="stats-inline">
+        <!-- Comprehensive Stats (always shown when available) -->
+        <div v-if="gridInit" class="stats-inline">
           <span class="stat-inline">
             <span class="stat-label">Completion:</span>
             <span class="stat-value">{{ tournamentStats.completionRate }}%</span>
