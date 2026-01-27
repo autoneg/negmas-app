@@ -1002,12 +1002,19 @@ async function rerunNegotiation(sessionId) {
 
 async function deleteSaved(sessionId) {
   if (confirm('Are you sure you want to delete this saved negotiation?')) {
-    await negotiationsStore.deleteSavedNegotiation(sessionId)
-    
-    // Clear selection if deleted
-    if (selectedNegotiation.value?.id === sessionId) {
-      selectedNegotiation.value = null
-      previewData.value = null
+    try {
+      console.log('[NegotiationsListView] Deleting negotiation:', sessionId)
+      await negotiationsStore.deleteSavedNegotiation(sessionId)
+      console.log('[NegotiationsListView] Negotiation deleted successfully')
+      
+      // Clear selection if deleted
+      if (selectedNegotiation.value?.id === sessionId) {
+        selectedNegotiation.value = null
+        previewData.value = null
+      }
+    } catch (error) {
+      console.error('[NegotiationsListView] Failed to delete negotiation:', error)
+      alert(`Failed to delete negotiation: ${error.message}`)
     }
   }
 }

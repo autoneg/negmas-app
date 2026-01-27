@@ -304,14 +304,25 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
 
   async function deleteSavedNegotiation(sessionId) {
     try {
+      console.log('[Negotiations Store] Deleting negotiation:', sessionId)
       const response = await fetch(`/api/negotiation/saved/${sessionId}`, {
         method: 'DELETE'
       })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('[Negotiations Store] Delete failed:', response.status, errorData)
+        throw new Error(`Delete failed: ${errorData.detail || response.statusText}`)
+      }
+      
+      const result = await response.json()
+      console.log('[Negotiations Store] Delete successful:', result)
+      
       await loadSavedNegotiations(showArchived.value)
-      return await response.json()
+      return result
     } catch (error) {
-      console.error('Failed to delete saved negotiation:', error)
-      return null
+      console.error('[Negotiations Store] Failed to delete saved negotiation:', error)
+      throw error
     }
   }
 
