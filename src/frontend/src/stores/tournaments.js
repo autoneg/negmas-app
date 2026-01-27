@@ -266,6 +266,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     
     eventSource.value.addEventListener('leaderboard', (event) => {
       const data = JSON.parse(event.data)
+      console.log('[Tournaments Store] Leaderboard event received:', data)
       // Backend sends array directly, not wrapped in {leaderboard: [...]}
       leaderboard.value = Array.isArray(data) ? data : []
     })
