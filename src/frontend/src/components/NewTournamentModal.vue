@@ -572,12 +572,14 @@
                       <input v-model="settings.saveStats" type="checkbox" />
                       <span>Save Statistics</span>
                     </label>
+                    <div class="form-hint">⚠️ Calculates Pareto/Nash/Kalai points per scenario - slow for many scenarios</div>
                   </div>
                   <div class="form-group">
                     <label class="form-checkbox">
                       <input v-model="settings.saveScenarioFigs" type="checkbox" />
                       <span>Save Scenario Figures</span>
                     </label>
+                    <div class="form-hint">⚠️ Generates figures per scenario - slow for many scenarios</div>
                   </div>
                   <div class="form-group">
                     <label class="form-label">Save Every N Negotiations</label>
