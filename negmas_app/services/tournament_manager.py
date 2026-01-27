@@ -473,8 +473,14 @@ class TournamentManager:
                 # Use config names for lookup (they're in the same order as types)
                 if config_competitor_names and p0 in config_competitor_names:
                     comp_idx = config_competitor_names.index(p0)
+
+                # For opponent index: if no explicit opponents (empty list), use competitor_names
+                # Otherwise use opponent_names
                 if config_opponent_names and p1 in config_opponent_names:
                     opp_idx = config_opponent_names.index(p1)
+                elif config_competitor_names and p1 in config_competitor_names:
+                    # No explicit opponents - competitors play each other
+                    opp_idx = config_competitor_names.index(p1)
 
             scenario_idx = 0
             if base_scenario_name in state.scenario_names:
@@ -559,8 +565,14 @@ class TournamentManager:
                 # Use config names for lookup (they're in the same order as types)
                 if config_competitor_names and p0 in config_competitor_names:
                     comp_idx = config_competitor_names.index(p0)
+
+                # For opponent index: if no explicit opponents (empty list), use competitor_names
+                # Otherwise use opponent_names
                 if config_opponent_names and p1 in config_opponent_names:
                     opp_idx = config_opponent_names.index(p1)
+                elif config_competitor_names and p1 in config_competitor_names:
+                    # No explicit opponents - competitors play each other
+                    opp_idx = config_competitor_names.index(p1)
 
             # Try to match the base scenario name to our list
             if base_scenario_name in state.scenario_names:
