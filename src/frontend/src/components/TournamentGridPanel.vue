@@ -321,10 +321,8 @@ function toggleDisplayMode(mode) {
       displayModes.value.splice(index, 1)
     }
   } else {
-    // Add mode (limit to 3 modes max)
-    if (displayModes.value.length < 3) {
-      displayModes.value.push(mode)
-    }
+    // Add mode (allow all 5 modes)
+    displayModes.value.push(mode)
   }
   
   // Save to localStorage
