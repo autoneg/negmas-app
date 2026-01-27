@@ -725,7 +725,10 @@ class TournamentStorageService:
                             parsed = ast.literal_eval(partners_val)
                             if isinstance(parsed, (list, tuple)):
                                 partners = list(parsed)
-                        except (ValueError, SyntaxError):
+                        except (ValueError, SyntaxError) as e:
+                            logger.warning(
+                                f"Failed to parse partners string in list: {partners_val[:100]}, error: {e}"
+                            )
                             pass
 
                 # Fall back to individual fields
@@ -739,7 +742,7 @@ class TournamentStorageService:
                         "agent1",
                     ]:
                         if row.get(key):
-                            partners.append(row[key])
+                            partners.append(str(row[key]))
 
                 # Get scenario
                 scenario = row.get("scenario") or row.get("domain") or "Unknown"
@@ -795,10 +798,19 @@ class TournamentStorageService:
                     try:
                         if isinstance(agreement_val, dict):
                             agreement_dict = agreement_val
+                        elif isinstance(agreement_val, (list, tuple)):
+                            # Agreement is already a list/tuple, keep as is
+                            agreement_dict = list(agreement_val)
                         elif isinstance(agreement_val, str):
-                            agreement_dict = ast.literal_eval(agreement_val)
-                    except (ValueError, SyntaxError):
-                        pass
+                            # Try to parse - could be dict, list, or tuple
+                            parsed = ast.literal_eval(agreement_val)
+                            agreement_dict = parsed
+                    except (ValueError, SyntaxError) as e:
+                        logger.warning(
+                            f"Failed to parse agreement in list: {str(agreement_val)[:100]}, error: {e}"
+                        )
+                        # Keep as string if parsing fails
+                        agreement_dict = str(agreement_val)
 
                 # Get timestamp - check various possible fields
                 timestamp = None
@@ -871,14 +883,17 @@ class TournamentStorageService:
                         parsed = ast.literal_eval(partners_val)
                         if isinstance(parsed, (list, tuple)):
                             partners = list(parsed)
-                    except (ValueError, SyntaxError):
+                    except (ValueError, SyntaxError) as e:
+                        logger.warning(
+                            f"Failed to parse partners string: {partners_val[:100]}, error: {e}"
+                        )
                         pass
 
             # Fall back to individual fields
             if not partners:
                 for k in ["negotiator0", "negotiator1", "first", "second"]:
                     if row.get(k):
-                        partners.append(row[k])
+                        partners.append(str(row[k]))
 
             # Parse utilities
             utilities = None
@@ -909,7 +924,7 @@ class TournamentStorageService:
                             pass
                 utilities = utilities if utilities else None
 
-            # Get agreement value
+            # Get agreement value and parse it properly
             agreement_val = row.get("agreement")
             has_agreement = (
                 agreement_val is not None
@@ -917,6 +932,31 @@ class TournamentStorageService:
                 and str(agreement_val) != "None"
                 and pd.notna(agreement_val)
             )
+
+            # Parse agreement - convert string representation to actual list/tuple
+            agreement_parsed = None
+            if has_agreement:
+                if isinstance(agreement_val, (list, tuple)):
+                    # Already a list/tuple
+                    agreement_parsed = list(agreement_val)
+                elif isinstance(agreement_val, str):
+                    try:
+                        # Try to parse string representation like "('Macintosh', '60 Gb', \"19''LCD\")"
+                        parsed = ast.literal_eval(agreement_val)
+                        if isinstance(parsed, (list, tuple)):
+                            agreement_parsed = list(parsed)
+                        else:
+                            # If parsing fails or returns non-sequence, keep as string
+                            agreement_parsed = agreement_val
+                    except (ValueError, SyntaxError) as e:
+                        logger.warning(
+                            f"Failed to parse agreement string: {agreement_val[:100]}, error: {e}"
+                        )
+                        # Keep as string if parsing fails
+                        agreement_parsed = agreement_val
+                else:
+                    # Other types (dict, int, etc.) - keep as is
+                    agreement_parsed = agreement_val
 
             # Get scenario name
             scenario_name = row.get("scenario") or row.get("domain")
@@ -964,7 +1004,7 @@ class TournamentStorageService:
                 ),
                 "scenario": scenario_name,
                 "partners": partners,
-                "agreement": str(agreement_val) if agreement_val is not None else None,
+                "agreement": agreement_parsed,  # Use parsed agreement, not str(agreement_val)
                 "utilities": utilities,
                 "has_agreement": has_agreement,
                 "issue_names": issue_names,
