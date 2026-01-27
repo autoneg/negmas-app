@@ -77,6 +77,7 @@
                   Status
                   <span v-if="sortColumn === 'status'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
                 </th>
+                <th style="width: 180px;">Statistics</th>
                 <th style="width: 100px;">Tags</th>
                 <th style="width: 100px;">Actions</th>
               </tr>
@@ -100,6 +101,23 @@
                   <span v-else-if="tourn.status === 'pending'" class="badge badge-pending">Pending</span>
                   <span v-else-if="tourn.status === 'failed'" class="badge badge-failed">Failed</span>
                   <span v-else class="badge badge-completed">Completed</span>
+                </td>
+                <td class="stats-cell">
+                  <div v-if="tourn.status === 'completed' || tourn.status === 'failed'" class="tournament-stats">
+                    <div class="stat-item" title="Completion Rate">
+                      <span class="stat-label">Complete:</span>
+                      <span class="stat-value">{{ getTournamentStats(tourn).completion }}%</span>
+                    </div>
+                    <div class="stat-item" title="Success Rate (no errors)">
+                      <span class="stat-label">Success:</span>
+                      <span class="stat-value">{{ getTournamentStats(tourn).success }}%</span>
+                    </div>
+                    <div class="stat-item" title="Number of Errors">
+                      <span class="stat-label">Errors:</span>
+                      <span class="stat-value stat-error">{{ getTournamentStats(tourn).errors }}</span>
+                    </div>
+                  </div>
+                  <span v-else class="text-muted">-</span>
                 </td>
                 <td class="tags-cell">
                   <div class="tags-list">
@@ -549,6 +567,26 @@ function formatDate(timestamp) {
   })
 }
 
+function getTournamentStats(tourn) {
+  // Calculate statistics from tournament data
+  const total = tourn.total || 0
+  const completed = tourn.completed || 0
+  const errors = tourn.n_errors || 0
+  
+  if (total === 0) {
+    return { completion: 0, success: 0, errors: 0 }
+  }
+  
+  const completion = Math.round((completed / total) * 100)
+  const success = completed > 0 ? Math.round(((completed - errors) / completed) * 100) : 0
+  
+  return { 
+    completion, 
+    success, 
+    errors 
+  }
+}
+
 function getCellClass(competitor, scenario) {
   if (!previewData.value?.cellStates) return 'pending'
   const key = `${competitor}::${scenario}`
@@ -841,6 +879,43 @@ async function stopTournament(tourn) {
 .count-cell {
   text-align: center;
   color: var(--text-secondary);
+}
+
+.stats-cell {
+  padding: 8px 12px !important;
+}
+
+.tournament-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  gap: 8px;
+}
+
+.stat-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.stat-value {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stat-error {
+  color: rgb(239, 68, 68);
+}
+
+.text-muted {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .status-cell .badge {
