@@ -135,12 +135,31 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     
     eventSource.value.addEventListener('cell_complete', (event) => {
       const data = JSON.parse(event.data)
+      console.log('[Tournaments Store] cell_complete event:', data)
+      
       // Create cell key using names from gridInit
       if (gridInit.value) {
         const competitor = gridInit.value.competitors[data.competitor_idx]
         const opponent = gridInit.value.opponents[data.opponent_idx]
         const scenario = gridInit.value.scenarios[data.scenario_idx]
         const cellKey = `${competitor}::${opponent}::${scenario}`
+        
+        console.log('[Tournaments Store] Cell indices:', {
+          competitor_idx: data.competitor_idx,
+          opponent_idx: data.opponent_idx,
+          scenario_idx: data.scenario_idx
+        })
+        console.log('[Tournaments Store] Cell names:', {
+          competitor,
+          opponent,
+          scenario
+        })
+        console.log('[Tournaments Store] Cell key:', cellKey)
+        console.log('[Tournaments Store] Grid info:', {
+          n_competitors: gridInit.value.competitors?.length,
+          n_opponents: gridInit.value.opponents?.length,
+          n_scenarios: gridInit.value.scenarios?.length
+        })
         
         // Get existing state or create default
         const existingCell = cellStates.value[cellKey] || {

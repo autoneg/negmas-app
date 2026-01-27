@@ -234,6 +234,51 @@ const negotiationsCount = computed(() => {
 
 // Computed statistics from cellStates and liveNegotiations
 const tournamentStats = computed(() => {
+  // Use progress data if available (updated in real-time)
+  if (progress.value) {
+    const total = progress.value.total || 0
+    const completed = progress.value.completed || 0
+    const agreements = progress.value.agreements || 0
+    const timeouts = progress.value.timeouts || 0
+    const errors = progress.value.errors || 0
+    const ended = progress.value.ended || 0
+    
+    if (total === 0) {
+      return {
+        total: 0,
+        agreements: 0,
+        timeouts: 0,
+        errors: 0,
+        ended: 0,
+        completed: 0,
+        agreementRate: 0,
+        timeoutRate: 0,
+        errorRate: 0,
+        endedRate: 0,
+        successRate: 0,
+        completionRate: 0
+      }
+    }
+    
+    const successfulNegs = completed - errors
+    
+    return {
+      total,
+      agreements,
+      timeouts,
+      errors,
+      ended,
+      completed,
+      agreementRate: (agreements / completed * 100).toFixed(1),
+      timeoutRate: (timeouts / completed * 100).toFixed(1),
+      errorRate: (errors / completed * 100).toFixed(1),
+      endedRate: (ended / completed * 100).toFixed(1),
+      successRate: completed > 0 ? (successfulNegs / completed * 100).toFixed(1) : 0,
+      completionRate: (completed / total * 100).toFixed(1)
+    }
+  }
+  
+  // Fallback to liveNegotiations for completed tournaments
   const total = liveNegotiations.value?.length || 0
   if (total === 0) {
     return {

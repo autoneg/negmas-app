@@ -172,9 +172,9 @@
                 <div class="spinner spinner-cell"></div>
               </div>
               
-              <!-- For completed tournaments with multiple reps, show percentage(s) -->
+              <!-- For cells with multiple reps or completed tournaments, show metrics -->
               <div 
-                v-if="isCompleted && getScenarioCellPercent(i, j) !== null" 
+                v-if="shouldShowMetrics(i, j)" 
                 class="cell-metrics-display"
               >
                 <div 
@@ -188,7 +188,7 @@
                 </div>
               </div>
               
-              <!-- For running tournaments or single-rep completed, show icons -->
+              <!-- For single-rep running/pending cells, show icons -->
               <template v-else>
                 <!-- Icon based on state -->
                 <div v-if="getScenarioCellStatus(i, j) === 'running'" class="spinner spinner-xs"></div>
@@ -819,6 +819,29 @@ function getScenarioCellPercent(i, j) {
   const agreements = state.agreements || (state.has_agreement ? 1 : 0)
   
   return Math.round((agreements / total) * 100)
+}
+
+// Determine if cell should show metrics vs icons
+function shouldShowMetrics(i, j) {
+  if (i === j && !props.selfPlay) return false
+  
+  const competitor = competitors.value[i]
+  const opponent = opponents.value[j]
+  const scenario = scenarios.value[currentTab.value]
+  
+  const key = `${competitor}::${opponent}::${scenario}`
+  const state = props.cellStates[key]
+  
+  // Always show metrics if tournament is completed
+  if (isCompleted.value && state) return true
+  
+  // Show metrics if this cell has multiple expected negotiations (total > 1)
+  if (state && state.total > 1) return true
+  
+  // Show metrics if any negotiations have completed in this cell
+  if (state && state.completed > 0) return true
+  
+  return false
 }
 </script>
 
