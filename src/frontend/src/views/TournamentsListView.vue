@@ -580,11 +580,19 @@ function viewTournament(tournamentId) {
 
 async function deleteSavedTourn(tournamentId) {
   if (confirm('Are you sure you want to delete this saved tournament?')) {
-    await tournamentsStore.deleteSavedTournament(tournamentId)
-    
-    if (selectedTournament.value?.id === tournamentId) {
-      selectedTournament.value = null
-      previewData.value = null
+    try {
+      console.log('[TournamentsListView] Deleting tournament:', tournamentId)
+      await tournamentsStore.deleteSavedTournament(tournamentId)
+      console.log('[TournamentsListView] Tournament deleted successfully')
+      
+      // Clear selection if deleted tournament was selected
+      if (selectedTournament.value?.id === tournamentId) {
+        selectedTournament.value = null
+        previewData.value = null
+      }
+    } catch (error) {
+      console.error('[TournamentsListView] Failed to delete tournament:', error)
+      alert(`Failed to delete tournament: ${error.message}`)
     }
   }
 }
