@@ -3,10 +3,24 @@
     <!-- Header -->
     <div class="list-header">
       <div class="header-left">
-        <h2>Negotiations</h2>
-        <button class="btn btn-primary" @click="showNewNegotiationModal = true">
-          + New Negotiation
-        </button>
+        <!-- Tournament mode: back button + tournament name -->
+        <template v-if="isTournamentMode">
+          <button class="btn btn-ghost btn-sm" @click="goBackToTournament">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            Back to Tournament
+          </button>
+          <h2>{{ currentTournament?.name || 'Tournament Negotiations' }}</h2>
+        </template>
+        
+        <!-- Normal mode: title + new button -->
+        <template v-else>
+          <h2>Negotiations</h2>
+          <button class="btn btn-primary" @click="showNewNegotiationModal = true">
+            + New Negotiation
+          </button>
+        </template>
       </div>
       <div class="header-right">
         <!-- Preview Selector -->
@@ -21,16 +35,18 @@
           </select>
         </label>
         
-        <!-- Filters -->
-        <select v-model="tagFilter" class="form-select" style="width: 150px;">
-          <option value="">All Tags</option>
-          <option v-for="tag in availableTags" :key="tag" :value="tag">{{ tag }}</option>
-        </select>
-        
-        <label style="display: flex; align-items: center; gap: 6px; font-size: 14px;">
-          <input type="checkbox" v-model="showArchived" @change="loadData">
-          <span>Archived</span>
-        </label>
+        <!-- Filters (hidden in tournament mode) -->
+        <template v-if="!isTournamentMode">
+          <select v-model="tagFilter" class="form-select" style="width: 150px;">
+            <option value="">All Tags</option>
+            <option v-for="tag in availableTags" :key="tag" :value="tag">{{ tag }}</option>
+          </select>
+          
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 14px;">
+            <input type="checkbox" v-model="showArchived" @change="loadData">
+            <span>Archived</span>
+          </label>
+        </template>
         
         <button class="btn btn-secondary" @click="loadData" :disabled="loading" title="Refresh">
           <span v-if="loading">⟳</span>
@@ -207,27 +223,31 @@
                   >
                     👁️
                   </button>
-                  <button 
-                    class="btn-icon-small" 
-                    @click="rerunNegotiation(neg.id)" 
-                    title="Rerun negotiation"
-                  >
-                    🔄
-                  </button>
-                  <button 
-                    class="btn-icon-small" 
-                    @click="editTags(neg)" 
-                    title="Edit tags"
-                  >
-                    🏷️
-                  </button>
-                  <button 
-                    class="btn-icon-small" 
-                    @click="deleteSaved(neg.id)" 
-                    title="Delete"
-                  >
-                    🗑️
-                  </button>
+                  
+                  <!-- Hide these buttons in tournament mode -->
+                  <template v-if="!isTournamentMode">
+                    <button 
+                      class="btn-icon-small" 
+                      @click="rerunNegotiation(neg.id)" 
+                      title="Rerun negotiation"
+                    >
+                      🔄
+                    </button>
+                    <button 
+                      class="btn-icon-small" 
+                      @click="editTags(neg)" 
+                      title="Edit tags"
+                    >
+                      🏷️
+                    </button>
+                    <button 
+                      class="btn-icon-small" 
+                      @click="deleteSaved(neg.id)" 
+                      title="Delete"
+                    >
+                      🗑️
+                    </button>
+                  </template>
                 </td>
               </tr>
             </tbody>
@@ -343,8 +363,9 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch, shallowRef } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useNegotiationsStore } from '../stores/negotiations'
+import { useTournamentsStore } from '../stores/tournaments'
 import { storeToRefs } from 'pinia'
 import NewNegotiationModal from '../components/NewNegotiationModal.vue'
 import Utility2DPanel from '../components/panels/Utility2DPanel.vue'
@@ -353,7 +374,16 @@ import HistogramPanel from '../components/panels/HistogramPanel.vue'
 import ResultPanel from '../components/panels/ResultPanel.vue'
 
 const router = useRouter()
+const route = useRoute()
 const negotiationsStore = useNegotiationsStore()
+const tournamentsStore = useTournamentsStore()
+
+// Tournament mode detection
+const tournamentId = computed(() => route.params.tournamentId)
+const isTournamentMode = computed(() => !!tournamentId.value)
+const currentTournament = ref(null)
+
+// Store refs
 const {
   sessions,
   loading,
@@ -363,6 +393,13 @@ const {
   showArchived,
   availableTags,
 } = storeToRefs(negotiationsStore)
+
+// Tournament store refs (for tournament mode)
+const {
+  currentSession: tournamentSession,
+  liveNegotiations: tournamentLiveNegotiations,
+  runningNegotiations: tournamentRunningNegotiations,
+} = storeToRefs(tournamentsStore)
 
 const showNewNegotiationModal = ref(false)
 const searchQuery = ref('')
@@ -380,28 +417,83 @@ const tagEditorNegotiation = ref(null)
 const tagEditorTags = ref([])
 const newTagInput = ref('')
 
+// Data conversion utilities for tournament negotiations
+function convertTournamentRunningNegotiation(neg) {
+  // Convert from tournament running negotiation format to negotiation list format
+  return {
+    id: neg.run_id || neg.id,
+    status: 'running',
+    scenario_name: neg.scenario || 'Unknown',
+    negotiator_names: neg.negotiator_names || [`Agent 0`, `Agent 1`],
+    negotiator_colors: neg.negotiator_colors || ['#3b82f6', '#ef4444'],
+    current_step: neg.step || 0,
+    relative_time: neg.relative_time || 0,
+    n_steps: neg.n_steps,
+    created_at: neg.started_at || Date.now(),
+  }
+}
+
+function convertTournamentCompletedNegotiation(neg) {
+  // Convert from tournament completed negotiation format to negotiation list format
+  const scenarioName = neg.scenario ? 
+    neg.scenario.split('/').pop() : 
+    'Unknown'
+  
+  return {
+    id: neg.id || `neg_${neg.index}`,
+    status: neg.has_error ? 'failed' : 'completed',
+    scenario_name: scenarioName,
+    negotiator_names: neg.partners || [],
+    negotiator_colors: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, (neg.partners || []).length),
+    agreement: neg.agreement,
+    agreement_dict: neg.agreement_dict,
+    final_utilities: neg.utilities || [],
+    has_agreement: neg.has_agreement,
+    end_reason: neg.has_error ? 'error' : (neg.has_agreement ? 'agreement' : 'disagreement'),
+    timestamp: neg.timestamp || Date.now(),
+    source: 'tournament',
+    index: neg.index,
+  }
+}
+
 // Separate running from completed negotiations
 const runningNegotiations = computed(() => {
-  return sessions.value.filter(s => 
-    s.status === 'running' || s.status === 'pending'
-  )
+  if (isTournamentMode.value) {
+    // Use tournament store's runningNegotiations Map
+    if (!tournamentRunningNegotiations.value) return []
+    return Array.from(tournamentRunningNegotiations.value.values())
+      .map(neg => convertTournamentRunningNegotiation(neg))
+  } else {
+    // Use negotiations store's sessions
+    return sessions.value.filter(s => 
+      s.status === 'running' || s.status === 'pending'
+    )
+  }
 })
 
 const completedNegotiations = computed(() => {
-  return [
-    ...sessions.value.filter(s => 
-      s.status === 'completed' || s.status === 'failed'
-    ).map(s => ({
-      ...s,
-      source: 'session',
-      timestamp: s.created_at || s.started_at || Date.now()
-    })),
-    ...savedNegotiations.value.map(s => ({
-      ...s,
-      source: 'saved',
-      timestamp: s.created_at || s.completed_at || Date.now()
-    }))
-  ]
+  if (isTournamentMode.value) {
+    // Use tournament store's liveNegotiations
+    if (!tournamentLiveNegotiations.value) return []
+    return tournamentLiveNegotiations.value
+      .map(neg => convertTournamentCompletedNegotiation(neg))
+  } else {
+    // Use negotiations store's sessions + savedNegotiations
+    return [
+      ...sessions.value.filter(s => 
+        s.status === 'completed' || s.status === 'failed'
+      ).map(s => ({
+        ...s,
+        source: 'session',
+        timestamp: s.created_at || s.started_at || Date.now()
+      })),
+      ...savedNegotiations.value.map(s => ({
+        ...s,
+        source: 'saved',
+        timestamp: s.created_at || s.completed_at || Date.now()
+      }))
+    ]
+  }
 })
 
 // Combine all negotiations (sessions + saved) - for backward compatibility
@@ -539,14 +631,43 @@ watch(selectedNegotiation, (newVal) => {
 })
 
 async function loadData() {
-  await negotiationsStore.loadSessions()
-  await negotiationsStore.loadSavedNegotiations(showArchived.value)
+  if (isTournamentMode.value) {
+    // Load tournament session data
+    try {
+      const tournament = await tournamentsStore.loadSavedTournament(tournamentId.value)
+      currentTournament.value = tournament
+      
+      // If tournament is running, ensure we're connected to SSE
+      if (tournament && tournament.status === 'running') {
+        await tournamentsStore.connectToTournament(tournamentId.value)
+      }
+    } catch (error) {
+      console.error('Failed to load tournament:', error)
+    }
+  } else {
+    // Normal mode: load from negotiations store
+    await negotiationsStore.loadSessions()
+    await negotiationsStore.loadSavedNegotiations(showArchived.value)
+  }
 }
 
-// Polling for running negotiations
+// Navigation helper for tournament mode
+function goBackToTournament() {
+  if (tournamentId.value) {
+    router.push({ name: 'SingleTournament', params: { id: tournamentId.value } })
+  }
+}
+
+// Polling for running negotiations (only in normal mode)
 let pollingInterval = null
 
 function startPolling() {
+  // Don't poll in tournament mode - we use SSE instead
+  if (isTournamentMode.value) {
+    console.log('[NegotiationsListView] Tournament mode - using SSE, no polling needed')
+    return
+  }
+  
   console.log('[NegotiationsListView] Starting polling')
   // Poll every 2 seconds when there are running negotiations
   pollingInterval = setInterval(async () => {
@@ -1297,6 +1418,55 @@ function onNegotiationStart(data) {
 .saved-section .section-header {
   margin-bottom: 0;
   border-radius: 6px 6px 0 0;
+}
+
+/* Button styles for tournament mode */
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  border-color: var(--primary-color);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
 }
 
 </style>
