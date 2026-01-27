@@ -465,14 +465,25 @@ export const useTournamentsStore = defineStore('tournaments', () => {
 
   async function deleteSavedTournament(tournamentId) {
     try {
+      console.log('[Tournaments Store] Deleting tournament:', tournamentId)
       const response = await fetch(`/api/tournament/saved/${tournamentId}`, {
         method: 'DELETE'
       })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('[Tournaments Store] Delete failed:', response.status, errorData)
+        throw new Error(`Delete failed: ${errorData.detail || response.statusText}`)
+      }
+      
+      const result = await response.json()
+      console.log('[Tournaments Store] Delete successful:', result)
+      
       await loadSavedTournaments(showArchivedTournaments.value)
-      return await response.json()
+      return result
     } catch (error) {
-      console.error('Failed to delete saved tournament:', error)
-      return null
+      console.error('[Tournaments Store] Failed to delete saved tournament:', error)
+      throw error
     }
   }
 
