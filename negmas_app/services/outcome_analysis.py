@@ -88,6 +88,13 @@ def _from_cached_stats(scenario: Scenario, max_samples: int) -> OutcomeSpaceData
     ufuns = scenario.ufuns
     outcome_space = scenario.outcome_space
 
+    # Normalize ufuns if stats has utility_ranges (indicates stats were computed with normalized ufuns)
+    # This ensures outcome_utilities match the scale of cached special points
+    if stats.utility_ranges and len(stats.utility_ranges) == len(ufuns):
+        from negmas.preferences.ops import normalize
+
+        ufuns = [normalize(ufun) for ufun in ufuns]
+
     # Still need to compute outcome utilities for the scatter plot
     outcomes = list(outcome_space.enumerate_or_sample(max_cardinality=max_samples * 2))
     total_outcomes = outcome_space.cardinality
