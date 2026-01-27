@@ -295,9 +295,9 @@ const error = ref(null)
 const panelSettings = ref(null)
 
 // Tournament context (if this negotiation is from a tournament)
-const fromTournament = computed(() => currentSession.value?.fromTournament === true)
-const tournamentId = computed(() => currentSession.value?.tournamentId || null)
-const tournamentNegIndex = computed(() => currentSession.value?.tournamentNegIndex ?? null)
+const fromTournament = ref(false)
+const tournamentId = ref(null)
+const tournamentNegIndex = ref(null)
 
 // Check if coming from configs page
 const fromConfigs = computed(() => route.query.from === 'configs')
@@ -391,19 +391,25 @@ async function loadNegotiationData(sessionId) {
     // Check if this is a tournament negotiation
     if (sessionId.startsWith('tournament:') || route.query.tournament_id) {
       // Handle tournament negotiation
-      const tournamentId = route.query.tournament_id || sessionId.split(':')[1]
-      const index = route.query.index || sessionId.split(':')[2]
+      const tournamentIdValue = route.query.tournament_id || sessionId.split(':')[1]
+      const indexStr = route.query.index || sessionId.split(':')[2]
+      const index = parseInt(indexStr, 10)
       
-      if (!tournamentId || index === undefined) {
+      if (!tournamentIdValue || isNaN(index)) {
         throw new Error('Invalid tournament negotiation reference')
       }
       
-      console.log('[SingleNegotiationView] Loading tournament negotiation:', tournamentId, index)
-      const response = await fetch(`/api/tournament/saved/${tournamentId}/negotiation/${index}`)
+      // Set tournament context for back navigation
+      fromTournament.value = true
+      tournamentId.value = tournamentIdValue
+      tournamentNegIndex.value = index
+      
+      console.log('[SingleNegotiationView] Loading tournament negotiation:', tournamentIdValue, index)
+      const response = await fetch(`/api/tournament/saved/${tournamentIdValue}/negotiation/${index}`)
       
       if (!response.ok) {
         if (response.status === 404) {
-          error.value = `Tournament negotiation not found: ${tournamentId}/${index}`
+          error.value = `Tournament negotiation not found: ${tournamentIdValue}/${index}`
         } else {
           error.value = `Failed to load tournament negotiation: ${response.statusText}`
         }
