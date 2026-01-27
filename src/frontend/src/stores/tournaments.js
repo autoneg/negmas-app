@@ -273,6 +273,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     
     eventSource.value.addEventListener('setup_progress', (event) => {
       const data = JSON.parse(event.data)
+      console.log('[Tournaments Store] Setup progress event:', data)
       setupProgress.value = data
     })
     

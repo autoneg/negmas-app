@@ -180,7 +180,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useTournamentsStore } from '../stores/tournaments'
 import { useNegotiationsStore } from '../stores/negotiations'
@@ -393,6 +393,11 @@ function viewNegotiations() {
     })
   }
 }
+
+// Debug: Watch setupProgress changes
+watch(setupProgress, (newVal) => {
+  console.log('[SingleTournamentView] setupProgress changed:', newVal)
+}, { deep: true })
 
 onMounted(async () => {
   const tournamentId = route.params.id
