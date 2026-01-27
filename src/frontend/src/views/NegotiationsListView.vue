@@ -958,12 +958,19 @@ function getResultTooltip(neg) {
   }
   
   // Add final utilities if available
-  if (neg.final_utilities && neg.final_utilities.length > 0) {
+  if (neg.final_utilities) {
     tooltip.push('\nFinal Utilities:')
-    neg.final_utilities.forEach((utility, idx) => {
-      const name = neg.negotiator_names?.[idx] || `Agent ${idx}`
-      tooltip.push(`  ${name}: ${utility.toFixed(3)}`)
-    })
+    if (Array.isArray(neg.final_utilities)) {
+      neg.final_utilities.forEach((utility, idx) => {
+        const name = neg.negotiator_names?.[idx] || `Agent ${idx}`
+        tooltip.push(`  ${name}: ${utility.toFixed(3)}`)
+      })
+    } else if (typeof neg.final_utilities === 'object') {
+      // Handle dict format from tournament negotiations
+      Object.entries(neg.final_utilities).forEach(([name, utility]) => {
+        tooltip.push(`  ${name}: ${utility.toFixed(3)}`)
+      })
+    }
   }
   
   // Add step count if available

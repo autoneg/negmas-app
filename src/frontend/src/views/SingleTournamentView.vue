@@ -212,6 +212,9 @@ const showNewTournamentModal = ref(false)
 const loading = ref(true)
 const error = ref(null)
 
+// Get tournament ID from route
+const tournamentId = computed(() => route.params.id)
+
 // Computed property for negotiations based on status
 const displayedNegotiations = computed(() => {
   if (currentSession.value?.status === 'running') {
