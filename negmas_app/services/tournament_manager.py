@@ -12,6 +12,7 @@ import uuid
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -100,6 +101,81 @@ class TournamentState:
     # Competitor info
     competitor_names: list[str] = field(default_factory=list)
     opponent_names: list[str] = field(default_factory=list)
+
+
+# Module-level callback functions for negotiation monitoring
+# These match NegMAS signature: Callable[[str | int, SAOState], None]
+# NegMAS wraps these with _PicklableCallback internally using cloudpickle,
+# so they can be local functions, closures, or lambdas
+
+
+def _make_neg_start_callback(
+    event_queue: queue.Queue,  # type: ignore[type-arg]
+    cancel_flags: dict[str, bool],
+    session_id: str,
+) -> Callable[[str | int, Any], None]:
+    """Create a negotiation start callback."""
+
+    def callback(run_id: str | int, neg_state: Any) -> None:
+        if cancel_flags.get(session_id, False):
+            return
+        data = {
+            "run_id": str(run_id),
+            "n_negotiators": neg_state.n_negotiators,
+            "step": neg_state.step,
+            "relative_time": neg_state.relative_time,
+        }
+        event_queue.put(("neg_start", data))
+
+    return callback
+
+
+def _make_neg_progress_callback(
+    event_queue: queue.Queue,  # type: ignore[type-arg]
+    cancel_flags: dict[str, bool],
+    session_id: str,
+) -> Callable[[str | int, Any], None]:
+    """Create a negotiation progress callback."""
+
+    def callback(run_id: str | int, neg_state: Any) -> None:
+        if cancel_flags.get(session_id, False):
+            return
+        data = {
+            "run_id": str(run_id),
+            "step": neg_state.step,
+            "relative_time": neg_state.relative_time,
+            "current_offer": list(neg_state.current_offer)
+            if neg_state.current_offer
+            else None,
+            "current_proposer": neg_state.current_proposer,
+        }
+        event_queue.put(("neg_progress", data))
+
+    return callback
+
+
+def _make_neg_end_callback(
+    event_queue: queue.Queue,  # type: ignore[type-arg]
+    cancel_flags: dict[str, bool],
+    session_id: str,
+) -> Callable[[str | int, Any], None]:
+    """Create a negotiation end callback."""
+
+    def callback(run_id: str | int, neg_state: Any) -> None:
+        if cancel_flags.get(session_id, False):
+            return
+        data = {
+            "run_id": str(run_id),
+            "step": neg_state.step,
+            "relative_time": neg_state.relative_time,
+            "agreement": list(neg_state.agreement) if neg_state.agreement else None,
+            "timedout": neg_state.timedout,
+            "broken": neg_state.broken,
+            "has_error": neg_state.has_error,
+        }
+        event_queue.put(("neg_end", data))
+
+    return callback
 
 
 class TournamentManager:
@@ -304,6 +380,9 @@ class TournamentManager:
         Callable[[Any], None],
         Callable[[dict[str, Any]], None],
         Callable[[str, int, int], None],
+        Callable[[str | int, Any], None] | None,
+        Callable[[str | int, Any], None] | None,
+        Callable[[str | int, Any], None] | None,
     ]:
         """Create callback functions for the tournament.
 
@@ -312,9 +391,28 @@ class TournamentManager:
 
         Returns:
             Tuple of (before_start_callback, after_construction_callback,
-                     after_end_callback, progress_callback)
+                     after_end_callback, progress_callback, neg_start_callback,
+                     neg_progress_callback, neg_end_callback)
         """
         state = self._tournament_states[session_id]
+
+        # Negotiation monitoring callbacks (only if enabled)
+        # NegMAS wraps these with _PicklableCallback using cloudpickle,
+        # so closures work fine in parallel execution
+        neg_start_callback = None
+        neg_progress_callback = None
+        neg_end_callback = None
+
+        if config.monitor_negotiations:
+            neg_start_callback = _make_neg_start_callback(
+                state.event_queue, self._cancel_flags, session_id
+            )
+            neg_progress_callback = _make_neg_progress_callback(
+                state.event_queue, self._cancel_flags, session_id
+            )
+            neg_end_callback = _make_neg_end_callback(
+                state.event_queue, self._cancel_flags, session_id
+            )
 
         def before_start_callback(info: Any) -> None:
             """Called before each negotiation starts.
@@ -581,6 +679,9 @@ class TournamentManager:
             after_construction_callback,
             after_end_callback,
             progress_callback,
+            neg_start_callback,
+            neg_progress_callback,
+            neg_end_callback,
         )
 
     def _update_stats_from_record(
@@ -1025,9 +1126,15 @@ class TournamentManager:
             state.event_queue.put(("progress", state.progress))
 
             # Create callbacks
-            before_cb, after_const_cb, after_end_cb, progress_cb = (
-                self._create_callbacks(session_id, config)
-            )
+            (
+                before_cb,
+                after_const_cb,
+                after_end_cb,
+                progress_cb,
+                neg_start_cb,
+                neg_progress_cb,
+                neg_end_cb,
+            ) = self._create_callbacks(session_id, config)
 
             # Get mechanism class
             mechanism_class = self._get_mechanism_class(config.mechanism_type)
@@ -1069,6 +1176,9 @@ class TournamentManager:
                 "after_construction_callback": after_const_cb,
                 "after_end_callback": after_end_cb,
                 "progress_callback": progress_cb,
+                "neg_start_callback": neg_start_cb,
+                "neg_progress_callback": neg_progress_cb,
+                "neg_end_callback": neg_end_cb,
             }
 
             # Add storage format if specified
