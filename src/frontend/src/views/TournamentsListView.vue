@@ -408,7 +408,18 @@ const allTournaments = computed(() => {
       timestamp: s.created_at || s.completed_at || Date.now()
     }))
   ]
-  return combined
+  
+  // Deduplicate by ID - prefer session over saved (session has live data)
+  const seen = new Set()
+  const deduplicated = []
+  for (const tourn of combined) {
+    if (!seen.has(tourn.id)) {
+      seen.add(tourn.id)
+      deduplicated.push(tourn)
+    }
+  }
+  
+  return deduplicated
 })
 
 // Filter by search query and tags
