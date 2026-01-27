@@ -18,6 +18,11 @@ const routes = [
     component: NegotiationsListView,
   },
   {
+    path: '/tournaments/:tournamentId/negotiations',
+    name: 'TournamentNegotiationsList',
+    component: NegotiationsListView,
+  },
+  {
     path: '/negotiations/:id',
     name: 'SingleNegotiation',
     component: SingleNegotiationView,
