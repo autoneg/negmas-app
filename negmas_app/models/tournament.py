@@ -132,6 +132,9 @@ class TournamentConfig:
         False  # Save statistics (Pareto, Nash, Kalai, etc.) - slow for many scenarios
     )
     save_scenario_figs: bool = False  # Save scenario figures - slow for many scenarios
+    recalculate_stats: bool = (
+        False  # Force recalculation of all stats (faster to use cached stats)
+    )
     save_every: int = 1  # Save results every N negotiations (0 = only at end)
     capture_offers: bool = (
         True  # Capture offer trace for each negotiation (for viewing)

@@ -582,6 +582,13 @@
                     <div class="form-hint">⚠️ Generates figures per scenario - slow for many scenarios</div>
                   </div>
                   <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.recalculateStats" type="checkbox" />
+                      <span>Recalculate Statistics</span>
+                    </label>
+                    <div class="form-hint">Force recalculation (slower, but ensures fresh stats)</div>
+                  </div>
+                  <div class="form-group">
                     <label class="form-label">Save Every N Negotiations</label>
                     <input v-model.number="settings.saveEvery" type="number" min="0" placeholder="0 (only at end)" class="form-input" />
                     <div class="form-hint">0 = save only at end</div>
@@ -902,8 +909,9 @@ const settings = ref({
   randomizeRuns: false,
   sortRuns: false,
   onlyFailuresOnSelfPlay: false,
-  saveStats: true,
+  saveStats: false,
   saveScenarioFigs: false,
+  recalculateStats: false,
   saveEvery: 0,
   passOpponentUfun: false,
   raiseExceptions: false,
@@ -1175,6 +1183,7 @@ function buildTournamentPreset(name) {
     only_failures_on_self_play: settings.value.onlyFailuresOnSelfPlay,
     save_stats: settings.value.saveStats,
     save_scenario_figs: settings.value.saveScenarioFigs,
+    recalculate_stats: settings.value.recalculateStats,
     save_every: settings.value.saveEvery,
     pass_opponent_ufun: settings.value.passOpponentUfun,
     raise_exceptions: settings.value.raiseExceptions,
@@ -1224,6 +1233,7 @@ const startTournament = async () => {
       ignore_discount: settings.value.ignoreDiscount,
       ignore_reserved: settings.value.ignoreReserved,
       save_stats: settings.value.saveStats,
+      recalculate_stats: settings.value.recalculateStats,
       // Advanced settings
       step_time_limit: settings.value.stepTimeLimit || null,
       negotiator_time_limit: settings.value.negotiatorTimeLimit || null,
