@@ -39,24 +39,29 @@ from .negotiator_factory import _get_class_for_type
 from .settings_service import SettingsService
 
 
-def _apply_normalization(scenario: Scenario, mode: str) -> Scenario:  # type: ignore[type-arg]
+def _apply_normalization(
+    scenario: Scenario, mode: str, recalculate_stats: bool = False
+) -> Scenario:  # type: ignore[type-arg]
     """Apply normalization to a scenario based on the mode.
 
     Args:
         scenario: The scenario to normalize.
         mode: Normalization mode - "none", "scale_min", "scale_max", or "normalize".
+        recalculate_stats: Whether to recalculate stats after normalization.
 
     Returns:
         The normalized scenario (may be a new object or the same if mode is "none").
     """
-    if mode == "none":
+    if mode == "none" or not mode:
         return scenario
     elif mode == "scale_min":
-        return scenario.scale_min(to=1.0, recalculate_stats=True)
+        return scenario.scale_min(to=1.0, recalculate_stats=recalculate_stats)
     elif mode == "scale_max":
-        return scenario.scale_max(to=1.0, recalculate_stats=True)
-    else:  # "normalize" is default
-        return scenario.normalize(to=(0.0, 1.0), recalculate_stats=True)
+        return scenario.scale_max(to=1.0, recalculate_stats=recalculate_stats)
+    elif mode == "normalize":
+        return scenario.normalize(to=(0.0, 1.0), recalculate_stats=recalculate_stats)
+    else:
+        return scenario
 
 
 @dataclass
@@ -982,7 +987,9 @@ class TournamentManager:
                 )  # Skip stats for tournament - not needed for execution
                 if scenario is not None:
                     # Apply normalization (returns modified scenario)
-                    scenario = _apply_normalization(scenario, config.normalization)
+                    scenario = _apply_normalization(
+                        scenario, config.normalization, config.recalculate_stats
+                    )
                     scenarios.append(scenario)
                     scenario_names.append(
                         Path(scenario.outcome_space.name or "unknown").name
@@ -1531,7 +1538,9 @@ class TournamentManager:
                 )
                 if scenario is not None:
                     # Apply normalization (returns modified scenario)
-                    scenario = _apply_normalization(scenario, config.normalization)
+                    scenario = _apply_normalization(
+                        scenario, config.normalization, config.recalculate_stats
+                    )
                     scenarios.append(scenario)
 
             if not scenarios:
