@@ -470,14 +470,16 @@ function isCellRunning(i, j, scenarioKey) {
     return scenarios.value.some(scenario => {
       const key = `${competitor}::${opponent}::${scenario}`
       const state = props.cellStates[key]
-      return state && (state.status === 'running' || (state.running && state.running > 0))
+      // Only check running count, ignore status (status can be stale)
+      return state && state.running && state.running > 0
     })
   } else {
     // Check specific scenario
     const scenario = scenarios.value[scenarioKey]
     const key = `${competitor}::${opponent}::${scenario}`
     const state = props.cellStates[key]
-    return state && (state.status === 'running' || (state.running && state.running > 0))
+    // Only check running count, ignore status (status can be stale)
+    return state && state.running && state.running > 0
   }
 }
 

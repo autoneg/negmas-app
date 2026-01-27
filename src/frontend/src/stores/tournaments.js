@@ -196,7 +196,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         
         // Determine final status
         const allComplete = completed >= existingCell.total
-        let status = 'running'
+        let status = existingCell.status || 'pending' // Preserve existing status as default
         if (allComplete) {
           if (errors > 0) {
             status = 'error'
@@ -209,6 +209,9 @@ export const useTournamentsStore = defineStore('tournaments', () => {
           }
         } else if (running > 0) {
           status = 'running'
+        } else if (completed > 0) {
+          // Has some completed but not all, and nothing running
+          status = 'running' // Tournament is ongoing, just no active negotiations in this cell right now
         }
         
         // Create new object to trigger reactivity
