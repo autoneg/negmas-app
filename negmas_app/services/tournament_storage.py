@@ -321,6 +321,17 @@ class TournamentStorageService:
             n_agreements = 0
             agreement_rate = 0.0
 
+            # Calculate total expected negotiations for stats
+            # total = n_competitors * n_competitors * n_scenarios (for self-play cartesian tournament)
+            # This is an estimate - actual may vary based on n_repetitions
+            total = (
+                n_negotiations  # Use actual count as total since tournament is complete
+            )
+            completed = (
+                n_negotiations  # All negotiations are completed in saved tournaments
+            )
+            n_errors = 0  # Would need to scan details to get this - skip for speed
+
             # Load metadata (tags, archived status)
             metadata = cls._load_metadata(tournament_id)
 
@@ -335,6 +346,9 @@ class TournamentStorageService:
                 "n_negotiations": n_negotiations,
                 "n_agreements": n_agreements,  # Set to 0 for fast loading
                 "agreement_rate": agreement_rate,  # Set to 0 for fast loading
+                "total": total,
+                "completed": completed,
+                "n_errors": n_errors,
                 "tags": metadata.get("tags", []),
                 "archived": metadata.get("archived", False),
             }
