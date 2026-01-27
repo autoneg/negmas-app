@@ -70,6 +70,7 @@ def save_scenario_plot(
         mark_special_points = True
 
     # Use negmas's built-in plot method with matplotlib backend
+    # Hide time/steps annotations since this is a scenario cache (not a negotiation trace)
     fig = scenario.plot(
         ufun_indices=ufun_indices,
         backend="matplotlib",
@@ -80,6 +81,8 @@ def save_scenario_plot(
         mark_ks_points=mark_special_points,
         mark_max_welfare_points=mark_special_points,
         fast=use_fast_mode,  # Skip expensive calculations for large scenarios
+        show_total_time=False,  # Hide "Total Time = 0ms" (not applicable for scenario plots)
+        show_n_steps=False,  # Hide "N. Steps = 0" (not applicable for scenario plots)
     )
 
     # Get file extension from output_file
