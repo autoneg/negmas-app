@@ -13,7 +13,10 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   const cellStates = ref({}) // Map of cell_id -> state
   const leaderboard = ref([])
   const progress = ref(null)
+  const setupProgress = ref(null) // Setup/initialization progress
   const tournamentComplete = ref(null)
+  const liveNegotiations = ref([]) // Live negotiations as they complete
+  const runningNegotiations = ref({}) // Map of run_id -> negotiation progress data
   
   // Tournament presets (saved configurations)
   const tournamentPresets = ref([])
@@ -73,7 +76,10 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     gridInit.value = null
     cellStates.value = {}
     leaderboard.value = []
+    liveNegotiations.value = []
+    runningNegotiations.value = {}
     progress.value = null
+    setupProgress.value = null
     tournamentComplete.value = null
     
     const url = `/api/tournament/${sessionId}/stream`
@@ -93,20 +99,29 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         const scenario = gridInit.value.scenarios[data.scenario_idx]
         const cellKey = `${competitor}::${opponent}::${scenario}`
         
-        // Initialize or update cell state with aggregation support
+        // Initialize or update cell state with aggregation support (create new object for reactivity)
         if (!cellStates.value[cellKey]) {
-          cellStates.value[cellKey] = {
-            status: 'running',
-            total: gridInit.value.n_repetitions * (gridInit.value.rotate_ufuns ? 2 : 1),
-            completed: 0,
-            agreements: 0,
-            timeouts: 0,
-            errors: 0,
-            running: 1
+          cellStates.value = {
+            ...cellStates.value,
+            [cellKey]: {
+              status: 'running',
+              total: gridInit.value.n_repetitions * (gridInit.value.rotate_ufuns ? 2 : 1),
+              completed: 0,
+              agreements: 0,
+              timeouts: 0,
+              errors: 0,
+              running: 1
+            }
           }
         } else {
-          cellStates.value[cellKey].status = 'running'
-          cellStates.value[cellKey].running = (cellStates.value[cellKey].running || 0) + 1
+          cellStates.value = {
+            ...cellStates.value,
+            [cellKey]: {
+              ...cellStates.value[cellKey],
+              status: 'running',
+              running: (cellStates.value[cellKey].running || 0) + 1
+            }
+          }
         }
       }
     })
@@ -120,48 +135,87 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         const scenario = gridInit.value.scenarios[data.scenario_idx]
         const cellKey = `${competitor}::${opponent}::${scenario}`
         
-        // Update or initialize cell state with aggregated data
-        if (!cellStates.value[cellKey]) {
-          cellStates.value[cellKey] = {
-            status: 'complete',
-            total: gridInit.value.n_repetitions * (gridInit.value.rotate_ufuns ? 2 : 1),
-            completed: 1,
-            agreements: 0,
-            timeouts: 0,
-            errors: 0,
-            running: 0,
-            has_agreement: false
-          }
-        } else {
-          cellStates.value[cellKey].completed = (cellStates.value[cellKey].completed || 0) + 1
-          cellStates.value[cellKey].running = Math.max(0, (cellStates.value[cellKey].running || 0) - 1)
+        // Get existing state or create default
+        const existingCell = cellStates.value[cellKey] || {
+          status: 'complete',
+          total: gridInit.value.n_repetitions * (gridInit.value.rotate_ufuns ? 2 : 1),
+          completed: 0,
+          agreements: 0,
+          timeouts: 0,
+          errors: 0,
+          running: 0,
+          has_agreement: false,
+          has_error: false
         }
         
-        // Update aggregated stats
+        // Calculate updated values
+        const completed = (existingCell.completed || 0) + 1
+        const running = Math.max(0, (existingCell.running || 0) - 1)
+        let agreements = existingCell.agreements || 0
+        let timeouts = existingCell.timeouts || 0
+        let errors = existingCell.errors || 0
+        let has_agreement = existingCell.has_agreement || false
+        let has_error = existingCell.has_error || false
+        
+        // Update aggregated stats based on end_reason
         if (data.end_reason === 'agreement') {
-          cellStates.value[cellKey].agreements = (cellStates.value[cellKey].agreements || 0) + 1
-          cellStates.value[cellKey].has_agreement = true
+          agreements += 1
+          has_agreement = true
         } else if (data.end_reason === 'timeout') {
-          cellStates.value[cellKey].timeouts = (cellStates.value[cellKey].timeouts || 0) + 1
+          timeouts += 1
         } else if (data.end_reason === 'error' || data.end_reason === 'broken') {
-          cellStates.value[cellKey].errors = (cellStates.value[cellKey].errors || 0) + 1
-          cellStates.value[cellKey].has_error = true
+          errors += 1
+          has_error = true
         }
         
-        // Update overall status
-        const allComplete = cellStates.value[cellKey].completed >= cellStates.value[cellKey].total
+        // Determine final status
+        const allComplete = completed >= existingCell.total
+        let status = 'running'
         if (allComplete) {
-          if (cellStates.value[cellKey].errors > 0) {
-            cellStates.value[cellKey].status = 'error'
-          } else if (cellStates.value[cellKey].agreements > 0) {
-            cellStates.value[cellKey].status = 'complete'
-          } else if (cellStates.value[cellKey].timeouts > 0) {
-            cellStates.value[cellKey].status = 'timeout'
+          if (errors > 0) {
+            status = 'error'
+          } else if (agreements > 0) {
+            status = 'complete'
+          } else if (timeouts > 0) {
+            status = 'timeout'
           } else {
-            cellStates.value[cellKey].status = 'complete'
+            status = 'complete'
           }
-        } else if (cellStates.value[cellKey].running > 0) {
-          cellStates.value[cellKey].status = 'running'
+        } else if (running > 0) {
+          status = 'running'
+        }
+        
+        // Create new object to trigger reactivity
+        cellStates.value = {
+          ...cellStates.value,
+          [cellKey]: {
+            status,
+            total: existingCell.total,
+            completed,
+            agreements,
+            timeouts,
+            errors,
+            running,
+            has_agreement,
+            has_error
+          }
+        }
+        
+        // Add to live negotiations if we have the detailed data
+        if (data.issue_names && data.scenario_path) {
+          liveNegotiations.value.push({
+            index: liveNegotiations.value.length,
+            scenario: data.scenario_path || scenario,
+            scenario_path: data.scenario_path,
+            partners: [competitor, opponent],
+            end_reason: data.end_reason,
+            has_agreement: data.end_reason === 'agreement',
+            agreement: data.agreement || null,
+            utilities: data.utilities || {},
+            n_steps: data.n_steps || 0,
+            issue_names: data.issue_names || [],
+            offers: data.offers || []
+          })
         }
       }
     })
@@ -172,9 +226,53 @@ export const useTournamentsStore = defineStore('tournaments', () => {
       leaderboard.value = Array.isArray(data) ? data : []
     })
     
+    eventSource.value.addEventListener('setup_progress', (event) => {
+      const data = JSON.parse(event.data)
+      setupProgress.value = data
+    })
+    
     eventSource.value.addEventListener('progress', (event) => {
       const data = JSON.parse(event.data)
       progress.value = data
+    })
+    
+    // Negotiation monitoring events
+    eventSource.value.addEventListener('neg_start', (event) => {
+      const data = JSON.parse(event.data)
+      runningNegotiations.value[data.run_id] = {
+        run_id: data.run_id,
+        step: data.step,
+        relative_time: data.relative_time,
+        status: 'running'
+      }
+    })
+    
+    eventSource.value.addEventListener('neg_progress', (event) => {
+      const data = JSON.parse(event.data)
+      if (runningNegotiations.value[data.run_id]) {
+        runningNegotiations.value[data.run_id].step = data.step
+        runningNegotiations.value[data.run_id].relative_time = data.relative_time
+        runningNegotiations.value[data.run_id].current_offer = data.current_offer
+        runningNegotiations.value[data.run_id].current_proposer = data.current_proposer
+      }
+    })
+    
+    eventSource.value.addEventListener('neg_end', (event) => {
+      const data = JSON.parse(event.data)
+      if (runningNegotiations.value[data.run_id]) {
+        runningNegotiations.value[data.run_id].status = 'complete'
+        runningNegotiations.value[data.run_id].step = data.step
+        runningNegotiations.value[data.run_id].relative_time = data.relative_time
+        runningNegotiations.value[data.run_id].agreement = data.agreement
+        runningNegotiations.value[data.run_id].timedout = data.timedout
+        runningNegotiations.value[data.run_id].broken = data.broken
+        runningNegotiations.value[data.run_id].has_error = data.has_error
+        
+        // Clean up after a delay
+        setTimeout(() => {
+          delete runningNegotiations.value[data.run_id]
+        }, 5000)
+      }
     })
     
     eventSource.value.addEventListener('complete', (event) => {
@@ -328,6 +426,13 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   async function loadSavedTournament(tournamentId) {
     try {
       const response = await fetch(`/api/tournament/saved/${tournamentId}`)
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.warn(`Tournament ${tournamentId} not found`)
+          return null
+        }
+        throw new Error(`Failed to load tournament: ${response.statusText}`)
+      }
       const data = await response.json()
       return data
     } catch (error) {
@@ -364,6 +469,37 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     }
   }
 
+  async function loadTournamentNegotiations(tournamentId) {
+    try {
+      const response = await fetch(`/api/tournament/saved/${tournamentId}/details`)
+      if (!response.ok) {
+        throw new Error(`Failed to load negotiations: ${response.statusText}`)
+      }
+      const data = await response.json()
+      
+      // Convert details to liveNegotiations format
+      if (data.details && Array.isArray(data.details)) {
+        liveNegotiations.value = data.details.map((neg, index) => ({
+          index,
+          scenario: neg.scenario || neg.effective_scenario_name,
+          scenario_path: neg.scenario || neg.effective_scenario_name,
+          partners: neg.partners || [],
+          end_reason: neg.timedout ? 'timeout' : (neg.broken ? 'broken' : (neg.has_error ? 'error' : (neg.agreement ? 'agreement' : 'disagreement'))),
+          has_agreement: !!neg.agreement,
+          agreement: neg.agreement,
+          utilities: neg.utilities,
+          n_steps: neg.n_steps || neg.step || 0,
+          issue_names: [], // Not available in details
+          offers: [], // Not available in details
+          run_id: neg.run_id,
+          mechanism_name: neg.mechanism_name
+        }))
+      }
+    } catch (error) {
+      console.error('Failed to load tournament negotiations:', error)
+    }
+  }
+
   // Computed: Group sessions by status
   const runningSessions = computed(() => {
     return sessions.value.filter(s => s.status === 'running' || s.status === 'pending')
@@ -385,7 +521,10 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     gridInit,
     cellStates,
     leaderboard,
+    liveNegotiations,
+    runningNegotiations,
     progress,
+    setupProgress,
     tournamentComplete,
     tournamentPresets,
     savedTournaments,
@@ -410,6 +549,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     deleteTournamentPreset,
     loadSavedTournaments,
     loadSavedTournament,
+    loadTournamentNegotiations,
     deleteSavedTournament,
     updateTournamentTags,
   }

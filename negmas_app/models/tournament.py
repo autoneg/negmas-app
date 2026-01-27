@@ -150,6 +150,9 @@ class TournamentConfig:
     # Execution
     njobs: int = -1  # -1 = serial (safer for web app), 0 = all cores
 
+    # Monitoring
+    monitor_negotiations: bool = False  # Enable live monitoring of individual negotiations (requires negmas support)
+
     # Output
     save_path: str | None = None  # Path to save results (None = don't save)
     verbosity: int = 0

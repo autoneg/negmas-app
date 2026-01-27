@@ -97,6 +97,11 @@ class TournamentConfigRequest(BaseModel):
     save_path: str | None = None
     verbosity: int = 0
 
+    # Monitoring options
+    monitor_negotiations: bool = (
+        False  # Enable live monitoring of individual negotiations
+    )
+
     # Path handling when save_path already exists
     path_exists: str = "continue"  # "continue", "overwrite", or "fail"
 
@@ -164,6 +169,7 @@ async def start_tournament(request: TournamentConfigRequest):
         pass_opponent_ufun=request.pass_opponent_ufun,
         raise_exceptions=request.raise_exceptions,
         njobs=request.njobs,
+        monitor_negotiations=request.monitor_negotiations,
         save_path=request.save_path,
         verbosity=request.verbosity,
         path_exists=request.path_exists,
@@ -293,6 +299,16 @@ async def stream_tournament(session_id: str):
                                 "percent": event.percent,
                             }
                         ),
+                    }
+                elif isinstance(event, dict) and event_type in (
+                    "neg_start",
+                    "neg_progress",
+                    "neg_end",
+                ):
+                    # Negotiation monitoring events
+                    yield {
+                        "event": event_type,
+                        "data": json.dumps(event),
                     }
                 elif isinstance(event, TournamentSession):
                     # Final session state

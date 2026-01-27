@@ -622,6 +622,16 @@
                     </div>
                   </div>
                   
+                  <h4>Monitoring (Experimental)</h4>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.monitorNegotiations" type="checkbox" />
+                      <span>Monitor Running Negotiations</span>
+                      <span class="badge badge-info" style="margin-left: 8px;">Experimental</span>
+                    </label>
+                    <div class="form-hint">Enable live monitoring of individual negotiations during tournament execution. Shows real-time step-by-step progress of each negotiation as it runs. May impact performance with large tournaments.</div>
+                  </div>
+                  
                   <h4>Plotting & Visualization</h4>
                   <div class="settings-grid">
                     <div class="form-group">
@@ -899,6 +909,7 @@ const settings = ref({
   njobs: -1,
   externalTimeout: null,
   verbosity: 0,
+  monitorNegotiations: false,  // Currently disabled, requires negmas support
   // NEW: Plotting
   plotFraction: 0.0,
   // NEW: Advanced negotiator options
@@ -1231,6 +1242,7 @@ const startTournament = async () => {
       njobs: settings.value.njobs,
       external_timeout: settings.value.externalTimeout || null,
       verbosity: settings.value.verbosity || 0,
+      monitor_negotiations: settings.value.monitorNegotiations || false,
       // NEW: Plotting
       plot_fraction: settings.value.plotFraction || 0.0,
       // NEW: Advanced negotiator options

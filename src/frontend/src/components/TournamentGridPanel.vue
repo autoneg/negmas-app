@@ -216,38 +216,53 @@ function getSummaryCellStyle(i, j) {
   let agreements = 0
   let errors = 0
   let timeouts = 0
+  let hasAnyData = false
   
   scenarios.value.forEach(scenario => {
     const key = `${competitor}::${opponent}::${scenario}`
     const state = props.cellStates[key]
-    if (state) {
+    if (state && state.completed > 0) {
+      hasAnyData = true
       total += state.total || 1
-      agreements += state.agreements || (state.has_agreement ? 1 : 0)
-      errors += state.errors || (state.status === 'error' ? 1 : 0)
-      timeouts += state.timeouts || (state.status === 'timeout' ? 1 : 0)
+      agreements += Math.min(state.agreements || 0, state.completed || 0)
+      errors += Math.min(state.errors || 0, state.completed || 0)
+      timeouts += Math.min(state.timeouts || 0, state.completed || 0)
     }
   })
   
-  if (total === 0) return {}
+  if (!hasAnyData || total === 0) return {}
   
   // Color based on agreement rate, but dim if errors/timeouts
-  const percent = agreements / total
-  const errorRate = errors / total
-  const timeoutRate = timeouts / total
+  const percent = Math.min(1, agreements / total)
+  const errorRate = Math.min(1, errors / total)
+  const timeoutRate = Math.min(1, timeouts / total)
+  
+  // Add pulsing animation if cell is currently active
+  const isActive = scenarios.value.some(scenario => {
+    const key = `${competitor}::${opponent}::${scenario}`
+    const state = props.cellStates[key]
+    return state && state.status === 'running' && (state.running || 0) > 0
+  })
+  
+  let style = {}
   
   if (errorRate > 0.5) {
     // Mostly errors - show red
-    return { background: `rgba(239, 68, 68, ${0.2 + errorRate * 0.3})` }
+    style.background = `rgba(239, 68, 68, ${0.2 + errorRate * 0.3})`
   } else if (timeoutRate > 0.5) {
     // Mostly timeouts - show orange
-    return { background: `rgba(251, 146, 60, ${0.2 + timeoutRate * 0.3})` }
+    style.background = `rgba(251, 146, 60, ${0.2 + timeoutRate * 0.3})`
   } else {
     // Show green based on agreement rate
     const green = Math.round(16 + percent * 169) // 16 to 185
-    return {
-      background: `rgba(16, ${green}, 129, ${0.1 + percent * 0.3})`
-    }
+    style.background = `rgba(16, ${green}, 129, ${0.1 + percent * 0.3})`
   }
+  
+  if (isActive) {
+    style.animation = 'pulse-cell 2s ease-in-out infinite'
+  }
+  
+  return style
 }
 
 function getSummaryCellPercent(i, j) {
@@ -258,19 +273,23 @@ function getSummaryCellPercent(i, j) {
   
   let total = 0
   let agreements = 0
+  let hasAnyData = false
   
   scenarios.value.forEach(scenario => {
     const key = `${competitor}::${opponent}::${scenario}`
     const state = props.cellStates[key]
-    if (state) {
+    if (state && state.completed > 0) {
+      hasAnyData = true
       total += state.total || 1
-      agreements += state.agreements || (state.has_agreement ? 1 : 0)
+      // Ensure agreements never exceeds completed
+      agreements += Math.min(state.agreements || 0, state.completed || 0)
     }
   })
   
-  if (total === 0) return '...'
+  if (!hasAnyData || total === 0) return '...'
   
-  const percent = Math.round((agreements / total) * 100)
+  // Ensure percent is clamped to 0-100 range
+  const percent = Math.min(100, Math.max(0, Math.round((agreements / total) * 100)))
   return `${percent}%`
 }
 
@@ -580,5 +599,16 @@ function getScenarioCellPercent(i, j) {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-cell {
+  0%, 100% { 
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  50% { 
+    opacity: 0.9;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  }
 }
 </style>

@@ -459,9 +459,9 @@ function convertTournamentCompletedNegotiation(neg) {
 // Separate running from completed negotiations
 const runningNegotiations = computed(() => {
   if (isTournamentMode.value) {
-    // Use tournament store's runningNegotiations Map
+    // Use tournament store's runningNegotiations (plain object)
     if (!tournamentRunningNegotiations.value) return []
-    return Array.from(tournamentRunningNegotiations.value.values())
+    return Object.values(tournamentRunningNegotiations.value)
       .map(neg => convertTournamentRunningNegotiation(neg))
   } else {
     // Use negotiations store's sessions
@@ -640,6 +640,9 @@ async function loadData() {
       // If tournament is running, ensure we're connected to SSE
       if (tournament && tournament.status === 'running') {
         await tournamentsStore.connectToTournament(tournamentId.value)
+      } else if (tournament && tournament.is_complete) {
+        // For completed tournaments, load negotiation details
+        await tournamentsStore.loadTournamentNegotiations(tournamentId.value)
       }
     } catch (error) {
       console.error('Failed to load tournament:', error)
