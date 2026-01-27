@@ -409,6 +409,10 @@ const allTournaments = computed(() => {
     }))
   ]
   
+  console.log('[TournamentsList] Before deduplication:', combined.length, 'tournaments')
+  console.log('[TournamentsList] Session IDs:', sessions.value.map(s => s.id))
+  console.log('[TournamentsList] Saved IDs:', savedTournaments.value.map(s => s.id))
+  
   // Deduplicate by ID - prefer session over saved (session has live data)
   const seen = new Set()
   const deduplicated = []
@@ -416,8 +420,12 @@ const allTournaments = computed(() => {
     if (!seen.has(tourn.id)) {
       seen.add(tourn.id)
       deduplicated.push(tourn)
+    } else {
+      console.log('[TournamentsList] Skipping duplicate:', tourn.id, tourn.source)
     }
   }
+  
+  console.log('[TournamentsList] After deduplication:', deduplicated.length, 'tournaments')
   
   return deduplicated
 })
