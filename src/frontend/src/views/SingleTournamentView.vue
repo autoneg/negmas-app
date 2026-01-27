@@ -56,7 +56,19 @@
       
       <!-- Stats Bar (single line with inline stats) -->
       <div v-if="currentSession.status === 'running' || currentSession.status === 'completed'" class="stats-bar">
-        <div class="stats-inline">
+        <!-- Setup Progress (before grid_init) -->
+        <div v-if="setupProgress && !gridInit" class="setup-progress">
+          <div class="setup-progress-header">
+            <div class="spinner-sm"></div>
+            <span class="setup-message">{{ setupProgress.message || 'Initializing tournament...' }}</span>
+          </div>
+          <div v-if="setupProgress.total > 0" class="setup-progress-bar">
+            <div class="setup-progress-fill" :style="{ width: ((setupProgress.current / setupProgress.total) * 100) + '%' }"></div>
+          </div>
+        </div>
+        
+        <!-- Running Stats (after grid_init) -->
+        <div v-else class="stats-inline">
           <span class="stat-inline">
             <span class="stat-label">Negotiations:</span>
             <span class="stat-value">
@@ -81,36 +93,56 @@
             LIVE
           </span>
         </div>
-        <!-- Progress bar for running tournaments -->
-        <div v-if="currentSession.status === 'running' && progress" class="progress-bar-inline">
+        
+        <!-- Progress bar for running tournaments (after grid_init) -->
+        <div v-if="currentSession.status === 'running' && progress && gridInit" class="progress-bar-inline">
           <div class="progress-fill" :style="{ width: progress.percent + '%' }"></div>
         </div>
       </div>
       
-      <!-- Main Panels (always visible, stacked vertically) -->
+      <!-- Main Panels -->
       <div class="panels-container">
-        <!-- Grid Panel -->
-        <TournamentGridPanel 
-          :gridInit="gridInit"
-          :cellStates="cellStates"
-          :selfPlay="currentSession.self_play || false"
-          :status="currentSession.status"
-        />
+        <!-- Top Row: Grid (2/3) + Leaderboard (1/3) -->
+        <div class="panels-top-row">
+          <!-- Grid Panel (2/3 width) -->
+          <div class="panel-grid-wrapper">
+            <TournamentGridPanel 
+              :gridInit="gridInit"
+              :cellStates="cellStates"
+              :selfPlay="currentSession.self_play || false"
+              :status="currentSession.status"
+            />
+          </div>
+          
+          <!-- Scores Panel (1/3 width) -->
+          <div class="panel-scores-wrapper">
+            <TournamentScoresPanel 
+              :leaderboard="leaderboard"
+              :status="currentSession.status"
+            />
+          </div>
+        </div>
         
-        <!-- Scores Panel -->
-        <TournamentScoresPanel 
-          :leaderboard="leaderboard"
-          :status="currentSession.status"
-        />
-        
-        <!-- Negotiations Panel -->
-        <TournamentNegotiationsPanel 
-          :negotiations="displayedNegotiations"
-          :status="currentSession.status"
-          :tournamentId="currentSession.id"
-          @view-negotiation="handleViewNegotiation"
-          @load-trace="handleLoadTrace"
-        />
+        <!-- Bottom Row: View Negotiations Button -->
+        <div 
+          v-if="currentSession.status === 'running' || currentSession.status === 'completed'" 
+          class="negotiations-section"
+        >
+          <button class="btn btn-negotiations" @click="viewNegotiations">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="9" y1="3" x2="9" y2="21"></line>
+            </svg>
+            View Negotiations
+            <span v-if="negotiationsCount > 0" class="count-badge">{{ negotiationsCount }}</span>
+          </button>
+          
+          <!-- Optional: Show live indicator for running negotiations -->
+          <div v-if="runningNegotiations && runningNegotiations.size > 0" class="live-indicator-small">
+            <span class="status-dot-small"></span>
+            {{ runningNegotiations.size }} running
+          </div>
+        </div>
       </div>
     </div>
     
@@ -142,7 +174,6 @@ import { storeToRefs } from 'pinia'
 import NewTournamentModal from '../components/NewTournamentModal.vue'
 import TournamentGridPanel from '../components/TournamentGridPanel.vue'
 import TournamentScoresPanel from '../components/TournamentScoresPanel.vue'
-import TournamentNegotiationsPanel from '../components/TournamentNegotiationsPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -156,7 +187,9 @@ const {
   cellStates,
   leaderboard,
   progress,
+  setupProgress,
   liveNegotiations,
+  runningNegotiations,
 } = storeToRefs(tournamentsStore)
 
 const showNewTournamentModal = ref(false)
@@ -172,6 +205,23 @@ const displayedNegotiations = computed(() => {
   }
   return []
 })
+
+// Computed property for total negotiations count
+const negotiationsCount = computed(() => {
+  const running = runningNegotiations.value?.size || 0
+  const completed = liveNegotiations.value?.length || 0
+  return running + completed
+})
+
+// Navigation to negotiations list
+function viewNegotiations() {
+  if (currentSession.value?.id) {
+    router.push({ 
+      name: 'TournamentNegotiationsList', 
+      params: { tournamentId: currentSession.value.id }
+    })
+  }
+}
 
 onMounted(async () => {
   const tournamentId = route.params.id
@@ -484,11 +534,83 @@ async function handleLoadTrace(tournamentId, negIndex) {
   transition: width 0.3s ease;
 }
 
+.setup-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setup-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.setup-message {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.setup-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.setup-progress-fill {
+  height: 100%;
+  background: var(--primary-color);
+  transition: width 0.3s ease;
+  border-radius: 3px;
+}
+
+.spinner-sm {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
 .panels-container {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panels-top-row {
+  display: flex;
+  gap: 12px;
+  min-height: 0;
+}
+
+.panel-grid-wrapper {
+  flex: 2;
+  min-width: 0;
+}
+
+.panel-scores-wrapper {
+  flex: 1;
+  min-width: 300px;
+  max-width: 400px;
+}
+
+@media (max-width: 1200px) {
+  .panels-top-row {
+    flex-direction: column;
+  }
+  
+  .panel-scores-wrapper {
+    max-width: none;
+  }
 }
 
 /* Buttons */
@@ -544,5 +666,77 @@ async function handleLoadTrace(tournamentId, negIndex) {
 
 .btn-secondary:hover {
   background: var(--bg-hover);
+}
+
+/* Negotiations Section */
+.negotiations-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-top: 16px;
+}
+
+.btn-negotiations {
+  padding: 12px 20px;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-negotiations:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.count-badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.live-indicator-small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+}
+
+.status-dot-small {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: rgb(16, 185, 129);
+  border-radius: 50%;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.2);
+  }
 }
 </style>
