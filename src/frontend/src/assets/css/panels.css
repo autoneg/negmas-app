@@ -19,7 +19,9 @@
     gap: 0;
     min-width: 200px;
     min-height: 0; /* Critical for flexbox to respect overflow */
-    overflow: hidden;
+    overflow-y: auto; /* Allow scrolling if content exceeds height */
+    overflow-x: hidden;
+    height: 100%; /* Ensure column takes full container height */
 }
 
 .panels-column-left {

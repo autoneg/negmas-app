@@ -65,6 +65,15 @@
             </svg>
             <span>Stats</span>
           </button>
+          <!-- Reset Layout button -->
+          <button class="btn btn-ghost btn-sm" @click="handleResetLayout" title="Reset panel layout to default">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="3" y1="9" x2="21" y2="9"></line>
+              <line x1="9" y1="21" x2="9" y2="9"></line>
+            </svg>
+            <span>Reset Layout</span>
+          </button>
           <!-- Rerun button (only for saved negotiations) -->
           <button 
             v-if="negotiation?.isSaved && !fromTournament" 
@@ -91,7 +100,7 @@
       </div>
       
       <!-- Panel System Layout -->
-      <PanelLayout>
+      <PanelLayout ref="panelLayoutRef">
         <!-- Left Column -->
         <template #left>
           <!-- Info Panel (ultra-compact, ~80px) -->
@@ -290,6 +299,9 @@ const zoomPanelType = ref('')
 const zoomPanelComponent = shallowRef(null)
 const loading = ref(true)
 const error = ref(null)
+
+// Panel layout ref for reset functionality
+const panelLayoutRef = ref(null)
 
 // Panel settings loaded from localStorage
 const panelSettings = ref(null)
@@ -732,6 +744,13 @@ function handleShowStats() {
   console.log('[SingleNegotiationView] negotiation:', negotiation.value)
   console.log('[SingleNegotiationView] outcome_space_data:', negotiation.value?.outcome_space_data)
   showStatsModal.value = true
+}
+
+function handleResetLayout() {
+  console.log('[SingleNegotiationView] Resetting panel layout')
+  if (panelLayoutRef.value) {
+    panelLayoutRef.value.resetLayout()
+  }
 }
 
 async function handleRerunNegotiation() {

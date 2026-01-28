@@ -3051,13 +3051,13 @@ body {
     display: none;
 }
 
-/* Panel size classes - optimized for typical viewport heights */
-.panel-info { flex: 0 0 auto; max-height: 120px; }
-.panel-history { flex: 1 1 25%; min-height: 80px; overflow: hidden; }
-.panel-histogram { flex: 1 1 30%; min-height: 100px; overflow: hidden; }
-.panel-result { flex: 0 0 auto; min-height: 40px; max-height: 80px; }
-.panel-2d-utility { flex: 1 1 60%; min-height: 150px; overflow: hidden; }
-.panel-timeline { flex: 1 1 40%; min-height: 120px; overflow: hidden; }
+/* Panel size classes - REMOVED fixed sizes to allow dynamic resizing via PanelLayout.vue
+   Initial sizes are now set by PanelLayout.vue's addResizeHandlesToColumn() function.
+   Keeping only overflow behavior for panels that need scrolling. */
+.panel-history { overflow: hidden; }
+.panel-histogram { overflow: hidden; }
+.panel-2d-utility { overflow: hidden; }
+.panel-timeline { overflow: hidden; }
 
 /* Floating actions - top right of panel */
 .panel-floating-actions {

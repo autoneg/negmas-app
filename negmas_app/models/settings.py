@@ -257,6 +257,9 @@ class LayoutState:
     panelCollapsed: dict[str, bool] = field(default_factory=dict)
     # Column widths for resizable areas
     leftColumnWidth: str | None = None
+    # Panel layout settings (for PanelLayout.vue)
+    panelLayout: dict[str, Any] = field(default_factory=dict)
+    # Default: leftColumnFlex: 40, panelHeights: {left: {}, right: {}}
 
 
 @dataclass
