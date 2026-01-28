@@ -947,41 +947,6 @@
               </div>
 
               <div class="form-group">
-                <label class="form-label">Run Mode</label>
-                <div class="run-mode-selector">
-                  <button
-                    type="button"
-                    class="run-mode-card"
-                    :class="{ selected: runMode === 'realtime' }"
-                    @click="runMode = 'realtime'"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
-                      <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                    </svg>
-                    <div class="run-mode-content">
-                      <span class="run-mode-title">Real-time</span>
-                      <span class="run-mode-desc">Watch step-by-step with live updates</span>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    class="run-mode-card"
-                    :class="{ selected: runMode === 'batch' }"
-                    @click="runMode = 'batch'"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
-                      <polyline points="13 17 18 12 13 7"></polyline>
-                      <polyline points="6 17 11 12 6 7"></polyline>
-                    </svg>
-                    <div class="run-mode-content">
-                      <span class="run-mode-title">Batch</span>
-                      <span class="run-mode-desc">Run instantly and show results</span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              <div v-if="runMode === 'realtime'" class="form-group">
                 <label class="form-label">Step Delay: {{ stepDelay }}ms</label>
                 <input
                   type="range"
