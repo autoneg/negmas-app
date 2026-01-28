@@ -61,6 +61,7 @@ class NegotiationStorageService:
         session: NegotiationSession,
         negotiator_configs: list[NegotiatorConfig] | None = None,
         tags: list[str] | None = None,
+        scenario_options: dict | None = None,
     ) -> Path:
         """Save a completed negotiation to disk.
 
@@ -68,12 +69,19 @@ class NegotiationStorageService:
             session: The negotiation session to save.
             negotiator_configs: Original negotiator configurations (optional).
             tags: Optional list of tags for categorization.
+            scenario_options: Dict with normalize, ignore_discount, ignore_reserved flags.
 
         Returns:
             Path to the session directory.
         """
         session_dir = NegotiationStorageService.get_session_dir(session.id)
         _ensure_dir(session_dir)
+
+        # Extract scenario options with defaults
+        scenario_opts = scenario_options or {}
+        normalize = scenario_opts.get("normalize", False)
+        ignore_discount = scenario_opts.get("ignore_discount", False)
+        ignore_reserved = scenario_opts.get("ignore_reserved", False)
 
         # Save metadata
         metadata = {
@@ -94,6 +102,10 @@ class NegotiationStorageService:
             "error": session.error,
             "tags": tags or [],
             "archived": False,
+            # Scenario options needed for outcome space reconstruction
+            "normalize": normalize,
+            "ignore_discount": ignore_discount,
+            "ignore_reserved": ignore_reserved,
         }
 
         # Add negotiator infos
@@ -408,16 +420,30 @@ class NegotiationStorageService:
                         )
 
             # Load outcome space data from scenario (reconstruct if needed)
-            # Note: outcome_space.json is no longer saved - we reconstruct from scenario
-            # This saves significant disk space
+            # Try multiple methods in order of preference:
+            # 1. Load from saved file (legacy - backward compatibility)
+            # 2. Reconstruct from offers (fast, doesn't need scenario)
+            # 3. Reconstruct from scenario (requires scenario to be available)
             outcome_path = session_dir / "outcome_space.json"
             if outcome_path.exists():
                 # Legacy: load from saved file for backward compatibility
                 session.outcome_space_data = (
                     NegotiationStorageService._load_outcome_space(outcome_path)
                 )
+            elif session.offers:
+                # Fast path: reconstruct minimal outcome_space_data from offers
+                # This provides enough data for visualization without loading scenario
+                try:
+                    session.outcome_space_data = (
+                        NegotiationStorageService._build_outcome_space_from_offers(
+                            session.offers
+                        )
+                    )
+                except Exception as e:
+                    print(f"Warning: Could not build outcome space from offers: {e}")
+                    session.outcome_space_data = None
             elif session.scenario_path:
-                # Reconstruct from scenario (preferred method)
+                # Fallback: Reconstruct from scenario (requires scenario to exist)
                 try:
                     from ..services.outcome_analysis import OutcomeAnalysisService
                     from negmas import Scenario
@@ -482,6 +508,68 @@ class NegotiationStorageService:
                 setattr(outcome_space, point_name, point)
 
         return outcome_space
+
+    @staticmethod
+    def _build_outcome_space_from_offers(offers: list[OfferEvent]) -> OutcomeSpaceData:
+        """Build minimal outcome space data from offers for visualization.
+
+        This provides enough data for the Utility2D panel without needing
+        the original scenario. It extracts unique outcomes from offers and
+        uses their utilities.
+
+        Args:
+            offers: List of offer events with utilities.
+
+        Returns:
+            OutcomeSpaceData with utilities from offers only.
+        """
+        if not offers:
+            return OutcomeSpaceData(
+                outcome_utilities=[],
+                pareto_utilities=[],
+                total_outcomes=0,
+                sampled=False,
+                sample_size=0,
+            )
+
+        # Extract unique outcomes and their utilities
+        outcome_map = {}  # outcome -> utilities
+        for offer in offers:
+            if offer.offer and offer.utilities:
+                outcome_key = offer.offer  # tuple is hashable
+                if outcome_key not in outcome_map:
+                    outcome_map[outcome_key] = tuple(offer.utilities)
+
+        outcome_utilities = list(outcome_map.values())
+
+        # Simple Pareto frontier approximation from offers
+        # An outcome is Pareto-efficient if no other outcome dominates it
+        pareto_utilities = []
+        for utilities in outcome_utilities:
+            is_pareto = True
+            for other in outcome_utilities:
+                # Check if 'other' dominates 'utilities'
+                # (better or equal in all dimensions, strictly better in at least one)
+                if all(o >= u for o, u in zip(other, utilities)) and any(
+                    o > u for o, u in zip(other, utilities)
+                ):
+                    is_pareto = False
+                    break
+            if is_pareto:
+                pareto_utilities.append(utilities)
+
+        return OutcomeSpaceData(
+            outcome_utilities=outcome_utilities,
+            pareto_utilities=pareto_utilities,
+            total_outcomes=len(outcome_utilities),
+            sampled=True,  # We only have offers, not all outcomes
+            sample_size=len(outcome_utilities),
+            # Special points set to None - could compute if needed
+            nash_point=None,
+            kalai_point=None,
+            kalai_smorodinsky_point=None,
+            max_welfare_point=None,
+        )
 
     @staticmethod
     def list_saved_negotiations(include_archived: bool = False) -> list[dict]:

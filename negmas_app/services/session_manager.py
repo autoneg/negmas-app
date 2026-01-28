@@ -448,8 +448,13 @@ class SessionManager:
             if self._auto_save.get(session_id, False):
                 try:
                     configs = self._configs.get(session_id)
+                    scenario_options = self._scenario_options.get(session_id, {})
                     await asyncio.to_thread(
-                        NegotiationStorageService.save_negotiation, session, configs
+                        NegotiationStorageService.save_negotiation,
+                        session,
+                        configs,
+                        None,  # tags
+                        scenario_options,
                     )
                     # Remove from memory after successful save to free resources
                     self.remove_completed_session(session_id)
