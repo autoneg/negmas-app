@@ -216,51 +216,29 @@ class NegotiationPreviewService:
                         zorder=7,
                     )
 
-        # Add special points
-        if data.nash_point and len(data.nash_point.utilities) > max(x_idx, y_idx):
-            ax.scatter(
-                [data.nash_point.utilities[x_idx]],
-                [data.nash_point.utilities[y_idx]],
-                s=100,
-                marker="*",
-                color="purple",
-                label="Nash",
-                zorder=10,
-            )
-        if data.kalai_point and len(data.kalai_point.utilities) > max(x_idx, y_idx):
-            ax.scatter(
-                [data.kalai_point.utilities[x_idx]],
-                [data.kalai_point.utilities[y_idx]],
-                s=100,
-                marker="*",
-                color="green",
-                label="Kalai",
-                zorder=10,
-            )
-        if data.kalai_smorodinsky_point and len(
-            data.kalai_smorodinsky_point.utilities
-        ) > max(x_idx, y_idx):
-            ax.scatter(
-                [data.kalai_smorodinsky_point.utilities[x_idx]],
-                [data.kalai_smorodinsky_point.utilities[y_idx]],
-                s=100,
-                marker="*",
-                color="cyan",
-                label="KS",
-                zorder=10,
-            )
-        if data.max_welfare_point and len(data.max_welfare_point.utilities) > max(
-            x_idx, y_idx
-        ):
-            ax.scatter(
-                [data.max_welfare_point.utilities[x_idx]],
-                [data.max_welfare_point.utilities[y_idx]],
-                s=100,
-                marker="*",
-                color="blue",
-                label="MaxWelfare",
-                zorder=10,
-            )
+        # Add special points with hollow rectangles (matching negmas style)
+        # Different rotations for different points
+        point_config = [
+            ("nash_point", "Nash", 45, 80),  # Diamond (45° rotation)
+            ("kalai_point", "Kalai", 0, 70),  # Square (0° rotation)
+            ("kalai_smorodinsky_point", "KS", 22.5, 70),  # Tilted square
+            ("max_welfare_point", "MaxWelfare", 90, 60),  # Vertical rectangle
+        ]
+
+        for point_attr, label, rotation, size in point_config:
+            point = getattr(data, point_attr, None)
+            if point and len(point.utilities) > max(x_idx, y_idx):
+                ax.scatter(
+                    [point.utilities[x_idx]],
+                    [point.utilities[y_idx]],
+                    s=size,
+                    marker=(4, 0, rotation),  # Square with rotation
+                    facecolors="none",  # Hollow
+                    edgecolors="black",
+                    linewidths=1.5,
+                    label=label,
+                    zorder=10,
+                )
 
         # Add agreement point if available
         if session.agreement and session.final_utilities:
@@ -269,8 +247,8 @@ class NegotiationPreviewService:
                 [session.final_utilities[y_idx]],
                 s=150,
                 marker="x",
-                color="black",
-                linewidths=2,
+                color="red",
+                linewidths=3,
                 label="Agreement",
                 zorder=15,
             )
@@ -323,11 +301,25 @@ class NegotiationPreviewService:
             "#059669",
         ]
 
+        # SIMPLIFIED VIEW: Each agent's utility for their own offers only
         for i in range(n_negotiators):
+            # Filter offers by proposer (only this agent's offers)
+            agent_offers = [
+                (idx, offer)
+                for idx, offer in enumerate(session.offers)
+                if offer.proposer_index == i
+            ]
+
+            # Sort by step (already in order, but ensure it)
+            agent_offers.sort(key=lambda x: x[0])
+
+            # Get steps and utilities for this agent's own offers
+            agent_steps = [idx for idx, _ in agent_offers]
             utilities = [
                 offer.utilities[i] if i < len(offer.utilities) else 0
-                for offer in session.offers
+                for _, offer in agent_offers
             ]
+
             name = (
                 session.negotiator_names[i]
                 if i < len(session.negotiator_names)
@@ -335,15 +327,17 @@ class NegotiationPreviewService:
             )
             color = colors[i % len(colors)]
 
-            ax.plot(
-                steps,
-                utilities,
-                marker="o",
-                markersize=4,
-                linewidth=2,
-                color=color,
-                label=name,
-            )
+            # Only plot if agent made at least one offer
+            if agent_steps:
+                ax.plot(
+                    agent_steps,
+                    utilities,
+                    marker="o",
+                    markersize=4,
+                    linewidth=2,
+                    color=color,
+                    label=name,
+                )
 
         # Configure plot
         ax.set_xlabel("Step")
@@ -375,10 +369,20 @@ class NegotiationPreviewService:
         if n_issues == 0:
             return
 
-        # Create subplots for each issue
-        fig, axes = plt.subplots(1, n_issues, figsize=(min(3 * n_issues, 12), 4))
+        # Create grid layout: 2 issues per row for better readability
+        n_cols = 2
+        n_rows = (n_issues + n_cols - 1) // n_cols  # Ceiling division
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(8, 4 * n_rows))
+
+        # Flatten axes array for easier indexing
         if n_issues == 1:
-            axes = [axes]  # Make it iterable
+            axes = [axes]
+        elif n_rows == 1:
+            # axes is 1D array for single row
+            pass
+        else:
+            # axes is 2D array, flatten it
+            axes = axes.flatten()
 
         # Process offers to count value occurrences per issue
         for i, issue_name in enumerate(session.issue_names):
@@ -420,6 +424,11 @@ class NegotiationPreviewService:
             ax.set_ylabel("Count")
             ax.grid(True, alpha=0.3, color="lightgray", axis="y")
             ax.set_facecolor("white")
+
+        # Hide empty subplots if odd number of issues
+        total_subplots = n_rows * n_cols
+        for i in range(n_issues, total_subplots):
+            axes[i].set_visible(False)
 
         fig.suptitle("Issue Value Distribution")
         fig.patch.set_facecolor("white")
