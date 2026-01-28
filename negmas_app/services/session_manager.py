@@ -123,6 +123,42 @@ class SessionManager:
         """Check if a session is paused."""
         return self._pause_flags.get(session_id, False)
 
+    def remove_completed_session(self, session_id: str) -> bool:
+        """Remove a completed/failed session from memory after it's been saved.
+
+        This frees up memory by removing sessions that are already persisted to disk.
+        Only removes sessions that are completed, failed, or cancelled.
+
+        Args:
+            session_id: ID of the session to remove.
+
+        Returns:
+            True if session was removed, False if not found or still running.
+        """
+        session = self.sessions.get(session_id)
+        if not session:
+            return False
+
+        # Only remove if session is no longer running
+        if session.status not in (
+            SessionStatus.COMPLETED,
+            SessionStatus.FAILED,
+            SessionStatus.CANCELLED,
+        ):
+            return False
+
+        # Clean up all session data from memory
+        self.sessions.pop(session_id, None)
+        self._configs.pop(session_id, None)
+        self._mechanism_params.pop(session_id, None)
+        self._mechanism_types.pop(session_id, None)
+        self._scenario_options.pop(session_id, None)
+        self._auto_save.pop(session_id, None)
+        self._cancel_flags.pop(session_id, None)
+        self._pause_flags.pop(session_id, None)
+
+        return True
+
     async def run_session_stream(
         self,
         session_id: str,
@@ -415,6 +451,8 @@ class SessionManager:
                     await asyncio.to_thread(
                         NegotiationStorageService.save_negotiation, session, configs
                     )
+                    # Remove from memory after successful save to free resources
+                    self.remove_completed_session(session_id)
                 except Exception as e:
                     print(f"Failed to auto-save negotiation {session_id}: {e}")
 
