@@ -163,6 +163,8 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     })
     
     eventSource.value.addEventListener('complete', (event) => {
+      console.log('[negotiations store] Complete event received:', event)
+      
       // Flush any remaining offers
       if (pendingOffers.length > 0) {
         offers.value.push(...pendingOffers)
@@ -170,6 +172,8 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
       }
       
       const data = JSON.parse(event.data)
+      console.log('[negotiations store] Complete data:', data)
+      console.log('[negotiations store] Setting sessionComplete:', data)
       sessionComplete.value = data
       stopStreaming()
       loadSessions() // Refresh sessions list
@@ -177,6 +181,8 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     
     eventSource.value.addEventListener('error', (event) => {
       console.error('[negotiations store] SSE error event:', event)
+      console.log('[negotiations store] Current sessionComplete value:', sessionComplete.value)
+      console.log('[negotiations store] EventSource readyState:', eventSource.value?.readyState)
       
       // Check if we already received a complete event
       // SSE fires error event when connection closes, even after successful completion
@@ -198,6 +204,7 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
         }
       }
       
+      console.log('[negotiations store] Treating as real error, setting sessionComplete with error')
       sessionComplete.value = { error: errorMessage, status: 'failed' }
       console.log('[negotiations store] Setting sessionComplete with error:', errorMessage)
       stopStreaming()
