@@ -305,19 +305,17 @@ class NegotiationPreviewService:
         for i in range(n_negotiators):
             # Filter offers by proposer (only this agent's offers)
             agent_offers = [
-                (idx, offer)
-                for idx, offer in enumerate(session.offers)
-                if offer.proposer_index == i
+                offer for offer in session.offers if offer.proposer_index == i
             ]
 
-            # Sort by step (already in order, but ensure it)
-            agent_offers.sort(key=lambda x: x[0])
+            # Sort by step to ensure correct order
+            agent_offers.sort(key=lambda x: x.step)
 
             # Get steps and utilities for this agent's own offers
-            agent_steps = [idx for idx, _ in agent_offers]
+            agent_steps = [offer.step for offer in agent_offers]
             utilities = [
                 offer.utilities[i] if i < len(offer.utilities) else 0
-                for _, offer in agent_offers
+                for offer in agent_offers
             ]
 
             name = (
