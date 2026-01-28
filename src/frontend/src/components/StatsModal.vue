@@ -14,7 +14,7 @@
       </div>
       
       <!-- Body -->
-      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+      <div class="modal-body" style="max-height: 70vh; overflow-y: auto; background: var(--bg-primary);">
         <div v-if="!stats" class="empty-state" style="padding: 40px;">
           <p>No statistics available for this scenario.</p>
         </div>
@@ -31,9 +31,9 @@
               <span class="stats-label">Sampled:</span>
               <span class="stats-value">{{ stats.sample_size?.toLocaleString() }} outcomes</span>
             </div>
-            <div class="stats-row">
+            <div v-if="paretoCount !== null" class="stats-row">
               <span class="stats-label">Pareto Frontier:</span>
-              <span class="stats-value">{{ stats.pareto_utilities?.length || 0 }} outcomes</span>
+              <span class="stats-value">{{ paretoCount.toLocaleString() }} outcomes</span>
             </div>
           </div>
           
@@ -148,6 +148,21 @@ const stats = computed(() => {
 
 const negotiatorNames = computed(() => {
   return props.negotiation?.negotiator_names || []
+})
+
+const paretoCount = computed(() => {
+  // Try to get from pareto_utilities array first
+  if (stats.value?.pareto_utilities?.length) {
+    return stats.value.pareto_utilities.length
+  }
+  
+  // Fall back to info.n_pareto if available
+  if (stats.value?.info?.n_pareto !== undefined && stats.value.info.n_pareto !== null) {
+    return stats.value.info.n_pareto
+  }
+  
+  // No pareto data available
+  return null
 })
 
 function formatOutcome(outcome) {
