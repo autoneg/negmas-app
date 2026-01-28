@@ -232,8 +232,18 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         
         // Add to live negotiations if we have the detailed data
         if (data.issue_names && data.scenario_path) {
+          // Create negotiation ID for deduplication
+          const negId = `${cellKey}_${data.scenario_path}`
+          
+          // Check if this negotiation already exists in liveNegotiations
+          const existingIndex = liveNegotiations.value.findIndex(n => 
+            `${n.scenario_path}_${n.partners?.join('_')}` === negId ||
+            (n.scenario_path === data.scenario_path && 
+             n.partners?.join(',') === [competitor, opponent].join(','))
+          )
+          
           const negotiation = {
-            index: liveNegotiations.value.length,
+            index: existingIndex >= 0 ? liveNegotiations.value[existingIndex].index : liveNegotiations.value.length,
             scenario: data.scenario_path || scenario,
             scenario_path: data.scenario_path,
             partners: [competitor, opponent],
@@ -247,7 +257,15 @@ export const useTournamentsStore = defineStore('tournaments', () => {
             offers: data.offers || [],
             error: data.error || null
           }
-          liveNegotiations.value.push(negotiation)
+          
+          if (existingIndex >= 0) {
+            // Update existing negotiation instead of adding duplicate
+            console.log('[Tournaments Store] Updating existing negotiation at index', existingIndex)
+            liveNegotiations.value[existingIndex] = negotiation
+          } else {
+            // Add new negotiation
+            liveNegotiations.value.push(negotiation)
+          }
           
           // Track errors separately for error panel
           if (negotiation.has_error) {

@@ -353,13 +353,15 @@ watch(() => sessionInit.value, (newVal) => {
 }, { immediate: true, deep: true })
 
 // Watch for errors in sessionComplete and show error dialog
-watch(() => sessionComplete.value?.error, (errorMsg) => {
-  if (errorMsg) {
+watch(() => sessionComplete.value?.error, (errorMsg, oldErrorMsg) => {
+  // Only show modal if error is new (different from previous)
+  // This prevents showing stale errors on page load
+  if (errorMsg && errorMsg !== oldErrorMsg) {
     console.log('[SingleNegotiationView] Error detected:', errorMsg)
     errorMessage.value = errorMsg
     showErrorModal.value = true
   }
-}, { immediate: true })
+}, { immediate: false })
 
 // Extract data loading into a reusable function
 async function loadNegotiationData(sessionId) {
