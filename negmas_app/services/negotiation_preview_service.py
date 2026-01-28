@@ -382,19 +382,45 @@ class NegotiationPreviewService:
             # axes is 2D array, flatten it
             axes = axes.flatten()
 
-        # Process offers to count value occurrences per issue
+        # Get number of negotiators
+        n_negotiators = len(session.negotiator_names) if session.negotiator_names else 0
+        if n_negotiators == 0:
+            return
+
+        # Colors for negotiators (matching timeline colors)
+        colors = [
+            "#4a6fa5",
+            "#22a06b",
+            "#9f6b0a",
+            "#943d73",
+            "#0891b2",
+            "#dc2626",
+            "#7c3aed",
+            "#059669",
+        ]
+
+        # Process offers to count value occurrences per issue per negotiator
         for i, issue_name in enumerate(session.issue_names):
             ax = axes[i]
 
-            # Collect values for this issue from all offers
-            value_counts = {}
+            # Collect values for this issue grouped by proposer
+            value_counts_per_agent = {}  # value -> [count_agent0, count_agent1, ...]
+            all_values = set()
+
             for offer in session.offers:
                 if offer.offer_dict and issue_name in offer.offer_dict:
                     value = offer.offer_dict[issue_name]
-                    value_str = str(value)  # Convert to string for categorical data
-                    value_counts[value_str] = value_counts.get(value_str, 0) + 1
+                    value_str = str(value)
+                    all_values.add(value_str)
 
-            if not value_counts:
+                    if value_str not in value_counts_per_agent:
+                        value_counts_per_agent[value_str] = [0] * n_negotiators
+
+                    proposer_idx = offer.proposer_index
+                    if proposer_idx < n_negotiators:
+                        value_counts_per_agent[value_str][proposer_idx] += 1
+
+            if not value_counts_per_agent:
                 # No data for this issue
                 ax.text(
                     0.5,
@@ -404,22 +430,52 @@ class NegotiationPreviewService:
                     va="center",
                     transform=ax.transAxes,
                 )
-                ax.set_title(issue_name, fontsize=10)
+                ax.set_title(issue_name, fontsize=10, fontweight="bold")
                 ax.set_facecolor("white")
                 continue
 
-            # Sort by value for consistent display
-            sorted_items = sorted(value_counts.items())
-            values = [item[0] for item in sorted_items]
-            counts = [item[1] for item in sorted_items]
+            # Sort values for consistent display
+            values = sorted(
+                all_values,
+                key=lambda x: (
+                    float(x)
+                    if x.replace(".", "", 1).replace("-", "", 1).isdigit()
+                    else float("inf"),
+                    x,
+                ),
+            )
 
-            # Create bar chart
+            # Create grouped bar chart
             x_positions = range(len(values))
-            ax.bar(x_positions, counts, color="#4a6fa5", alpha=0.7, edgecolor="black")
+            bar_width = 0.8 / n_negotiators  # Width of each bar
+
+            for agent_idx in range(n_negotiators):
+                agent_name = (
+                    session.negotiator_names[agent_idx]
+                    if agent_idx < len(session.negotiator_names)
+                    else f"Neg {agent_idx}"
+                )
+                counts = [value_counts_per_agent[v][agent_idx] for v in values]
+                offset = (agent_idx - n_negotiators / 2 + 0.5) * bar_width
+                x_pos = [x + offset for x in x_positions]
+
+                ax.bar(
+                    x_pos,
+                    counts,
+                    width=bar_width,
+                    color=colors[agent_idx % len(colors)],
+                    alpha=0.85,
+                    label=agent_name
+                    if i == 0
+                    else None,  # Only show legend on first subplot
+                    edgecolor="black",
+                    linewidth=0.5,
+                )
+
             ax.set_xticks(x_positions)
             ax.set_xticklabels(values, rotation=45, ha="right", fontsize=8)
-            ax.set_title(issue_name, fontsize=10)
-            ax.set_ylabel("Count")
+            ax.set_title(issue_name, fontsize=10, fontweight="bold")
+            ax.set_ylabel("Count", fontsize=9)
             ax.grid(True, alpha=0.3, color="lightgray", axis="y")
             ax.set_facecolor("white")
 
@@ -428,9 +484,26 @@ class NegotiationPreviewService:
         for i in range(n_issues, total_subplots):
             axes[i].set_visible(False)
 
-        fig.suptitle("Issue Value Distribution")
+        fig.suptitle(
+            "Issue Value Distribution by Negotiator", fontsize=12, fontweight="bold"
+        )
+
+        # Add legend (using first subplot's legend handles)
+        if n_issues > 0:
+            handles, labels = axes[0].get_legend_handles_labels()
+            if handles:
+                fig.legend(
+                    handles,
+                    labels,
+                    loc="upper center",
+                    bbox_to_anchor=(0.5, 0.98),
+                    ncol=min(n_negotiators, 4),
+                    frameon=True,
+                    fontsize=9,
+                )
+
         fig.patch.set_facecolor("white")
-        plt.tight_layout()
+        plt.tight_layout(rect=[0, 0, 1, 0.96])  # Leave space for legend
 
         # Save preview image
         try:
