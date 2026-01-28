@@ -186,6 +186,18 @@
           </div>
         </div>
         
+        <!-- Reverse Filter Checkbox -->
+        <div class="filter-group" style="margin-top: 12px;">
+          <label class="checkbox-label">
+            <input 
+              type="checkbox" 
+              v-model="localFilters.reverseFilter" 
+              @change="updateFilters"
+            />
+            <span>Reverse Filter (exclude matching items)</span>
+          </label>
+        </div>
+        
         <div style="display: flex; gap: 8px; margin-top: 8px;">
           <button class="btn-secondary btn-sm" @click="clearFilters" style="flex: 1;">Clear Filters</button>
           <button class="btn-secondary btn-sm" @click="showSaveFilterDialog = true" style="flex: 1;">Save Filter</button>
@@ -844,6 +856,7 @@ const localFilters = ref({
   anac: null,
   file: null,
   format: '',
+  reverseFilter: false,
 })
 
 const plotDiv = ref(null)
@@ -1006,7 +1019,8 @@ async function loadDefaultFilter() {
         normalized: filterData.normalized || '',
         anac: filterData.anac || '',
         file: filterData.file || '',
-        format: filterData.format || ''
+        format: filterData.format || '',
+        reverseFilter: filterData.reverseFilter ?? false,
       }
       
       // Update store with default filter
@@ -1055,6 +1069,7 @@ function clearFilters() {
     anac: null,
     file: null,
     format: '',
+    reverseFilter: false,
   }
   scenariosStore.updateFilter({
     search: '',
@@ -1153,6 +1168,7 @@ async function loadSavedFilter() {
         anac: filterData.anac ?? null,
         file: filterData.file ?? null,
         format: filterData.format || '',
+        reverseFilter: filterData.reverseFilter ?? false,
       }
       
       // Update store
@@ -3108,5 +3124,17 @@ textarea.input-text {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+/* Checkbox label styling */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  cursor: pointer;
 }
 </style>

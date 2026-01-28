@@ -66,6 +66,18 @@
           </label>
         </div>
         
+        <!-- Reverse Filter Checkbox -->
+        <div class="filter-group">
+          <label class="checkbox-label">
+            <input
+              v-model="localReverseFilter"
+              type="checkbox"
+              @change="updateReverseFilter"
+            />
+            <span>Reverse Filter (exclude matching items)</span>
+          </label>
+        </div>
+        
         <div style="display: flex; gap: 8px; margin-top: 8px;">
           <button class="btn-secondary btn-sm" @click="clearFilters" style="flex: 1;">Clear Filters</button>
           <button class="btn-secondary btn-sm" @click="showSaveFilterDialog = true" style="flex: 1;">Save Filter</button>
@@ -451,6 +463,7 @@ const localSource = ref('')
 const localGroup = ref('')
 const localMechanism = ref('')
 const localAvailableOnly = ref(true)
+const localReverseFilter = ref(false)
 const activeTab = ref('info')
 
 // Virtual negotiator creation
@@ -504,6 +517,7 @@ async function loadDefaultFilter() {
       localGroup.value = filterData.group || ''
       localMechanism.value = filterData.mechanism || ''
       localAvailableOnly.value = filterData.availableOnly !== undefined ? filterData.availableOnly : true
+      localReverseFilter.value = filterData.reverseFilter ?? false
       
       // Update store with default filter
       negotiatorsStore.updateFilter({
@@ -511,7 +525,8 @@ async function loadDefaultFilter() {
         source: localSource.value,
         group: localGroup.value,
         mechanism: localMechanism.value,
-        availableOnly: localAvailableOnly.value
+        availableOnly: localAvailableOnly.value,
+        reverseFilter: localReverseFilter.value,
       })
       
       // Reload negotiators if filters changed
@@ -546,12 +561,17 @@ function updateAvailableFilter() {
   negotiatorsStore.updateFilter({ availableOnly: localAvailableOnly.value })
 }
 
+function updateReverseFilter() {
+  negotiatorsStore.updateFilter({ reverseFilter: localReverseFilter.value })
+}
+
 function clearFilters() {
   localSearch.value = ''
   localSource.value = ''
   localGroup.value = ''
   localMechanism.value = ''
   localAvailableOnly.value = true
+  localReverseFilter.value = false
   
   negotiatorsStore.updateFilter({
     search: '',
@@ -559,6 +579,7 @@ function clearFilters() {
     group: '',
     mechanism: '',
     availableOnly: true,
+    reverseFilter: false,
   })
 }
 
@@ -685,6 +706,7 @@ async function saveCurrentFilter() {
       group: localGroup.value,
       mechanism: localMechanism.value,
       availableOnly: localAvailableOnly.value,
+      reverseFilter: localReverseFilter.value,
     }
     
     const response = await fetch('/api/filters', {
@@ -740,6 +762,7 @@ async function loadSavedFilter() {
       localGroup.value = filterData.group || ''
       localMechanism.value = filterData.mechanism || ''
       localAvailableOnly.value = filterData.availableOnly ?? true
+      localReverseFilter.value = filterData.reverseFilter ?? false
       
       // Update store
       negotiatorsStore.updateFilter({
@@ -748,6 +771,7 @@ async function loadSavedFilter() {
         group: localGroup.value,
         mechanism: localMechanism.value,
         availableOnly: localAvailableOnly.value,
+        reverseFilter: localReverseFilter.value,
       })
       
       // Reload negotiators with new filters

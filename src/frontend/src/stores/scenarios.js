@@ -19,6 +19,7 @@ export const useScenariosStore = defineStore('scenarios', () => {
     maxOpposition: null,
     minRationalFraction: null,
     maxRationalFraction: null,
+    reverseFilter: false,
   })
 
   async function loadSources() {
@@ -140,7 +141,7 @@ export const useScenariosStore = defineStore('scenarios', () => {
   }
 
   const filteredScenarios = computed(() => {
-    return scenarios.value.filter(scenario => {
+    const filtered = scenarios.value.filter(scenario => {
       // Search filter - search in name and tags
       if (filter.value.search) {
         const searchLower = filter.value.search.toLowerCase()
@@ -212,6 +213,14 @@ export const useScenariosStore = defineStore('scenarios', () => {
       }
       return true
     })
+    
+    // Apply reverse filter if enabled
+    if (filter.value.reverseFilter) {
+      const filteredIds = new Set(filtered.map(s => s.id))
+      return scenarios.value.filter(s => !filteredIds.has(s.id))
+    }
+    
+    return filtered
   })
 
   return {

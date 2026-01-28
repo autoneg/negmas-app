@@ -15,6 +15,7 @@ export const useNegotiatorsStore = defineStore('negotiators', () => {
     group: '',
     mechanism: '',
     availableOnly: true,
+    reverseFilter: false,
   })
 
   async function loadNegotiators(sourceFilter = null, groupFilter = null, searchFilter = null) {
@@ -127,7 +128,7 @@ export const useNegotiatorsStore = defineStore('negotiators', () => {
   }
 
   const filteredNegotiators = computed(() => {
-    return negotiators.value.filter(negotiator => {
+    const filtered = negotiators.value.filter(negotiator => {
       // Search filter
       if (filter.value.search) {
         const search = filter.value.search.toLowerCase()
@@ -160,6 +161,14 @@ export const useNegotiatorsStore = defineStore('negotiators', () => {
       
       return true
     })
+    
+    // Apply reverse filter if enabled
+    if (filter.value.reverseFilter) {
+      const filteredIds = new Set(filtered.map(n => n.id))
+      return negotiators.value.filter(n => !filteredIds.has(n.id))
+    }
+    
+    return filtered
   })
 
   // Get unique groups from current negotiators
