@@ -277,28 +277,6 @@ function addResizeHandlesToColumn(columnEl, columnKey) {
     handle.addEventListener('mousedown', (e) => startPanelResize(e, columnKey, index))
   })
 }
-    // Check if handle already exists
-    if (panel.nextElementSibling?.classList.contains('resize-handle-horizontal')) {
-      return
-    }
-    
-    // Create resize handle
-    const handle = document.createElement('div')
-    handle.className = 'resize-handle-horizontal'
-    handle.dataset.columnKey = columnKey
-    handle.dataset.panelIndex = index
-    
-    // Insert handle after panel
-    panel.parentNode.insertBefore(handle, panel.nextSibling)
-    
-    // Apply initial flex size
-    panel.style.flex = initialFlex
-    panel.style.minHeight = minHeight
-    
-    // Add drag handler
-    handle.addEventListener('mousedown', (e) => startPanelResize(e, columnKey, index))
-  })
-}
 
 function startPanelResize(event, columnKey, panelIndex) {
   const handle = event.target
