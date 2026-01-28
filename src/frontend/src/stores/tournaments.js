@@ -232,15 +232,32 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         
         // Add to live negotiations if we have the detailed data
         if (data.issue_names && data.scenario_path) {
-          // Create negotiation ID for deduplication
-          const negId = `${cellKey}_${data.scenario_path}`
-          
           // Check if this negotiation already exists in liveNegotiations
-          const existingIndex = liveNegotiations.value.findIndex(n => 
-            `${n.scenario_path}_${n.partners?.join('_')}` === negId ||
-            (n.scenario_path === data.scenario_path && 
-             n.partners?.join(',') === [competitor, opponent].join(','))
-          )
+          // Match by scenario path and partners (order-independent)
+          const existingIndex = liveNegotiations.value.findIndex(n => {
+            if (n.scenario_path !== data.scenario_path) return false
+            
+            // Check if partners match (order-independent)
+            const nPartners = new Set(n.partners || [])
+            const dataPartners = new Set([competitor, opponent])
+            
+            if (nPartners.size !== dataPartners.size) return false
+            
+            for (const p of dataPartners) {
+              if (!nPartners.has(p)) return false
+            }
+            
+            return true
+          })
+          
+          if (existingIndex >= 0) {
+            console.log('[Tournaments Store] Found duplicate negotiation:', {
+              existingIndex,
+              scenario: data.scenario_path,
+              partners: [competitor, opponent],
+              existing: liveNegotiations.value[existingIndex]
+            })
+          }
           
           const negotiation = {
             index: existingIndex >= 0 ? liveNegotiations.value[existingIndex].index : liveNegotiations.value.length,
@@ -264,6 +281,11 @@ export const useTournamentsStore = defineStore('tournaments', () => {
             liveNegotiations.value[existingIndex] = negotiation
           } else {
             // Add new negotiation
+            console.log('[Tournaments Store] Adding new negotiation:', {
+              index: negotiation.index,
+              scenario: negotiation.scenario_path,
+              partners: negotiation.partners
+            })
             liveNegotiations.value.push(negotiation)
           }
           
