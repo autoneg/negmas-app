@@ -528,21 +528,28 @@ const completedNegotiations = computed(() => {
     return tournamentLiveNegotiations.value
       .map(neg => convertTournamentCompletedNegotiation(neg))
   } else {
-    // Use negotiations store's sessions + savedNegotiations
-    return [
-      ...sessions.value.filter(s => 
-        s.status === 'completed' || s.status === 'failed'
-      ).map(s => ({
-        ...s,
-        source: 'session',
-        timestamp: s.created_at || s.started_at || Date.now()
-      })),
-      ...savedNegotiations.value.map(s => ({
+    // Build map of saved negotiations by ID for deduplication
+    const savedById = new Map()
+    savedNegotiations.value.forEach(s => {
+      savedById.set(s.id, {
         ...s,
         source: 'saved',
         timestamp: s.created_at || s.completed_at || Date.now()
+      })
+    })
+    
+    // Add session-based negotiations only if not already saved
+    // Saved negotiations take precedence (they have disk links)
+    const sessionBased = sessions.value
+      .filter(s => s.status === 'completed' || s.status === 'failed')
+      .filter(s => !savedById.has(s.id))  // Skip if already in saved
+      .map(s => ({
+        ...s,
+        source: 'session',
+        timestamp: s.created_at || s.started_at || Date.now()
       }))
-    ]
+    
+    return [...Array.from(savedById.values()), ...sessionBased]
   }
 })
 
