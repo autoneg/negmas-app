@@ -242,6 +242,16 @@
                     👁️
                   </button>
                   
+                  <!-- Open folder button (only for saved negotiations) -->
+                  <button 
+                    v-if="neg.source === 'saved'"
+                    class="btn-icon-small" 
+                    @click="openNegotiationFolder(neg.id)" 
+                    title="Open folder in file manager"
+                  >
+                    📁
+                  </button>
+                  
                   <!-- Hide these buttons in tournament mode -->
                   <template v-if="!isTournamentMode">
                     <button 
@@ -1098,6 +1108,26 @@ async function deleteSaved(sessionId) {
       console.error('[NegotiationsListView] Failed to delete negotiation:', error)
       alert(`Failed to delete negotiation: ${error.message}`)
     }
+  }
+}
+
+async function openNegotiationFolder(sessionId) {
+  try {
+    console.log('[NegotiationsListView] Opening folder for negotiation:', sessionId)
+    const response = await fetch(`/api/negotiation/saved/${sessionId}/open-folder`, {
+      method: 'POST'
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to open folder')
+    }
+    
+    const data = await response.json()
+    console.log('[NegotiationsListView] Folder opened:', data.path)
+  } catch (error) {
+    console.error('[NegotiationsListView] Failed to open folder:', error)
+    alert(`Failed to open folder: ${error.message}`)
   }
 }
 
