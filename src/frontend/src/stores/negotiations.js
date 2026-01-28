@@ -177,6 +177,15 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     
     eventSource.value.addEventListener('error', (event) => {
       console.error('[negotiations store] SSE error event:', event)
+      
+      // Check if we already received a complete event
+      // SSE fires error event when connection closes, even after successful completion
+      if (sessionComplete.value !== null) {
+        console.log('[negotiations store] Ignoring error event - negotiation already completed')
+        stopStreaming()
+        return
+      }
+      
       let errorMessage = 'Connection error or negotiation failed'
       
       // Try to parse error data if available
