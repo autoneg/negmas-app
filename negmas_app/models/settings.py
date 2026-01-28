@@ -171,12 +171,22 @@ class PerformanceSettings:
     # When loading, all supported formats are tried
     plot_image_format: str = "webp"
 
+    # Storage format for offers data
+    # Supported: "csv", "parquet" (parquet is 5-10x smaller and faster to load)
+    # CSV is human-readable, parquet is optimized for storage/performance
+    offers_storage_format: str = "parquet"
+
     def __post_init__(self) -> None:
         """Validate plot_image_format is supported."""
         if self.plot_image_format not in SUPPORTED_IMAGE_FORMATS:
             raise ValueError(
                 f"plot_image_format must be one of {SUPPORTED_IMAGE_FORMATS}, "
                 f"got: {self.plot_image_format}"
+            )
+        if self.offers_storage_format not in {"csv", "parquet"}:
+            raise ValueError(
+                f"offers_storage_format must be 'csv' or 'parquet', "
+                f"got: {self.offers_storage_format}"
             )
 
 

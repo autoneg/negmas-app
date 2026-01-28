@@ -16,6 +16,7 @@ from ..models.session import (
 )
 from ..models.negotiator import NegotiatorConfig
 from .negotiation_preview_service import NegotiationPreviewService
+from .settings_service import SettingsService
 
 # Storage directory paths
 NEGOTIATIONS_DIR = Path.home() / "negmas" / "app" / "negotiations"
@@ -123,36 +124,32 @@ class NegotiationStorageService:
         with open(session_dir / "result.json", "w") as f:
             json.dump(result, f, indent=2)
 
-        # Save offers as CSV for easy analysis
+        # Save offers in configured format (parquet or CSV)
         if session.offers:
-            NegotiationStorageService._save_offers_csv(
-                session_dir / "offers.csv", session.offers, session.issue_names
-            )
+            settings = SettingsService.load_performance()
+            storage_format = settings.offers_storage_format
 
-        # Also save offers as JSON for full fidelity
-        offers_data = []
-        for offer in session.offers:
-            offer_data = {
-                "step": offer.step,
-                "proposer": offer.proposer,
-                "proposer_index": offer.proposer_index,
-                "offer": list(offer.offer) if offer.offer else None,
-                "offer_dict": offer.offer_dict,
-                "utilities": offer.utilities,
-                "timestamp": _serialize_datetime(offer.timestamp),
-                "response": offer.response,
-                "relative_time": offer.relative_time,
-            }
-            offers_data.append(offer_data)
+            if storage_format == "parquet":
+                try:
+                    NegotiationStorageService._save_offers_parquet(
+                        session_dir / "offers.parquet",
+                        session.offers,
+                        session.issue_names,
+                    )
+                except ImportError:
+                    # Fallback to CSV if pandas/pyarrow not available
+                    print("Warning: pandas/pyarrow not available, falling back to CSV")
+                    NegotiationStorageService._save_offers_csv(
+                        session_dir / "offers.csv", session.offers, session.issue_names
+                    )
+            else:
+                NegotiationStorageService._save_offers_csv(
+                    session_dir / "offers.csv", session.offers, session.issue_names
+                )
 
-        with open(session_dir / "offers.json", "w") as f:
-            json.dump(offers_data, f, indent=2)
-
-        # Save outcome space data if present
-        if session.outcome_space_data:
-            NegotiationStorageService._save_outcome_space(
-                session_dir / "outcome_space.json", session.outcome_space_data
-            )
+        # Note: outcome_space.json is NO LONGER SAVED
+        # It can be reconstructed from the scenario when needed
+        # This saves significant disk space for large outcome spaces
 
         # Generate preview images for panels
         try:
@@ -190,6 +187,42 @@ class NegotiationStorageService:
                 row.extend(offer.utilities)
                 row.extend([offer.response or "", offer.relative_time])
                 writer.writerow(row)
+
+    @staticmethod
+    def _save_offers_parquet(
+        path: Path, offers: list[OfferEvent], issue_names: list[str]
+    ) -> None:
+        """Save offers to Parquet format for optimized storage."""
+        import pandas as pd
+
+        # Build dataframe
+        n_negotiators = len(offers[0].utilities) if offers else 0
+
+        data = {
+            "step": [o.step for o in offers],
+            "proposer": [o.proposer for o in offers],
+            "proposer_index": [o.proposer_index for o in offers],
+        }
+
+        # Add issue columns
+        for i, issue_name in enumerate(issue_names):
+            data[issue_name] = [
+                list(o.offer)[i] if o.offer and len(o.offer) > i else None
+                for o in offers
+            ]
+
+        # Add utility columns
+        for i in range(n_negotiators):
+            data[f"utility_{i}"] = [
+                o.utilities[i] if len(o.utilities) > i else None for o in offers
+            ]
+
+        # Add response and relative_time
+        data["response"] = [o.response or "" for o in offers]
+        data["relative_time"] = [o.relative_time for o in offers]
+
+        df = pd.DataFrame(data)
+        df.to_parquet(path, engine="pyarrow", compression="snappy", index=False)
 
     @staticmethod
     def _save_outcome_space(path: Path, data: OutcomeSpaceData) -> None:
@@ -295,37 +328,116 @@ class NegotiationStorageService:
                 session.end_reason = result.get("end_reason")
                 session.optimality_stats = result.get("optimality_stats")
 
-            # Load offers from JSON (full fidelity)
-            offers_json_path = session_dir / "offers.json"
-            if offers_json_path.exists():
-                with open(offers_json_path) as f:
-                    offers_data = json.load(f)
-                for offer_data in offers_data:
-                    session.offers.append(
-                        OfferEvent(
-                            step=offer_data["step"],
-                            proposer=offer_data["proposer"],
-                            proposer_index=offer_data["proposer_index"],
-                            offer=(
-                                tuple(offer_data["offer"])
-                                if offer_data.get("offer")
-                                else ()
-                            ),
-                            offer_dict=offer_data.get("offer_dict", {}),
-                            utilities=offer_data.get("utilities", []),
-                            timestamp=_deserialize_datetime(offer_data.get("timestamp"))
-                            or datetime.now(),
-                            response=offer_data.get("response"),
-                            relative_time=offer_data.get("relative_time", 0.0),
-                        )
-                    )
+            # Load offers from parquet (preferred) or CSV fallback
+            offers_parquet_path = session_dir / "offers.parquet"
+            offers_csv_path = session_dir / "offers.csv"
 
-            # Load outcome space data
+            if offers_parquet_path.exists():
+                try:
+                    import pandas as pd
+
+                    df = pd.read_parquet(offers_parquet_path)
+                    for _, row in df.iterrows():
+                        # Extract offer values from issue columns
+                        offer_values = tuple(
+                            row[name]
+                            for name in session.issue_names
+                            if name in df.columns
+                        )
+
+                        # Extract utilities
+                        utilities = []
+                        i = 0
+                        while f"utility_{i}" in df.columns:
+                            utilities.append(float(row[f"utility_{i}"]))
+                            i += 1
+
+                        session.offers.append(
+                            OfferEvent(
+                                step=int(row["step"]),
+                                proposer=str(row["proposer"]),
+                                proposer_index=int(row["proposer_index"]),
+                                offer=offer_values if offer_values else (),
+                                offer_dict=dict(zip(session.issue_names, offer_values))
+                                if offer_values
+                                else {},
+                                utilities=utilities,
+                                timestamp=datetime.now(),  # Not preserved in parquet
+                                response=str(row["response"])
+                                if pd.notna(row.get("response"))
+                                else None,
+                                relative_time=float(row["relative_time"]),
+                            )
+                        )
+                except ImportError:
+                    print(f"Warning: pandas not available, cannot load parquet offers")
+            elif offers_csv_path.exists():
+                # Fallback to CSV if parquet not available
+                # (Old saved negotiations or when parquet saving failed)
+                with open(offers_csv_path, newline="") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        # Extract offer values from issue columns
+                        offer_values = tuple(
+                            row[name] for name in session.issue_names if name in row
+                        )
+
+                        # Extract utilities
+                        utilities = []
+                        i = 0
+                        while f"utility_{i}" in row:
+                            utilities.append(float(row[f"utility_{i}"]))
+                            i += 1
+
+                        session.offers.append(
+                            OfferEvent(
+                                step=int(row["step"]),
+                                proposer=str(row["proposer"]),
+                                proposer_index=int(row["proposer_index"]),
+                                offer=offer_values if offer_values else (),
+                                offer_dict=dict(zip(session.issue_names, offer_values))
+                                if offer_values
+                                else {},
+                                utilities=utilities,
+                                timestamp=datetime.now(),
+                                response=str(row["response"])
+                                if row.get("response")
+                                else None,
+                                relative_time=float(row["relative_time"]),
+                            )
+                        )
+
+            # Load outcome space data from scenario (reconstruct if needed)
+            # Note: outcome_space.json is no longer saved - we reconstruct from scenario
+            # This saves significant disk space
             outcome_path = session_dir / "outcome_space.json"
             if outcome_path.exists():
+                # Legacy: load from saved file for backward compatibility
                 session.outcome_space_data = (
                     NegotiationStorageService._load_outcome_space(outcome_path)
                 )
+            elif session.scenario_path:
+                # Reconstruct from scenario (preferred method)
+                try:
+                    from ..services.outcome_analysis import OutcomeAnalysisService
+                    from negmas import Scenario
+
+                    scenario = Scenario.load(
+                        session.scenario_path, load_stats=True, load_info=True
+                    )
+                    session.outcome_space_data = (
+                        OutcomeAnalysisService.analyze_outcome_space(
+                            scenario=scenario,
+                            normalize=metadata.get("normalize", False),
+                            ignore_discount=metadata.get("ignore_discount", False),
+                            ignore_reserved=metadata.get("ignore_reserved", False),
+                        )
+                    )
+                except Exception as e:
+                    print(
+                        f"Warning: Could not reconstruct outcome space from scenario: {e}"
+                    )
+                    session.outcome_space_data = None
 
             return session
 
