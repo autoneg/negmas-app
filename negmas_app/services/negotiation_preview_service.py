@@ -216,26 +216,26 @@ class NegotiationPreviewService:
                         zorder=7,
                     )
 
-        # Add special points with hollow rectangles (matching negmas style)
-        # Different rotations for different points
+        # Add special points using markers from negmas.plots.util
+        # Markers: NASH_MARKER = "triangle-left", KALAI_MARKER = "triangle-down"
+        #          KS_MARKER = "triangle-up", WELFARE_MARKER = "triangle-right"
         point_config = [
-            ("nash_point", "Nash", 45, 80),  # Diamond (45° rotation)
-            ("kalai_point", "Kalai", 0, 70),  # Square (0° rotation)
-            ("kalai_smorodinsky_point", "KS", 22.5, 70),  # Tilted square
-            ("max_welfare_point", "MaxWelfare", 90, 60),  # Vertical rectangle
+            ("nash_point", "Nash", "<", "brown", 80),  # triangle-left
+            ("kalai_point", "Kalai", "v", "green", 70),  # triangle-down
+            ("kalai_smorodinsky_point", "KS", "^", "cyan", 70),  # triangle-up
+            ("max_welfare_point", "MaxWelfare", ">", "blue", 80),  # triangle-right
         ]
 
-        for point_attr, label, rotation, size in point_config:
+        for point_attr, label, marker, color, size in point_config:
             point = getattr(data, point_attr, None)
             if point and len(point.utilities) > max(x_idx, y_idx):
                 ax.scatter(
                     [point.utilities[x_idx]],
                     [point.utilities[y_idx]],
                     s=size,
-                    marker=(4, 0, rotation),  # Square with rotation
-                    facecolors="none",  # Hollow
-                    edgecolors="black",
-                    linewidths=1.5,
+                    marker=marker,
+                    color=color,
+                    alpha=0.6,
                     label=label,
                     zorder=10,
                 )
@@ -245,10 +245,10 @@ class NegotiationPreviewService:
             ax.scatter(
                 [session.final_utilities[x_idx]],
                 [session.final_utilities[y_idx]],
-                s=150,
-                marker="x",
-                color="red",
-                linewidths=3,
+                s=200,
+                marker="*",
+                color="black",
+                alpha=0.9,
                 label="Agreement",
                 zorder=15,
             )
