@@ -296,7 +296,9 @@ async function initPlots() {
       
       // Each agent gets one trace showing their own utility for their own offers
       for (let agentIdx = 0; agentIdx < numAgents; agentIdx++) {
-        const agentOffers = neg.offers.filter(o => Number(o.proposer_index) === agentIdx)
+        const agentOffers = neg.offers
+          .filter(o => Number(o.proposer_index) === agentIdx)
+          .sort((a, b) => getXValue(a) - getXValue(b)) // Sort by x-axis value
         
         const xValues = agentOffers.map(getXValue)
         const yValues = agentOffers.map(o => o.utilities[agentIdx] || 0)
@@ -407,7 +409,9 @@ async function initPlots() {
         
         // Create N series per plot - each series j shows utility of offers from agent j for agent agentIdx
         for (let proposerIdx = 0; proposerIdx < numAgents; proposerIdx++) {
-          const proposerOffers = neg.offers.filter(o => Number(o.proposer_index) === proposerIdx)
+          const proposerOffers = neg.offers
+            .filter(o => Number(o.proposer_index) === proposerIdx)
+            .sort((a, b) => getXValue(a) - getXValue(b)) // Sort by x-axis value
           
           const xValues = proposerOffers.map(getXValue)
           const yValues = proposerOffers.map(o => o.utilities[agentIdx] || 0)
