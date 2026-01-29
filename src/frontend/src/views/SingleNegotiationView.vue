@@ -15,8 +15,11 @@
     <!-- Main Content -->
     <div v-else-if="negotiation" class="negotiation-content">
       <!-- Debug: Show that we're in the right place -->
-      <div style="background: red; color: white; padding: 10px; position: fixed; top: 0; right: 0; z-index: 9999;">
-        DEBUG: Rendering negotiation {{ negotiation.id }} - {{ negotiation.status }}
+      <div style="background: red; color: white; padding: 10px; position: fixed; top: 0; right: 0; z-index: 9999; font-size: 12px;">
+        DEBUG: {{ negotiation.id }} - {{ negotiation.status }}<br>
+        scenario: {{ negotiation.scenario_name }}<br>
+        offers: {{ negotiation.offers?.length || 0 }}<br>
+        outcome_space: {{ !!negotiation.outcome_space_data }}
       </div>
       
       <!-- Header -->
@@ -33,12 +36,46 @@
       </div>
 
       <!-- Panel Layout -->
-      <PanelLayout
-        ref="panelLayoutRef"
-        :negotiation="negotiation"
-        :from-tournament="fromTournament"
-        @zoom="handleZoom"
-      />
+      <PanelLayout ref="panelLayoutRef">
+        <!-- Left Column -->
+        <template #left>
+          <InfoPanel 
+            :negotiation="negotiation"
+            @togglePause="handleTogglePause"
+            @stop="handleCancel"
+            @showStats="handleShowStats"
+          />
+          
+          <OfferHistoryPanel 
+            :negotiation="negotiation"
+            @zoom="handleZoom('Offer History', 'offerHistory')"
+          />
+          
+          <HistogramPanel 
+            :negotiation="negotiation"
+            @zoom="handleZoom('Histogram', 'histogram')"
+          />
+          
+          <ResultPanel 
+            :negotiation="negotiation"
+            @saveResults="handleSaveResults"
+            @zoom="handleZoom('Result', 'result')"
+          />
+        </template>
+        
+        <!-- Right Column -->
+        <template #right>
+          <Utility2DPanel 
+            :negotiation="negotiation"
+            @zoom="handleZoom('2D Utility View', 'utility2d')"
+          />
+          
+          <TimelinePanel 
+            :negotiation="negotiation"
+            @zoom="handleZoom('Timeline', 'timeline')"
+          />
+        </template>
+      </PanelLayout>
 
       <!-- Stats Modal -->
       <Teleport to="body">
@@ -71,6 +108,12 @@ import { useNegotiationsStore } from '../stores/negotiations'
 import StatsModal from '../components/StatsModal.vue'
 import ZoomModal from '../components/ZoomModal.vue'
 import PanelLayout from '../components/panels/PanelLayout.vue'
+import InfoPanel from '../components/panels/InfoPanel.vue'
+import OfferHistoryPanel from '../components/panels/OfferHistoryPanel.vue'
+import HistogramPanel from '../components/panels/HistogramPanel.vue'
+import ResultPanel from '../components/panels/ResultPanel.vue'
+import Utility2DPanel from '../components/panels/Utility2DPanel.vue'
+import TimelinePanel from '../components/panels/TimelinePanel.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -259,11 +302,68 @@ function startPolling(sessionId) {
 /**
  * Handle zoom panel
  */
-function handleZoom({ title, type, component }) {
+function handleZoom(title, panelType) {
   zoomPanelTitle.value = title
-  zoomPanelType.value = type
-  zoomPanelComponent.value = component
+  zoomPanelType.value = panelType
+  
+  // Map panel type to component
+  const componentMap = {
+    'offerHistory': OfferHistoryPanel,
+    'histogram': HistogramPanel,
+    'result': ResultPanel,
+    'utility2d': Utility2DPanel,
+    'timeline': TimelinePanel
+  }
+  
+  zoomPanelComponent.value = componentMap[panelType] || null
   showZoomModal.value = true
+}
+
+/**
+ * Handle toggle pause
+ */
+async function handleTogglePause() {
+  if (!negotiation.value?.id) return
+  
+  try {
+    if (negotiation.value.status === 'paused') {
+      await negotiationsStore.resumeSession(negotiation.value.id)
+    } else {
+      await negotiationsStore.pauseSession(negotiation.value.id)
+    }
+  } catch (err) {
+    console.error('[SingleNegotiationView] Failed to toggle pause:', err)
+  }
+}
+
+/**
+ * Handle show stats
+ */
+function handleShowStats() {
+  showStatsModal.value = true
+}
+
+/**
+ * Handle cancel
+ */
+async function handleCancel() {
+  if (!negotiation.value?.id) return
+  if (!confirm('Are you sure you want to cancel this negotiation?')) return
+  
+  try {
+    await negotiationsStore.cancelSession(negotiation.value.id)
+    router.push({ name: 'NegotiationsList' })
+  } catch (err) {
+    console.error('[SingleNegotiationView] Failed to cancel:', err)
+  }
+}
+
+/**
+ * Handle save results
+ */
+function handleSaveResults() {
+  console.log('[SingleNegotiationView] Save results')
+  // TODO: Implement save results to file
 }
 
 /**
