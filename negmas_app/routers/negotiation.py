@@ -254,8 +254,12 @@ async def stream_negotiation(
                                 "negotiator_types": event.negotiator_types,
                                 "negotiator_colors": event.negotiator_colors,
                                 "issue_names": event.issue_names,
-                                "n_steps": event.n_steps,
-                                "time_limit": event.time_limit,
+                                "n_steps": sanitize_float(event.n_steps)
+                                if event.n_steps
+                                else None,
+                                "time_limit": sanitize_float(event.time_limit)
+                                if event.time_limit
+                                else None,
                                 "n_outcomes": event.n_outcomes,
                                 "outcome_space_data": osd_data,
                             }
@@ -312,7 +316,7 @@ async def get_negotiation_progress(session_id: str):
         "session_id": session.id,
         "status": session.status.value,
         "current_step": session.current_step,
-        "n_steps": session.n_steps,
+        "n_steps": sanitize_float(session.n_steps) if session.n_steps else None,
         "relative_time": session.offers[-1].relative_time if session.offers else 0.0,
     }
 
@@ -363,7 +367,7 @@ async def list_sessions():
                 "mechanism_type": session.mechanism_type,
                 "negotiator_names": session.negotiator_names,
                 "current_step": session.current_step,
-                "n_steps": session.n_steps,
+                "n_steps": sanitize_float(session.n_steps) if session.n_steps else None,
                 "relative_time": session.offers[-1].relative_time
                 if session.offers
                 else 0.0,
@@ -533,9 +537,11 @@ async def get_saved_negotiation(session_id: str):
         if session.negotiator_infos
         else [],
         "current_step": session.current_step,
-        "n_steps": session.n_steps,
+        "n_steps": sanitize_float(session.n_steps) if session.n_steps else None,
         "relative_time": session.offers[-1].relative_time if session.offers else 0.0,
-        "time_limit": session.time_limit,
+        "time_limit": sanitize_float(session.time_limit)
+        if session.time_limit
+        else None,
         "issue_names": session.issue_names,
         "start_time": session.start_time.isoformat() if session.start_time else None,
         "end_time": session.end_time.isoformat() if session.end_time else None,
