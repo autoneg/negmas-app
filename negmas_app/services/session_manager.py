@@ -193,40 +193,41 @@ def _run_negotiation_in_thread(
                 new_history = mechanism.history[len(session.offers) :]
                 for h in new_history:
                     if isinstance(h, SAOState):
-                        # Calculate utilities for this offer
-                        utilities = []
-                        if h.current_offer is not None:
+                        # Process all offers made in this step (new_offers contains all offers from all negotiators)
+                        for proposer_id, offer in h.new_offers:
+                            if offer is None:
+                                continue
+
+                            # Look up proposer index
+                            proposer_idx = negotiator_id_to_idx.get(proposer_id, 0)
+                            proposer_name = (
+                                session.negotiator_names[proposer_idx]
+                                if proposer_idx < len(session.negotiator_names)
+                                else "Unknown"
+                            )
+
+                            # Calculate utilities for this offer
+                            utilities = []
                             for ufun in scenario.ufuns:
                                 try:
-                                    utilities.append(float(ufun(h.current_offer)))
+                                    u = ufun(offer)
+                                    utilities.append(float(u) if u is not None else 0.0)
                                 except:
                                     utilities.append(0.0)
-                        else:
-                            utilities = [0.0] * len(scenario.ufuns)
 
-                        # Create OfferEvent
-                        from ..models import OfferEvent
+                            # Create OfferEvent
+                            from ..models import OfferEvent
 
-                        offer_event = OfferEvent(
-                            step=h.step,
-                            proposer=h.current_proposer
-                            if h.current_proposer
-                            else "unknown",
-                            proposer_index=negotiator_id_to_idx.get(
-                                h.current_proposer, 0
+                            offer_event = OfferEvent(
+                                step=h.step,
+                                proposer=proposer_name,
+                                proposer_index=proposer_idx,
+                                offer=offer,
+                                offer_dict=dict(zip(session.issue_names, offer)),
+                                utilities=utilities,
+                                relative_time=h.relative_time,
                             )
-                            if h.current_proposer
-                            else 0,
-                            offer=h.current_offer
-                            if h.current_offer is not None
-                            else (),
-                            offer_dict=dict(zip(session.issue_names, h.current_offer))
-                            if h.current_offer
-                            else {},
-                            utilities=utilities,
-                            relative_time=h.relative_time,
-                        )
-                        session.offers.append(offer_event)
+                            session.offers.append(offer_event)
 
         # Negotiation complete - store final results
         session.status = SessionStatus.COMPLETED
