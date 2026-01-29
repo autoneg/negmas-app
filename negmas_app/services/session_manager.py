@@ -378,8 +378,8 @@ class SessionManager:
             # Run step by step
             # Note: mechanism.state.running is False before first step, so we use True initially
             running = True
-            processed_offer_count = (
-                0  # Track how many offers from state.new_offers we've processed
+            processed_steps = (
+                0  # Track how many steps from mechanism.history we've processed
             )
             while running:
                 # Check for cancellation
@@ -431,67 +431,67 @@ class SessionManager:
                         f"[SessionManager] ⚠️ Agreement detected at step {state.step}, but still running={running}"
                     )
 
-                # Debug: Track relative_time progression to detect backwards movement
+                # Process new offers from mechanism.history (only unprocessed steps)
+                # mechanism.history contains deep copies of each step's state with its new_offers
+                history = mechanism.history
+
                 print(
                     f"[SessionManager] Step {state.step}: relative_time={state.relative_time:.4f}, "
-                    f"running={running}, new_offers_count={len(state.new_offers)}, "
-                    f"processed_count={processed_offer_count}, "
+                    f"running={running}, history_length={len(history)}, "
+                    f"processed_steps={processed_steps}, "
                     f"total_offers_stored={len(session.offers)}"
                 )
 
-                # Process ONLY the new offers we haven't seen yet
-                # state.new_offers accumulates over time, so we need to slice from processed_offer_count
-                new_offers_to_process = state.new_offers[processed_offer_count:]
+                # Process only the new steps we haven't seen yet
+                for historical_state in history[processed_steps:]:
+                    # Each historical_state.new_offers contains only offers from that specific step
+                    for proposer_id, offer in historical_state.new_offers:
+                        if offer is None:
+                            continue
 
-                if len(new_offers_to_process) != len(state.new_offers):
-                    print(
-                        f"[SessionManager] Skipping {len(state.new_offers) - len(new_offers_to_process)} "
-                        f"already-processed offers (have {processed_offer_count}, total {len(state.new_offers)})"
-                    )
+                        # Look up proposer index from ID
+                        proposer_idx = negotiator_id_to_idx.get(proposer_id, 0)
+                        proposer_name = session.negotiator_names[proposer_idx]
 
-                for proposer_id, offer in new_offers_to_process:
-                    if offer is None:
-                        continue
+                        # Calculate utilities for all negotiators
+                        utilities = []
+                        for ufun in scenario.ufuns:
+                            u = ufun(offer)
+                            utilities.append(float(u) if u is not None else 0.0)
 
-                    # Look up proposer index from ID
-                    proposer_idx = negotiator_id_to_idx.get(proposer_id, 0)
-                    proposer_name = session.negotiator_names[proposer_idx]
+                        offer_dict = dict(zip(issue_names, offer))
+                        event = OfferEvent(
+                            step=historical_state.step,
+                            proposer=proposer_name,
+                            proposer_index=proposer_idx,
+                            offer=offer,
+                            offer_dict=offer_dict,
+                            utilities=utilities,
+                            relative_time=historical_state.relative_time,
+                        )
 
-                    # Calculate utilities for all negotiators
-                    utilities = []
-                    for ufun in scenario.ufuns:
-                        u = ufun(offer)
-                        utilities.append(float(u) if u is not None else 0.0)
+                        # Debug: Check for backwards relative_time
+                        if len(session.offers) > 0:
+                            last_relative_time = session.offers[-1].relative_time
+                            if historical_state.relative_time < last_relative_time:
+                                print(
+                                    f"[SessionManager] ⚠️⚠️ BACKWARDS TIME DETECTED! ⚠️⚠️"
+                                )
+                                print(
+                                    f"  Last offer: step={session.offers[-1].step}, time={last_relative_time:.4f}"
+                                )
+                                print(
+                                    f"  New offer:  step={historical_state.step}, time={historical_state.relative_time:.4f}"
+                                )
+                                print(
+                                    f"  Difference: {historical_state.relative_time - last_relative_time:.4f}"
+                                )
 
-                    offer_dict = dict(zip(issue_names, offer))
-                    event = OfferEvent(
-                        step=state.step,
-                        proposer=proposer_name,
-                        proposer_index=proposer_idx,
-                        offer=offer,
-                        offer_dict=offer_dict,
-                        utilities=utilities,
-                        relative_time=state.relative_time,
-                    )
+                        session.offers.append(event)
+                        yield event
 
-                    # Debug: Check for backwards relative_time
-                    if len(session.offers) > 0:
-                        last_relative_time = session.offers[-1].relative_time
-                        if state.relative_time < last_relative_time:
-                            print(f"[SessionManager] ⚠️⚠️ BACKWARDS TIME DETECTED! ⚠️⚠️")
-                            print(
-                                f"  Last offer: step={session.offers[-1].step}, time={last_relative_time:.4f}"
-                            )
-                            print(
-                                f"  New offer:  step={state.step}, time={state.relative_time:.4f}"
-                            )
-                            print(
-                                f"  Difference: {state.relative_time - last_relative_time:.4f}"
-                            )
-
-                    session.offers.append(event)
-                    yield event
-                    processed_offer_count += 1  # Increment counter after processing
+                # Update processed_steps to current history length
+                processed_steps = len(history)
 
                 await asyncio.sleep(step_delay)
 
