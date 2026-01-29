@@ -92,6 +92,8 @@ let pollInterval = null
 async function loadNegotiation(sessionId) {
   loading.value = true
   error.value = null
+  
+  console.log('[SingleNegotiationView] Loading session:', sessionId)
 
   try {
     // Check if this is a tournament negotiation
@@ -103,7 +105,10 @@ async function loadNegotiation(sessionId) {
     // Load session data
     const data = await negotiationsStore.getSession(sessionId)
     
+    console.log('[SingleNegotiationView] Got session data:', data)
+    
     if (!data) {
+      console.log('[SingleNegotiationView] No data, setting error')
       error.value = 'Negotiation not found'
       loading.value = false
       return
@@ -111,12 +116,14 @@ async function loadNegotiation(sessionId) {
 
     // If session is pending and not yet initialized, keep loading state and poll
     if ((data.status === 'pending' || data.status === 'running') && !data.scenario_name) {
+      console.log('[SingleNegotiationView] Session not initialized yet, keeping loading state and polling')
       // Session exists but hasn't been initialized by the thread yet
       // Start polling and keep loading state until we get data
       startPolling(sessionId)
       return // Stay in loading state
     }
 
+    console.log('[SingleNegotiationView] Setting negotiation data and exiting loading')
     // Update state
     negotiation.value = data
     negotiationsStore.selectSession({ id: data.id, status: data.status })
@@ -124,6 +131,7 @@ async function loadNegotiation(sessionId) {
 
     // Start polling if running
     if (data.status === 'running' || data.status === 'pending') {
+      console.log('[SingleNegotiationView] Starting polling for running/pending session')
       startPolling(sessionId)
     }
   } catch (err) {
