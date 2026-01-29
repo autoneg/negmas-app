@@ -41,6 +41,7 @@ const DEFAULT_LAYOUT = {
       'panel-result': '0 0 80px'
     },
     right: {
+      // Both panels share equal height (1 1 0px means equal flex grow/shrink)
       'panel-2d-utility': '1 1 0px',
       'panel-timeline': '1 1 0px'
     }
@@ -190,10 +191,8 @@ function applyLayoutToColumn(panels, columnKey) {
     // Set min height
     panel.style.minHeight = getMinHeightForPanel(panel)
     
-    // Last panel always fills remaining space
-    if (index === panels.length - 1) {
-      panel.style.flex = '1 1 auto'
-    }
+    // NOTE: Removed "last panel fills remaining space" logic
+    // All panels now follow their flex values explicitly
   })
 }
 
@@ -248,10 +247,12 @@ function addResizeHandlesToColumn(columnEl, columnKey) {
     const initialFlex = savedFlex || getDefaultFlexForPanel(panel)
     const minHeight = getMinHeightForPanel(panel)
     
-    // Last panel always uses flex: 1 1 auto to fill remaining space
+    // Apply initial flex size to this panel
+    panel.style.flex = initialFlex
+    panel.style.minHeight = minHeight
+    
+    // Don't add resize handle after last panel
     if (index === panels.length - 1) {
-      panel.style.flex = `1 1 auto`
-      panel.style.minHeight = minHeight
       return // No resize handle after last panel
     }
     
