@@ -157,6 +157,10 @@ async function resetLayout() {
   // Re-apply default sizes to all panels
   applyLayoutToPanels()
   
+  // Resize Plotly plots after layout reset
+  await nextTick()
+  resizePlotlyPlots()
+  
   // Save to settings
   await saveLayoutToSettings()
 }
