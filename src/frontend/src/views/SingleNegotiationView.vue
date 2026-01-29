@@ -14,14 +14,6 @@
 
     <!-- Main Content -->
     <div v-else-if="negotiation" class="negotiation-content">
-      <!-- Debug: Show that we're in the right place -->
-      <div style="background: red; color: white; padding: 10px; position: fixed; top: 0; right: 0; z-index: 9999; font-size: 12px;">
-        DEBUG: {{ negotiation.id }} - {{ negotiation.status }}<br>
-        scenario: {{ negotiation.scenario_name }}<br>
-        offers: {{ negotiation.offers?.length || 0 }}<br>
-        outcome_space: {{ !!negotiation.outcome_space_data }}
-      </div>
-      
       <!-- Header -->
       <div class="negotiation-header">
         <button @click="handleBackNavigation" class="btn btn-secondary">
@@ -29,8 +21,20 @@
         </button>
         <h2>{{ negotiation.scenario_name }}</h2>
         <div class="header-actions">
-          <button @click="showStatsModal = true" class="btn btn-secondary">
-            Stats
+          <button @click="showStatsModal = true" class="btn btn-ghost btn-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+              <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+            </svg>
+            <span>Stats</span>
+          </button>
+          <button @click="handleResetLayout" class="btn btn-ghost btn-sm" title="Reset panel layout to default">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="3" y1="9" x2="21" y2="9"></line>
+              <line x1="9" y1="21" x2="9" y2="9"></line>
+            </svg>
+            <span>Reset Layout</span>
           </button>
         </div>
       </div>
@@ -81,6 +85,7 @@
       <Teleport to="body">
         <StatsModal
           v-if="showStatsModal"
+          :show="showStatsModal"
           :negotiation="negotiation"
           @close="showStatsModal = false"
         />
@@ -90,12 +95,17 @@
       <Teleport to="body">
         <ZoomModal
           v-if="showZoomModal"
+          :show="showZoomModal"
           :title="zoomPanelTitle"
-          :panel-type="zoomPanelType"
-          :panel-component="zoomPanelComponent"
-          :negotiation="negotiation"
           @close="showZoomModal = false"
-        />
+        >
+          <component 
+            :is="zoomPanelComponent" 
+            v-if="zoomPanelComponent && negotiation"
+            :negotiation="negotiation"
+            style="width: 100%; height: 100%;"
+          />
+        </ZoomModal>
       </Teleport>
     </div>
   </div>
@@ -341,6 +351,15 @@ async function handleTogglePause() {
  */
 function handleShowStats() {
   showStatsModal.value = true
+}
+
+/**
+ * Handle reset layout
+ */
+function handleResetLayout() {
+  if (panelLayoutRef.value) {
+    panelLayoutRef.value.resetLayout()
+  }
 }
 
 /**

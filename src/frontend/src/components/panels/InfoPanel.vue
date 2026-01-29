@@ -27,7 +27,7 @@
       
       <!-- Pause/Resume and Cancel buttons for running negotiations -->
       <div 
-        v-if="negotiation && !negotiation?.isSaved && !negotiation?.pendingStart && !negotiation?.agreement && !negotiation?.end_reason" 
+        v-if="negotiation && negotiation.status === 'running' && !negotiation?.agreement && !negotiation?.end_reason" 
         style="display: flex; gap: 2px;"
       >
         <button 
@@ -176,14 +176,26 @@ const statusBadgeClass = computed(() => {
   if (!props.negotiation) return 'badge-neutral'
   
   const status = props.negotiation.status
+  const endReason = props.negotiation.end_reason
   
-  // Check actual status field first
-  if (status === 'completed') {
-    return props.negotiation.agreement ? 'badge-success' : 'badge-neutral'
+  // Cancelled is stored as failed status but should display as cancelled
+  if (status === 'failed' && endReason === 'cancelled') {
+    return 'badge-warning'
   }
+  
+  // Check status + end_reason for completed negotiations
+  if (status === 'completed') {
+    if (endReason === 'agreement') return 'badge-success'
+    if (endReason === 'timedout') return 'badge-neutral'
+    if (endReason === 'maxsteps') return 'badge-neutral'
+    if (endReason === 'ended') return 'badge-neutral'
+    return 'badge-neutral'
+  }
+  
   if (status === 'failed') return 'badge-danger'
   if (status === 'paused') return 'badge-info'
   if (status === 'pending') return 'badge-warning'
+  if (status === 'running') return 'badge-primary'
   
   // Fallback to legacy checks
   if (props.negotiation.pendingStart) return 'badge-warning'
@@ -198,20 +210,31 @@ const statusText = computed(() => {
   if (!props.negotiation) return ''
   
   const status = props.negotiation.status
+  const endReason = props.negotiation.end_reason
   
-  // Check actual status field first
-  if (status === 'completed') {
-    return props.negotiation.agreement ? 'Done' : 'End'
+  // Cancelled is stored as failed status but should display as cancelled
+  if (status === 'failed' && endReason === 'cancelled') {
+    return 'Cancelled'
   }
-  if (status === 'failed') return 'Failed'
+  
+  // Check status + end_reason for completed negotiations
+  if (status === 'completed') {
+    if (endReason === 'agreement') return 'Agreement'
+    if (endReason === 'timedout') return 'Timeout'
+    if (endReason === 'maxsteps') return 'Done'
+    if (endReason === 'ended') return 'Ended'
+    return 'Done'
+  }
+  
+  if (status === 'failed') return 'Error'
   if (status === 'paused') return 'Paused'
   if (status === 'pending') return 'Pending'
   if (status === 'running') return 'Running'
   
   // Fallback to legacy checks
   if (props.negotiation.pendingStart) return 'Pending'
-  if (props.negotiation.agreement) return 'Done'
-  if (props.negotiation.end_reason) return 'End'
+  if (props.negotiation.agreement) return 'Agreement'
+  if (props.negotiation.end_reason) return 'Ended'
   if (props.negotiation.paused) return 'Paused'
   
   return 'Running'
