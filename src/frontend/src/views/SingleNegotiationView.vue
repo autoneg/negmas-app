@@ -222,7 +222,13 @@ function startPolling(sessionId) {
 
   pollInterval = setInterval(async () => {
     try {
-      const updated = await negotiationsStore.getSession(sessionId)
+      // Try active sessions first
+      let updated = await negotiationsStore.getSession(sessionId)
+      
+      // If not in active sessions (might be completed and saved), try saved
+      if (!updated) {
+        updated = await negotiationsStore.loadSavedNegotiation(sessionId)
+      }
       
       if (updated) {
         negotiation.value = updated
@@ -238,6 +244,11 @@ function startPolling(sessionId) {
           pollInterval = null
           await negotiationsStore.loadSessions()
         }
+      } else {
+        // Session not found in active or saved - stop polling
+        clearInterval(pollInterval)
+        pollInterval = null
+        console.log('[SingleNegotiationView] Session not found, stopped polling')
       }
     } catch (err) {
       console.error('[SingleNegotiationView] Polling error:', err)
