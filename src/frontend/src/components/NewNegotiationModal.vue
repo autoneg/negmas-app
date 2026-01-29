@@ -1607,10 +1607,9 @@ async function startNegotiation() {
       localStorage.setItem(`negotiation_settings_${data.session_id}`, JSON.stringify(panelSettings))
     }
     
-    // Return data in same format as SSE start (with fake stream_url for compatibility)
+    // Return session_id for polling-based view
     const result = {
       session_id: data.session_id,
-      stream_url: `/api/negotiation/${data.session_id}/stream?step_delay=${stepDelay.value / 1000}&share_ufuns=${shareUfuns.value}`
     }
     
     emit('start', result)

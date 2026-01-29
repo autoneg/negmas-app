@@ -1082,15 +1082,7 @@ async function rerunNegotiation(sessionId) {
     const data = await negotiationsStore.rerunNegotiation(sessionId)
     
     if (data?.session_id) {
-      // Extract step_delay and share_ufuns from the stream_url
-      const url = new URL(data.stream_url, window.location.origin)
-      const stepDelay = parseFloat(url.searchParams.get('step_delay') || '0.1')
-      const shareUfuns = url.searchParams.get('share_ufuns') === 'true'
-      
-      // Start streaming the new negotiation
-      negotiationsStore.startStreaming(data.session_id, stepDelay, shareUfuns)
-      
-      // Navigate to the new negotiation
+      // Just navigate - view will handle polling
       router.push({ name: 'SingleNegotiation', params: { id: data.session_id } })
     }
   } catch (error) {
@@ -1180,15 +1172,7 @@ function onNegotiationStart(data) {
   showNewNegotiationModal.value = false
   
   if (data.session_id) {
-    // Start streaming immediately before navigation
-    // Extract step_delay and share_ufuns from the stream_url
-    const url = new URL(data.stream_url, window.location.origin)
-    const stepDelay = parseFloat(url.searchParams.get('step_delay') || '0.1')
-    const shareUfuns = url.searchParams.get('share_ufuns') === 'true'
-    
-    negotiationsStore.startStreaming(data.session_id, stepDelay, shareUfuns)
-    
-    // Navigate to single negotiation view
+    // Just navigate - SingleNegotiationView will handle polling
     router.push({ name: 'SingleNegotiation', params: { id: data.session_id } })
   }
 }

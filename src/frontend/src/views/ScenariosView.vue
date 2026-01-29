@@ -1619,15 +1619,7 @@ function openNewNegotiation() {
 
 function onNegotiationStart(data) {
   if (data.session_id) {
-    // Start streaming immediately before navigation
-    // Extract step_delay and share_ufuns from the stream_url
-    const url = new URL(data.stream_url, window.location.origin)
-    const stepDelay = parseFloat(url.searchParams.get('step_delay') || '0.1')
-    const shareUfuns = url.searchParams.get('share_ufuns') === 'true'
-    
-    negotiationsStore.startStreaming(data.session_id, stepDelay, shareUfuns)
-    
-    // Navigate to single negotiation view
+    // Navigate to single negotiation view (polling will start automatically)
     router.push({
       name: 'SingleNegotiation',
       params: { id: data.session_id }
