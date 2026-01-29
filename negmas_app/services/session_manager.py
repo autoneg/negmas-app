@@ -178,13 +178,6 @@ class SessionManager:
         Yields:
             SessionInitEvent at start, OfferEvent for each offer, then final NegotiationSession.
         """
-        import traceback
-
-        print(f"[SessionManager] run_session_stream CALLED for session {session_id}")
-        print(
-            f"[SessionManager] Call stack:\n{''.join(traceback.format_stack()[-5:-1])}"
-        )
-
         session = self.sessions.get(session_id)
         if session is None:
             return
@@ -196,18 +189,11 @@ class SessionManager:
         if session.status != SessionStatus.PENDING:
             # Session has already run or is currently running
             # Do not create a new mechanism - this would restart from step 0!
-            print(
-                f"[SessionManager] Session {session_id} already started (status={session.status}), "
-                f"skipping run_session_stream"
-            )
             return
 
         # Immediately set to RUNNING to prevent another call from starting
         # This must happen BEFORE any await to prevent race condition
         session.status = SessionStatus.RUNNING
-        print(
-            f"[SessionManager] Session {session_id} status set to RUNNING, proceeding with negotiation"
-        )
 
         try:
             # Get scenario loading options
@@ -249,11 +235,6 @@ class SessionManager:
             ):
                 mechanism_params["one_offer_per_step"] = True
 
-            print(
-                f"[SessionManager] Creating mechanism with one_offer_per_step="
-                f"{mechanism_params.get('one_offer_per_step', 'not set')}"
-            )
-
             # Create mechanism using the new factory method (run in thread pool)
             mechanism = await asyncio.to_thread(
                 MechanismFactory.create_from_scenario_params,
@@ -262,8 +243,6 @@ class SessionManager:
                 mechanism_params,
             )
 
-            print(f"[SessionManager] Mechanism created: id={id(mechanism)}")
-
             # Create negotiators and add to mechanism with ufuns (run in thread pool)
             negotiators = await asyncio.to_thread(
                 NegotiatorFactory.create_for_scenario,
@@ -271,15 +250,8 @@ class SessionManager:
                 scenario,
             )
 
-            # Check if mechanism.add() supports negotiator-specific time limits
-            # by inspecting the signature
-            import inspect
-
-            add_signature = inspect.signature(mechanism.add)
-            supports_time_limit = "time_limit" in add_signature.parameters
-            supports_n_steps = "n_steps" in add_signature.parameters
-
-            # Track if we need to warn about unsupported features
+            # Add negotiators to mechanism with negotiator-specific time limits
+            # Just try to pass the parameters - if they're not supported, catch the error
             has_unsupported_features = False
 
             for neg, ufun, config in zip(
@@ -288,19 +260,25 @@ class SessionManager:
                 # Build kwargs for mechanism.add() with negotiator-specific time limits
                 add_kwargs = {"ufun": ufun}
 
+                # Add negotiator-specific time limits if provided
                 if config.time_limit is not None:
-                    if supports_time_limit:
-                        add_kwargs["time_limit"] = config.time_limit
-                    else:
-                        has_unsupported_features = True
+                    add_kwargs["time_limit"] = config.time_limit
 
                 if config.n_steps is not None:
-                    if supports_n_steps:
-                        add_kwargs["n_steps"] = config.n_steps
-                    else:
-                        has_unsupported_features = True
+                    add_kwargs["n_steps"] = config.n_steps
 
-                await asyncio.to_thread(mechanism.add, neg, **add_kwargs)
+                # Try to add with time limits - if not supported, the mechanism will ignore them
+                try:
+                    await asyncio.to_thread(mechanism.add, neg, **add_kwargs)
+                except TypeError as e:
+                    # If we get TypeError about unexpected keyword arguments, it means
+                    # the mechanism doesn't support these parameters
+                    if "time_limit" in str(e) or "n_steps" in str(e):
+                        has_unsupported_features = True
+                        # Retry without the time limit parameters
+                        await asyncio.to_thread(mechanism.add, neg, ufun=ufun)
+                    else:
+                        raise
 
             # Log warning if negotiator-specific time constraints were requested but not supported
             if has_unsupported_features:
@@ -455,21 +433,6 @@ class SessionManager:
                 current_state = mechanism.state
                 session.current_step = current_state.step
                 running = current_state.running
-
-                # Debug logging
-                if mechanism.agreement is not None:
-                    print(
-                        f"[SessionManager] ⚠️ Agreement detected at step {current_state.step}, "
-                        f"but still running={running}"
-                    )
-
-                print(
-                    f"[SessionManager] mechanism_id={id(mechanism)}, "
-                    f"Step {current_state.step}: relative_time={current_state.relative_time:.4f}, "
-                    f"running={running}, history_length={len(history)}, "
-                    f"processed={processed_history_length}, "
-                    f"total_offers_stored={len(session.offers)}"
-                )
 
                 # Process only the new history entries we haven't seen yet
                 new_history_entries = history[processed_history_length:]

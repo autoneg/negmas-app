@@ -510,7 +510,22 @@ async function loadNegotiationData(sessionId) {
     }
     
     // Regular negotiation handling (existing code)
-    // First check running/completed sessions
+    
+    // CRITICAL: Check if there's an active SSE stream for this session
+    // If so, we're loading a newly-started negotiation and should wait for stream data
+    // rather than trying to load from sessions list (which might not have it yet due to race condition)
+    const hasActiveStream = negotiationsStore.streamingSession === sessionId && 
+                           negotiationsStore.eventSource !== null
+    
+    if (hasActiveStream) {
+      console.log('[SingleNegotiationView] Active SSE stream detected for session, waiting for stream data...')
+      // The stream will populate sessionInit and offers via the store
+      // Just set loading to false and let the reactive refs handle the rest
+      loading.value = false
+      return
+    }
+    
+    // No active stream - check running/completed sessions
     console.log('[SingleNegotiationView] Loading sessions list...')
     await negotiationsStore.loadSessions()
     const session = negotiationsStore.sessions.find(s => s.id === sessionId)
@@ -521,7 +536,12 @@ async function loadNegotiationData(sessionId) {
       negotiationsStore.selectSession(session)
       
       if (session.status === 'running' || session.status === 'pending') {
-        // For running sessions, load current state first, then start streaming
+        // IMPORTANT: Stop any existing SSE stream to prevent duplicate data
+        // When refreshing on a running negotiation, we use polling instead of streaming
+        console.log('[SingleNegotiationView] Stopping any existing SSE stream before loading state')
+        negotiationsStore.stopStreaming()
+        
+        // For running sessions, load current state first, then use polling
         try {
           console.log('[SingleNegotiationView] Loading current state for session:', sessionId)
           const currentState = await negotiationsStore.getSession(sessionId)
