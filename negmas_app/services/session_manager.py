@@ -244,8 +244,49 @@ class SessionManager:
                 negotiator_configs,
                 scenario,
             )
-            for neg, ufun in zip(negotiators, scenario.ufuns):
-                await asyncio.to_thread(mechanism.add, neg, ufun=ufun)
+
+            # Check if mechanism.add() supports negotiator-specific time limits
+            # by inspecting the signature
+            import inspect
+
+            add_signature = inspect.signature(mechanism.add)
+            supports_time_limit = "time_limit" in add_signature.parameters
+            supports_n_steps = "n_steps" in add_signature.parameters
+
+            # Track if we need to warn about unsupported features
+            has_unsupported_features = False
+
+            for neg, ufun, config in zip(
+                negotiators, scenario.ufuns, negotiator_configs
+            ):
+                # Build kwargs for mechanism.add() with negotiator-specific time limits
+                add_kwargs = {"ufun": ufun}
+
+                if config.time_limit is not None:
+                    if supports_time_limit:
+                        add_kwargs["time_limit"] = config.time_limit
+                    else:
+                        has_unsupported_features = True
+
+                if config.n_steps is not None:
+                    if supports_n_steps:
+                        add_kwargs["n_steps"] = config.n_steps
+                    else:
+                        has_unsupported_features = True
+
+                await asyncio.to_thread(mechanism.add, neg, **add_kwargs)
+
+            # Log warning if negotiator-specific time constraints were requested but not supported
+            if has_unsupported_features:
+                import warnings
+
+                warnings.warn(
+                    "Negotiator-specific time constraints (time_limit, n_steps) are not supported "
+                    "by the installed version of negmas. Please upgrade to a newer version to use this feature. "
+                    "Falling back to mechanism-level time constraints.",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
             # Share utility functions if requested
             # For 2-party: each negotiator gets opponent's ufun

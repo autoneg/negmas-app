@@ -18,6 +18,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   const liveNegotiations = ref([]) // Live negotiations as they complete
   const runningNegotiations = ref({}) // Map of run_id -> negotiation progress data
   const errorNegotiations = ref([]) // Failed negotiations with error details
+  const eventLog = ref([]) // Tournament event log (populated from callbacks, not neg_* events)
   
   // Grid display settings
   const gridDisplayModes = ref([
@@ -85,6 +86,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     liveNegotiations.value = []
     runningNegotiations.value = {}
     errorNegotiations.value = []
+    eventLog.value = []
     progress.value = null
     setupProgress.value = null
     tournamentComplete.value = null
@@ -95,6 +97,14 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     eventSource.value.addEventListener('grid_init', (event) => {
       const data = JSON.parse(event.data)
       gridInit.value = data
+      
+      // Add event log entry for tournament start
+      eventLog.value.push({
+        id: eventLog.value.length,
+        timestamp: Date.now(),
+        type: 'started',
+        message: 'Tournament started'
+      })
     })
     
     eventSource.value.addEventListener('cell_start', (event) => {
@@ -105,6 +115,14 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         const opponent = gridInit.value.opponents[data.opponent_idx]
         const scenario = gridInit.value.scenarios[data.scenario_idx]
         const cellKey = `${competitor}::${opponent}::${scenario}`
+        
+        // Add event log entry for cell start
+        eventLog.value.push({
+          id: eventLog.value.length,
+          timestamp: Date.now(),
+          type: 'cell_start',
+          message: `${competitor} vs ${opponent} on ${scenario} - started`
+        })
         
         // Initialize or update cell state with aggregation support (create new object for reactivity)
         if (!cellStates.value[cellKey]) {
@@ -230,6 +248,23 @@ export const useTournamentsStore = defineStore('tournaments', () => {
           }
         }
         
+        // Add event log entry for cell completion
+        let endReasonText = data.end_reason
+        if (data.end_reason === 'agreement') {
+          endReasonText = 'agreement reached'
+        } else if (data.end_reason === 'timeout') {
+          endReasonText = 'timeout'
+        } else if (data.end_reason === 'error' || data.end_reason === 'broken') {
+          endReasonText = 'failed'
+        }
+        
+        eventLog.value.push({
+          id: eventLog.value.length,
+          timestamp: Date.now(),
+          type: data.end_reason === 'agreement' ? 'agreement' : (data.end_reason === 'error' || data.end_reason === 'broken' ? 'failed' : 'completed'),
+          message: `${competitor} vs ${opponent} on ${scenario} - ${endReasonText}`
+        })
+        
         // Add to live negotiations if we have the detailed data
         if (data.issue_names && data.scenario_path) {
           // Check if this negotiation already exists in liveNegotiations
@@ -315,11 +350,31 @@ export const useTournamentsStore = defineStore('tournaments', () => {
       const data = JSON.parse(event.data)
       console.log('[Tournaments Store] Setup progress event:', data)
       setupProgress.value = data
+      
+      // Add event log entry for setup progress
+      if (data.message) {
+        eventLog.value.push({
+          id: eventLog.value.length,
+          timestamp: Date.now(),
+          type: 'progress',
+          message: data.message
+        })
+      }
     })
     
     eventSource.value.addEventListener('progress', (event) => {
       const data = JSON.parse(event.data)
       progress.value = data
+      
+      // Add event log entry for progress updates
+      if (data.message) {
+        eventLog.value.push({
+          id: eventLog.value.length,
+          timestamp: Date.now(),
+          type: 'progress',
+          message: data.message
+        })
+      }
     })
     
     // Negotiation monitoring events
@@ -364,6 +419,15 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     eventSource.value.addEventListener('complete', (event) => {
       const data = JSON.parse(event.data)
       tournamentComplete.value = data
+      
+      // Add event log entry for tournament completion
+      eventLog.value.push({
+        id: eventLog.value.length,
+        timestamp: Date.now(),
+        type: 'completed',
+        message: 'Tournament completed'
+      })
+      
       stopStreaming()
       loadSessions() // Refresh sessions list
     })
@@ -621,6 +685,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     liveNegotiations,
     runningNegotiations,
     errorNegotiations,
+    eventLog,
     gridDisplayModes,
     progress,
     setupProgress,

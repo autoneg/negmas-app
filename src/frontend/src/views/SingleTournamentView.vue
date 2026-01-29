@@ -157,6 +157,19 @@
           :errors="errorNegotiations"
           :status="currentSession.status"
         />
+        
+        <!-- Bottom Row: Event Log and Configuration -->
+        <div class="panels-bottom-row">
+          <!-- Event Log Panel (2/3 width) -->
+          <div class="panel-event-log-wrapper">
+            <TournamentEventLogPanel :events="eventLog" />
+          </div>
+          
+          <!-- Configuration Panel (1/3 width) -->
+          <div class="panel-config-wrapper">
+            <TournamentConfigPanel :config="tournamentConfig" />
+          </div>
+        </div>
       </div>
     </div>
     
@@ -189,6 +202,8 @@ import NewTournamentModal from '../components/NewTournamentModal.vue'
 import TournamentGridPanel from '../components/TournamentGridPanel.vue'
 import TournamentScoresPanel from '../components/TournamentScoresPanel.vue'
 import TournamentErrorsPanel from '../components/TournamentErrorsPanel.vue'
+import TournamentEventLogPanel from '../components/TournamentEventLogPanel.vue'
+import TournamentConfigPanel from '../components/TournamentConfigPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -206,6 +221,7 @@ const {
   liveNegotiations,
   runningNegotiations,
   errorNegotiations,
+  eventLog,
 } = storeToRefs(tournamentsStore)
 
 const showNewTournamentModal = ref(false)
@@ -230,6 +246,39 @@ const negotiationsCount = computed(() => {
   const running = runningNegotiations.value?.size || 0
   const completed = liveNegotiations.value?.length || 0
   return running + completed
+})
+
+// Computed config with competitor/scenario names from gridInit
+const tournamentConfig = computed(() => {
+  if (!currentSession.value?.config) return null
+  
+  const config = { ...currentSession.value.config }
+  
+  // Add competitor/scenario names from gridInit if available
+  if (gridInit.value) {
+    // Map competitor names to config format
+    if (gridInit.value.competitors) {
+      config.competitors = gridInit.value.competitors.map(name => ({
+        name,
+        type_name: name
+      }))
+    }
+    
+    // Map scenario names to config format
+    if (gridInit.value.scenarios) {
+      config.scenarios = gridInit.value.scenarios.map(name => ({
+        name,
+        path: name
+      }))
+    }
+    
+    // Add storage path from gridInit
+    if (gridInit.value.storage_path) {
+      config.storage_path = gridInit.value.storage_path
+    }
+  }
+  
+  return config
 })
 
 // Computed statistics from cellStates and liveNegotiations
@@ -782,12 +831,42 @@ async function handleLoadTrace(tournamentId, negIndex) {
   max-width: 400px;
 }
 
+.panels-bottom-row {
+  display: flex;
+  gap: 12px;
+  min-height: 0;
+  max-height: 400px; /* Limit height to prevent overflow */
+}
+
+.panel-event-log-wrapper {
+  flex: 2;
+  min-width: 0;
+  min-height: 0; /* Allow flex to shrink */
+  overflow: hidden; /* Prevent content from expanding wrapper */
+}
+
+.panel-config-wrapper {
+  flex: 1;
+  min-width: 300px;
+  max-width: 400px;
+  min-height: 0; /* Allow flex to shrink */
+  overflow: hidden; /* Prevent content from expanding wrapper */
+}
+
 @media (max-width: 1200px) {
   .panels-top-row {
     flex-direction: column;
   }
   
   .panel-scores-wrapper {
+    max-width: none;
+  }
+  
+  .panels-bottom-row {
+    flex-direction: column;
+  }
+  
+  .panel-config-wrapper {
     max-width: none;
   }
 }

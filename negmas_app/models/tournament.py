@@ -285,6 +285,7 @@ class TournamentGridInit:
     n_repetitions: int
     rotate_ufuns: bool
     total_negotiations: int
+    storage_path: str | None = None  # Path where tournament results are saved
 
 
 @dataclass

@@ -381,6 +381,17 @@
                     </div>
                     <button
                       class="btn-icon btn-sm"
+                      @click.stop="openTimePressure(index)"
+                      title="Configure time pressure"
+                      :class="{ 'has-config': neg.time_limit || neg.n_steps }"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                      </svg>
+                    </button>
+                    <button
+                      class="btn-icon btn-sm"
                       @click.stop="openNegotiatorConfig(index)"
                       title="Configure parameters"
                       :class="{ 'has-config': neg.params && Object.keys(neg.params).length > 0 }"
@@ -1048,12 +1059,23 @@
     @apply="applyNegotiatorConfig"
     @virtual-saved="handleVirtualSaved"
   />
+  
+  <!-- Time Pressure Modal -->
+  <TimePressureModal
+    :show="showTimePressureModal"
+    :negotiator-name="timePressureNegotiatorIndex !== null ? negotiators[timePressureNegotiatorIndex]?.name : ''"
+    :existing-n-steps="timePressureNegotiatorIndex !== null ? negotiators[timePressureNegotiatorIndex]?.n_steps : null"
+    :existing-time-limit="timePressureNegotiatorIndex !== null ? negotiators[timePressureNegotiatorIndex]?.time_limit : null"
+    @close="showTimePressureModal = false"
+    @apply="applyTimePressure"
+  />
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useNegotiationsStore } from '../stores/negotiations'
 import NegotiatorConfigModal from './NegotiatorConfigModal.vue'
+import TimePressureModal from './TimePressureModal.vue'
 
 const negotiationsStore = useNegotiationsStore()
 
@@ -1203,6 +1225,10 @@ const saveSuccessMessage = ref('')
 const showConfigModal = ref(false)
 const configNegotiatorIndex = ref(null)
 
+// Time pressure modal
+const showTimePressureModal = ref(false)
+const timePressureNegotiatorIndex = ref(null)
+
 // Computed
 const filteredScenarios = computed(() => {
   let result = scenarios.value
@@ -1349,6 +1375,8 @@ function selectScenario(scenario) {
     name: '',
     params: {},
     source: '',
+    time_limit: null,
+    n_steps: null,
   }))
   selectedSlot.value = 0
   
@@ -1386,6 +1414,8 @@ function selectNegotiatorForSlot(negotiator) {
       name: negotiator.name || `Agent ${selectedSlot.value + 1}`,
       params: {},
       source: negotiator.source,
+      time_limit: null,
+      n_steps: null,
     }
     // Move to next slot
     if (selectedSlot.value < negotiators.value.length - 1) {
@@ -1399,11 +1429,24 @@ function openNegotiatorConfig(index) {
   showConfigModal.value = true
 }
 
-function applyNegotiatorConfig(params) {
+function applyNegotiatorConfig(result) {
   if (configNegotiatorIndex.value !== null) {
-    negotiators.value[configNegotiatorIndex.value].params = params
+    negotiators.value[configNegotiatorIndex.value].params = result.params
   }
   showConfigModal.value = false
+}
+
+function openTimePressure(index) {
+  timePressureNegotiatorIndex.value = index
+  showTimePressureModal.value = true
+}
+
+function applyTimePressure(result) {
+  if (timePressureNegotiatorIndex.value !== null) {
+    negotiators.value[timePressureNegotiatorIndex.value].time_limit = result.time_limit
+    negotiators.value[timePressureNegotiatorIndex.value].n_steps = result.n_steps
+  }
+  showTimePressureModal.value = false
 }
 
 function handleVirtualSaved() {
@@ -1440,6 +1483,8 @@ function applyBOAToSlot() {
         opponent_model: boaConfig.value.opponent_model || null,
       },
       source: 'custom',
+      time_limit: null,
+      n_steps: null,
     }
     
     // Reset BOA config
@@ -1470,6 +1515,8 @@ function applyMAPToSlot() {
         acceptance_first: mapConfig.value.acceptance_first,
       },
       source: 'custom',
+      time_limit: null,
+      n_steps: null,
     }
     
     // Reset MAP config
@@ -1523,6 +1570,8 @@ async function startNegotiation() {
         type_name: n.type_name,
         name: n.name || null,
         params: n.params || {},
+        time_limit: n.time_limit || null,
+        n_steps: n.n_steps || null,
       })),
       mechanism_type: mechanismType.value,
       mechanism_params: mechanismParams.value,

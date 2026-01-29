@@ -356,7 +356,8 @@ function apply() {
     }
   }
   
-  emit('apply', params)
+  // Emit only params (time pressure handled separately now)
+  emit('apply', { params })
   emit('close')
 }
 

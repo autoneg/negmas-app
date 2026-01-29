@@ -18,6 +18,11 @@ class NegotiatorConfig:
     name: str | None = None  # Display name (auto-generated if None)
     module: str | None = None  # Module path (None = auto-discover)
     params: dict[str, Any] = field(default_factory=dict)
+    # Negotiator-specific time pressure parameters
+    time_limit: float | None = (
+        None  # Override mechanism's time_limit for this negotiator
+    )
+    n_steps: int | None = None  # Override mechanism's n_steps for this negotiator
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -25,6 +30,8 @@ class NegotiatorConfig:
             "name": self.name,
             "module": self.module,
             "params": self.params,
+            "time_limit": self.time_limit,
+            "n_steps": self.n_steps,
         }
 
     @classmethod
@@ -34,6 +41,8 @@ class NegotiatorConfig:
             name=data.get("name"),
             module=data.get("module"),
             params=data.get("params", {}),
+            time_limit=data.get("time_limit"),
+            n_steps=data.get("n_steps"),
         )
 
 

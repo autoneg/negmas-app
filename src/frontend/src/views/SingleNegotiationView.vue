@@ -343,8 +343,10 @@ const negotiation = computed(() => {
     step: offers.value[offers.value.length - 1]?.step || 0,
     offers: offers.value,
     outcome_space_data: sessionInit.value?.outcome_space_data,
-    agreement: sessionComplete.value?.agreement || currentSession.value?.agreement,
-    final_utilities: sessionComplete.value?.final_utilities || currentSession.value?.final_utilities,
+    // CRITICAL FIX: Only show agreement/final_utilities when negotiation completes
+    // Do NOT fall back to currentSession during active negotiation - it may have stale data
+    agreement: sessionComplete.value?.agreement || (currentSession.value?.status === 'completed' ? currentSession.value?.agreement : null),
+    final_utilities: sessionComplete.value?.final_utilities || (currentSession.value?.status === 'completed' ? currentSession.value?.final_utilities : null),
     optimality_stats: sessionComplete.value?.optimality_stats,
     end_reason: sessionComplete.value?.end_reason || currentSession.value?.end_reason,
     error: sessionComplete.value?.error,

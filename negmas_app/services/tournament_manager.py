@@ -453,6 +453,7 @@ class TournamentManager:
                         n_repetitions=state.grid_init.n_repetitions,
                         rotate_ufuns=state.grid_init.rotate_ufuns,
                         total_negotiations=state.grid_init.total_negotiations,
+                        storage_path=state.grid_init.storage_path,
                     )
                     state.event_queue.put(("grid_init", state.grid_init))
             if config_opponent_names and state.opponent_names[0].startswith(
@@ -678,6 +679,7 @@ class TournamentManager:
                         n_repetitions=state.grid_init.n_repetitions,
                         rotate_ufuns=state.grid_init.rotate_ufuns,
                         total_negotiations=state.grid_init.total_negotiations,
+                        storage_path=state.grid_init.storage_path,
                     )
                     state.event_queue.put(("grid_init", state.grid_init))
 
@@ -1136,6 +1138,7 @@ class TournamentManager:
                 n_repetitions=config.n_repetitions,
                 rotate_ufuns=config.rotate_ufuns,
                 total_negotiations=total_negotiations,
+                storage_path=config.save_path,
             )
             state.grid_init = grid_init
             state.progress = TournamentProgress(
@@ -1273,6 +1276,7 @@ class TournamentManager:
                     n_repetitions=config.n_repetitions,
                     rotate_ufuns=config.rotate_ufuns,
                     total_negotiations=total_negotiations,
+                    storage_path=config.save_path,
                 )
                 state.grid_init = updated_grid_init
                 state.event_queue.put(("grid_init", updated_grid_init))

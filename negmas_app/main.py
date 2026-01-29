@@ -76,6 +76,7 @@ from .routers import (
     cache_router,
     filters_router,
 )
+from .routers.system import router as system_router
 
 # Create FastAPI app with lifespan
 app = FastAPI(
@@ -111,6 +112,7 @@ app.include_router(sources_router)
 app.include_router(components_router)
 app.include_router(cache_router)
 app.include_router(filters_router)
+app.include_router(system_router)
 
 
 @app.get("/api/identity")

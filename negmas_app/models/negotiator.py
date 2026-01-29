@@ -104,6 +104,12 @@ class NegotiatorConfig:
     # Constructor parameters
     params: dict = field(default_factory=dict)
 
+    # Negotiator-specific time pressure parameters
+    time_limit: float | None = (
+        None  # Override mechanism's time_limit for this negotiator
+    )
+    n_steps: int | None = None  # Override mechanism's n_steps for this negotiator
+
     def __post_init__(self):
         if self.name is None:
             self.name = self.type_name.split(".")[-1]

@@ -47,6 +47,8 @@ class NegotiatorConfigRequest(BaseModel):
     type_name: str
     name: str | None = None
     params: dict = {}
+    time_limit: float | None = None  # Negotiator-specific time limit
+    n_steps: int | None = None  # Negotiator-specific step limit
 
 
 class StartNegotiationRequest(BaseModel):
@@ -104,6 +106,8 @@ async def start_negotiation(request: StartNegotiationRequest):
             type_name=n.type_name,
             name=n.name,
             params=n.params,
+            time_limit=n.time_limit,
+            n_steps=n.n_steps,
         )
         for n in request.negotiators
     ]
@@ -139,6 +143,8 @@ async def start_negotiation_background(request: StartNegotiationRequest):
             type_name=n.type_name,
             name=n.name,
             params=n.params,
+            time_limit=n.time_limit,
+            n_steps=n.n_steps,
         )
         for n in request.negotiators
     ]
@@ -834,6 +840,8 @@ async def rerun_negotiation(session_id: str):
             type_name=c["type_name"],
             name=c.get("name"),
             params=c.get("params", {}),
+            time_limit=c.get("time_limit"),
+            n_steps=c.get("n_steps"),
         )
         for c in negotiator_configs_data
     ]
