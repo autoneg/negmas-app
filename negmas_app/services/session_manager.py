@@ -234,11 +234,25 @@ def _run_negotiation_in_thread(
         session.agreement = mechanism.agreement
         session.end_time = datetime.now()
 
+        # Set end reason based on mechanism state
+        if mechanism.agreement is not None:
+            session.end_reason = "agreement"
+        elif mechanism.state.timedout:
+            session.end_reason = "timedout"
+        elif mechanism.state.step >= mechanism.n_steps:
+            session.end_reason = "maxsteps"
+        else:
+            session.end_reason = "ended"
+
         # Calculate final utilities
         if mechanism.agreement is not None:
             session.final_utilities = [
                 float(ufun(mechanism.agreement)) for ufun in scenario.ufuns
             ]
+        else:
+            # No agreement - use utilities from last offer if available
+            if session.offers:
+                session.final_utilities = session.offers[-1].utilities
 
         # Compute optimality stats
         if mechanism.agreement is not None:

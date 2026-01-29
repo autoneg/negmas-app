@@ -174,19 +174,46 @@ const showSummary = computed(() => {
 // Computed status
 const statusBadgeClass = computed(() => {
   if (!props.negotiation) return 'badge-neutral'
+  
+  const status = props.negotiation.status
+  
+  // Check actual status field first
+  if (status === 'completed') {
+    return props.negotiation.agreement ? 'badge-success' : 'badge-neutral'
+  }
+  if (status === 'failed') return 'badge-danger'
+  if (status === 'paused') return 'badge-info'
+  if (status === 'pending') return 'badge-warning'
+  
+  // Fallback to legacy checks
   if (props.negotiation.pendingStart) return 'badge-warning'
   if (props.negotiation.agreement) return 'badge-success'
   if (props.negotiation.end_reason) return 'badge-neutral'
   if (props.negotiation.paused) return 'badge-info'
+  
   return 'badge-primary'
 })
 
 const statusText = computed(() => {
   if (!props.negotiation) return ''
+  
+  const status = props.negotiation.status
+  
+  // Check actual status field first
+  if (status === 'completed') {
+    return props.negotiation.agreement ? 'Done' : 'End'
+  }
+  if (status === 'failed') return 'Failed'
+  if (status === 'paused') return 'Paused'
+  if (status === 'pending') return 'Pending'
+  if (status === 'running') return 'Running'
+  
+  // Fallback to legacy checks
   if (props.negotiation.pendingStart) return 'Pending'
   if (props.negotiation.agreement) return 'Done'
   if (props.negotiation.end_reason) return 'End'
   if (props.negotiation.paused) return 'Paused'
+  
   return 'Running'
 })
 
