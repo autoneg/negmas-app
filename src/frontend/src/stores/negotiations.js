@@ -231,6 +231,83 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     }
   }
 
+  // ============================================================================
+  // Additional Functions (compatibility with old code)
+  // ============================================================================
+
+  // Alias for deleteNegotiation (some components use this name)
+  async function deleteSavedNegotiation(sessionId) {
+    try {
+      const response = await fetch(`/api/negotiation/saved/${sessionId}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(`Delete failed: ${errorData.detail || response.statusText}`)
+      }
+      const result = await response.json()
+      await loadSavedNegotiations()
+      return result
+    } catch (error) {
+      console.error('[negotiations store] Failed to delete saved negotiation:', error)
+      throw error
+    }
+  }
+
+  async function rerunNegotiation(sessionId) {
+    try {
+      const response = await fetch(`/api/negotiation/saved/${sessionId}/rerun`, {
+        method: 'POST'
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || 'Failed to rerun negotiation')
+      }
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('[negotiations store] Failed to rerun negotiation:', error)
+      throw error
+    }
+  }
+
+  async function updateNegotiationTags(sessionId, tags) {
+    try {
+      const response = await fetch(`/api/negotiation/saved/${sessionId}/tags`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags })
+      })
+      await loadSavedNegotiations()
+      return await response.json()
+    } catch (error) {
+      console.error('[negotiations store] Failed to update tags:', error)
+      return null
+    }
+  }
+
+  function loadTournamentNegotiation(sessionData) {
+    // Load a negotiation from a tournament into the current session
+    // This allows viewing tournament negotiations in the negotiation viewer
+    // Note: With polling architecture, we just set currentSession to the tournament data
+    // The viewer will handle it appropriately
+    currentSession.value = {
+      id: sessionData.id,
+      status: 'completed',
+      fromTournament: true,
+      tournamentId: sessionData.tournamentId,
+      tournamentNegIndex: sessionData.tournamentNegIndex,
+      scenario_name: sessionData.scenario,
+      issue_names: sessionData.issue_names,
+      negotiator_names: sessionData.partners,
+      outcome_space_data: sessionData.outcome_space_data,
+      offers: sessionData.offers || [],
+      agreement: sessionData.agreement,
+      final_utilities: sessionData.utilities,
+      end_reason: sessionData.end_reason,
+    }
+  }
+
   return {
     // State
     sessions,
@@ -260,5 +337,9 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     saveSessionPreset,
     deleteSessionPreset,
     addToRecentSessions,
+    deleteSavedNegotiation,
+    rerunNegotiation,
+    updateNegotiationTags,
+    loadTournamentNegotiation,
   }
 })
