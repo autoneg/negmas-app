@@ -155,6 +155,82 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     }
   }
 
+  // ============================================================================
+  // Session Presets & Recent Sessions
+  // ============================================================================
+
+  async function loadSessionPresets() {
+    try {
+      const response = await fetch('/api/settings/presets/sessions')
+      if (response.ok) {
+        const data = await response.json()
+        sessionPresets.value = data.presets || []
+      }
+    } catch (error) {
+      console.error('[negotiations store] Failed to load session presets:', error)
+      sessionPresets.value = []
+    }
+  }
+
+  async function loadRecentSessions() {
+    try {
+      const response = await fetch('/api/settings/presets/recent')
+      if (response.ok) {
+        const data = await response.json()
+        recentSessions.value = data.sessions || data.presets || []
+      }
+    } catch (error) {
+      console.error('[negotiations store] Failed to load recent sessions:', error)
+      recentSessions.value = []
+    }
+  }
+
+  async function saveSessionPreset(preset) {
+    try {
+      const response = await fetch('/api/settings/presets/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(preset)
+      })
+      if (response.ok) {
+        const result = await response.json()
+        await loadSessionPresets()
+        return result
+      }
+      return null
+    } catch (error) {
+      console.error('[negotiations store] Failed to save session preset:', error)
+      return null
+    }
+  }
+
+  async function deleteSessionPreset(name) {
+    try {
+      const response = await fetch(`/api/settings/presets/sessions/${encodeURIComponent(name)}`, {
+        method: 'DELETE'
+      })
+      if (response.ok) {
+        await loadSessionPresets()
+        return await response.json()
+      }
+    } catch (error) {
+      console.error('[negotiations store] Failed to delete session preset:', error)
+      return null
+    }
+  }
+
+  async function addToRecentSessions(preset) {
+    try {
+      await fetch('/api/settings/presets/recent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(preset)
+      })
+    } catch (error) {
+      console.error('[negotiations store] Failed to add to recent sessions:', error)
+    }
+  }
+
   return {
     // State
     sessions,
@@ -179,5 +255,10 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     archiveNegotiation,
     unarchiveNegotiation,
     deleteNegotiation,
+    loadSessionPresets,
+    loadRecentSessions,
+    saveSessionPreset,
+    deleteSessionPreset,
+    addToRecentSessions,
   }
 })

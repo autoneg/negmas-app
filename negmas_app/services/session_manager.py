@@ -205,10 +205,14 @@ def _run_negotiation_in_thread(
             ]
 
         # Compute optimality stats
-        if mechanism.agreement is not None and outcome_space_data:
-            session.optimality_stats = compute_optimality_stats(
-                mechanism.agreement, outcome_space_data
-            )
+        if mechanism.agreement is not None:
+            try:
+                session.optimality_stats = compute_optimality_stats(
+                    scenario, mechanism.agreement
+                )
+            except Exception as e:
+                print(f"Failed to compute optimality stats: {e}")
+                session.optimality_stats = None
 
         # Auto-save if requested
         if auto_save:
@@ -767,8 +771,8 @@ class SessionManager:
 
                 # Compute optimality stats for the agreement
                 try:
-                    session.optimality_stats = await asyncio.to_thread(
-                        compute_optimality_stats, scenario, mechanism.agreement
+                    session.optimality_stats = compute_optimality_stats(
+                        scenario, mechanism.agreement
                     )
                 except Exception as e:
                     print(f"Failed to compute optimality stats: {e}")
