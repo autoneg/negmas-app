@@ -96,6 +96,48 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     }
   }
 
+  /**
+   * Pause a running session
+   */
+  async function pauseSession(sessionId) {
+    try {
+      const response = await fetch(`/api/negotiation/${sessionId}/pause`, { method: 'POST' })
+      if (response.ok) {
+        return await response.json()
+      }
+    } catch (error) {
+      console.error('[negotiations store] Failed to pause session:', error)
+      return null
+    }
+  }
+
+  /**
+   * Resume a paused session
+   */
+  async function resumeSession(sessionId) {
+    try {
+      const response = await fetch(`/api/negotiation/${sessionId}/resume`, { method: 'POST' })
+      if (response.ok) {
+        return await response.json()
+      }
+    } catch (error) {
+      console.error('[negotiations store] Failed to resume session:', error)
+      return null
+    }
+  }
+
+  /**
+   * Select current session
+   */
+  async function cancelSession(sessionId) {
+    try {
+      await fetch(`/api/negotiation/${sessionId}/cancel`, { method: 'POST' })
+      await loadSessions()
+    } catch (error) {
+      console.error('[negotiations store] Failed to cancel session:', error)
+    }
+  }
+
   // ============================================================================
   // Saved Negotiations
   // ============================================================================
@@ -327,6 +369,8 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     startNegotiation,
     selectSession,
     cancelSession,
+    pauseSession,
+    resumeSession,
     loadSavedNegotiations,
     loadSavedNegotiation,
     archiveNegotiation,

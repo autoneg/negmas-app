@@ -36,6 +36,8 @@ def _run_negotiation_in_thread(
     max_outcome_samples: int,
     auto_save: bool,
     share_ufuns: bool,
+    cancel_flags: dict,
+    pause_flags: dict,
 ):
     """
     Run negotiation synchronously in background thread.
@@ -151,6 +153,27 @@ def _run_negotiation_in_thread(
         }
 
         for state in mechanism:
+            # Check for cancellation
+            if cancel_flags.get(session_id, False):
+                session.status = SessionStatus.FAILED
+                session.error = "Cancelled by user"
+                session.end_reason = "cancelled"
+                session.end_time = datetime.now()
+                return
+
+            # Check for pause - wait while paused
+            while pause_flags.get(session_id, False):
+                import time
+
+                time.sleep(0.1)
+                # Check for cancel while paused
+                if cancel_flags.get(session_id, False):
+                    session.status = SessionStatus.FAILED
+                    session.error = "Cancelled by user"
+                    session.end_reason = "cancelled"
+                    session.end_time = datetime.now()
+                    return
+
             session.current_step = state.step
 
             # Store new offers as OfferEvent objects
@@ -346,6 +369,8 @@ class SessionManager:
                 max_outcome_samples,
                 auto_save,
                 share_ufuns,
+                self._cancel_flags,  # Pass cancel flags
+                self._pause_flags,  # Pass pause flags
             )
         )
 
