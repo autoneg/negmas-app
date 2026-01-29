@@ -161,22 +161,15 @@ async def start_negotiation_background(request: StartNegotiationRequest):
         auto_save=request.auto_save,
     )
 
-    # Run negotiation in background task (non-blocking)
-    async def run_negotiation_task():
-        async for event in get_manager().run_session_stream(
-            session.id, configs, step_delay=0.0, share_ufuns=request.share_ufuns
-        ):
-            pass  # Just consume events, don't stream
+    # NOTE: We do NOT run the negotiation here anymore
+    # The frontend will immediately connect to the SSE stream endpoint
+    # which will actually run the negotiation and stream events
+    # This prevents the race condition where both endpoints try to run
 
-    # Start background task
-    import asyncio
-
-    asyncio.create_task(run_negotiation_task())
-
-    # Return session_id immediately for client to poll
+    # Return session_id immediately for client to poll/stream
     return {
         "session_id": session.id,
-        "status": "running",
+        "status": "pending",  # Will become 'running' when SSE stream starts
     }
 
 
