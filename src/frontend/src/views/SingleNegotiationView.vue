@@ -109,6 +109,14 @@ async function loadNegotiation(sessionId) {
       return
     }
 
+    // If session is pending and not yet initialized, keep loading state and poll
+    if ((data.status === 'pending' || data.status === 'running') && !data.scenario_name) {
+      // Session exists but hasn't been initialized by the thread yet
+      // Start polling and keep loading state until we get data
+      startPolling(sessionId)
+      return // Stay in loading state
+    }
+
     // Update state
     negotiation.value = data
     negotiationsStore.selectSession({ id: data.id, status: data.status })
@@ -199,6 +207,11 @@ function startPolling(sessionId) {
       
       if (updated) {
         negotiation.value = updated
+        
+        // If we were in loading state and now have data, exit loading
+        if (loading.value && updated.scenario_name) {
+          loading.value = false
+        }
 
         // Stop polling if completed
         if (updated.status === 'completed' || updated.status === 'failed') {

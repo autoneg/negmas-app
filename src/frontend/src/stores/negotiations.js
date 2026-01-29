@@ -46,6 +46,10 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     try {
       const response = await fetch(`/api/negotiation/${sessionId}`)
       if (!response.ok) {
+        // 404 is expected for completed/removed sessions
+        if (response.status === 404) {
+          return null
+        }
         throw new Error(`HTTP ${response.status}`)
       }
       const data = await response.json()
