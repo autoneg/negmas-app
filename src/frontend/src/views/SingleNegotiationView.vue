@@ -387,10 +387,23 @@ async function loadNegotiationData(sessionId) {
     return
   }
   
-  // Reset state
+  // CRITICAL: Clear any existing polling interval first to prevent multiple intervals
+  if (negotiationsStore._singleViewPollInterval) {
+    console.log('[SingleNegotiationView] Clearing existing polling interval')
+    clearInterval(negotiationsStore._singleViewPollInterval)
+    negotiationsStore._singleViewPollInterval = null
+  }
+  
+  // Reset state - CRITICAL: Clear all old negotiation data to prevent stale data display
   loading.value = true
   error.value = null
-  console.log('[SingleNegotiationView] Set loading=true, clearing error')
+  sessionInit.value = null
+  offers.value = []
+  sessionComplete.value = null
+  fromTournament.value = false
+  tournamentId.value = null
+  tournamentNegIndex.value = null
+  console.log('[SingleNegotiationView] Reset all state: loading=true, cleared all negotiation data')
   
   // Load panel settings from localStorage
   const settingsKey = `negotiation_settings_${sessionId}`
