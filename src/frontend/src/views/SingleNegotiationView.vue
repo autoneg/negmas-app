@@ -107,8 +107,14 @@ async function loadNegotiation(sessionId) {
       return
     }
 
-    // Load session data
-    const data = await negotiationsStore.getSession(sessionId)
+    // Try to load from active sessions first
+    let data = await negotiationsStore.getSession(sessionId)
+    
+    // If not in active sessions, try saved negotiations
+    if (!data) {
+      console.log('[SingleNegotiationView] Not in active sessions, trying saved...')
+      data = await negotiationsStore.loadSavedNegotiation(sessionId)
+    }
     
     console.log('[SingleNegotiationView] Got session data:', data)
     
