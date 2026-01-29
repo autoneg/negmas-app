@@ -24,6 +24,210 @@ from .outcome_analysis import compute_outcome_space_data, compute_optimality_sta
 from .negotiation_storage import NegotiationStorageService
 
 
+# Module-level function for running negotiations in background thread (pickle-safe)
+def _run_negotiation_in_thread(
+    session_id: str,
+    sessions_dict: dict,
+    scenario_path: str,
+    mechanism_type: str,
+    mechanism_params: dict,
+    negotiator_configs: list,
+    scenario_options: dict,
+    max_outcome_samples: int,
+    auto_save: bool,
+    share_ufuns: bool,
+):
+    """
+    Run negotiation synchronously in background thread.
+    Module-level to avoid pickling issues.
+    """
+    from negmas.sao import SAOState
+
+    session = sessions_dict[session_id]
+
+    try:
+        # Load scenario
+        scenario_loader = ScenarioLoader()
+        ignore_discount = scenario_options.get("ignore_discount", False)
+        scenario = scenario_loader.load_scenario(scenario_path, ignore_discount)
+
+        if scenario is None:
+            session.status = SessionStatus.FAILED
+            session.error = "Failed to load scenario"
+            session.end_time = datetime.now()
+            return
+
+        # Apply scenario options
+        ignore_reserved = scenario_options.get("ignore_reserved", False)
+        if ignore_reserved:
+            for ufun in scenario.ufuns:
+                if hasattr(ufun, "reserved_value"):
+                    ufun.reserved_value = float("-inf")
+
+        normalize = scenario_options.get("normalize", False)
+        if normalize:
+            scenario.normalize()
+
+        # Ensure one_offer_per_step for SAO
+        if (
+            mechanism_type == "SAOMechanism"
+            and "one_offer_per_step" not in mechanism_params
+        ):
+            mechanism_params = {**mechanism_params, "one_offer_per_step": True}
+
+        # Create mechanism
+        mechanism = MechanismFactory.create_from_scenario_params(
+            scenario, mechanism_type, mechanism_params
+        )
+
+        # Create negotiators
+        negotiators = NegotiatorFactory.create_for_scenario(
+            negotiator_configs, scenario
+        )
+
+        # Add negotiators with time limits
+        has_unsupported_features = False
+        for neg, ufun, config in zip(negotiators, scenario.ufuns, negotiator_configs):
+            add_kwargs = {"ufun": ufun}
+
+            if config.time_limit is not None:
+                add_kwargs["time_limit"] = config.time_limit
+            if config.n_steps is not None:
+                add_kwargs["n_steps"] = config.n_steps
+
+            try:
+                mechanism.add(neg, **add_kwargs)
+            except TypeError as e:
+                if "time_limit" in str(e) or "n_steps" in str(e):
+                    has_unsupported_features = True
+                    mechanism.add(neg, ufun=ufun)
+                else:
+                    raise
+
+        if has_unsupported_features:
+            import warnings
+
+            warnings.warn(
+                "Negotiator-specific time constraints (time_limit, n_steps) are not supported "
+                "by the installed version of negmas. Falling back to mechanism-level time constraints.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        # Share utility functions if requested
+        if share_ufuns:
+            n_negs = len(negotiators)
+            if n_negs == 2:
+                negotiators[0].private_info["opponent_ufun"] = scenario.ufuns[1]
+                negotiators[1].private_info["opponent_ufun"] = scenario.ufuns[0]
+            else:
+                for i, neg in enumerate(negotiators):
+                    opponent_ufuns = [
+                        ufun for j, ufun in enumerate(scenario.ufuns) if j != i
+                    ]
+                    neg.private_info["opponent_ufuns"] = opponent_ufuns
+                    if opponent_ufuns:
+                        neg.private_info["opponent_ufun"] = opponent_ufuns[0]
+
+        # Store initial data for visualization
+        session.scenario_name = scenario.name or Path(scenario_path).stem
+        session.negotiator_names = [
+            config.name or f"Negotiator {i + 1}"
+            for i, config in enumerate(negotiator_configs)
+        ]
+        session.negotiator_types = [config.type_name for config in negotiator_configs]
+        session.negotiator_colors = NEGOTIATOR_COLORS[: len(negotiator_configs)]
+        session.issue_names = [issue.name for issue in scenario.issues]
+        session.n_steps = mechanism.n_steps
+        session.time_limit = mechanism.time_limit
+
+        # Compute outcome space data for visualization
+        outcome_space_data = compute_outcome_space_data(scenario, max_outcome_samples)
+        session.outcome_space_data = outcome_space_data
+
+        # Run mechanism and collect history
+        negotiator_id_to_idx = {
+            neg.id: idx for idx, neg in enumerate(mechanism.negotiators)
+        }
+
+        for state in mechanism:
+            session.current_step = state.step
+
+            # Store new offers as OfferEvent objects
+            if len(mechanism.history) > len(session.offers):
+                new_history = mechanism.history[len(session.offers) :]
+                for h in new_history:
+                    if isinstance(h, SAOState):
+                        # Calculate utilities for this offer
+                        utilities = []
+                        if h.current_offer is not None:
+                            for ufun in scenario.ufuns:
+                                try:
+                                    utilities.append(float(ufun(h.current_offer)))
+                                except:
+                                    utilities.append(0.0)
+                        else:
+                            utilities = [0.0] * len(scenario.ufuns)
+
+                        # Create OfferEvent
+                        from ..models import OfferEvent
+
+                        offer_event = OfferEvent(
+                            step=h.step,
+                            proposer=h.current_proposer
+                            if h.current_proposer
+                            else "unknown",
+                            proposer_index=negotiator_id_to_idx.get(
+                                h.current_proposer, 0
+                            )
+                            if h.current_proposer
+                            else 0,
+                            offer=h.current_offer
+                            if h.current_offer is not None
+                            else (),
+                            offer_dict=dict(zip(session.issue_names, h.current_offer))
+                            if h.current_offer
+                            else {},
+                            utilities=utilities,
+                            relative_time=h.relative_time,
+                        )
+                        session.offers.append(offer_event)
+
+        # Negotiation complete - store final results
+        session.status = SessionStatus.COMPLETED
+        session.agreement = mechanism.agreement
+        session.end_time = datetime.now()
+
+        # Calculate final utilities
+        if mechanism.agreement is not None:
+            session.final_utilities = [
+                float(ufun(mechanism.agreement)) for ufun in scenario.ufuns
+            ]
+
+        # Compute optimality stats
+        if mechanism.agreement is not None and outcome_space_data:
+            session.optimality_stats = compute_optimality_stats(
+                mechanism.agreement, outcome_space_data
+            )
+
+        # Auto-save if requested
+        if auto_save:
+            try:
+                NegotiationStorageService.save_negotiation(
+                    session, negotiator_configs, None, scenario_options
+                )
+            except Exception as e:
+                print(f"Failed to auto-save negotiation {session_id}: {e}")
+
+    except Exception as e:
+        session.status = SessionStatus.FAILED
+        session.error = str(e)
+        session.end_time = datetime.now()
+        import traceback
+
+        traceback.print_exc()
+
+
 class SessionManager:
     """Manage negotiation sessions."""
 
@@ -89,6 +293,57 @@ class SessionManager:
         self._cancel_flags[session_id] = False
         self._pause_flags[session_id] = False
         return session
+
+    def start_negotiation_background(
+        self,
+        session_id: str,
+        share_ufuns: bool = False,
+        max_outcome_samples: int = 50000,
+    ) -> None:
+        """
+        Start negotiation in background thread using mechanism.run().
+        Non-blocking - returns immediately while negotiation runs in thread.
+
+        Args:
+            session_id: Session ID to run
+            share_ufuns: If True, share utility functions between negotiators
+            max_outcome_samples: Maximum samples for outcome space analysis
+        """
+        session = self.sessions.get(session_id)
+        if session is None:
+            return
+
+        # Prevent re-running
+        if session.status != SessionStatus.PENDING:
+            return
+
+        # Mark as running immediately
+        session.status = SessionStatus.RUNNING
+        session.start_time = datetime.now()
+
+        # Get stored configuration
+        negotiator_configs = self._configs.get(session_id, [])
+        mechanism_type = self._mechanism_types.get(session_id, "SAOMechanism")
+        mechanism_params = self._mechanism_params.get(session_id, {}).copy()
+        scenario_options = self._scenario_options.get(session_id, {})
+        auto_save = self._auto_save.get(session_id, True)
+
+        # Start in thread (non-blocking)
+        asyncio.create_task(
+            asyncio.to_thread(
+                _run_negotiation_in_thread,
+                session_id,
+                self.sessions,  # Pass dict reference
+                session.scenario_path,
+                mechanism_type,
+                mechanism_params,
+                negotiator_configs,
+                scenario_options,
+                max_outcome_samples,
+                auto_save,
+                share_ufuns,
+            )
+        )
 
     def get_session(self, session_id: str) -> NegotiationSession | None:
         """Get a session by ID."""

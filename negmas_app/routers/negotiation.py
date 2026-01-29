@@ -135,7 +135,8 @@ async def start_negotiation(request: StartNegotiationRequest):
 async def start_negotiation_background(request: StartNegotiationRequest):
     """Start a negotiation and run it in the background without streaming.
 
-    Returns session_id immediately so client can poll for progress.
+    Returns session_id immediately. Negotiation runs in background thread.
+    Client should poll GET /{session_id} for progress updates.
     """
     # Convert request to internal configs
     configs = [
@@ -161,15 +162,16 @@ async def start_negotiation_background(request: StartNegotiationRequest):
         auto_save=request.auto_save,
     )
 
-    # NOTE: We do NOT run the negotiation here anymore
-    # The frontend will immediately connect to the SSE stream endpoint
-    # which will actually run the negotiation and stream events
-    # This prevents the race condition where both endpoints try to run
+    # Start negotiation in background thread (non-blocking)
+    get_manager().start_negotiation_background(
+        session_id=session.id,
+        share_ufuns=request.share_ufuns,
+    )
 
-    # Return session_id immediately for client to poll/stream
+    # Return session_id immediately
     return {
         "session_id": session.id,
-        "status": "pending",  # Will become 'running' when SSE stream starts
+        "status": "running",  # Started in background
     }
 
 
