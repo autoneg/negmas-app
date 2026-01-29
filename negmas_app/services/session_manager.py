@@ -378,6 +378,9 @@ class SessionManager:
             # Run step by step
             # Note: mechanism.state.running is False before first step, so we use True initially
             running = True
+            processed_offer_count = (
+                0  # Track how many offers from state.new_offers we've processed
+            )
             while running:
                 # Check for cancellation
                 if self._cancel_flags.get(session_id, False):
@@ -422,8 +425,31 @@ class SessionManager:
                 session.current_step = state.step
                 running = state.running  # Update for next iteration
 
-                # Process ALL new offers from this step
-                for proposer_id, offer in state.new_offers:
+                # Debug logging to detect if negotiation continues after agreement
+                if mechanism.agreement is not None:
+                    print(
+                        f"[SessionManager] ⚠️ Agreement detected at step {state.step}, but still running={running}"
+                    )
+
+                # Debug: Track relative_time progression to detect backwards movement
+                print(
+                    f"[SessionManager] Step {state.step}: relative_time={state.relative_time:.4f}, "
+                    f"running={running}, new_offers_count={len(state.new_offers)}, "
+                    f"processed_count={processed_offer_count}, "
+                    f"total_offers_stored={len(session.offers)}"
+                )
+
+                # Process ONLY the new offers we haven't seen yet
+                # state.new_offers accumulates over time, so we need to slice from processed_offer_count
+                new_offers_to_process = state.new_offers[processed_offer_count:]
+
+                if len(new_offers_to_process) != len(state.new_offers):
+                    print(
+                        f"[SessionManager] Skipping {len(state.new_offers) - len(new_offers_to_process)} "
+                        f"already-processed offers (have {processed_offer_count}, total {len(state.new_offers)})"
+                    )
+
+                for proposer_id, offer in new_offers_to_process:
                     if offer is None:
                         continue
 
@@ -447,8 +473,25 @@ class SessionManager:
                         utilities=utilities,
                         relative_time=state.relative_time,
                     )
+
+                    # Debug: Check for backwards relative_time
+                    if len(session.offers) > 0:
+                        last_relative_time = session.offers[-1].relative_time
+                        if state.relative_time < last_relative_time:
+                            print(f"[SessionManager] ⚠️⚠️ BACKWARDS TIME DETECTED! ⚠️⚠️")
+                            print(
+                                f"  Last offer: step={session.offers[-1].step}, time={last_relative_time:.4f}"
+                            )
+                            print(
+                                f"  New offer:  step={state.step}, time={state.relative_time:.4f}"
+                            )
+                            print(
+                                f"  Difference: {state.relative_time - last_relative_time:.4f}"
+                            )
+
                     session.offers.append(event)
                     yield event
+                    processed_offer_count += 1  # Increment counter after processing
 
                 await asyncio.sleep(step_delay)
 

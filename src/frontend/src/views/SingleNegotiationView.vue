@@ -332,6 +332,31 @@ const negotiation = computed(() => {
     hasSessionComplete: !!sessionComplete.value
   })
   
+  // Check for duplicate steps in offers array
+  if (offers.value.length > 1) {
+    const steps = offers.value.map(o => o.step)
+    const uniqueSteps = new Set(steps)
+    if (steps.length !== uniqueSteps.size) {
+      console.warn('[SingleNegotiationView] ⚠️ DUPLICATE STEPS DETECTED in offers array!', {
+        totalOffers: offers.value.length,
+        uniqueSteps: uniqueSteps.size,
+        firstFewSteps: steps.slice(0, 10),
+        lastFewSteps: steps.slice(-10)
+      })
+    }
+    
+    // Check if steps restart from 0
+    const maxStep = Math.max(...steps)
+    const stepZeroCount = steps.filter(s => s === 0).length
+    if (stepZeroCount > 1) {
+      console.warn('[SingleNegotiationView] ⚠️ MULTIPLE STEP 0s DETECTED!', {
+        count: stepZeroCount,
+        maxStep,
+        description: 'Steps may have restarted!'
+      })
+    }
+  }
+  
   // Merge session data with streaming data
   return {
     id: currentSession.value?.id,
@@ -543,14 +568,54 @@ async function loadNegotiationData(sessionId) {
                 try {
                   const updated = await negotiationsStore.getSession(sessionId)
                   if (updated) {
+                    console.log('[Polling] Received update:', {
+                      offersLength: updated.offers?.length,
+                      currentLength: offers.value.length,
+                      status: updated.status,
+                      hasAgreement: !!updated.agreement
+                    })
+                    
                     // Update offers if there are new ones
                     if (updated.offers && updated.offers.length > offers.value.length) {
+                      // Log the new offers to detect duplicates
+                      const newOffers = updated.offers.slice(offers.value.length)
+                      console.log('[Polling] New offers received:', {
+                        newCount: newOffers.length,
+                        firstNew: newOffers[0] ? {
+                          step: newOffers[0].step,
+                          relative_time: newOffers[0].relative_time
+                        } : null,
+                        lastNew: newOffers[newOffers.length - 1] ? {
+                          step: newOffers[newOffers.length - 1].step,
+                          relative_time: newOffers[newOffers.length - 1].relative_time
+                        } : null
+                      })
+                      
+                      // Check for step number anomalies (restarting from 0 or duplicates)
+                      if (offers.value.length > 0 && newOffers.length > 0) {
+                        const lastOldStep = offers.value[offers.value.length - 1].step
+                        const firstNewStep = newOffers[0].step
+                        if (firstNewStep <= lastOldStep) {
+                          console.warn('[Polling] ⚠️ STEP NUMBER ANOMALY DETECTED!', {
+                            lastOldStep,
+                            firstNewStep,
+                            description: firstNewStep === 0 ? 'Steps restarted from 0!' : 'Step numbers went backwards!'
+                          })
+                        }
+                      }
+                      
                       offers.value = updated.offers
-                      console.log('[SingleNegotiationView] Updated offers:', offers.value.length)
+                      console.log('[Polling] Updated offers array, total:', offers.value.length)
                     }
                     
                     // Check if completed
                     if (updated.status === 'completed' || updated.status === 'failed') {
+                      console.log('[Polling] Negotiation completed:', {
+                        status: updated.status,
+                        hasAgreement: !!updated.agreement,
+                        totalOffers: updated.offers?.length,
+                        endReason: updated.end_reason
+                      })
                       sessionComplete.value = {
                         agreement: updated.agreement,
                         final_utilities: updated.final_utilities,
