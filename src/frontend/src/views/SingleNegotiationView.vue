@@ -36,6 +36,19 @@
             </svg>
             <span>Reset Layout</span>
           </button>
+          <button 
+            v-if="negotiation.status === 'completed' || negotiation.status === 'failed'"
+            @click="handleDownloadNegotiation" 
+            class="btn btn-ghost btn-sm" 
+            title="Download negotiation data as ZIP"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Download</span>
+          </button>
         </div>
       </div>
 
@@ -52,6 +65,7 @@
           
           <OfferHistoryPanel 
             :negotiation="negotiation"
+            @saveOffersJson="handleSaveOffersJson"
             @zoom="handleZoom('Offer History', 'offerHistory')"
           />
           
@@ -71,11 +85,13 @@
         <template #right>
           <Utility2DPanel 
             :negotiation="negotiation"
+            @saveAsImage="handleSaveAsImage('utility2d')"
             @zoom="handleZoom('2D Utility View', 'utility2d')"
           />
           
           <TimelinePanel 
             :negotiation="negotiation"
+            @saveAsImage="handleSaveAsImage('timeline')"
             @zoom="handleZoom('Timeline', 'timeline')"
           />
         </template>
@@ -387,6 +403,62 @@ async function handleCancel() {
 function handleSaveResults() {
   console.log('[SingleNegotiationView] Save results')
   // TODO: Implement save results to file
+}
+
+/**
+ * Handle save offers as JSON
+ */
+function handleSaveOffersJson() {
+  if (!negotiation.value?.offers) return
+  
+  const data = {
+    scenario_name: negotiation.value.scenario_name,
+    negotiator_names: negotiation.value.negotiator_names,
+    offers: negotiation.value.offers,
+    agreement: negotiation.value.agreement,
+    final_utilities: negotiation.value.final_utilities,
+  }
+  
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${negotiation.value.scenario_name || 'negotiation'}_offers.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * Handle save as image
+ */
+function handleSaveAsImage(panelType) {
+  console.log('[SingleNegotiationView] Save as image:', panelType)
+  // TODO: Implement save panel as image
+}
+
+/**
+ * Handle download negotiation folder (zip)
+ */
+async function handleDownloadNegotiation() {
+  if (!negotiation.value?.id) return
+  
+  try {
+    const response = await fetch(`/api/negotiation/saved/${negotiation.value.id}/download`)
+    if (!response.ok) {
+      throw new Error('Download failed')
+    }
+    
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${negotiation.value.scenario_name || 'negotiation'}_${negotiation.value.id}.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('[SingleNegotiationView] Failed to download negotiation:', err)
+    alert('Failed to download negotiation: ' + err.message)
+  }
 }
 
 /**

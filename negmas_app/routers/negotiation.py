@@ -753,6 +753,52 @@ async def get_negotiation_preview(session_id: str, panel_type: str):
     )
 
 
+@router.get("/saved/{session_id}/download")
+async def download_negotiation_zip(session_id: str):
+    """Download a saved negotiation as a ZIP file.
+
+    Returns:
+        ZIP file containing the complete negotiation directory.
+    """
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    # Get session directory
+    session_dir = NegotiationStorageService.get_session_dir(session_id)
+
+    if not session_dir.exists():
+        raise HTTPException(
+            status_code=404, detail=f"Negotiation '{session_id}' not found"
+        )
+
+    # Create temporary ZIP file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
+        zip_path = Path(tmp.name)
+
+    try:
+        # Create ZIP archive of the session directory
+        shutil.make_archive(
+            str(zip_path.with_suffix("")),  # Remove .zip as make_archive adds it
+            "zip",
+            session_dir.parent,
+            session_dir.name,
+        )
+
+        # Return the ZIP file
+        return FileResponse(
+            zip_path,
+            media_type="application/zip",
+            filename=f"{session_id}.zip",
+            headers={"Content-Disposition": f'attachment; filename="{session_id}.zip"'},
+        )
+    except Exception as e:
+        # Clean up temp file on error
+        if zip_path.exists():
+            zip_path.unlink()
+        raise HTTPException(status_code=500, detail=f"Failed to create ZIP: {str(e)}")
+
+
 @router.post("/saved/{session_id}/open-folder")
 async def open_negotiation_folder(session_id: str):
     """Open the negotiation folder in the system file explorer.

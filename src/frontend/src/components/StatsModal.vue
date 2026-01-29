@@ -15,8 +15,25 @@
       
       <!-- Body -->
       <div class="modal-body" style="max-height: 70vh; overflow-y: auto; background: var(--bg-primary);">
-        <div v-if="!stats" class="empty-state" style="padding: 40px;">
+        <div v-if="loadingStats" class="empty-state" style="padding: 40px;">
+          <div class="loading-spinner"></div>
+          <p>Loading scenario statistics...</p>
+        </div>
+        
+        <div v-else-if="!stats" class="empty-state" style="padding: 40px;">
           <p>No statistics available for this scenario.</p>
+          <button 
+            v-if="scenarioId && !calculatingStats" 
+            @click="calculateStats" 
+            class="btn btn-primary"
+            style="margin-top: 16px;"
+          >
+            Calculate Statistics
+          </button>
+          <div v-if="calculatingStats" style="margin-top: 16px;">
+            <div class="loading-spinner"></div>
+            <p style="margin-top: 8px;">Calculating statistics...</p>
+          </div>
         </div>
         
         <div v-else class="stats-grid">
