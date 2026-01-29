@@ -410,9 +410,11 @@ async def get_session(session_id: str):
         if session.negotiator_infos
         else [],
         "current_step": session.current_step,
-        "n_steps": session.n_steps,
+        "n_steps": sanitize_float(session.n_steps) if session.n_steps else None,
         "relative_time": session.offers[-1].relative_time if session.offers else 0.0,
-        "time_limit": session.time_limit,
+        "time_limit": sanitize_float(session.time_limit)
+        if session.time_limit
+        else None,
         "issue_names": session.issue_names,
         "start_time": session.start_time.isoformat() if session.start_time else None,
         "end_time": session.end_time.isoformat() if session.end_time else None,
