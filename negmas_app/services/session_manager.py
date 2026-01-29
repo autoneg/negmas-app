@@ -193,10 +193,19 @@ def _run_negotiation_in_thread(
                 new_history = mechanism.history[len(session.offers) :]
                 for h in new_history:
                     if isinstance(h, SAOState):
-                        # Process all offers made in this step (new_offers contains all offers from all negotiators)
-                        for proposer_id, offer in h.new_offers:
+                        # Extract data we need immediately (state may be mutated later)
+                        step = h.step
+                        relative_time = h.relative_time
+                        # Make a copy of new_offers list to avoid mutation issues
+                        new_offers_copy = list(h.new_offers) if h.new_offers else []
+
+                        # Process all offers made in this step
+                        for proposer_id, offer in new_offers_copy:
                             if offer is None:
                                 continue
+
+                            # Make a copy of the offer tuple
+                            offer_copy = tuple(offer) if offer else ()
 
                             # Look up proposer index
                             proposer_idx = negotiator_id_to_idx.get(proposer_id, 0)
@@ -210,7 +219,7 @@ def _run_negotiation_in_thread(
                             utilities = []
                             for ufun in scenario.ufuns:
                                 try:
-                                    u = ufun(offer)
+                                    u = ufun(offer_copy)
                                     utilities.append(float(u) if u is not None else 0.0)
                                 except:
                                     utilities.append(0.0)
@@ -219,13 +228,13 @@ def _run_negotiation_in_thread(
                             from ..models import OfferEvent
 
                             offer_event = OfferEvent(
-                                step=h.step,
+                                step=step,
                                 proposer=proposer_name,
                                 proposer_index=proposer_idx,
-                                offer=offer,
-                                offer_dict=dict(zip(session.issue_names, offer)),
+                                offer=offer_copy,
+                                offer_dict=dict(zip(session.issue_names, offer_copy)),
                                 utilities=utilities,
-                                relative_time=h.relative_time,
+                                relative_time=relative_time,
                             )
                             session.offers.append(offer_event)
 
