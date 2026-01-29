@@ -103,6 +103,10 @@
             :is="zoomPanelComponent" 
             v-if="zoomPanelComponent && negotiation"
             :negotiation="negotiation"
+            :adjustable="true"
+            :initial-x-axis="zoomPanelType === 'utility2d' ? 0 : 'step'"
+            :initial-y-axis="1"
+            :initial-simplified="false"
             style="width: 100%; height: 100%;"
           />
         </ZoomModal>

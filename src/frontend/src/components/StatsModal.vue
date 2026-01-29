@@ -127,7 +127,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps({
   show: {
@@ -142,7 +142,103 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
+const scenarioStats = ref(null)
+const loadingStats = ref(false)
+const calculatingStats = ref(false)
+
+// Compute scenario ID from path
+const scenarioId = computed(() => {
+  if (!props.negotiation?.scenario_path) return null
+  return btoa(props.negotiation.scenario_path)
+})
+
+// Load scenario stats when modal opens
+watch(() => props.show, async (show) => {
+  if (show && scenarioId.value && !scenarioStats.value) {
+    await loadScenarioStats()
+  }
+})
+
+// Load scenario stats from backend
+async function loadScenarioStats() {
+  if (!scenarioId.value) return
+  
+  loadingStats.value = true
+  try {
+    const response = await fetch(`/api/scenarios/${scenarioId.value}/stats`)
+    if (response.ok) {
+      scenarioStats.value = await response.json()
+    }
+  } catch (err) {
+    console.error('[StatsModal] Failed to load scenario stats:', err)
+  } finally {
+    loadingStats.value = false
+  }
+}
+
+// Calculate scenario stats (user action)
+async function calculateStats() {
+  if (!scenarioId.value) return
+  
+  if (!confirm('This will calculate scenario statistics. For large outcome spaces, this may take some time. Continue?')) {
+    return
+  }
+  
+  calculatingStats.value = true
+  try {
+    const response = await fetch(`/api/scenarios/${scenarioId.value}/stats/calculate`, {
+      method: 'POST'
+    })
+    if (response.ok) {
+      scenarioStats.value = await response.json()
+    }
+  } catch (err) {
+    console.error('[StatsModal] Failed to calculate scenario stats:', err)
+    alert('Failed to calculate stats: ' + err.message)
+  } finally {
+    calculatingStats.value = false
+  }
+}
+
+// Use scenario stats if available, otherwise fall back to outcome_space_data
 const stats = computed(() => {
+  // If we have full scenario stats, use them
+  if (scenarioStats.value?.has_stats) {
+    return {
+      total_outcomes: scenarioStats.value.n_outcomes,
+      sampled: false,
+      sample_size: null,
+      reserved_values: null, // Could extract from scenario stats if needed
+      nash_point: scenarioStats.value.nash_outcomes?.[0] ? {
+        outcome: scenarioStats.value.nash_outcomes[0],
+        utilities: scenarioStats.value.nash_utils[0],
+        welfare: scenarioStats.value.nash_utils[0].reduce((a, b) => a + b, 0)
+      } : null,
+      kalai_point: scenarioStats.value.kalai_outcomes?.[0] ? {
+        outcome: scenarioStats.value.kalai_outcomes[0],
+        utilities: scenarioStats.value.kalai_utils[0],
+        welfare: scenarioStats.value.kalai_utils[0].reduce((a, b) => a + b, 0)
+      } : null,
+      kalai_smorodinsky_point: scenarioStats.value.ks_outcomes?.[0] ? {
+        outcome: scenarioStats.value.ks_outcomes[0],
+        utilities: scenarioStats.value.ks_utils[0],
+        welfare: scenarioStats.value.ks_utils[0].reduce((a, b) => a + b, 0)
+      } : null,
+      max_welfare_point: scenarioStats.value.max_welfare_outcomes?.[0] ? {
+        outcome: scenarioStats.value.max_welfare_outcomes[0],
+        utilities: scenarioStats.value.max_welfare_utils[0],
+        welfare: scenarioStats.value.max_welfare_utils[0].reduce((a, b) => a + b, 0)
+      } : null,
+      pareto_utilities: null, // Not included (too large)
+      // Additional stats from scenario
+      rational_fraction: scenarioStats.value.rational_fraction,
+      opposition: scenarioStats.value.opposition,
+      utility_ranges: scenarioStats.value.utility_ranges,
+      n_pareto_outcomes: scenarioStats.value.n_pareto_outcomes,
+    }
+  }
+  
+  // Fall back to outcome_space_data
   return props.negotiation?.outcome_space_data || null
 })
 
