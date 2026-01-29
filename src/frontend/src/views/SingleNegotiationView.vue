@@ -14,6 +14,11 @@
 
     <!-- Main Content -->
     <div v-else-if="negotiation" class="negotiation-content">
+      <!-- Debug: Show that we're in the right place -->
+      <div style="background: red; color: white; padding: 10px; position: fixed; top: 0; right: 0; z-index: 9999;">
+        DEBUG: Rendering negotiation {{ negotiation.id }} - {{ negotiation.status }}
+      </div>
+      
       <!-- Header -->
       <div class="negotiation-header">
         <button @click="handleBackNavigation" class="btn btn-secondary">
