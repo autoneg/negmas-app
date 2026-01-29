@@ -192,6 +192,14 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
         return
       }
       
+      // IMPORTANT: Check if the connection is simply closed (readyState 2)
+      // This happens naturally when negotiation completes, not an actual error
+      if (eventSource.value?.readyState === 2) {
+        console.log('[negotiations store] Ignoring error - EventSource closed normally')
+        stopStreaming()
+        return
+      }
+      
       let errorMessage = 'Connection error or negotiation failed'
       
       // Try to parse error data if available
