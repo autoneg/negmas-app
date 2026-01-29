@@ -178,17 +178,36 @@ class SessionManager:
         Yields:
             SessionInitEvent at start, OfferEvent for each offer, then final NegotiationSession.
         """
+        import traceback
+
+        print(f"[SessionManager] run_session_stream CALLED for session {session_id}")
+        print(
+            f"[SessionManager] Call stack:\n{''.join(traceback.format_stack()[-5:-1])}"
+        )
+
         session = self.sessions.get(session_id)
         if session is None:
             return
 
         # CRITICAL: Prevent re-running a session that has already started
+        # Use atomic check-and-set to prevent race condition
         # If a session is RUNNING, COMPLETED, FAILED, or CANCELLED, it should not be re-run
         # Only PENDING sessions should be allowed to run
         if session.status != SessionStatus.PENDING:
             # Session has already run or is currently running
             # Do not create a new mechanism - this would restart from step 0!
+            print(
+                f"[SessionManager] Session {session_id} already started (status={session.status}), "
+                f"skipping run_session_stream"
+            )
             return
+
+        # Immediately set to RUNNING to prevent another call from starting
+        # This must happen BEFORE any await to prevent race condition
+        session.status = SessionStatus.RUNNING
+        print(
+            f"[SessionManager] Session {session_id} status set to RUNNING, proceeding with negotiation"
+        )
 
         try:
             # Get scenario loading options
@@ -242,6 +261,8 @@ class SessionManager:
                 mechanism_type,
                 mechanism_params,
             )
+
+            print(f"[SessionManager] Mechanism created: id={id(mechanism)}")
 
             # Create negotiators and add to mechanism with ufuns (run in thread pool)
             negotiators = await asyncio.to_thread(
@@ -376,8 +397,7 @@ class SessionManager:
             )
             yield init_event
 
-            # Start session
-            session.status = SessionStatus.RUNNING
+            # Start session - set start_time (status already set to RUNNING at function entry)
             session.start_time = datetime.now()
 
             # Run step by step
@@ -444,7 +464,8 @@ class SessionManager:
                     )
 
                 print(
-                    f"[SessionManager] Step {current_state.step}: relative_time={current_state.relative_time:.4f}, "
+                    f"[SessionManager] mechanism_id={id(mechanism)}, "
+                    f"Step {current_state.step}: relative_time={current_state.relative_time:.4f}, "
                     f"running={running}, history_length={len(history)}, "
                     f"processed={processed_history_length}, "
                     f"total_offers_stored={len(session.offers)}"
