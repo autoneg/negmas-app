@@ -138,7 +138,19 @@ def _run_negotiation_in_thread(
             for i, config in enumerate(negotiator_configs)
         ]
         session.negotiator_types = [config.type_name for config in negotiator_configs]
-        session.negotiator_colors = NEGOTIATOR_COLORS[: len(negotiator_configs)]
+
+        # Populate negotiator_infos with colors
+        for i, config in enumerate(negotiator_configs):
+            color = NEGOTIATOR_COLORS[i % len(NEGOTIATOR_COLORS)]
+            session.negotiator_infos.append(
+                SessionNegotiatorInfo(
+                    name=config.name or f"Negotiator {i + 1}",
+                    type_name=config.type_name,
+                    index=i,
+                    color=color,
+                )
+            )
+
         session.issue_names = [issue.name for issue in scenario.issues]
         session.n_steps = mechanism.n_steps
         session.time_limit = mechanism.time_limit
