@@ -483,6 +483,10 @@
                     <input type="checkbox" v-model="buildOptions.refresh" />
                     <span>Refresh (rebuild existing files)</span>
                   </label>
+                  <label class="checkbox-label" title="Fix -inf/inf/nan reserved values by setting them to ufun.min(). This prevents tournament scores from becoming -inf when negotiations fail.">
+                    <input type="checkbox" v-model="buildOptions.ensureFiniteReservedValues" />
+                    <span>Fix infinite reserved values</span>
+                  </label>
                 </div>
                 
                 <div class="setting-group" v-if="buildOptions.stats">
@@ -1019,6 +1023,7 @@ const buildOptions = ref({
   stats: false,
   plots: false,
   refresh: false,
+  ensureFiniteReservedValues: false,
   maxParetoOutcomes: null,
   maxParetoUtils: null,
 })
@@ -1067,6 +1072,7 @@ async function buildCaches() {
     if (buildOptions.value.stats) params.append('stats', 'true')
     if (buildOptions.value.plots) params.append('plots', 'true')
     if (buildOptions.value.refresh) params.append('refresh', 'true')
+    if (buildOptions.value.ensureFiniteReservedValues) params.append('ensure_finite_reserved_values', 'true')
     if (cacheBuildFolder.value) params.append('base_path', cacheBuildFolder.value)
     
     // Add Pareto limits if specified
@@ -1094,6 +1100,7 @@ async function buildCaches() {
         if (buildOptions.value.info) buildResult.value += `Info: ${results.info_created}. `
         if (buildOptions.value.stats) buildResult.value += `Stats: ${results.stats_created}. `
         if (buildOptions.value.plots) buildResult.value += `Plots: ${results.plots_created}. `
+        if (results.reserved_values_fixed > 0) buildResult.value += `Reserved values fixed: ${results.reserved_values_fixed}. `
         
         if (results.failed > 0) {
           buildResult.value += `(${results.failed} failed)`

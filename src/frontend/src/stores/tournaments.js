@@ -441,6 +441,19 @@ export const useTournamentsStore = defineStore('tournaments', () => {
       }
     })
     
+    eventSource.value.addEventListener('warning', (event) => {
+      const data = JSON.parse(event.data)
+      console.warn('[Tournaments Store] Warning:', data.message)
+      
+      // Add warning to event log
+      eventLog.value.push({
+        id: eventLog.value.length,
+        timestamp: Date.now(),
+        type: 'warning',
+        message: data.message
+      })
+    })
+    
     eventSource.value.addEventListener('complete', async (event) => {
       const data = JSON.parse(event.data)
       tournamentComplete.value = data

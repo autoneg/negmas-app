@@ -740,6 +740,8 @@ class TournamentManager:
         config: TournamentConfig,
     ) -> None:
         """Update competitor statistics from a negotiation record."""
+        import math
+
         partners = record.get("partners", [])
         utilities = record.get("utilities", [])
         agreement = record.get("agreement")
@@ -765,14 +767,31 @@ class TournamentManager:
                 stats["n_agreements"] += 1
 
             if i < len(utilities) and utilities[i] is not None:
-                stats["utilities"].append(float(utilities[i]))
+                util_value = float(utilities[i])
+
+                # Check for infinite/nan utility values and emit warning
+                if math.isinf(util_value) or math.isnan(util_value):
+                    scenario_name = record.get("scenario", "unknown")
+                    warning_msg = (
+                        f"Infinite utility ({util_value}) for {name} in {scenario_name}. "
+                        f"Consider running 'negmas-app cache build scenarios --ensure-finite-reserved-values' "
+                        f"to fix scenario reserved values."
+                    )
+                    state.event_queue.put(("warning", warning_msg))
+                    # Skip adding infinite values to stats as they'll corrupt mean calculations
+                    continue
+
+                stats["utilities"].append(util_value)
 
                 # Calculate advantage if 2-party
                 if len(utilities) == 2:
                     other_idx = 1 - i
                     if utilities[other_idx] is not None:
-                        advantage = float(utilities[i]) - float(utilities[other_idx])
-                        stats["advantages"].append(advantage)
+                        other_util = float(utilities[other_idx])
+                        # Skip advantage calculation if other utility is also infinite/nan
+                        if not (math.isinf(other_util) or math.isnan(other_util)):
+                            advantage = util_value - other_util
+                            stats["advantages"].append(advantage)
 
     def _build_leaderboard(
         self,
@@ -1535,6 +1554,9 @@ class TournamentManager:
                     yield event_data
                 elif event_type == "progress":
                     yield event_data
+                elif event_type == "warning":
+                    # Yield warning as a dict with event_type for router to handle
+                    yield {"event_type": "warning", "message": event_data}
                 elif event_type == "complete":
                     yield event_data
                     return

@@ -316,6 +316,12 @@ async def stream_tournament(session_id: str):
                         "event": event.get("event_type"),
                         "data": json.dumps(event),
                     }
+                elif isinstance(event, dict) and event.get("event_type") == "warning":
+                    # Warning event (e.g., infinite utility values detected)
+                    yield {
+                        "event": "warning",
+                        "data": json.dumps({"message": event.get("message", "")}),
+                    }
                 elif isinstance(event, TournamentSession):
                     # Final session state
                     results_data = None

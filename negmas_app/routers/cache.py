@@ -95,6 +95,10 @@ async def build_scenario_caches_stream(
         str | None,
         Query(description="Base path for scenarios (default: ~/negmas/app/scenarios)"),
     ] = None,
+    ensure_finite_reserved_values: Annotated[
+        bool,
+        Query(description="Fix -inf/inf/nan reserved values in utility functions"),
+    ] = False,
 ):
     """Build cache files for all scenarios with SSE progress streaming.
 
@@ -107,6 +111,7 @@ async def build_scenario_caches_stream(
         - max_pareto_utils: Max Pareto utilities to save. If Pareto frontier exceeds this, they won't be saved.
         - refresh: Force rebuild existing files (default: skip existing)
         - base_path: Custom base path for scenarios
+        - ensure_finite_reserved_values: Fix -inf/inf/nan reserved values in utility functions
 
     Streams progress events and final results via SSE.
     """
@@ -187,6 +192,7 @@ async def build_scenario_caches_stream(
                     max_pareto_outcomes=max_pareto_outcomes,
                     max_pareto_utils=max_pareto_utils,
                     refresh=refresh,
+                    ensure_finite_reserved_values=ensure_finite_reserved_values,
                     progress_callback=on_progress,
                 )
             )
@@ -222,6 +228,9 @@ async def build_scenario_caches_stream(
                             "stats_created": results["stats_created"],
                             "stats_skipped": results["stats_skipped"],
                             "plots_created": results["plots_created"],
+                            "reserved_values_fixed": results.get(
+                                "reserved_values_fixed", 0
+                            ),
                             "errors": results["errors"],
                             "skipped": results["skipped"],
                         },
