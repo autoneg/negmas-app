@@ -80,6 +80,8 @@ const props = defineProps({
   }
 })
 
+const emit = defineEmits(['clear'])
+
 const logContainer = ref(null)
 const autoscroll = ref(true)
 
@@ -103,8 +105,8 @@ function formatTime(timestamp) {
 }
 
 function clearEvents() {
-  // Emit event to parent to clear
-  // For now, we'll just scroll to top
+  emit('clear')
+  // Also scroll to top
   if (logContainer.value) {
     logContainer.value.scrollTop = 0
   }

@@ -195,7 +195,7 @@
         <div class="panels-bottom-row">
           <!-- Event Log Panel (2/3 width) -->
           <div class="panel-event-log-wrapper">
-            <TournamentEventLogPanel :events="eventLog" />
+            <TournamentEventLogPanel :events="eventLog" @clear="clearEventLog" />
           </div>
           
           <!-- Configuration Panel (1/3 width) -->
@@ -625,6 +625,10 @@ async function stopTournament() {
 
 // Keep cancelTournament as alias for backwards compatibility
 const cancelTournament = stopTournament
+
+function clearEventLog() {
+  tournamentsStore.clearEventLog()
+}
 
 function handleViewNegotiation(neg) {
   // For running tournaments, click on a negotiation to view its live data

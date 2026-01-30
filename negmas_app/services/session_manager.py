@@ -97,6 +97,12 @@ def _run_negotiation_in_thread(
             if config.n_steps is not None:
                 add_kwargs["n_steps"] = config.n_steps
 
+            # Debug: Log what we're passing to mechanism.add()
+            if config.time_limit is not None or config.n_steps is not None:
+                print(
+                    f"[DEBUG] Adding negotiator {config.name or config.type_name} with time_limit={config.time_limit}, n_steps={config.n_steps}"
+                )
+
             try:
                 mechanism.add(neg, **add_kwargs)
             except TypeError as e:
@@ -154,6 +160,11 @@ def _run_negotiation_in_thread(
         session.issue_names = [issue.name for issue in scenario.issues]
         session.n_steps = mechanism.n_steps
         session.time_limit = mechanism.time_limit
+
+        # Debug: Log effective mechanism limits
+        print(
+            f"[DEBUG] Mechanism effective n_steps={mechanism.n_steps}, time_limit={mechanism.time_limit}"
+        )
 
         # Compute outcome space data for visualization
         outcome_space_data = compute_outcome_space_data(scenario, max_outcome_samples)

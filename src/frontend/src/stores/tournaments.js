@@ -711,6 +711,11 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     return sessions.value.filter(s => s.status === 'failed')
   })
 
+  // Clear event log
+  function clearEventLog() {
+    eventLog.value = []
+  }
+
   return {
     sessions,
     currentSession,
@@ -754,5 +759,6 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     loadTournamentNegotiations,
     deleteSavedTournament,
     updateTournamentTags,
+    clearEventLog,
   }
 })
