@@ -78,6 +78,7 @@ class ScenarioCacheService:
         max_pareto_outcomes: int | None = None,
         max_pareto_utils: int | None = None,
         refresh: bool = False,
+        ensure_finite_reserved_values: bool = False,
     ) -> dict[str, Any]:
         """Build cache files for all scenarios.
 
@@ -90,6 +91,7 @@ class ScenarioCacheService:
             max_pareto_utils: Maximum number of Pareto utilities to save. If the Pareto
                 frontier has more utility points than this, they won't be saved. None means no limit.
             refresh: If True, rebuild existing cache files (default: skip existing)
+            ensure_finite_reserved_values: If True, fix -inf/inf/nan reserved values in ufuns
 
         Returns:
             Dictionary with build results and statistics.
@@ -108,6 +110,7 @@ class ScenarioCacheService:
             "pareto_utils_not_saved": 0,
             "pareto_outcomes_saved": 0,
             "pareto_outcomes_not_saved": 0,
+            "reserved_values_fixed": 0,
         }
 
         scenario_dirs = self._find_all_scenario_dirs()
@@ -123,6 +126,7 @@ class ScenarioCacheService:
                     max_pareto_outcomes=max_pareto_outcomes,
                     max_pareto_utils=max_pareto_utils,
                     refresh=refresh,
+                    ensure_finite_reserved_values=ensure_finite_reserved_values,
                 )
 
                 if success["success"]:
@@ -131,6 +135,9 @@ class ScenarioCacheService:
                     results["stats_created"] += success["stats_created"]
                     results["stats_skipped"] += success.get("stats_skipped", 0)
                     results["plots_created"] += success["plots_created"]
+                    results["reserved_values_fixed"] += success.get(
+                        "reserved_values_fixed", 0
+                    )
 
                     # Track Pareto frontier statistics
                     if success.get("pareto_utils_saved"):
@@ -168,6 +175,7 @@ class ScenarioCacheService:
         max_pareto_outcomes: int | None = None,
         max_pareto_utils: int | None = None,
         refresh: bool = False,
+        ensure_finite_reserved_values: bool = False,
         progress_callback=None,
     ) -> dict[str, Any]:
         """Build cache files for all scenarios with progress callback.
@@ -181,6 +189,7 @@ class ScenarioCacheService:
             max_pareto_utils: Maximum number of Pareto utilities to save. If the Pareto
                 frontier has more utility points than this, they won't be saved. None means no limit.
             refresh: If True, rebuild existing cache files (default: skip existing)
+            ensure_finite_reserved_values: If True, fix -inf/inf/nan reserved values in ufuns
             progress_callback: Callable(current, total, scenario_name) called for each scenario
 
         Returns:
@@ -200,6 +209,7 @@ class ScenarioCacheService:
             "pareto_utils_not_saved": 0,
             "pareto_outcomes_saved": 0,
             "pareto_outcomes_not_saved": 0,
+            "reserved_values_fixed": 0,
         }
 
         scenario_dirs = self._find_all_scenario_dirs()
@@ -219,6 +229,7 @@ class ScenarioCacheService:
                     max_pareto_outcomes=max_pareto_outcomes,
                     max_pareto_utils=max_pareto_utils,
                     refresh=refresh,
+                    ensure_finite_reserved_values=ensure_finite_reserved_values,
                 )
 
                 if success["success"]:
@@ -227,6 +238,9 @@ class ScenarioCacheService:
                     results["stats_created"] += success["stats_created"]
                     results["stats_skipped"] += success.get("stats_skipped", 0)
                     results["plots_created"] += success["plots_created"]
+                    results["reserved_values_fixed"] += success.get(
+                        "reserved_values_fixed", 0
+                    )
 
                     # Track Pareto frontier statistics
                     if success.get("pareto_utils_saved"):
@@ -264,6 +278,7 @@ class ScenarioCacheService:
         max_pareto_outcomes: int | None = None,
         max_pareto_utils: int | None = None,
         refresh: bool = False,
+        ensure_finite_reserved_values: bool = False,
         console=None,
     ) -> dict[str, Any]:
         """Build cache files for all scenarios with rich progress display.
@@ -277,6 +292,7 @@ class ScenarioCacheService:
             max_pareto_utils: Maximum number of Pareto utilities to save. If the Pareto
                 frontier has more utility points than this, they won't be saved. None means no limit.
             refresh: If True, rebuild existing cache files (default: skip existing)
+            ensure_finite_reserved_values: If True, fix -inf/inf/nan reserved values in ufuns
             console: Rich console for output (optional)
 
         Returns:
@@ -305,6 +321,7 @@ class ScenarioCacheService:
             "pareto_utils_not_saved": 0,
             "pareto_outcomes_saved": 0,
             "pareto_outcomes_not_saved": 0,
+            "reserved_values_fixed": 0,
         }
 
         scenario_dirs = self._find_all_scenario_dirs()
@@ -339,6 +356,7 @@ class ScenarioCacheService:
                         max_pareto_outcomes=max_pareto_outcomes,
                         max_pareto_utils=max_pareto_utils,
                         refresh=refresh,
+                        ensure_finite_reserved_values=ensure_finite_reserved_values,
                     )
 
                     if success["success"]:
@@ -347,6 +365,9 @@ class ScenarioCacheService:
                         results["stats_created"] += success["stats_created"]
                         results["stats_skipped"] += success.get("stats_skipped", 0)
                         results["plots_created"] += success["plots_created"]
+                        results["reserved_values_fixed"] += success.get(
+                            "reserved_values_fixed", 0
+                        )
 
                         # Track Pareto frontier statistics
                         if success.get("pareto_utils_saved"):
@@ -489,6 +510,7 @@ class ScenarioCacheService:
         max_pareto_outcomes: int | None = None,
         max_pareto_utils: int | None = None,
         refresh: bool = False,
+        ensure_finite_reserved_values: bool = False,
     ) -> dict[str, Any]:
         """Build cache files for a single scenario.
 
@@ -502,6 +524,7 @@ class ScenarioCacheService:
             max_pareto_utils: Maximum number of Pareto utilities to save. If the Pareto
                 frontier has more utility points than this, they won't be saved. None means no limit.
             refresh: If True, rebuild existing files (default: skip existing)
+            ensure_finite_reserved_values: If True, fix -inf/inf/nan reserved values in ufuns
 
         Returns:
             Dictionary with success status and counts.
@@ -518,6 +541,7 @@ class ScenarioCacheService:
             "pareto_outcomes_saved": False,
             "pareto_utils_count": 0,
             "pareto_outcomes_count": 0,
+            "reserved_values_fixed": 0,
         }
 
         try:
@@ -527,6 +551,21 @@ class ScenarioCacheService:
                 load_info=build_info,
                 load_stats=build_stats,
             )
+
+            # Fix reserved values if requested
+            if ensure_finite_reserved_values:
+                import math
+
+                num_fixed = 0
+                for ufun in scenario.ufuns:
+                    rv = ufun.reserved_value
+                    if rv is None or math.isinf(rv) or math.isnan(rv):
+                        ufun.reserved_value = ufun.min()
+                        num_fixed += 1
+                result["reserved_values_fixed"] = num_fixed
+                if num_fixed > 0:
+                    # Save the scenario with fixed reserved values
+                    scenario.dumpas(scenario_dir, save_info=False, save_stats=False)
 
             # Get outcome limit from settings
             max_outcomes_stats = self.settings.performance.max_outcomes_stats

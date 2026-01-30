@@ -925,6 +925,13 @@ def cache_build_scenarios(
             help="Force rebuild existing cache files (default: skip existing)"
         ),
     ] = False,
+    ensure_finite_reserved_values: Annotated[
+        bool,
+        typer.Option(
+            "--ensure-finite-reserved-values",
+            help="Fix -inf/inf/nan reserved values in utility functions (sets them to ufun.min())",
+        ),
+    ] = False,
 ) -> None:
     """Build cache files for scenarios.
 
@@ -937,6 +944,7 @@ def cache_build_scenarios(
         negmas-app cache build scenarios --stats --max-pareto-outcomes 10000
         negmas-app cache build scenarios --stats --max-pareto-outcomes 10000 --max-pareto-utils 5000
         negmas-app cache build scenarios --path ~/my-scenarios --all
+        negmas-app cache build scenarios --all --ensure-finite-reserved-values
     """
     from .services.scenario_cache_service import ScenarioCacheService
 
@@ -1003,6 +1011,7 @@ def cache_build_scenarios(
         max_pareto_outcomes=max_pareto_outcomes,
         max_pareto_utils=max_pareto_utils,
         refresh=refresh,
+        ensure_finite_reserved_values=ensure_finite_reserved_values,
         console=console,
     )
 
@@ -1036,6 +1045,13 @@ def cache_build_scenarios(
     if plots:
         table.add_row(
             "Plot Files Created", f"[yellow]{results['plots_created']}[/yellow]"
+        )
+
+    # Show reserved values fixed if any
+    if ensure_finite_reserved_values and results.get("reserved_values_fixed", 0) > 0:
+        table.add_row(
+            "Reserved Values Fixed",
+            f"[green]{results['reserved_values_fixed']}[/green]",
         )
 
     console.print(table)

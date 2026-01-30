@@ -420,157 +420,100 @@ class TournamentStorageService:
 
     @classmethod
     def _load_scores(cls, path: Path) -> list[dict]:
-        """Load competitor scores using SimpleTournamentResults and type_scores.csv.
+        """Load competitor scores using SimpleTournamentResults.
 
-        Handles all storage formats automatically.
-        Enriches scores with detailed statistics from type_scores.csv.
+        Uses SimpleTournamentResults.load() which handles all storage formats
+        automatically and provides final_scores and scores_summary DataFrames.
         """
         scores = []
 
-        # Use SimpleTournamentResults for format-agnostic loading
+        # Load results using SimpleTournamentResults
         results = cls._load_results(path)
-        final_scores_df = None
-
-        if results is not None:
-            final_scores_df = results.final_scores
-
-        # Fallback: if SimpleTournamentResults failed or returned no scores, try direct CSV read
-        if final_scores_df is None or len(final_scores_df) == 0:
-            scores_csv_path = path / "scores.csv"
-            if scores_csv_path.exists():
-                try:
-                    with open(scores_csv_path, "r") as f:
-                        reader = csv.DictReader(f)
-                        for row in reader:
-                            name = row.get("strategy", "")
-                            score = row.get("score")
-                            scores.append(
-                                {
-                                    "name": name,
-                                    "rank": int(row.get("index", 0)) + 1,
-                                    "score": float(score) if score else None,
-                                    "raw_data": row,
-                                }
-                            )
-                except Exception as e:
-                    logger.error(f"Error reading scores.csv directly from {path}: {e}")
-                    return scores
+        if results is None:
+            logger.warning(f"Could not load tournament results from {path}")
+            return scores
 
         try:
-            # Get final scores from SimpleTournamentResults (preferred method)
-            if final_scores_df is not None and len(final_scores_df) > 0:
-                for idx, row in final_scores_df.iterrows():
-                    name = row.get("strategy", str(idx))
-                    score = row.get("score")
+            # Get final scores (strategy name + score)
+            final_scores_df = results.final_scores
+            if final_scores_df is None or len(final_scores_df) == 0:
+                logger.warning(f"No final scores found in {path}")
+                return scores
 
-                    scores.append(
-                        {
-                            "name": name,
-                            "rank": idx + 1,
-                            "score": float(score) if pd.notna(score) else None,
-                            "raw_data": cls._sanitize_for_json(row.to_dict()),
-                        }
+            # Get scores summary for detailed stats (indexed by strategy name)
+            scores_summary = results.scores_summary
+
+            # Build scores list from final_scores
+            for idx, row in final_scores_df.iterrows():
+                name = str(row.get("strategy", str(idx)))
+                score = row.get("score")
+
+                # Safely convert score to float, handling None/-inf
+                score_val: float | None = None
+                if score is not None:
+                    try:
+                        score_float = float(score)
+                        if pd.notna(score_float) and score_float != float("-inf"):
+                            score_val = score_float
+                    except (ValueError, TypeError):
+                        pass
+
+                entry: dict = {
+                    "name": name,
+                    "rank": int(str(idx)) if idx is not None else 0,
+                    "score": score_val,
+                    "raw_data": cls._sanitize_for_json(row.to_dict()),
+                }
+
+                # Enrich with scores_summary data if available
+                if scores_summary is not None and name in scores_summary.index:
+                    summary_row = scores_summary.loc[name]
+
+                    # Helper to safely get stat value
+                    def get_stat(metric: str, stat: str) -> float | None:
+                        try:
+                            val = summary_row.get((metric, stat))
+                            if (
+                                val is not None
+                                and pd.notna(val)
+                                and val != float("-inf")
+                                and val != float("inf")
+                            ):
+                                return float(val)
+                        except (KeyError, TypeError):
+                            pass
+                        return None
+
+                    entry["mean_utility"] = get_stat("utility", "mean")
+                    entry["n_negotiations"] = int(get_stat("utility", "count") or 0)
+                    entry["mean_advantage"] = get_stat("advantage", "mean")
+                    entry["mean_welfare"] = get_stat("welfare", "mean")
+                    entry["mean_nash_optimality"] = get_stat("nash_optimality", "mean")
+                    entry["mean_pareto_optimality"] = get_stat(
+                        "pareto_optimality", "mean"
                     )
 
-            # Sort by score descending
-            scores.sort(key=lambda x: x.get("score") or 0, reverse=True)
+                    # Include full type_scores for detailed views
+                    type_scores = {}
+                    for col in scores_summary.columns:
+                        metric, stat = col
+                        if metric not in type_scores:
+                            type_scores[metric] = {}
+                        val = get_stat(metric, stat)
+                        type_scores[metric][stat] = val
+                    entry["type_scores"] = type_scores
+
+                scores.append(entry)
+
+            # Sort by score descending and reassign ranks
+            scores.sort(key=lambda x: x.get("score") or float("-inf"), reverse=True)
             for idx, s in enumerate(scores):
                 s["rank"] = idx + 1
 
-            # Enrich with type_scores.csv data if available
-            type_scores_path = path / "type_scores.csv"
-            if type_scores_path.exists():
-                try:
-                    type_scores_data = cls._parse_type_scores_csv(type_scores_path)
-                    for score_entry in scores:
-                        strategy_name = score_entry["name"]
-                        if strategy_name in type_scores_data:
-                            stats = type_scores_data[strategy_name]
-                            # Add key statistics to the score entry
-                            score_entry["mean_utility"] = stats.get("utility", {}).get(
-                                "mean"
-                            )
-                            score_entry["n_negotiations"] = int(
-                                stats.get("utility", {}).get("count", 0)
-                            )
-                            score_entry["mean_advantage"] = stats.get(
-                                "advantage", {}
-                            ).get("mean")
-                            score_entry["mean_welfare"] = stats.get("welfare", {}).get(
-                                "mean"
-                            )
-                            score_entry["mean_nash_optimality"] = stats.get(
-                                "nash_optimality", {}
-                            ).get("mean")
-                            score_entry["mean_pareto_optimality"] = stats.get(
-                                "pareto_optimality", {}
-                            ).get("mean")
-                            score_entry["type_scores"] = stats
-                except Exception as e:
-                    logger.info(f"Error enriching scores with type_scores: {e}")
-
         except Exception as e:
-            logger.info(f"Error loading scores from {path}: {e}")
+            logger.error(f"Error loading scores from {path}: {e}")
 
         return scores
-
-    @classmethod
-    def _parse_type_scores_csv(cls, path: Path) -> dict[str, dict]:
-        """Parse type_scores.csv into a structured dict.
-
-        Args:
-            path: Path to type_scores.csv file.
-
-        Returns:
-            Dict mapping strategy name to dict of metric -> {count, mean, std, min, max, ...}
-        """
-        result: dict[str, dict] = {}
-        stat_names = ["count", "mean", "std", "min", "25%", "50%", "75%", "max"]
-
-        try:
-            with open(path, "r") as f:
-                reader = csv.reader(f)
-                rows = list(reader)
-
-            if len(rows) < 3:
-                return result
-
-            # First row: metric names (repeated 8 times each)
-            # Second row: stat names (count, mean, std, min, 25%, 50%, 75%, max)
-            # Subsequent rows: strategy name, then values
-            metric_row = rows[0]
-
-            # Build metric positions
-            metrics: list[tuple[str, int]] = []  # (metric_name, start_index)
-            current_metric = None
-            for i, header in enumerate(metric_row[1:], start=1):  # Skip index column
-                if header and header != current_metric:
-                    current_metric = header
-                    metrics.append((header, i))
-
-            # Parse data rows
-            for row in rows[3:]:  # Skip header rows and "index" row
-                if not row or not row[0] or row[0] == "index":
-                    continue
-
-                strategy_name = row[0]
-                result[strategy_name] = {}
-
-                for metric_name, start_idx in metrics:
-                    metric_stats = {}
-                    for j, stat_name in enumerate(stat_names):
-                        value_idx = start_idx + j
-                        if value_idx < len(row):
-                            try:
-                                metric_stats[stat_name] = float(row[value_idx])
-                            except (ValueError, TypeError):
-                                metric_stats[stat_name] = None
-                    result[strategy_name][metric_name] = metric_stats
-
-        except Exception as e:
-            logger.info(f"Error parsing type_scores.csv: {e}")
-
-        return result
 
     @classmethod
     def _build_grid_structures(
