@@ -92,14 +92,14 @@
                       @click="stopTournament(tourn)"
                       title="Stop tournament"
                     >
-                      Stop
+                      ⏹️
                     </button>
                     <button 
                       class="btn-icon-small" 
                       @click="viewTournament(tourn.id)" 
                       title="View full details"
                     >
-                      View
+                      👁️
                     </button>
                   </td>
                 </tr>
@@ -209,7 +209,7 @@
                       @click="continueTournament(tourn.id)"
                       title="Run/Continue tournament"
                     >
-                      Run
+                      ▶️
                     </button>
                     
                     <button 
@@ -217,21 +217,21 @@
                       @click="viewTournament(tourn.id)" 
                       title="View full details"
                     >
-                      View
+                      👁️
                     </button>
                     <button 
                       class="btn-icon-small" 
                       @click="editTournamentTags(tourn)" 
                       title="Edit tags"
                     >
-                      Tags
+                      🏷️
                     </button>
                     <button 
                       class="btn-icon-small btn-danger-text" 
                       @click="deleteSavedTourn(tourn.id)" 
                       title="Delete"
                     >
-                      Del
+                      🗑️
                     </button>
                   </td>
                 </tr>
