@@ -149,7 +149,7 @@
                     Status
                     <span v-if="sortColumn === 'status'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
                   </th>
-                  <th style="width: 180px;">Statistics</th>
+                  <th style="width: 110px;">Statistics</th>
                   <th style="width: 80px;">Tags</th>
                   <th style="width: 120px;">Actions</th>
                 </tr>
@@ -172,19 +172,13 @@
                     <span v-else class="badge badge-pending">Incomplete</span>
                   </td>
                   <td class="stats-cell">
-                    <div class="tournament-stats">
-                      <div class="stat-item" title="Completion Rate">
-                        <span class="stat-label">Complete:</span>
-                        <span class="stat-value">{{ getTournamentStats(tourn).completion }}%</span>
-                      </div>
-                      <div class="stat-item" title="Success Rate (no errors)">
-                        <span class="stat-label">Success:</span>
-                        <span class="stat-value">{{ getTournamentStats(tourn).success }}%</span>
-                      </div>
-                      <div class="stat-item" title="Number of Errors">
-                        <span class="stat-label">Errors:</span>
-                        <span class="stat-value stat-error">{{ getTournamentStats(tourn).errors }}</span>
-                      </div>
+                    <div class="tournament-stats-compact">
+                      <span class="stat-compact" title="Completion Rate">{{ getTournamentStats(tourn).completion }}%</span>
+                      <span class="stat-sep">/</span>
+                      <span class="stat-compact stat-success" title="Agreement Rate">{{ getTournamentStats(tourn).success }}%</span>
+                      <span v-if="getTournamentStats(tourn).errors > 0" class="stat-compact stat-error" title="Errors">
+                        ({{ getTournamentStats(tourn).errors }} err)
+                      </span>
                     </div>
                   </td>
                   <td class="tags-cell">
@@ -1116,35 +1110,34 @@ async function stopTournament(tourn) {
 }
 
 .stats-cell {
-  padding: 8px 12px !important;
+  padding: 6px 8px !important;
 }
 
-.tournament-stats {
+.tournament-stats-compact {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.stat-item {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 2px;
   font-size: 11px;
-  gap: 8px;
 }
 
-.stat-label {
-  color: var(--text-secondary);
+.stat-compact {
   font-weight: 500;
-}
-
-.stat-value {
-  font-weight: 600;
   color: var(--text-primary);
 }
 
+.stat-sep {
+  color: var(--text-tertiary);
+  margin: 0 1px;
+}
+
+.stat-success {
+  color: var(--success-color, #10b981);
+}
+
 .stat-error {
-  color: rgb(239, 68, 68);
+  color: var(--error-color, #ef4444);
+  font-size: 10px;
+  margin-left: 2px;
 }
 
 .text-muted {
