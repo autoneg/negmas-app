@@ -625,6 +625,9 @@ class TournamentManager:
                 config.final_score_stat,
             )
             state.leaderboard = leaderboard
+            print(
+                f"[TournamentManager] Emitting leaderboard with {len(leaderboard)} entries: {[e.name for e in leaderboard]}"
+            )
             state.event_queue.put(("leaderboard", leaderboard))
 
             # Update progress

@@ -23,26 +23,47 @@
             <span>{{ error }}</span>
           </div>
           
-          <!-- AG Grid Table -->
-          <div v-else-if="rowData.length > 0" class="grid-container">
-            <AgGridVue
-              class="ag-theme-alpine-dark data-grid"
-              :rowData="rowData"
-              :columnDefs="columnDefs"
-              :defaultColDef="defaultColDef"
-              :pagination="true"
-              :paginationPageSize="50"
-              :paginationPageSizeSelector="[25, 50, 100, 250, 500]"
-              :animateRows="true"
-              :suppressCellFocus="true"
-              :enableCellTextSelection="true"
-              @grid-ready="onGridReady"
-            />
+          <!-- Data Table -->
+          <div v-else-if="rowData.length > 0" class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th v-for="col in columns" :key="col.field" @click="sortBy(col.field)" class="sortable">
+                    {{ col.headerName }}
+                    <span v-if="sortField === col.field" class="sort-indicator">
+                      {{ sortDirection === 'asc' ? '▲' : '▼' }}
+                    </span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, idx) in paginatedData" :key="idx">
+                  <td v-for="col in columns" :key="col.field" :class="col.cellClass">
+                    {{ formatCell(row[col.field], col) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           
           <!-- Empty state -->
           <div v-else class="empty-state">
             <span>No data available</span>
+          </div>
+          
+          <!-- Pagination -->
+          <div v-if="rowData.length > 0" class="pagination">
+            <button class="btn btn-sm" @click="currentPage = 1" :disabled="currentPage === 1">First</button>
+            <button class="btn btn-sm" @click="currentPage--" :disabled="currentPage === 1">Prev</button>
+            <span class="page-info">Page {{ currentPage }} of {{ totalPages }} ({{ rowData.length }} rows)</span>
+            <button class="btn btn-sm" @click="currentPage++" :disabled="currentPage >= totalPages">Next</button>
+            <button class="btn btn-sm" @click="currentPage = totalPages" :disabled="currentPage >= totalPages">Last</button>
+            <select v-model="pageSize" class="page-size-select">
+              <option :value="25">25 per page</option>
+              <option :value="50">50 per page</option>
+              <option :value="100">100 per page</option>
+              <option :value="250">250 per page</option>
+            </select>
           </div>
         </div>
         
@@ -59,9 +80,6 @@
 
 <script setup>
 import { ref, watch, onMounted, computed } from 'vue'
-import { AgGridVue } from 'ag-grid-vue3'
-import 'ag-grid-community/styles/ag-grid.css'
-import 'ag-grid-community/styles/ag-theme-alpine.css'
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -77,26 +95,60 @@ const emit = defineEmits(['close'])
 const loading = ref(false)
 const error = ref(null)
 const rowData = ref([])
-const gridApi = ref(null)
+const columns = ref([])
+const currentPage = ref(1)
+const pageSize = ref(50)
+const sortField = ref(null)
+const sortDirection = ref('asc')
 
-// AG Grid column definitions
-const columnDefs = ref([])
+// Computed
+const totalPages = computed(() => Math.ceil(rowData.value.length / pageSize.value))
 
-// Default column settings
-const defaultColDef = {
-  sortable: true,
-  filter: true,
-  resizable: true,
-  floatingFilter: true,
-  minWidth: 80,
-  flex: 1,
+const sortedData = computed(() => {
+  if (!sortField.value) return rowData.value
+  
+  return [...rowData.value].sort((a, b) => {
+    const aVal = a[sortField.value]
+    const bVal = b[sortField.value]
+    
+    if (aVal === null || aVal === undefined) return 1
+    if (bVal === null || bVal === undefined) return -1
+    
+    let comparison = 0
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      comparison = aVal - bVal
+    } else {
+      comparison = String(aVal).localeCompare(String(bVal))
+    }
+    
+    return sortDirection.value === 'asc' ? comparison : -comparison
+  })
+})
+
+const paginatedData = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return sortedData.value.slice(start, start + pageSize.value)
+})
+
+// Methods
+function sortBy(field) {
+  if (sortField.value === field) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortField.value = field
+    sortDirection.value = 'asc'
+  }
 }
 
-// Column type formatters
+function formatColumnName(col) {
+  return col.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+}
+
 function getColumnDef(key, sampleValue) {
   const baseDef = {
     field: key,
     headerName: formatColumnName(key),
+    cellClass: ''
   }
   
   // Numeric columns
@@ -105,74 +157,66 @@ function getColumnDef(key, sampleValue) {
     'pareto_optimality', 'partner_welfare', 'count']
   
   if (numericCols.some(n => key.toLowerCase().includes(n)) || typeof sampleValue === 'number') {
-    return {
-      ...baseDef,
-      filter: 'agNumberColumnFilter',
-      valueFormatter: (params) => {
-        if (params.value === null || params.value === undefined) return '-'
-        if (typeof params.value === 'number') {
-          return Number.isInteger(params.value) ? params.value : params.value.toFixed(4)
-        }
-        return params.value
-      },
-      cellClass: 'numeric-cell',
-    }
+    return { ...baseDef, type: 'number', cellClass: 'numeric-cell' }
   }
   
   // Boolean columns
   if (['broken', 'timedout', 'has_error', 'has_agreement', 'running', 'waiting', 'started'].includes(key)) {
-    return {
-      ...baseDef,
-      filter: 'agSetColumnFilter',
-      valueFormatter: (params) => {
-        if (params.value === true) return 'Yes'
-        if (params.value === false) return 'No'
-        return '-'
-      },
-      cellClass: 'boolean-cell',
-      width: 80,
-      flex: 0,
-    }
+    return { ...baseDef, type: 'boolean', cellClass: 'boolean-cell' }
   }
   
-  // Object/array columns (like agreement, utilities)
+  // Object/array columns
   if (typeof sampleValue === 'object' && sampleValue !== null) {
-    return {
-      ...baseDef,
-      valueFormatter: (params) => {
-        if (params.value === null || params.value === undefined) return '-'
-        return JSON.stringify(params.value)
-      },
-      tooltipValueGetter: (params) => {
-        if (params.value === null || params.value === undefined) return ''
-        return JSON.stringify(params.value, null, 2)
-      },
-    }
+    return { ...baseDef, type: 'object' }
   }
   
-  // Default text column
-  return {
-    ...baseDef,
-    filter: 'agTextColumnFilter',
+  return baseDef
+}
+
+function formatCell(value, col) {
+  if (value === null || value === undefined) return '-'
+  
+  if (col.type === 'boolean') {
+    return value ? 'Yes' : 'No'
   }
-}
-
-function formatColumnName(col) {
-  return col.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-}
-
-function onGridReady(params) {
-  gridApi.value = params.api
-  // Auto-size columns to fit content
-  params.api.sizeColumnsToFit()
+  
+  if (col.type === 'number' && typeof value === 'number') {
+    return Number.isInteger(value) ? value : value.toFixed(4)
+  }
+  
+  if (col.type === 'object') {
+    return JSON.stringify(value)
+  }
+  
+  return value
 }
 
 function exportCsv() {
-  if (gridApi.value) {
-    gridApi.value.exportDataAsCsv({
-      fileName: `${props.tournamentId}_${props.dataType}.csv`
-    })
-  }
+  if (rowData.value.length === 0) return
+  
+  const headers = columns.value.map(c => c.field)
+  const csvContent = [
+    headers.join(','),
+    ...rowData.value.map(row => 
+      headers.map(h => {
+        const val = row[h]
+        if (val === null || val === undefined) return ''
+        if (typeof val === 'object') return `"${JSON.stringify(val).replace(/"/g, '""')}"`
+        if (typeof val === 'string' && (val.includes(',') || val.includes('"'))) {
+          return `"${val.replace(/"/g, '""')}"`
+        }
+        return val
+      }).join(',')
+    )
+  ].join('\n')
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${props.tournamentId}_${props.dataType}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 // Load data from API
@@ -181,6 +225,10 @@ async function loadData() {
   
   loading.value = true
   error.value = null
+  rowData.value = []
+  columns.value = []
+  currentPage.value = 1
+  sortField.value = null
   
   try {
     const endpoint = props.dataType === 'all_scores' 
@@ -197,7 +245,6 @@ async function loadData() {
     
     // Details endpoint returns {details: [...]}, all_scores returns {scores: [...]}
     const rows = result.details || result.scores || []
-    rowData.value = rows
     
     // Generate column definitions from first row
     if (rows.length > 0) {
@@ -207,16 +254,16 @@ async function loadData() {
       // Order columns: default columns first, then rest
       let orderedKeys = []
       if (props.defaultColumns.length > 0) {
-        // Add default columns that exist in data
         orderedKeys = props.defaultColumns.filter(k => allKeys.includes(k))
-        // Add remaining columns
         orderedKeys = [...orderedKeys, ...allKeys.filter(k => !orderedKeys.includes(k))]
       } else {
         orderedKeys = allKeys
       }
       
-      columnDefs.value = orderedKeys.map(key => getColumnDef(key, firstRow[key]))
+      columns.value = orderedKeys.map(key => getColumnDef(key, firstRow[key]))
     }
+    
+    rowData.value = rows
   } catch (e) {
     console.error('[TournamentDataModal] Failed to load data:', e)
     error.value = 'Failed to load data'
@@ -230,6 +277,11 @@ watch(() => props.show, (newShow) => {
   if (newShow) {
     loadData()
   }
+})
+
+// Reset page when page size changes
+watch(pageSize, () => {
+  currentPage.value = 1
 })
 
 // Load on mount if already visible
@@ -310,50 +362,106 @@ onMounted(() => {
   to { transform: rotate(360deg); }
 }
 
-.grid-container {
+.table-container {
   flex: 1;
+  overflow: auto;
   min-height: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.data-table {
   width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: var(--font-mono);
 }
 
-.data-grid {
-  width: 100%;
-  height: 100%;
+.data-table th,
+.data-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* AG Grid theme overrides for dark mode */
-.ag-theme-alpine-dark {
-  --ag-background-color: var(--bg-primary);
-  --ag-header-background-color: var(--bg-secondary);
-  --ag-odd-row-background-color: var(--bg-primary);
-  --ag-row-hover-color: var(--bg-hover);
-  --ag-border-color: var(--border-color);
-  --ag-header-foreground-color: var(--text-primary);
-  --ag-foreground-color: var(--text-primary);
-  --ag-secondary-foreground-color: var(--text-secondary);
-  --ag-input-focus-border-color: var(--primary);
-  --ag-range-selection-border-color: var(--primary);
-  --ag-font-size: 12px;
-  --ag-font-family: var(--font-mono);
-}
-
-.ag-theme-alpine-dark .ag-header-cell {
+.data-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary);
   font-weight: 600;
   font-size: 11px;
   text-transform: uppercase;
+  color: var(--text-secondary);
+  z-index: 1;
 }
 
-.ag-theme-alpine-dark .ag-cell {
-  font-family: var(--font-mono);
+.data-table th.sortable {
+  cursor: pointer;
+  user-select: none;
 }
 
-:deep(.numeric-cell) {
+.data-table th.sortable:hover {
+  background: var(--bg-hover);
+}
+
+.sort-indicator {
+  margin-left: 4px;
+  font-size: 10px;
+}
+
+.data-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.data-table tbody tr:nth-child(even) {
+  background: var(--bg-tertiary);
+}
+
+.data-table tbody tr:nth-child(even):hover {
+  background: var(--bg-hover);
+}
+
+.numeric-cell {
   text-align: right !important;
-  font-family: var(--font-mono);
 }
 
-:deep(.boolean-cell) {
+.boolean-cell {
   text-align: center !important;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 0 0 0;
+  border-top: 1px solid var(--border-color);
+  margin-top: 12px;
+}
+
+.page-info {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 0 12px;
+}
+
+.page-size-select {
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  margin-left: 8px;
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 .modal-footer {

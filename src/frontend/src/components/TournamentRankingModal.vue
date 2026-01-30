@@ -208,17 +208,21 @@ async function loadRankings() {
     
     leaderboard.value = data.leaderboard || []
     
-    // Update available options (only on first load)
+    // Always update available options when returned
     if (data.available_metrics?.length > 0) {
       availableMetrics.value = data.available_metrics
+      // If current metric is not in available, switch to first available
+      if (!data.available_metrics.includes(selectedMetric.value) && data.available_metrics.length > 0) {
+        selectedMetric.value = data.available_metrics[0]
+      }
     }
     if (data.available_statistics?.length > 0) {
       availableStatistics.value = data.available_statistics
     }
-    if (data.scenarios?.length > 0 && scenarios.value.length === 0) {
+    if (data.scenarios?.length > 0) {
       scenarios.value = data.scenarios
     }
-    if (data.partners?.length > 0 && partners.value.length === 0) {
+    if (data.partners?.length > 0) {
       partners.value = data.partners
     }
   } catch (e) {

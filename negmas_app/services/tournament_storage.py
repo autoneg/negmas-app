@@ -410,6 +410,11 @@ class TournamentStorageService:
             "leaderboard": leaderboard,
         }
 
+        # Also load config if available
+        config = cls.get_tournament_config(tournament_id)
+        if config:
+            result["config"] = config
+
         # Sanitize for JSON serialization
         return cls._sanitize_for_json(result)
 
@@ -1727,6 +1732,9 @@ class TournamentStorageService:
         scenarios_seen: set[str] = set()
         partners_seen: set[str] = set()
 
+        # Track which metrics actually have data
+        available_metrics_in_data: set[str] = set()
+
         for row in scores_data:
             strategy = row.get("strategy", "Unknown")
             scenario = row.get("scenario", "")
@@ -1734,6 +1742,15 @@ class TournamentStorageService:
 
             scenarios_seen.add(scenario)
             partners_seen.add(partners)
+
+            # Track which metrics have data in this row
+            for m in numeric_metrics:
+                if row.get(m) not in (None, "", "nan", "NaN"):
+                    try:
+                        float(row.get(m))
+                        available_metrics_in_data.add(m)
+                    except (ValueError, TypeError):
+                        pass
 
             # Apply filters
             if filter_scenario and scenario != filter_scenario:
@@ -1824,7 +1841,9 @@ class TournamentStorageService:
             "leaderboard": leaderboard,
             "metric": metric,
             "statistic": statistic,
-            "available_metrics": numeric_metrics,
+            "available_metrics": sorted(available_metrics_in_data)
+            if available_metrics_in_data
+            else numeric_metrics,
             "available_statistics": [
                 "mean",
                 "median",

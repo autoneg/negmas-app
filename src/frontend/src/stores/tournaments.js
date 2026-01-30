@@ -456,6 +456,15 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         }
       }
       
+      // Update current session status to completed so UI reflects the change
+      if (currentSession.value && currentSession.value.id === sessionId) {
+        currentSession.value = {
+          ...currentSession.value,
+          status: 'completed',
+          isSaved: true
+        }
+      }
+      
       stopStreaming()
       loadSessions() // Refresh sessions list
     })

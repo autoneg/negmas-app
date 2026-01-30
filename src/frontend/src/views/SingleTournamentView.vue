@@ -191,13 +191,6 @@
           </div>
         </div>
         
-        <!-- Bottom Row: Errors Panel -->
-        <TournamentErrorsPanel
-          v-if="currentSession.status === 'running' || currentSession.status === 'completed'"
-          :errors="errorNegotiations"
-          :status="currentSession.status"
-        />
-        
         <!-- Bottom Row: Event Log and Configuration -->
         <div class="panels-bottom-row">
           <!-- Event Log Panel (2/3 width) -->
@@ -210,6 +203,13 @@
             <TournamentConfigPanel :config="tournamentConfig" />
           </div>
         </div>
+        
+        <!-- Failed Negotiations Panel (only shown when there are errors) -->
+        <TournamentErrorsPanel
+          v-if="errorNegotiations.length > 0"
+          :errors="errorNegotiations"
+          :status="currentSession.status"
+        />
       </div>
     </div>
     
@@ -550,6 +550,14 @@ onMounted(async () => {
           gridInit.value = savedData.gridInit
           cellStates.value = savedData.cellStates || {}
           leaderboard.value = savedData.leaderboard || []
+          
+          // Update session with config if available
+          if (savedData.config) {
+            currentSession.value = {
+              ...currentSession.value,
+              config: savedData.config
+            }
+          }
         }
       }
       
@@ -570,6 +578,7 @@ onMounted(async () => {
           n_agreements: savedData.n_agreements,
           agreement_rate: savedData.agreement_rate,
           negotiations: savedData.negotiations || [],
+          config: savedData.config || null,
           isSaved: true,
         }
         
