@@ -9,6 +9,7 @@ import queue
 import shutil
 import threading
 import uuid
+import warnings
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -876,11 +877,17 @@ class TournamentManager:
                     state.event_queue.put(("error", state.error))
                     return
 
-                results = continue_cartesian_tournament(
-                    path=Path(config.save_path),
-                    verbosity=config.verbosity,
-                    njobs=-1,  # Serial for web app
-                )
+                # Suppress numpy/pandas warnings about empty arrays or single values
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore", message="invalid value encountered"
+                    )
+                    warnings.filterwarnings("ignore", message="Degrees of freedom")
+                    results = continue_cartesian_tournament(
+                        path=Path(config.save_path),
+                        verbosity=config.verbosity,
+                        njobs=-1,  # Serial for web app
+                    )
 
                 if results is None:
                     state.status = TournamentStatus.FAILED
@@ -1253,7 +1260,11 @@ class TournamentManager:
             )
 
             # Run the tournament (blocking in this thread)
-            results = cartesian_tournament(**tournament_kwargs)  # type: ignore[arg-type]
+            # Suppress numpy/pandas warnings about empty arrays or single values in std calculations
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="invalid value encountered")
+                warnings.filterwarnings("ignore", message="Degrees of freedom")
+                results = cartesian_tournament(**tournament_kwargs)  # type: ignore[arg-type]
 
             # Extract actual competitor/opponent names from results.config
             # These are the standardized names negmas generated, in the same order as we passed the types

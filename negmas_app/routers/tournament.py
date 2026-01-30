@@ -274,6 +274,9 @@ async def stream_tournament(session_id: str):
                     and len(event) > 0
                     and isinstance(event[0], LeaderboardEntry)
                 ):
+                    print(
+                        f"[Tournament SSE] Emitting leaderboard event with {len(event)} entries"
+                    )
                     yield {
                         "event": "leaderboard",
                         "data": json.dumps(

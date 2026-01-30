@@ -6,6 +6,7 @@ import json
 import logging
 import math
 import shutil
+import warnings
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -137,11 +138,15 @@ class TournamentStorageService:
             return cls._results_cache[path_str]
 
         try:
-            results = SimpleTournamentResults.load(
-                path,
-                must_have_details=False,
-                memory_optimization="balanced",  # Keep details in memory, compute scores on demand
-            )
+            # Suppress numpy/pandas warnings about empty arrays or single values
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="invalid value encountered")
+                warnings.filterwarnings("ignore", message="Degrees of freedom")
+                results = SimpleTournamentResults.load(
+                    path,
+                    must_have_details=False,
+                    memory_optimization="balanced",  # Keep details in memory, compute scores on demand
+                )
             cls._results_cache[path_str] = results
             return results
         except FileNotFoundError:
