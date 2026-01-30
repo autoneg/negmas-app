@@ -169,7 +169,7 @@
       
       <!-- Main Panels -->
       <div class="panels-container">
-        <!-- Top Row: Grid (2/3) + Leaderboard (1/3) -->
+        <!-- Top Row: Grid (2/3) + Leaderboard/Config (1/3) -->
         <div class="panels-top-row">
           <!-- Grid Panel (2/3 width) -->
           <div class="panel-grid-wrapper">
@@ -182,30 +182,25 @@
             />
           </div>
           
-          <!-- Scores Panel (1/3 width) -->
+          <!-- Leaderboard / Config Tabbed Panel (1/3 width) -->
           <div class="panel-scores-wrapper">
-            <TournamentScoresPanel 
+            <TournamentInfoTabbedPanel 
               :leaderboard="leaderboard"
+              :config="tournamentConfig"
               :status="currentSession.status"
             />
           </div>
         </div>
         
-        <!-- Bottom Row: Event Log and Configuration -->
+        <!-- Bottom Row: Event Log / Score History (full width) -->
         <div class="panels-bottom-row">
-          <!-- Event Log / Score History Tabbed Panel (2/3 width) -->
-          <div class="panel-event-log-wrapper">
+          <div class="panel-event-log-wrapper full-width">
             <TournamentTabbedPanel 
               :events="eventLog" 
               :scoreHistory="scoreHistory"
               :status="currentSession.status"
               @clearEvents="clearEventLog" 
             />
-          </div>
-          
-          <!-- Configuration Panel (1/3 width) -->
-          <div class="panel-config-wrapper">
-            <TournamentConfigPanel :config="tournamentConfig" />
           </div>
         </div>
         
@@ -275,7 +270,7 @@ import TournamentGridPanel from '../components/TournamentGridPanel.vue'
 import TournamentScoresPanel from '../components/TournamentScoresPanel.vue'
 import TournamentErrorsPanel from '../components/TournamentErrorsPanel.vue'
 import TournamentTabbedPanel from '../components/TournamentTabbedPanel.vue'
-import TournamentConfigPanel from '../components/TournamentConfigPanel.vue'
+import TournamentInfoTabbedPanel from '../components/TournamentInfoTabbedPanel.vue'
 import TournamentRankingModal from '../components/TournamentRankingModal.vue'
 import TournamentDataModal from '../components/TournamentDataModal.vue'
 
@@ -929,7 +924,7 @@ async function handleLoadTrace(tournamentId, negIndex) {
   display: flex;
   gap: 12px;
   min-height: 0;
-  max-height: 400px; /* Limit height to prevent overflow */
+  max-height: 350px; /* Limit height to prevent overflow */
 }
 
 .panel-event-log-wrapper {
@@ -939,12 +934,9 @@ async function handleLoadTrace(tournamentId, negIndex) {
   overflow: hidden; /* Prevent content from expanding wrapper */
 }
 
-.panel-config-wrapper {
+.panel-event-log-wrapper.full-width {
   flex: 1;
-  min-width: 300px;
-  max-width: 400px;
-  min-height: 0; /* Allow flex to shrink */
-  overflow: hidden; /* Prevent content from expanding wrapper */
+  max-width: none;
 }
 
 @media (max-width: 1200px) {
@@ -958,10 +950,6 @@ async function handleLoadTrace(tournamentId, negIndex) {
   
   .panels-bottom-row {
     flex-direction: column;
-  }
-  
-  .panel-config-wrapper {
-    max-width: none;
   }
 }
 
