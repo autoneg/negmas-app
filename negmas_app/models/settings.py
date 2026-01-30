@@ -165,6 +165,18 @@ class PerformanceSettings:
     # (scenarios without named issues where histogram shows all outcomes)
     max_histogram_outcomes: int = 10_000
 
+    # Maximum number of Pareto frontier outcomes to save in cache
+    # If the Pareto frontier has more outcomes than this limit, it will not be saved
+    # This also affects special point outcomes (nash_outcomes, kalai_outcomes, etc.)
+    # None means no limit (save all Pareto outcomes)
+    max_pareto_outcomes: int | None = None
+
+    # Maximum number of Pareto frontier utilities to save in cache
+    # If the Pareto frontier has more utility points than this limit, they will not be saved
+    # Independent from max_pareto_outcomes - you can save utils without outcomes or vice versa
+    # None means no limit (save all Pareto utilities)
+    max_pareto_utils: int | None = None
+
     # Image format for saving plots
     # Supported formats: SUPPORTED_IMAGE_FORMATS = {"webp", "png", "jpg", "jpeg", "svg", "pdf"}
     # webp provides best compression (5-10x smaller than PNG)

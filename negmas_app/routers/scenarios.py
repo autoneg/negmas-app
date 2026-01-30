@@ -128,15 +128,17 @@ async def get_quick_info(scenario_id: str):
         scenario_path = Path(path)
         scenario = await asyncio.to_thread(Scenario.load, scenario_path)
 
-        # Calculate n_outcomes (sample up to 50k)
+        # Get total outcome count
+        n_outcomes = scenario.outcome_space.cardinality
+
+        # Sample outcomes for calculations (up to 50k)
         outcomes = list(
             scenario.outcome_space.enumerate_or_sample(max_cardinality=50000)
         )
-        n_outcomes = len(outcomes)
 
         # Calculate opposition
         opposition = 0.0
-        if len(scenario.ufuns) >= 2 and n_outcomes > 0:
+        if len(scenario.ufuns) >= 2 and len(outcomes) > 0:
             opposition = float(
                 await asyncio.to_thread(
                     opposition_level, scenario.ufuns, outcomes=outcomes, max_tests=50000
@@ -145,9 +147,9 @@ async def get_quick_info(scenario_id: str):
 
         # Calculate rational fraction
         rational_fraction = 0.0
-        if n_outcomes > 0:
+        if len(outcomes) > 0:
             n_rational = sum(1 for o in outcomes if is_rational(scenario.ufuns, o))
-            rational_fraction = n_rational / n_outcomes
+            rational_fraction = n_rational / len(outcomes)
 
         return {
             "n_outcomes": n_outcomes,
@@ -485,10 +487,8 @@ async def get_scenario_info(scenario_id: str):
         # Extract basic info
         n_outcomes = scenario.outcome_space.cardinality
         if n_outcomes == float("inf"):
-            # Sample for infinite spaces
-            n_outcomes = len(
-                list(scenario.outcome_space.enumerate_or_sample(max_cardinality=50000))
-            )
+            # For infinite spaces, use the sample limit as the count
+            n_outcomes = 50000
 
         # Get cached stats if available
         has_stats = (

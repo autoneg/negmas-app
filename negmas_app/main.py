@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Confirm, IntPrompt, Prompt
 from rich.table import Table
 from rich import box
 
@@ -215,13 +215,18 @@ def check_and_setup_scenarios() -> bool:
     build_stats = Confirm.ask("Build [magenta]stats[/magenta] cache?", default=True)
     build_plots = Confirm.ask("Build [yellow]plots[/yellow] cache?", default=False)
 
-    compact = False
+    max_pareto_outcomes = None
     if build_stats:
         console.print("\n[dim]Stats Optimization:[/dim]")
-        compact = Confirm.ask(
-            "  Use [bold]compact[/bold] mode? (excludes Pareto frontier points, saves ~50% space)",
+        limit_pareto = Confirm.ask(
+            "  Limit [bold]Pareto frontier[/bold] storage? (saves disk space for large scenarios)",
             default=False,
         )
+        if limit_pareto:
+            max_pareto_outcomes = IntPrompt.ask(
+                "  Maximum Pareto outcomes to save",
+                default=10000,
+            )
 
     console.print()
     console.print(
@@ -260,7 +265,7 @@ def check_and_setup_scenarios() -> bool:
                 build_info=build_info,
                 build_stats=build_stats,
                 build_plots=build_plots,
-                compact=compact,
+                max_pareto_outcomes=max_pareto_outcomes,
                 refresh=False,  # Don't rebuild what's already there
                 console=console,
             )
@@ -902,9 +907,18 @@ def cache_build_scenarios(
         bool, typer.Option(help="Build plot caches (_plot.webp or _plots/)")
     ] = False,
     all: Annotated[bool, typer.Option(help="Build all cache types")] = False,
-    compact: Annotated[
-        bool, typer.Option(help="Exclude Pareto frontier from stats (saves disk space)")
-    ] = False,
+    max_pareto_outcomes: Annotated[
+        int | None,
+        typer.Option(
+            help="Max Pareto outcomes to save. If Pareto frontier exceeds this, outcomes won't be saved. None means no limit."
+        ),
+    ] = None,
+    max_pareto_utils: Annotated[
+        int | None,
+        typer.Option(
+            help="Max Pareto utilities to save. If Pareto frontier exceeds this, utilities won't be saved. None means no limit."
+        ),
+    ] = None,
     refresh: Annotated[
         bool,
         typer.Option(
@@ -920,7 +934,8 @@ def cache_build_scenarios(
         negmas-app cache build scenarios --info --stats
         negmas-app cache build scenarios --plots --refresh
         negmas-app cache build scenarios --all
-        negmas-app cache build scenarios --stats --compact
+        negmas-app cache build scenarios --stats --max-pareto-outcomes 10000
+        negmas-app cache build scenarios --stats --max-pareto-outcomes 10000 --max-pareto-utils 5000
         negmas-app cache build scenarios --path ~/my-scenarios --all
     """
     from .services.scenario_cache_service import ScenarioCacheService
@@ -957,8 +972,13 @@ def cache_build_scenarios(
         cache_types.append("[cyan]info[/cyan]")
     if stats:
         stats_label = "[magenta]stats[/magenta]"
-        if compact:
-            stats_label += " [dim](compact)[/dim]"
+        limits = []
+        if max_pareto_outcomes is not None:
+            limits.append(f"outcomes: {max_pareto_outcomes:,}")
+        if max_pareto_utils is not None:
+            limits.append(f"utils: {max_pareto_utils:,}")
+        if limits:
+            stats_label += f" [dim](max pareto {', '.join(limits)})[/dim]"
         cache_types.append(stats_label)
     if plots:
         cache_types.append("[yellow]plots[/yellow]")
@@ -980,7 +1000,8 @@ def cache_build_scenarios(
         build_info=info,
         build_stats=stats,
         build_plots=plots,
-        compact=compact,
+        max_pareto_outcomes=max_pareto_outcomes,
+        max_pareto_utils=max_pareto_utils,
         refresh=refresh,
         console=console,
     )
@@ -1018,6 +1039,29 @@ def cache_build_scenarios(
         )
 
     console.print(table)
+
+    # Display Pareto frontier statistics if stats were built
+    if stats and results.get("stats_created", 0) > 0:
+        pareto_utils_saved = results.get("pareto_utils_saved", 0)
+        pareto_utils_not_saved = results.get("pareto_utils_not_saved", 0)
+        pareto_outcomes_saved = results.get("pareto_outcomes_saved", 0)
+        pareto_outcomes_not_saved = results.get("pareto_outcomes_not_saved", 0)
+
+        if pareto_utils_saved > 0 or pareto_utils_not_saved > 0:
+            console.print()
+            console.print("[bold cyan]Pareto Frontier Statistics:[/bold cyan]")
+            console.print(
+                f"  Scenarios with saved Pareto utils:     [green]{pareto_utils_saved}[/green]"
+            )
+            console.print(
+                f"  Scenarios without saved Pareto utils:  [yellow]{pareto_utils_not_saved}[/yellow]"
+            )
+            console.print(
+                f"  Scenarios with saved Pareto outcomes:  [green]{pareto_outcomes_saved}[/green]"
+            )
+            console.print(
+                f"  Scenarios without saved Pareto outcomes: [yellow]{pareto_outcomes_not_saved}[/yellow]"
+            )
 
     if results.get("skipped"):
         console.print(

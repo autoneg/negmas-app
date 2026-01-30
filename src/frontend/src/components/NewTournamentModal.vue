@@ -593,6 +593,13 @@
                     <input v-model.number="settings.saveEvery" type="number" min="0" placeholder="0 (only at end)" class="form-input" />
                     <div class="form-hint">0 = save only at end</div>
                   </div>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.saveLogs" type="checkbox" />
+                      <span>Save Event Log</span>
+                    </label>
+                    <div class="form-hint">Save tournament events to logs.csv at completion</div>
+                  </div>
                   
                   <h4>Information Sharing</h4>
                   <div class="form-group">
@@ -913,6 +920,7 @@ const settings = ref({
   saveScenarioFigs: false,
   recalculateStats: false,
   saveEvery: 0,
+  saveLogs: false,
   passOpponentUfun: false,
   raiseExceptions: false,
   // NEW: Execution & Performance
@@ -1185,6 +1193,7 @@ function buildTournamentPreset(name) {
     save_scenario_figs: settings.value.saveScenarioFigs,
     recalculate_stats: settings.value.recalculateStats,
     save_every: settings.value.saveEvery,
+    save_logs: settings.value.saveLogs,
     pass_opponent_ufun: settings.value.passOpponentUfun,
     raise_exceptions: settings.value.raiseExceptions,
     storage_optimization: settings.value.storageOptimization,
@@ -1234,6 +1243,7 @@ const startTournament = async () => {
       ignore_reserved: settings.value.ignoreReserved,
       save_stats: settings.value.saveStats,
       recalculate_stats: settings.value.recalculateStats,
+      save_logs: settings.value.saveLogs,
       // Advanced settings
       step_time_limit: settings.value.stepTimeLimit || null,
       negotiator_time_limit: settings.value.negotiatorTimeLimit || null,

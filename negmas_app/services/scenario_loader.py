@@ -879,6 +879,16 @@ class ScenarioLoader:
 
                 if not is_readonly:
                     try:
+                        # Determine whether to include Pareto frontier based on settings
+                        perf_settings = SettingsService.load_performance()
+                        max_pareto_outcomes = perf_settings.max_pareto_outcomes
+
+                        include_pareto = True
+                        if max_pareto_outcomes is not None and scenario.stats:
+                            n_pareto = len(scenario.stats.pareto_outcomes or [])
+                            if n_pareto > max_pareto_outcomes:
+                                include_pareto = False
+
                         # Use scenario.update() for atomic save of info and stats
                         # This is more reliable than separate save_info() and save_stats() calls
                         scenario.update(
@@ -887,7 +897,7 @@ class ScenarioLoader:
                             and can_calc_stats
                             and scenario.stats is not None,
                             save_plot=False,  # Don't save plots here
-                            include_pareto_frontier=True,  # Include full pareto frontier
+                            include_pareto_frontier=include_pareto,
                         )
                     except Exception as e:
                         # Log error but don't fail - may be filesystem issues

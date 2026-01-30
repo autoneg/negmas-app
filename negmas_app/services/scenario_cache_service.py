@@ -75,7 +75,8 @@ class ScenarioCacheService:
         build_info: bool = False,
         build_stats: bool = False,
         build_plots: bool = False,
-        compact: bool = False,
+        max_pareto_outcomes: int | None = None,
+        max_pareto_utils: int | None = None,
         refresh: bool = False,
     ) -> dict[str, Any]:
         """Build cache files for all scenarios.
@@ -84,7 +85,10 @@ class ScenarioCacheService:
             build_info: Build _info.yaml files
             build_stats: Build _stats.yaml files
             build_plots: Build plot files (_plot.webp or _plots/)
-            compact: If True, exclude Pareto frontier from stats (saves space)
+            max_pareto_outcomes: Maximum number of Pareto outcomes to save. If the Pareto
+                frontier has more outcomes than this, they won't be saved. None means no limit.
+            max_pareto_utils: Maximum number of Pareto utilities to save. If the Pareto
+                frontier has more utility points than this, they won't be saved. None means no limit.
             refresh: If True, rebuild existing cache files (default: skip existing)
 
         Returns:
@@ -100,6 +104,10 @@ class ScenarioCacheService:
             "plots_created": 0,
             "errors": [],
             "skipped": [],  # List of (scenario_name, reason) tuples
+            "pareto_utils_saved": 0,
+            "pareto_utils_not_saved": 0,
+            "pareto_outcomes_saved": 0,
+            "pareto_outcomes_not_saved": 0,
         }
 
         scenario_dirs = self._find_all_scenario_dirs()
@@ -112,7 +120,8 @@ class ScenarioCacheService:
                     build_info=build_info,
                     build_stats=build_stats,
                     build_plots=build_plots,
-                    compact=compact,
+                    max_pareto_outcomes=max_pareto_outcomes,
+                    max_pareto_utils=max_pareto_utils,
                     refresh=refresh,
                 )
 
@@ -122,6 +131,18 @@ class ScenarioCacheService:
                     results["stats_created"] += success["stats_created"]
                     results["stats_skipped"] += success.get("stats_skipped", 0)
                     results["plots_created"] += success["plots_created"]
+
+                    # Track Pareto frontier statistics
+                    if success.get("pareto_utils_saved"):
+                        results["pareto_utils_saved"] += 1
+                    elif success.get("pareto_utils_count", 0) > 0:
+                        results["pareto_utils_not_saved"] += 1
+
+                    if success.get("pareto_outcomes_saved"):
+                        results["pareto_outcomes_saved"] += 1
+                    elif success.get("pareto_outcomes_count", 0) > 0:
+                        results["pareto_outcomes_not_saved"] += 1
+
                     if success.get("skip_reason"):
                         results["skipped"].append(
                             (scenario_dir.name, success["skip_reason"])
@@ -144,7 +165,8 @@ class ScenarioCacheService:
         build_info: bool = False,
         build_stats: bool = False,
         build_plots: bool = False,
-        compact: bool = False,
+        max_pareto_outcomes: int | None = None,
+        max_pareto_utils: int | None = None,
         refresh: bool = False,
         progress_callback=None,
     ) -> dict[str, Any]:
@@ -154,7 +176,10 @@ class ScenarioCacheService:
             build_info: Build _info.yaml files
             build_stats: Build _stats.yaml files
             build_plots: Build plot files (_plot.webp or _plots/)
-            compact: If True, exclude Pareto frontier from stats (saves space)
+            max_pareto_outcomes: Maximum number of Pareto outcomes to save. If the Pareto
+                frontier has more outcomes than this, they won't be saved. None means no limit.
+            max_pareto_utils: Maximum number of Pareto utilities to save. If the Pareto
+                frontier has more utility points than this, they won't be saved. None means no limit.
             refresh: If True, rebuild existing cache files (default: skip existing)
             progress_callback: Callable(current, total, scenario_name) called for each scenario
 
@@ -171,6 +196,10 @@ class ScenarioCacheService:
             "plots_created": 0,
             "errors": [],
             "skipped": [],  # List of (scenario_name, reason) tuples
+            "pareto_utils_saved": 0,
+            "pareto_utils_not_saved": 0,
+            "pareto_outcomes_saved": 0,
+            "pareto_outcomes_not_saved": 0,
         }
 
         scenario_dirs = self._find_all_scenario_dirs()
@@ -187,7 +216,8 @@ class ScenarioCacheService:
                     build_info=build_info,
                     build_stats=build_stats,
                     build_plots=build_plots,
-                    compact=compact,
+                    max_pareto_outcomes=max_pareto_outcomes,
+                    max_pareto_utils=max_pareto_utils,
                     refresh=refresh,
                 )
 
@@ -197,6 +227,18 @@ class ScenarioCacheService:
                     results["stats_created"] += success["stats_created"]
                     results["stats_skipped"] += success.get("stats_skipped", 0)
                     results["plots_created"] += success["plots_created"]
+
+                    # Track Pareto frontier statistics
+                    if success.get("pareto_utils_saved"):
+                        results["pareto_utils_saved"] += 1
+                    elif success.get("pareto_utils_count", 0) > 0:
+                        results["pareto_utils_not_saved"] += 1
+
+                    if success.get("pareto_outcomes_saved"):
+                        results["pareto_outcomes_saved"] += 1
+                    elif success.get("pareto_outcomes_count", 0) > 0:
+                        results["pareto_outcomes_not_saved"] += 1
+
                     if success.get("skip_reason"):
                         results["skipped"].append(
                             (scenario_dir.name, success["skip_reason"])
@@ -219,7 +261,8 @@ class ScenarioCacheService:
         build_info: bool = False,
         build_stats: bool = False,
         build_plots: bool = False,
-        compact: bool = False,
+        max_pareto_outcomes: int | None = None,
+        max_pareto_utils: int | None = None,
         refresh: bool = False,
         console=None,
     ) -> dict[str, Any]:
@@ -229,7 +272,10 @@ class ScenarioCacheService:
             build_info: Build _info.yaml files
             build_stats: Build _stats.yaml files
             build_plots: Build plot files (_plot.webp or _plots/)
-            compact: If True, exclude Pareto frontier from stats (saves space)
+            max_pareto_outcomes: Maximum number of Pareto outcomes to save. If the Pareto
+                frontier has more outcomes than this, they won't be saved. None means no limit.
+            max_pareto_utils: Maximum number of Pareto utilities to save. If the Pareto
+                frontier has more utility points than this, they won't be saved. None means no limit.
             refresh: If True, rebuild existing cache files (default: skip existing)
             console: Rich console for output (optional)
 
@@ -255,6 +301,10 @@ class ScenarioCacheService:
             "plots_created": 0,
             "errors": [],
             "skipped": [],  # List of (scenario_name, reason) tuples
+            "pareto_utils_saved": 0,
+            "pareto_utils_not_saved": 0,
+            "pareto_outcomes_saved": 0,
+            "pareto_outcomes_not_saved": 0,
         }
 
         scenario_dirs = self._find_all_scenario_dirs()
@@ -286,7 +336,8 @@ class ScenarioCacheService:
                         build_info=build_info,
                         build_stats=build_stats,
                         build_plots=build_plots,
-                        compact=compact,
+                        max_pareto_outcomes=max_pareto_outcomes,
+                        max_pareto_utils=max_pareto_utils,
                         refresh=refresh,
                     )
 
@@ -296,6 +347,18 @@ class ScenarioCacheService:
                         results["stats_created"] += success["stats_created"]
                         results["stats_skipped"] += success.get("stats_skipped", 0)
                         results["plots_created"] += success["plots_created"]
+
+                        # Track Pareto frontier statistics
+                        if success.get("pareto_utils_saved"):
+                            results["pareto_utils_saved"] += 1
+                        elif success.get("pareto_utils_count", 0) > 0:
+                            results["pareto_utils_not_saved"] += 1
+
+                        if success.get("pareto_outcomes_saved"):
+                            results["pareto_outcomes_saved"] += 1
+                        elif success.get("pareto_outcomes_count", 0) > 0:
+                            results["pareto_outcomes_not_saved"] += 1
+
                         if success.get("skip_reason"):
                             results["skipped"].append(
                                 (scenario_dir.name, success["skip_reason"])
@@ -423,7 +486,8 @@ class ScenarioCacheService:
         build_info: bool,
         build_stats: bool,
         build_plots: bool,
-        compact: bool = False,
+        max_pareto_outcomes: int | None = None,
+        max_pareto_utils: int | None = None,
         refresh: bool = False,
     ) -> dict[str, Any]:
         """Build cache files for a single scenario.
@@ -433,7 +497,10 @@ class ScenarioCacheService:
             build_info: Build _info.yaml
             build_stats: Build _stats.yaml
             build_plots: Build plot files
-            compact: If True, exclude Pareto frontier from stats
+            max_pareto_outcomes: Maximum number of Pareto outcomes to save. If the Pareto
+                frontier has more outcomes than this, they won't be saved. None means no limit.
+            max_pareto_utils: Maximum number of Pareto utilities to save. If the Pareto
+                frontier has more utility points than this, they won't be saved. None means no limit.
             refresh: If True, rebuild existing files (default: skip existing)
 
         Returns:
@@ -447,6 +514,10 @@ class ScenarioCacheService:
             "stats_skipped": 0,
             "plots_created": 0,
             "skip_reason": None,
+            "pareto_utils_saved": False,
+            "pareto_outcomes_saved": False,
+            "pareto_utils_count": 0,
+            "pareto_outcomes_count": 0,
         }
 
         try:
@@ -476,8 +547,33 @@ class ScenarioCacheService:
 
             # Build info cache
             if build_info:
-                info_file = scenario_dir / "_info.yaml"
-                if refresh or not info_file.exists():
+                # Check for both .yaml and .yml extensions
+                info_yaml = scenario_dir / "_info.yaml"
+                info_yml = scenario_dir / "_info.yml"
+                info_exists = info_yaml.exists() or info_yml.exists()
+
+                if refresh or not info_exists:
+                    # Calculate standard info
+                    # Use performance limit to decide whether to calculate rational_fraction
+                    max_outcomes_rationality = (
+                        self.settings.performance.max_outcomes_rationality
+                    )
+                    calc_rational = True
+                    if (
+                        max_outcomes_rationality is not None
+                        and max_outcomes_rationality > 0
+                    ):
+                        if n_outcomes > max_outcomes_rationality:
+                            calc_rational = False
+
+                    try:
+                        scenario.calc_standard_info(
+                            calc_rational_fraction=calc_rational
+                        )
+                    except Exception:
+                        # If calc_standard_info fails, continue without info
+                        pass
+
                     # Info will be saved via scenario.update() if refresh=True
                     # For non-refresh, save individually
                     if not refresh:
@@ -490,16 +586,77 @@ class ScenarioCacheService:
                 if refresh or not stats_file.exists():
                     try:
                         # Calculate stats using negmas built-in method
+                        # This calculates: Pareto frontier + special points (Nash, Kalai, etc.)
                         scenario.calc_stats()
+
+                        # Determine whether to include Pareto frontier in saved file based on size
+                        include_pareto_utils = True
+                        include_pareto_outcomes = True
+                        pareto_calculated = (
+                            False  # Track if Pareto was actually computed
+                        )
+
+                        if scenario.stats:
+                            n_pareto_outcomes = len(
+                                scenario.stats.pareto_outcomes or []
+                            )
+                            n_pareto_utils = len(scenario.stats.pareto_utils or [])
+
+                            # If we have pareto data, it was calculated
+                            if n_pareto_outcomes > 0 or n_pareto_utils > 0:
+                                pareto_calculated = True
+
+                                # Track counts
+                                result["pareto_outcomes_count"] = n_pareto_outcomes
+                                result["pareto_utils_count"] = n_pareto_utils
+
+                                # Decide whether to SAVE outcomes
+                                include_pareto_outcomes = True
+                                if (
+                                    max_pareto_outcomes is not None
+                                    and n_pareto_outcomes > max_pareto_outcomes
+                                ):
+                                    # Pareto outcomes calculated but won't be saved
+                                    include_pareto_outcomes = False
+                                    skip_note = f"Pareto outcomes not saved: {n_pareto_outcomes:,} > limit {max_pareto_outcomes:,}"
+                                    if result.get("skip_reason"):
+                                        result["skip_reason"] = (
+                                            result["skip_reason"] + "; " + skip_note
+                                        )
+                                    else:
+                                        result["skip_reason"] = skip_note
+                                    result["pareto_outcomes_saved"] = False
+                                else:
+                                    result["pareto_outcomes_saved"] = True
+
+                                # Decide whether to SAVE utilities
+                                include_pareto_utils = True
+                                if (
+                                    max_pareto_utils is not None
+                                    and n_pareto_utils > max_pareto_utils
+                                ):
+                                    # Pareto utils calculated but won't be saved
+                                    include_pareto_utils = False
+                                    skip_note = f"Pareto utils not saved: {n_pareto_utils:,} > limit {max_pareto_utils:,}"
+                                    if result.get("skip_reason"):
+                                        result["skip_reason"] = (
+                                            result["skip_reason"] + "; " + skip_note
+                                        )
+                                    else:
+                                        result["skip_reason"] = skip_note
+                                    result["pareto_utils_saved"] = False
+                                else:
+                                    result["pareto_utils_saved"] = True
 
                         # Stats will be saved via scenario.update() if refresh=True
                         # For non-refresh, save individually
                         if not refresh:
-                            # Save stats with include_pareto_frontier option
+                            # Save stats with separate control over utils and outcomes
                             scenario.save_stats(
                                 scenario_dir,
                                 compact=False,
-                                include_pareto_frontier=not compact,  # Exclude if compact=True
+                                include_pareto_utils=include_pareto_utils,
+                                include_pareto_outcomes=include_pareto_outcomes,
                             )
 
                         result["stats_created"] = 1
@@ -606,11 +763,31 @@ class ScenarioCacheService:
             # This ensures info, stats, and potentially plots are all saved together
             if refresh and (build_info or build_stats or build_plots):
                 try:
+                    # Determine whether to include Pareto utilities and outcomes based on size
+                    include_pareto_utils = True
+                    include_pareto_outcomes = True
+
+                    if build_stats and scenario.stats:
+                        # Check pareto_outcomes limit
+                        if max_pareto_outcomes is not None:
+                            n_pareto_outcomes = len(
+                                scenario.stats.pareto_outcomes or []
+                            )
+                            if n_pareto_outcomes > max_pareto_outcomes:
+                                include_pareto_outcomes = False
+
+                        # Check pareto_utils limit independently
+                        if max_pareto_utils is not None:
+                            n_pareto_utils = len(scenario.stats.pareto_utils or [])
+                            if n_pareto_utils > max_pareto_utils:
+                                include_pareto_utils = False
+
                     scenario.update(
                         save_info=build_info,
                         save_stats=build_stats,
                         save_plot=False,  # We handle plots separately above
-                        include_pareto_frontier=not compact,
+                        include_pareto_utils=include_pareto_utils,
+                        include_pareto_outcomes=include_pareto_outcomes,
                     )
                 except Exception as e:
                     # Ignore update errors (may be read-only scenario)

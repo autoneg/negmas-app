@@ -139,6 +139,7 @@ class TournamentConfig:
     capture_offers: bool = (
         True  # Capture offer trace for each negotiation (for viewing)
     )
+    save_logs: bool = False  # Save event log as CSV at tournament end
 
     # Scenario options
     # Normalization mode: "none", "scale_min", "scale_max", "normalize"

@@ -234,6 +234,10 @@ def _run_negotiation_in_thread(
         session.agreement = mechanism.agreement
         session.end_time = datetime.now()
 
+        # Convert agreement to dict if present
+        if mechanism.agreement is not None:
+            session.agreement_dict = dict(zip(session.issue_names, mechanism.agreement))
+
         # Set end reason based on mechanism state
         if mechanism.agreement is not None:
             session.end_reason = "agreement"

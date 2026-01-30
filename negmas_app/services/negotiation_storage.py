@@ -336,6 +336,17 @@ class NegotiationStorageService:
                     tuple(result["agreement"]) if result.get("agreement") else None
                 )
                 session.agreement_dict = result.get("agreement_dict")
+
+                # Handle legacy negotiations where agreement_dict is null but agreement exists
+                if (
+                    session.agreement_dict is None
+                    and session.agreement is not None
+                    and session.issue_names
+                ):
+                    session.agreement_dict = dict(
+                        zip(session.issue_names, session.agreement)
+                    )
+
                 session.final_utilities = result.get("final_utilities")
                 session.end_reason = result.get("end_reason")
                 session.optimality_stats = result.get("optimality_stats")

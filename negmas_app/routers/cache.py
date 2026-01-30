@@ -20,9 +20,14 @@ async def build_scenario_caches(
     stats: Annotated[bool, Query(description="Build stats cache")] = False,
     plots: Annotated[bool, Query(description="Build plot caches")] = False,
     all: Annotated[bool, Query(description="Build all caches")] = False,
-    compact: Annotated[
-        bool, Query(description="Exclude Pareto frontier from stats")
-    ] = False,
+    max_pareto_outcomes: Annotated[
+        int | None,
+        Query(description="Max Pareto outcomes to save. None means no limit."),
+    ] = None,
+    max_pareto_utils: Annotated[
+        int | None,
+        Query(description="Max Pareto utils to save. None means no limit."),
+    ] = None,
     refresh: Annotated[
         bool, Query(description="Force rebuild existing cache files")
     ] = False,
@@ -34,7 +39,8 @@ async def build_scenario_caches(
         - stats: Build _stats.yaml files
         - plots: Build plot files (_plot.webp or _plots/)
         - all: Build all cache types
-        - compact: Exclude Pareto frontier from stats (saves disk space)
+        - max_pareto_outcomes: Max Pareto outcomes to save. If Pareto frontier exceeds this, it won't be saved.
+        - max_pareto_utils: Max Pareto utilities to save. If Pareto frontier exceeds this, they won't be saved.
         - refresh: Force rebuild existing files (default: skip existing)
 
     Returns build statistics.
@@ -57,7 +63,8 @@ async def build_scenario_caches(
         build_info=info,
         build_stats=stats,
         build_plots=plots,
-        compact=compact,
+        max_pareto_outcomes=max_pareto_outcomes,
+        max_pareto_utils=max_pareto_utils,
         refresh=refresh,
     )
 
@@ -73,9 +80,14 @@ async def build_scenario_caches_stream(
     stats: Annotated[bool, Query(description="Build stats cache")] = False,
     plots: Annotated[bool, Query(description="Build plot caches")] = False,
     all: Annotated[bool, Query(description="Build all caches")] = False,
-    compact: Annotated[
-        bool, Query(description="Exclude Pareto frontier from stats")
-    ] = False,
+    max_pareto_outcomes: Annotated[
+        int | None,
+        Query(description="Max Pareto outcomes to save. None means no limit."),
+    ] = None,
+    max_pareto_utils: Annotated[
+        int | None,
+        Query(description="Max Pareto utils to save. None means no limit."),
+    ] = None,
     refresh: Annotated[
         bool, Query(description="Force rebuild existing cache files")
     ] = False,
@@ -91,7 +103,8 @@ async def build_scenario_caches_stream(
         - stats: Build _stats.yaml files
         - plots: Build plot files (_plot.webp or _plots/)
         - all: Build all cache types
-        - compact: Exclude Pareto frontier from stats (saves disk space)
+        - max_pareto_outcomes: Max Pareto outcomes to save. If Pareto frontier exceeds this, it won't be saved.
+        - max_pareto_utils: Max Pareto utilities to save. If Pareto frontier exceeds this, they won't be saved.
         - refresh: Force rebuild existing files (default: skip existing)
         - base_path: Custom base path for scenarios
 
@@ -171,7 +184,8 @@ async def build_scenario_caches_stream(
                     build_info=info,
                     build_stats=stats,
                     build_plots=plots,
-                    compact=compact,
+                    max_pareto_outcomes=max_pareto_outcomes,
+                    max_pareto_utils=max_pareto_utils,
                     refresh=refresh,
                     progress_callback=on_progress,
                 )

@@ -51,6 +51,46 @@
           </div>
         </div>
         <div class="header-actions">
+          <!-- Data viewing buttons (completed tournaments only) -->
+          <button
+            v-if="currentSession.status === 'completed' || currentSession.isSaved"
+            class="btn btn-ghost btn-sm"
+            @click="showRankingModal = true"
+            title="View tournament rankings by metric"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            Rankings
+          </button>
+          <button
+            v-if="currentSession.status === 'completed' || currentSession.isSaved"
+            class="btn btn-ghost btn-sm"
+            @click="showDetailsModal = true"
+            title="View negotiation details"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+            </svg>
+            Details
+          </button>
+          <button
+            v-if="currentSession.status === 'completed' || currentSession.isSaved"
+            class="btn btn-ghost btn-sm"
+            @click="showScoresModal = true"
+            title="View all scores"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M3 3v18h18"></path>
+              <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+            </svg>
+            All Scores
+          </button>
           <button
             v-if="currentSession.status === 'running' || currentSession.status === 'completed'"
             class="btn btn-ghost btn-sm"
@@ -189,6 +229,33 @@
         @start="onTournamentStart"
       />
     </Teleport>
+    
+    <!-- Ranking Modal -->
+    <TournamentRankingModal
+      :show="showRankingModal"
+      :tournamentId="tournamentId"
+      @close="showRankingModal = false"
+    />
+    
+    <!-- Details Modal -->
+    <TournamentDataModal
+      :show="showDetailsModal"
+      :tournamentId="tournamentId"
+      title="Negotiation Details"
+      dataType="details"
+      :defaultColumns="['scenario', 'partners', 'step', 'time', 'broken', 'timedout', 'agreement']"
+      @close="showDetailsModal = false"
+    />
+    
+    <!-- All Scores Modal -->
+    <TournamentDataModal
+      :show="showScoresModal"
+      :tournamentId="tournamentId"
+      title="All Scores"
+      dataType="all_scores"
+      :defaultColumns="['strategy', 'utility', 'advantage', 'welfare', 'scenario', 'partners']"
+      @close="showScoresModal = false"
+    />
   </div>
 </template>
 
@@ -204,6 +271,8 @@ import TournamentScoresPanel from '../components/TournamentScoresPanel.vue'
 import TournamentErrorsPanel from '../components/TournamentErrorsPanel.vue'
 import TournamentEventLogPanel from '../components/TournamentEventLogPanel.vue'
 import TournamentConfigPanel from '../components/TournamentConfigPanel.vue'
+import TournamentRankingModal from '../components/TournamentRankingModal.vue'
+import TournamentDataModal from '../components/TournamentDataModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -225,6 +294,9 @@ const {
 } = storeToRefs(tournamentsStore)
 
 const showNewTournamentModal = ref(false)
+const showRankingModal = ref(false)
+const showDetailsModal = ref(false)
+const showScoresModal = ref(false)
 const loading = ref(true)
 const error = ref(null)
 
@@ -468,7 +540,7 @@ onMounted(async () => {
       
       if (session.status === 'running' || session.status === 'pending') {
         // Start streaming for running sessions
-        tournamentsStore.startStreaming(tournamentId)
+        tournamentsStore.startStreaming(tournamentId, session.config || {})
       } else if (session.status === 'completed' || session.status === 'failed') {
         // Try to load saved data for completed/failed sessions
         const savedData = await tournamentsStore.loadSavedTournament(tournamentId)

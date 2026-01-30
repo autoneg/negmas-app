@@ -40,156 +40,215 @@
     
     <!-- Content Area -->
     <div class="content-area" :class="{ 'with-preview': selectedPreview !== 'none' }">
-      <!-- Table -->
+      <!-- Tables Container -->
       <div class="table-container" :style="{ width: selectedPreview === 'none' ? '100%' : '66.67%' }">
-        <!-- Search -->
-        <div class="search-bar">
-          <input 
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="Search by competitors, scenarios, or ID..."
-            class="search-input"
-          >
+        
+        <!-- Running Tournaments Section -->
+        <div v-if="runningTournaments.length > 0" class="running-section">
+          <div class="section-header">
+            <h3>Running Tournaments ({{ runningTournaments.length }})</h3>
+          </div>
+          <div class="running-table-wrapper">
+            <table class="running-tournaments-table">
+              <thead>
+                <tr>
+                  <th style="width: 180px;">Name/ID</th>
+                  <th style="width: 100px;">Competitors</th>
+                  <th style="width: 100px;">Scenarios</th>
+                  <th style="width: 150px;">Progress</th>
+                  <th style="width: 100px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr 
+                  v-for="tourn in runningTournaments" 
+                  :key="tourn.id"
+                  @click="selectTournament(tourn)"
+                  :class="{ 'selected': selectedTournament?.id === tourn.id }"
+                  class="clickable-row"
+                >
+                  <td class="name-cell">
+                    <div class="tournament-name">{{ tourn.name || tourn.id?.slice(0, 12) || 'Unknown' }}</div>
+                    <div class="session-id">{{ tourn.id?.slice(0, 8) }}</div>
+                  </td>
+                  <td class="count-cell">{{ tourn.n_competitors || 0 }}</td>
+                  <td class="count-cell">{{ tourn.n_scenarios || 0 }}</td>
+                  <td class="progress-cell">
+                    <div class="progress-info">
+                      <div class="progress-text">
+                        {{ tourn.completed || 0 }}/{{ tourn.total || 0 }} negotiations
+                      </div>
+                      <div class="progress-bar-mini">
+                        <div 
+                          class="progress-bar-fill" 
+                          :style="{ width: getProgressPercent(tourn) + '%' }"
+                        ></div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="actions-cell" @click.stop>
+                    <button 
+                      class="btn-icon-small btn-danger" 
+                      @click="stopTournament(tourn)"
+                      title="Stop tournament"
+                    >
+                      Stop
+                    </button>
+                    <button 
+                      class="btn-icon-small" 
+                      @click="viewTournament(tourn.id)" 
+                      title="View full details"
+                    >
+                      View
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
         
-        <!-- Table -->
-        <div class="table-wrapper">
-          <table class="tournaments-table">
-            <thead>
-              <tr>
-                <th style="width: 160px;" @click="sortBy('date')">
-                  Date
-                  <span v-if="sortColumn === 'date'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
-                </th>
-                <th @click="sortBy('name')">
-                  Name/ID
-                  <span v-if="sortColumn === 'name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
-                </th>
-                <th style="width: 120px;" @click="sortBy('competitors')">
-                  Competitors
-                  <span v-if="sortColumn === 'competitors'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
-                </th>
-                <th style="width: 120px;" @click="sortBy('scenarios')">
-                  Scenarios
-                  <span v-if="sortColumn === 'scenarios'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
-                </th>
-                <th style="width: 140px;" @click="sortBy('status')">
-                  Status
-                  <span v-if="sortColumn === 'status'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
-                </th>
-                <th style="width: 180px;">Statistics</th>
-                <th style="width: 100px;">Tags</th>
-                <th style="width: 100px;">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr 
-                v-for="tourn in filteredAndSortedTournaments" 
-                :key="tourn.id"
-                @click="selectTournament(tourn)"
-                :class="{ 'selected': selectedTournament?.id === tourn.id }"
-                class="clickable-row"
-              >
-                <td class="date-cell">{{ formatDate(tourn.timestamp || tourn.created_at) }}</td>
-                <td class="name-cell">{{ tourn.name || tourn.id?.slice(0, 12) || 'Unknown' }}</td>
-                <td class="count-cell">{{ tourn.n_competitors || 0 }}</td>
-                <td class="count-cell">{{ tourn.n_scenarios || 0 }}</td>
-                <td class="status-cell">
-                  <span v-if="tourn.status === 'running'" class="badge badge-running">
-                    Running ({{ tourn.completed || 0 }}/{{ tourn.total || 0 }})
-                  </span>
-                  <span v-else-if="tourn.status === 'pending'" class="badge badge-pending">Pending</span>
-                  <span v-else-if="tourn.status === 'failed'" class="badge badge-failed">Failed</span>
-                  <span v-else class="badge badge-completed">Completed</span>
-                </td>
-                <td class="stats-cell">
-                  <div v-if="tourn.status === 'completed' || tourn.status === 'failed'" class="tournament-stats">
-                    <div class="stat-item" title="Completion Rate">
-                      <span class="stat-label">Complete:</span>
-                      <span class="stat-value">{{ getTournamentStats(tourn).completion }}%</span>
-                    </div>
-                    <div class="stat-item" title="Success Rate (no errors)">
-                      <span class="stat-label">Success:</span>
-                      <span class="stat-value">{{ getTournamentStats(tourn).success }}%</span>
-                    </div>
-                    <div class="stat-item" title="Number of Errors">
-                      <span class="stat-label">Errors:</span>
-                      <span class="stat-value stat-error">{{ getTournamentStats(tourn).errors }}</span>
-                    </div>
-                  </div>
-                  <span v-else class="text-muted">-</span>
-                </td>
-                <td class="tags-cell">
-                  <div class="tags-list">
-                    <span 
-                      v-for="tag in (tourn.tags || []).slice(0, 2)" 
-                      :key="tag"
-                      class="tag-badge"
-                    >
-                      {{ tag }}
-                    </span>
-                    <span v-if="(tourn.tags || []).length > 2" class="tag-more">
-                      +{{ (tourn.tags || []).length - 2 }}
-                    </span>
-                  </div>
-                </td>
-                <td class="actions-cell" @click.stop>
-                  <!-- Run/Continue button for incomplete tournaments -->
-                  <button 
-                    v-if="!tourn.is_complete && tourn.status !== 'running'"
-                    class="btn-icon-small btn-success" 
-                    @click="continueTournament(tourn.id)"
-                    title="Run/Continue tournament"
-                  >
-                    ▶️
-                  </button>
-                  
-                  <!-- Stop button for running tournaments -->
-                  <button 
-                    v-if="tourn.status === 'running'"
-                    class="btn-icon-small btn-danger" 
-                    @click="stopTournament(tourn)"
-                    title="Stop tournament"
-                  >
-                    ⏹️
-                  </button>
-                  
-                  <button 
-                    class="btn-icon-small" 
-                    @click="viewTournament(tourn.id)" 
-                    title="View full details"
-                  >
-                    👁️
-                  </button>
-                  <button 
-                    class="btn-icon-small" 
-                    @click="editTournamentTags(tourn)" 
-                    title="Edit tags"
-                  >
-                    🏷️
-                  </button>
-                  <button 
-                    class="btn-icon-small" 
-                    @click="deleteSavedTourn(tourn.id)" 
-                    title="Delete"
-                  >
-                    🗑️
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          
-          <!-- Empty State -->
-          <div v-if="filteredAndSortedTournaments.length === 0 && !loading" class="empty-state">
-            <p v-if="searchQuery">No tournaments match your search</p>
-            <p v-else-if="tournamentTagFilter">No tournaments with tag "{{ tournamentTagFilter }}"</p>
-            <p v-else>No tournaments yet. Start a new one!</p>
+        <!-- Completed Tournaments Section -->
+        <div class="completed-section">
+          <div class="section-header">
+            <h3>Completed Tournaments ({{ completedTournaments.length }})</h3>
           </div>
           
-          <!-- Loading State -->
-          <div v-if="loading" class="loading-state">
-            <p>Loading tournaments...</p>
+          <!-- Search -->
+          <div class="search-bar">
+            <input 
+              v-model="searchQuery" 
+              type="text" 
+              placeholder="Search by name, competitors, scenarios, or ID..."
+              class="search-input"
+            >
+          </div>
+          
+          <!-- Table -->
+          <div class="table-wrapper">
+            <table class="tournaments-table">
+              <thead>
+                <tr>
+                  <th style="width: 160px;" @click="sortBy('date')">
+                    Date
+                    <span v-if="sortColumn === 'date'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                  </th>
+                  <th @click="sortBy('name')">
+                    Name/ID
+                    <span v-if="sortColumn === 'name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                  </th>
+                  <th style="width: 100px;" @click="sortBy('competitors')">
+                    Competitors
+                    <span v-if="sortColumn === 'competitors'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                  </th>
+                  <th style="width: 100px;" @click="sortBy('scenarios')">
+                    Scenarios
+                    <span v-if="sortColumn === 'scenarios'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                  </th>
+                  <th style="width: 100px;" @click="sortBy('status')">
+                    Status
+                    <span v-if="sortColumn === 'status'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                  </th>
+                  <th style="width: 180px;">Statistics</th>
+                  <th style="width: 80px;">Tags</th>
+                  <th style="width: 120px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr 
+                  v-for="tourn in filteredAndSortedTournaments" 
+                  :key="tourn.id"
+                  @click="selectTournament(tourn)"
+                  :class="{ 'selected': selectedTournament?.id === tourn.id }"
+                  class="clickable-row"
+                >
+                  <td class="date-cell">{{ formatDate(tourn.timestamp || tourn.created_at) }}</td>
+                  <td class="name-cell">{{ tourn.name || tourn.id?.slice(0, 12) || 'Unknown' }}</td>
+                  <td class="count-cell">{{ tourn.n_competitors || 0 }}</td>
+                  <td class="count-cell">{{ tourn.n_scenarios || 0 }}</td>
+                  <td class="status-cell">
+                    <span v-if="tourn.is_complete" class="badge badge-completed">Completed</span>
+                    <span v-else-if="tourn.status === 'failed'" class="badge badge-failed">Failed</span>
+                    <span v-else class="badge badge-pending">Incomplete</span>
+                  </td>
+                  <td class="stats-cell">
+                    <div class="tournament-stats">
+                      <div class="stat-item" title="Completion Rate">
+                        <span class="stat-label">Complete:</span>
+                        <span class="stat-value">{{ getTournamentStats(tourn).completion }}%</span>
+                      </div>
+                      <div class="stat-item" title="Success Rate (no errors)">
+                        <span class="stat-label">Success:</span>
+                        <span class="stat-value">{{ getTournamentStats(tourn).success }}%</span>
+                      </div>
+                      <div class="stat-item" title="Number of Errors">
+                        <span class="stat-label">Errors:</span>
+                        <span class="stat-value stat-error">{{ getTournamentStats(tourn).errors }}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="tags-cell">
+                    <div class="tags-list">
+                      <span 
+                        v-for="tag in (tourn.tags || []).slice(0, 2)" 
+                        :key="tag"
+                        class="tag-badge"
+                      >
+                        {{ tag }}
+                      </span>
+                      <span v-if="(tourn.tags || []).length > 2" class="tag-more">
+                        +{{ (tourn.tags || []).length - 2 }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="actions-cell" @click.stop>
+                    <!-- Run/Continue button for incomplete tournaments -->
+                    <button 
+                      v-if="!tourn.is_complete"
+                      class="btn-icon-small btn-success" 
+                      @click="continueTournament(tourn.id)"
+                      title="Run/Continue tournament"
+                    >
+                      Run
+                    </button>
+                    
+                    <button 
+                      class="btn-icon-small" 
+                      @click="viewTournament(tourn.id)" 
+                      title="View full details"
+                    >
+                      View
+                    </button>
+                    <button 
+                      class="btn-icon-small" 
+                      @click="editTournamentTags(tourn)" 
+                      title="Edit tags"
+                    >
+                      Tags
+                    </button>
+                    <button 
+                      class="btn-icon-small btn-danger-text" 
+                      @click="deleteSavedTourn(tourn.id)" 
+                      title="Delete"
+                    >
+                      Del
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            
+            <!-- Empty State -->
+            <div v-if="filteredAndSortedTournaments.length === 0 && !loading" class="empty-state">
+              <p v-if="searchQuery">No tournaments match your search</p>
+              <p v-else-if="tournamentTagFilter">No tournaments with tag "{{ tournamentTagFilter }}"</p>
+              <p v-else>No completed tournaments yet. Start a new one!</p>
+            </div>
+            
+            <!-- Loading State -->
+            <div v-if="loading" class="loading-state">
+              <p>Loading tournaments...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -361,7 +420,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTournamentsStore } from '../stores/tournaments'
 import { storeToRefs } from 'pinia'
@@ -394,45 +453,47 @@ const tagEditorTournament = ref(null)
 const tagEditorTags = ref([])
 const newTagInput = ref('')
 
-// Combine all tournaments (sessions + saved)
-const allTournaments = computed(() => {
-  const combined = [
-    ...sessions.value.map(s => ({
+// Running tournaments come from sessions only
+const runningTournaments = computed(() => {
+  return sessions.value
+    .filter(s => s.status === 'running' || s.status === 'pending')
+    .map(s => ({
       ...s,
       source: 'session',
       timestamp: s.created_at || s.started_at || Date.now()
-    })),
-    ...savedTournaments.value.map(s => ({
+    }))
+})
+
+// Completed tournaments come from saved tournaments, excluding any that are currently running
+const completedTournaments = computed(() => {
+  // Get IDs of running tournaments to exclude them from saved list
+  const runningIds = new Set(runningTournaments.value.map(t => t.id))
+  
+  return savedTournaments.value
+    .filter(s => !runningIds.has(s.id)) // Don't show running tournaments in completed section
+    .map(s => ({
       ...s,
       source: 'saved',
       timestamp: s.created_at || s.completed_at || Date.now()
     }))
-  ]
-  
-  console.log('[TournamentsList] Before deduplication:', combined.length, 'tournaments')
-  console.log('[TournamentsList] Session IDs:', sessions.value.map(s => s.id))
-  console.log('[TournamentsList] Saved IDs:', savedTournaments.value.map(s => s.id))
-  
-  // Deduplicate by ID - prefer session over saved (session has live data)
-  const seen = new Set()
-  const deduplicated = []
-  for (const tourn of combined) {
-    if (!seen.has(tourn.id)) {
-      seen.add(tourn.id)
-      deduplicated.push(tourn)
-    } else {
-      console.log('[TournamentsList] Skipping duplicate:', tourn.id, tourn.source)
-    }
-  }
-  
-  console.log('[TournamentsList] After deduplication:', deduplicated.length, 'tournaments')
-  
-  return deduplicated
 })
 
-// Filter by search query and tags
+// For backward compatibility - combine all tournaments
+const allTournaments = computed(() => {
+  return [...runningTournaments.value, ...completedTournaments.value]
+})
+
+// Helper to calculate progress percentage
+function getProgressPercent(tourn) {
+  const total = tourn.total || 0
+  const completed = tourn.completed || 0
+  if (total === 0) return 0
+  return Math.min(100, Math.round((completed / total) * 100))
+}
+
+// Filter and sort completed tournaments only (running shown separately)
 const filteredAndSortedTournaments = computed(() => {
-  let result = allTournaments.value
+  let result = completedTournaments.value
   
   // Filter by tag
   if (tournamentTagFilter.value) {
@@ -488,7 +549,44 @@ const filteredAndSortedTournaments = computed(() => {
 
 onMounted(async () => {
   await loadData()
+  // Start polling for running tournaments
+  startPolling()
 })
+
+onUnmounted(() => {
+  stopPolling()
+})
+
+// Polling for running tournaments to update progress
+let pollingInterval = null
+
+function startPolling() {
+  // Poll every 3 seconds when there are running tournaments
+  pollingInterval = setInterval(async () => {
+    if (runningTournaments.value.length > 0) {
+      // Only reload sessions to update progress - don't reload saved
+      await tournamentsStore.loadSessions()
+    } else if (pollingInterval) {
+      // No running tournaments, switch to slower polling
+      clearInterval(pollingInterval)
+      pollingInterval = setInterval(async () => {
+        await tournamentsStore.loadSessions()
+        // If we found running tournaments, switch back to fast polling
+        if (runningTournaments.value.length > 0) {
+          stopPolling()
+          startPolling()
+        }
+      }, 10000) // Check every 10 seconds when idle
+    }
+  }, 3000) // Update every 3 seconds when running
+}
+
+function stopPolling() {
+  if (pollingInterval) {
+    clearInterval(pollingInterval)
+    pollingInterval = null
+  }
+}
 
 // Watch for preview selection changes
 watch(selectedPreview, (newVal) => {
@@ -808,6 +906,123 @@ async function stopTournament(tourn) {
   min-height: 0;
   border-right: 1px solid var(--border-color);
   transition: width 0.3s ease;
+  overflow: auto;
+}
+
+/* Running Tournaments Section */
+.running-section {
+  flex-shrink: 0;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.section-header {
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+}
+
+.section-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.running-table-wrapper {
+  overflow-x: auto;
+}
+
+.running-tournaments-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.running-tournaments-table thead {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.running-tournaments-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.running-tournaments-table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.2s;
+}
+
+.running-tournaments-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.running-tournaments-table tbody tr.selected {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.running-tournaments-table tbody tr.clickable-row {
+  cursor: pointer;
+}
+
+.running-tournaments-table td {
+  padding: 8px 12px;
+}
+
+.tournament-name {
+  font-weight: 500;
+}
+
+.session-id {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: monospace;
+  margin-top: 2px;
+}
+
+.progress-cell {
+  min-width: 120px;
+}
+
+.progress-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progress-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.progress-bar-mini {
+  height: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--primary-color);
+  transition: width 0.3s ease;
+}
+
+/* Completed Tournaments Section */
+.completed-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.completed-section .section-header {
+  flex-shrink: 0;
 }
 
 .search-bar {
@@ -1021,6 +1236,15 @@ async function stopTournament(tourn) {
 
 .btn-icon-small.btn-danger:hover {
   background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+}
+
+.btn-icon-small.btn-danger-text {
+  color: #ef4444;
+}
+
+.btn-icon-small.btn-danger-text:hover {
+  background: rgba(239, 68, 68, 0.1);
   border-color: #ef4444;
 }
 

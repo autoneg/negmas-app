@@ -311,11 +311,17 @@ def compute_optimality_stats(
 
         # Convert to dictionary
         return {
-            "pareto_optimality": float(optimality.pareto_optimality),
+            "pareto_optimality": float(optimality.pareto_optimality)
+            if not (optimality.pareto_optimality != optimality.pareto_optimality)
+            else None,  # NaN check
             "nash_optimality": float(optimality.nash_optimality),
             "kalai_optimality": float(optimality.kalai_optimality),
             "modified_kalai_optimality": float(optimality.modified_kalai_optimality),
-            "max_welfare_optimality": float(optimality.max_welfare_optimality),
+            "max_welfare_optimality": float(optimality.max_welfare_optimality)
+            if not (
+                optimality.max_welfare_optimality != optimality.max_welfare_optimality
+            )
+            else None,  # NaN check
             "ks_optimality": float(optimality.ks_optimality)
             if not (optimality.ks_optimality != optimality.ks_optimality)
             else None,  # NaN check

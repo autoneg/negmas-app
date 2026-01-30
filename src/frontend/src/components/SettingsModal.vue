@@ -282,6 +282,38 @@
             </div>
             
             <div class="setting-group">
+              <div class="setting-group-title">Cache Limits</div>
+              
+              <div class="setting-row">
+                <div class="setting-info">
+                  <div class="setting-name">Max Pareto Outcomes to Save</div>
+                  <div class="setting-desc">Maximum Pareto outcomes to save in cache files (0 = no limit)</div>
+                </div>
+                <input
+                  v-model.number="localSettings.performance.max_pareto_outcomes"
+                  type="number"
+                  min="0"
+                  class="setting-input number"
+                  placeholder="No limit"
+                />
+              </div>
+              
+              <div class="setting-row">
+                <div class="setting-info">
+                  <div class="setting-name">Max Pareto Utils to Save</div>
+                  <div class="setting-desc">Maximum Pareto utilities to save in cache files (0 = no limit)</div>
+                </div>
+                <input
+                  v-model.number="localSettings.performance.max_pareto_utils"
+                  type="number"
+                  min="0"
+                  class="setting-input number"
+                  placeholder="No limit"
+                />
+              </div>
+            </div>
+            
+            <div class="setting-group">
               <div class="setting-group-title">Image Settings</div>
               
               <div class="setting-row">
@@ -444,10 +476,6 @@
                     <span>Stats (_stats.yaml)</span>
                   </label>
                   <label class="checkbox-label">
-                    <input type="checkbox" v-model="buildOptions.compact" :disabled="!buildOptions.stats" />
-                    <span>Compact (exclude Pareto frontier)</span>
-                  </label>
-                  <label class="checkbox-label">
                     <input type="checkbox" v-model="buildOptions.plots" />
                     <span>Plots (_plot.webp or _plots/)</span>
                   </label>
@@ -455,6 +483,33 @@
                     <input type="checkbox" v-model="buildOptions.refresh" />
                     <span>Refresh (rebuild existing files)</span>
                   </label>
+                </div>
+                
+                <div class="setting-group" v-if="buildOptions.stats">
+                  <label class="setting-label">Pareto Limits (0 = no limit)</label>
+                  <div class="pareto-limits">
+                    <div class="limit-input-group">
+                      <label class="limit-label">Max Outcomes:</label>
+                      <input
+                        type="number"
+                        v-model.number="buildOptions.maxParetoOutcomes"
+                        min="0"
+                        class="limit-input"
+                        placeholder="No limit"
+                      />
+                    </div>
+                    <div class="limit-input-group">
+                      <label class="limit-label">Max Utils:</label>
+                      <input
+                        type="number"
+                        v-model.number="buildOptions.maxParetoUtils"
+                        min="0"
+                        class="limit-input"
+                        placeholder="No limit"
+                      />
+                    </div>
+                  </div>
+                  <div class="setting-hint">Leave empty to use Performance tab settings</div>
                 </div>
                 <button
                   class="btn-action primary"
@@ -963,8 +1018,9 @@ const buildOptions = ref({
   info: false,
   stats: false,
   plots: false,
-  compact: false,
   refresh: false,
+  maxParetoOutcomes: null,
+  maxParetoUtils: null,
 })
 
 const clearOptions = ref({
@@ -1010,9 +1066,16 @@ async function buildCaches() {
     if (buildOptions.value.info) params.append('info', 'true')
     if (buildOptions.value.stats) params.append('stats', 'true')
     if (buildOptions.value.plots) params.append('plots', 'true')
-    if (buildOptions.value.compact) params.append('compact', 'true')
     if (buildOptions.value.refresh) params.append('refresh', 'true')
     if (cacheBuildFolder.value) params.append('base_path', cacheBuildFolder.value)
+    
+    // Add Pareto limits if specified
+    if (buildOptions.value.maxParetoOutcomes) {
+      params.append('max_pareto_outcomes', buildOptions.value.maxParetoOutcomes.toString())
+    }
+    if (buildOptions.value.maxParetoUtils) {
+      params.append('max_pareto_utils', buildOptions.value.maxParetoUtils.toString())
+    }
     
     // Use EventSource for SSE to get progress updates
     const eventSource = new EventSource(`/api/cache/scenarios/build-stream?${params}`)
@@ -1029,11 +1092,7 @@ async function buildCaches() {
         const results = data.results
         buildResult.value = `Built caches for ${results.successful}/${results.total} scenarios. `
         if (buildOptions.value.info) buildResult.value += `Info: ${results.info_created}. `
-        if (buildOptions.value.stats) {
-          buildResult.value += `Stats: ${results.stats_created}`
-          if (buildOptions.value.compact) buildResult.value += ' (compact)'
-          buildResult.value += '. '
-        }
+        if (buildOptions.value.stats) buildResult.value += `Stats: ${results.stats_created}. `
         if (buildOptions.value.plots) buildResult.value += `Plots: ${results.plots_created}. `
         
         if (results.failed > 0) {
@@ -1978,9 +2037,51 @@ function handleReset() {
 }
 
 .setting-hint {
-  font-size: 0.8rem;
-  color: var(--text-muted);
   margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
+/* Pareto limits input styling */
+.pareto-limits {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.limit-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.limit-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.limit-input {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+}
+
+.limit-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.limit-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.5;
 }
 
 /* Cache progress bar */

@@ -83,6 +83,7 @@ class TournamentConfigRequest(BaseModel):
     save_stats: bool = True
     save_scenario_figs: bool = False
     save_every: int = 0
+    save_logs: bool = False  # Save event log as CSV at tournament end
 
     # Scenario options
     # Normalization mode: "none", "scale_min", "scale_max", "normalize"
@@ -163,6 +164,7 @@ async def start_tournament(request: TournamentConfigRequest):
         save_stats=request.save_stats,
         save_scenario_figs=request.save_scenario_figs,
         save_every=request.save_every,
+        save_logs=request.save_logs,
         normalization=request.normalization,
         ignore_discount=request.ignore_discount,
         ignore_reserved=request.ignore_reserved,
@@ -215,6 +217,7 @@ async def stream_tournament(session_id: str):
                                 "n_repetitions": event.n_repetitions,
                                 "rotate_ufuns": event.rotate_ufuns,
                                 "total_negotiations": event.total_negotiations,
+                                "storage_path": event.storage_path,
                             }
                         ),
                     }
@@ -300,14 +303,14 @@ async def stream_tournament(session_id: str):
                             }
                         ),
                     }
-                elif isinstance(event, dict) and event_type in (
+                elif isinstance(event, dict) and event.get("event_type") in (
                     "neg_start",
                     "neg_progress",
                     "neg_end",
                 ):
                     # Negotiation monitoring events
                     yield {
-                        "event": event_type,
+                        "event": event.get("event_type"),
                         "data": json.dumps(event),
                     }
                 elif isinstance(event, TournamentSession):
@@ -471,6 +474,7 @@ async def get_session(session_id: str):
             "time_limit": session.config.time_limit,
             "final_score_metric": session.config.final_score_metric,
             "final_score_stat": session.config.final_score_stat,
+            "save_logs": session.config.save_logs,
         }
 
     progress_data = None
@@ -705,6 +709,109 @@ async def update_tournament_tags(tournament_id: str, request: TagsRequest):
     if not success:
         raise HTTPException(status_code=404, detail="Saved tournament not found")
     return {"status": "updated", "tags": request.tags}
+
+
+class LogEntry(BaseModel):
+    """A single log entry."""
+
+    timestamp: int  # Unix timestamp in milliseconds
+    type: str  # Event type: started, completed, failed, agreement, progress, cell_start
+    message: str  # Log message
+
+
+class SaveLogsRequest(BaseModel):
+    """Request model for saving logs."""
+
+    logs: list[LogEntry]
+
+
+@router.post("/saved/{tournament_id}/logs")
+async def save_tournament_logs(tournament_id: str, request: SaveLogsRequest):
+    """Save tournament event logs as CSV.
+
+    Logs are saved to logs.csv in the tournament folder with format:
+    timestamp,event_type,message
+
+    Args:
+        tournament_id: Tournament ID.
+        request: SaveLogsRequest with list of log entries.
+
+    Returns:
+        Status dict with save result.
+    """
+    from datetime import datetime
+    from pathlib import Path
+
+    tournaments_dir = Path.home() / "negmas" / "app" / "tournaments"
+    tournament_path = tournaments_dir / tournament_id
+
+    if not tournament_path.exists():
+        raise HTTPException(status_code=404, detail="Tournament not found")
+
+    logs_file = tournament_path / "logs.csv"
+
+    try:
+        with open(logs_file, "w") as f:
+            # Write CSV header
+            f.write("timestamp,event_type,message\n")
+
+            for entry in request.logs:
+                # Convert timestamp from milliseconds to ISO format
+                dt = datetime.fromtimestamp(entry.timestamp / 1000)
+                timestamp_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+
+                # Escape message for CSV (quote if contains comma or newline)
+                message = entry.message.replace('"', '""')
+                if "," in message or "\n" in message or '"' in message:
+                    message = f'"{message}"'
+
+                f.write(f"{timestamp_str},{entry.type},{message}\n")
+
+        return {"status": "saved", "path": str(logs_file), "count": len(request.logs)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save logs: {e}")
+
+
+@router.get("/saved/{tournament_id}/logs")
+async def get_tournament_logs(tournament_id: str):
+    """Get tournament event logs from logs.csv.
+
+    Args:
+        tournament_id: Tournament ID.
+
+    Returns:
+        List of log entries if logs.csv exists, empty list otherwise.
+    """
+    from pathlib import Path
+
+    tournaments_dir = Path.home() / "negmas" / "app" / "tournaments"
+    logs_file = tournaments_dir / tournament_id / "logs.csv"
+
+    if not logs_file.exists():
+        return {"logs": [], "exists": False}
+
+    try:
+        logs = []
+        with open(logs_file, "r") as f:
+            # Skip header
+            next(f, None)
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                # Parse CSV line (simple parsing, handles quoted messages)
+                parts = line.split(",", 2)
+                if len(parts) >= 3:
+                    timestamp, event_type, message = parts
+                    # Remove quotes if present
+                    if message.startswith('"') and message.endswith('"'):
+                        message = message[1:-1].replace('""', '"')
+                    logs.append(
+                        {"timestamp": timestamp, "type": event_type, "message": message}
+                    )
+        return {"logs": logs, "exists": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read logs: {e}")
 
 
 @router.get("/saved/{tournament_id}/trace/{mechanism_name}")

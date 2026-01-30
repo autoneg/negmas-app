@@ -27,18 +27,18 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, watch, defineExpose } from 'vue'
+import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import Plotly from 'plotly.js-dist-min'
 
 // Default panel sizes
 const DEFAULT_LAYOUT = {
-  leftColumnFlex: 40,
+  leftColumnFlex: 50,
   panelHeights: {
     left: {
-      'panel-info': '0 0 120px',
+      'panel-info': '0 0 200px',      // Increased from 120px to show all content
       'panel-history': '1 1 0px',
       'panel-histogram': '1 1 0px',
-      'panel-result': '0 0 80px'
+      'panel-result': '0 0 150px'      // Increased from 80px to show all content
     },
     right: {
       // Both panels share equal height (1 1 0px means equal flex grow/shrink)
@@ -202,8 +202,21 @@ function applyLayoutToColumn(panels, columnKey) {
 
 // Get default flex value based on panel type
 function getDefaultFlexForPanel(panel) {
-  if (panel.classList.contains('panel-info')) return '0 0 120px'
-  if (panel.classList.contains('panel-result')) return '0 0 80px'
+  // Extract panel class name
+  const panelClass = panel.className.split(' ').find(c => c.startsWith('panel-'))
+  
+  // Determine which column this panel belongs to
+  const isLeftColumn = leftColumn.value?.contains(panel)
+  const columnKey = isLeftColumn ? 'left' : 'right'
+  
+  // Return default from DEFAULT_LAYOUT if available
+  if (panelClass && DEFAULT_LAYOUT.panelHeights[columnKey]?.[panelClass]) {
+    return DEFAULT_LAYOUT.panelHeights[columnKey][panelClass]
+  }
+  
+  // Fallback to generic defaults
+  if (panel.classList.contains('panel-info')) return '0 0 200px'
+  if (panel.classList.contains('panel-result')) return '0 0 150px'
   return '1 1 0px' // All other panels share space equally
 }
 

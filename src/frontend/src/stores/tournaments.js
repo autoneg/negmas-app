@@ -19,6 +19,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   const runningNegotiations = ref({}) // Map of run_id -> negotiation progress data
   const errorNegotiations = ref([]) // Failed negotiations with error details
   const eventLog = ref([]) // Tournament event log (populated from callbacks, not neg_* events)
+  const saveLogs = ref(false) // Whether to save logs on completion
   
   // Grid display settings
   const gridDisplayModes = ref([
@@ -75,7 +76,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     }
   }
 
-  function startStreaming(sessionId) {
+  function startStreaming(sessionId, config = {}) {
     // Close existing stream if any
     stopStreaming()
     
@@ -90,6 +91,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     progress.value = null
     setupProgress.value = null
     tournamentComplete.value = null
+    saveLogs.value = config.save_logs || false
     
     const url = `/api/tournament/${sessionId}/stream`
     eventSource.value = new EventSource(url)
@@ -416,7 +418,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
       }
     })
     
-    eventSource.value.addEventListener('complete', (event) => {
+    eventSource.value.addEventListener('complete', async (event) => {
       const data = JSON.parse(event.data)
       tournamentComplete.value = data
       
@@ -427,6 +429,32 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         type: 'completed',
         message: 'Tournament completed'
       })
+      
+      // Save logs if enabled and we have a valid results path
+      if (saveLogs.value && data.results?.results_path) {
+        try {
+          // Extract tournament ID from path (last component)
+          const pathParts = data.results.results_path.split(/[/\\]/)
+          const tournamentId = pathParts[pathParts.length - 1]
+          
+          if (tournamentId && eventLog.value.length > 0) {
+            await fetch(`/api/tournament/saved/${tournamentId}/logs`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                logs: eventLog.value.map(e => ({
+                  timestamp: e.timestamp,
+                  type: e.type,
+                  message: e.message
+                }))
+              })
+            })
+            console.log('[Tournaments Store] Saved event log to', tournamentId)
+          }
+        } catch (error) {
+          console.error('[Tournaments Store] Failed to save event log:', error)
+        }
+      }
       
       stopStreaming()
       loadSessions() // Refresh sessions list
@@ -686,6 +714,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     runningNegotiations,
     errorNegotiations,
     eventLog,
+    saveLogs,
     gridDisplayModes,
     progress,
     setupProgress,

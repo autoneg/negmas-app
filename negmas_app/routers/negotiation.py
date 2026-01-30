@@ -757,11 +757,15 @@ async def get_negotiation_preview(session_id: str, panel_type: str):
 async def download_negotiation_zip(session_id: str):
     """Download a saved negotiation as a ZIP file.
 
+    The offers will always be exported as CSV for better compatibility,
+    even if stored as parquet internally.
+
     Returns:
         ZIP file containing the complete negotiation directory.
     """
     import shutil
     import tempfile
+    import zipfile
     from pathlib import Path
 
     # Get session directory
@@ -777,13 +781,37 @@ async def download_negotiation_zip(session_id: str):
         zip_path = Path(tmp.name)
 
     try:
-        # Create ZIP archive of the session directory
-        shutil.make_archive(
-            str(zip_path.with_suffix("")),  # Remove .zip as make_archive adds it
-            "zip",
-            session_dir.parent,
-            session_dir.name,
-        )
+        # Create ZIP archive manually to control file formats
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            # Add all files from session directory
+            for file_path in session_dir.rglob("*"):
+                if file_path.is_file():
+                    # Get relative path for archive
+                    arcname = file_path.relative_to(session_dir.parent)
+
+                    # Special handling for offers: convert parquet to CSV
+                    if file_path.name == "offers.parquet":
+                        # Convert parquet to CSV in memory
+                        try:
+                            import pandas as pd
+
+                            df = pd.read_parquet(file_path)
+
+                            # Create CSV in memory
+                            csv_buffer = df.to_csv(index=False)
+
+                            # Write CSV to zip with different name
+                            csv_arcname = str(arcname).replace(
+                                "offers.parquet", "offers.csv"
+                            )
+                            zipf.writestr(csv_arcname, csv_buffer)
+                            continue  # Skip adding the parquet file
+                        except Exception as e:
+                            print(f"Failed to convert parquet to CSV: {e}")
+                            # Fall back to including parquet file
+
+                    # Add file to archive
+                    zipf.write(file_path, arcname)
 
         # Return the ZIP file
         return FileResponse(
