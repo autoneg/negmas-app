@@ -77,10 +77,67 @@ class TournamentStorageService:
     _results_cache: dict[str, SimpleTournamentResults] = {}
 
     @staticmethod
+    def _parse_python_list_string(s: str) -> list[str] | None:
+        """Parse a Python list or tuple string representation.
+
+        Handles formats like: "['Atlas3', 'Aspiration']" or "('Atlas3', 'Aspiration')"
+
+        Args:
+            s: String to parse
+
+        Returns:
+            List of strings or None if not a list/tuple format
+        """
+        if not s or not isinstance(s, str):
+            return None
+
+        s = s.strip()
+
+        # Check if it looks like a Python list or tuple
+        if (s.startswith("[") and s.endswith("]")) or (
+            s.startswith("(") and s.endswith(")")
+        ):
+            # Remove outer brackets/parens
+            inner = s[1:-1].strip()
+            if not inner:
+                return []
+
+            # Split by comma, handling quoted strings properly
+            items = []
+            current = ""
+            in_quote = False
+            quote_char = None
+
+            for i, char in enumerate(inner):
+                if char in ('"', "'") and (i == 0 or inner[i - 1] != "\\"):
+                    if not in_quote:
+                        in_quote = True
+                        quote_char = char
+                    elif char == quote_char:
+                        in_quote = False
+                        quote_char = None
+                    else:
+                        current += char
+                elif char == "," and not in_quote:
+                    items.append(current.strip())
+                    current = ""
+                else:
+                    current += char
+
+            # Don't forget the last item
+            if current.strip():
+                items.append(current.strip())
+
+            return items
+
+        return None
+
+    @staticmethod
     def _sanitize_for_json(obj: Any) -> Any:
         """Sanitize values for JSON serialization.
 
         Converts pandas NaN/NaT and numpy types to JSON-compatible values.
+        Also parses Python list/tuple string representations into actual lists.
         """
         if obj is None:
             return None
@@ -88,14 +145,20 @@ class TournamentStorageService:
             if math.isnan(obj) or math.isinf(obj):
                 return None
             return obj
-        if isinstance(obj, (int, str, bool)):
+        if isinstance(obj, int | bool):
+            return obj
+        if isinstance(obj, str):
+            # Try to parse Python list/tuple string representations
+            parsed = TournamentStorageService._parse_python_list_string(obj)
+            if parsed is not None:
+                return [TournamentStorageService._sanitize_for_json(v) for v in parsed]
             return obj
         if isinstance(obj, dict):
             return {
                 k: TournamentStorageService._sanitize_for_json(v)
                 for k, v in obj.items()
             }
-        if isinstance(obj, (list, tuple)):
+        if isinstance(obj, list | tuple):
             return [TournamentStorageService._sanitize_for_json(v) for v in obj]
         # Handle numpy arrays
         if hasattr(obj, "__array__"):

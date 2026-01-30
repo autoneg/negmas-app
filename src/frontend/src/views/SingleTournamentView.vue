@@ -356,51 +356,11 @@ const tournamentConfig = computed(() => {
 
 // Computed statistics from cellStates and liveNegotiations
 const tournamentStats = computed(() => {
-  // Use progress data if available (updated in real-time)
-  if (progress.value) {
-    const total = progress.value.total || 0
-    const completed = progress.value.completed || 0
-    const agreements = progress.value.agreements || 0
-    const timeouts = progress.value.timeouts || 0
-    const errors = progress.value.errors || 0
-    const ended = progress.value.ended || 0
-    
-    if (total === 0) {
-      return {
-        total: 0,
-        agreements: 0,
-        timeouts: 0,
-        errors: 0,
-        ended: 0,
-        completed: 0,
-        agreementRate: 0,
-        timeoutRate: 0,
-        errorRate: 0,
-        endedRate: 0,
-        successRate: 0,
-        completionRate: 0
-      }
-    }
-    
-    const successfulNegs = completed - errors
-    
-    return {
-      total,
-      agreements,
-      timeouts,
-      errors,
-      ended,
-      completed,
-      agreementRate: (agreements / completed * 100).toFixed(1),
-      timeoutRate: (timeouts / completed * 100).toFixed(1),
-      errorRate: (errors / completed * 100).toFixed(1),
-      endedRate: (ended / completed * 100).toFixed(1),
-      successRate: completed > 0 ? (successfulNegs / completed * 100).toFixed(1) : 0,
-      completionRate: (completed / total * 100).toFixed(1)
-    }
-  }
+  // Get total from progress or gridInit
+  const totalFromProgress = progress.value?.total || gridInit.value?.total_negotiations || 0
   
-  // Fallback to cellStates for saved tournaments (aggregate cell-level stats)
+  // ALWAYS aggregate from cellStates first - this has the most accurate agreement/timeout/error counts
+  // The progress event only has total/completed, not the detailed breakdown
   if (cellStates.value && Object.keys(cellStates.value).length > 0) {
     let totalNegs = 0
     let completedNegs = 0
@@ -416,7 +376,10 @@ const tournamentStats = computed(() => {
       errorsCount += cell.errors || 0
     })
     
-    if (totalNegs === 0) {
+    // Use progress total if available (more accurate), otherwise use aggregated total
+    const total = totalFromProgress || totalNegs
+    
+    if (total === 0) {
       return {
         total: 0,
         agreements: 0,
@@ -436,7 +399,7 @@ const tournamentStats = computed(() => {
     const successfulNegs = completedNegs - errorsCount
     
     return {
-      total: totalNegs,
+      total,
       agreements: agreementsCount,
       timeouts: timeoutsCount,
       errors: errorsCount,
@@ -447,15 +410,15 @@ const tournamentStats = computed(() => {
       errorRate: completedNegs > 0 ? (errorsCount / completedNegs * 100).toFixed(1) : 0,
       endedRate: 0,
       successRate: completedNegs > 0 ? (successfulNegs / completedNegs * 100).toFixed(1) : 0,
-      completionRate: (completedNegs / totalNegs * 100).toFixed(1)
+      completionRate: total > 0 ? (completedNegs / total * 100).toFixed(1) : 0
     }
   }
   
-  // Last fallback: liveNegotiations for completed tournaments
+  // Fallback to liveNegotiations for completed tournaments (when cellStates is empty)
   const total = liveNegotiations.value?.length || 0
   if (total === 0) {
     return {
-      total: 0,
+      total: totalFromProgress,
       agreements: 0,
       timeouts: 0,
       errors: 0,
@@ -487,11 +450,11 @@ const tournamentStats = computed(() => {
     }
   })
 
-  const expectedTotal = gridInit.value?.total_negotiations || total
+  const expectedTotal = totalFromProgress || total
   const successfulNegs = total - errors
 
   return {
-    total,
+    total: expectedTotal,
     agreements,
     timeouts,
     errors,
@@ -502,7 +465,7 @@ const tournamentStats = computed(() => {
     errorRate: (errors / total * 100).toFixed(1),
     endedRate: (ended / total * 100).toFixed(1),
     successRate: (successfulNegs / total * 100).toFixed(1),
-    completionRate: (total / expectedTotal * 100).toFixed(1)
+    completionRate: expectedTotal > 0 ? (total / expectedTotal * 100).toFixed(1) : 0
   }
 })
 

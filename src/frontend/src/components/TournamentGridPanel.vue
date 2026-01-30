@@ -556,13 +556,19 @@ function getCellDisplayValues(i, j, scenarioKey = null) {
     state = props.cellStates[key]
   } else {
     // Summary cell - aggregate across all scenarios
-    let totalAgg = 0, completedAgg = 0, agreementsAgg = 0, errorsAgg = 0, timeoutsAgg = 0
+    // Calculate the expected total based on grid dimensions
+    const nScenarios = scenarios.value.length
+    const perScenarioTotal = props.gridInit?.n_repetitions 
+      ? props.gridInit.n_repetitions * (props.gridInit.rotate_ufuns ? 2 : 1) 
+      : 1
+    const expectedTotal = nScenarios * perScenarioTotal
+    
+    let completedAgg = 0, agreementsAgg = 0, errorsAgg = 0, timeoutsAgg = 0
     
     scenarios.value.forEach(scenario => {
       const key = `${competitor}::${opponent}::${scenario}`
       const s = props.cellStates[key]
-      if (s && s.completed > 0) {
-        totalAgg += s.total || 1
+      if (s) {
         completedAgg += s.completed || 0
         agreementsAgg += Math.min(s.agreements || 0, s.completed || 0)
         errorsAgg += Math.min(s.errors || 0, s.completed || 0)
@@ -571,7 +577,7 @@ function getCellDisplayValues(i, j, scenarioKey = null) {
     })
     
     state = {
-      total: totalAgg,
+      total: expectedTotal,
       completed: completedAgg,
       agreements: agreementsAgg,
       errors: errorsAgg,
@@ -682,13 +688,20 @@ function getSummaryCellTooltip(i, j) {
   const competitor = competitors.value[i]
   const opponent = opponents.value[j]
   
-  let totalAgg = 0, completedAgg = 0, agreementsAgg = 0, errorsAgg = 0, timeoutsAgg = 0
+  // Calculate the expected total based on grid dimensions
+  // Each scenario has n_repetitions * (rotate_ufuns ? 2 : 1) negotiations
+  const nScenarios = scenarios.value.length
+  const perScenarioTotal = props.gridInit?.n_repetitions 
+    ? props.gridInit.n_repetitions * (props.gridInit.rotate_ufuns ? 2 : 1) 
+    : 1
+  const expectedTotal = nScenarios * perScenarioTotal
+  
+  let completedAgg = 0, agreementsAgg = 0, errorsAgg = 0, timeoutsAgg = 0
   
   scenarios.value.forEach(scenario => {
     const key = `${competitor}::${opponent}::${scenario}`
     const state = props.cellStates[key]
-    if (state && state.completed > 0) {
-      totalAgg += state.total || 1
+    if (state) {
       completedAgg += state.completed || 0
       agreementsAgg += Math.min(state.agreements || 0, state.completed || 0)
       errorsAgg += Math.min(state.errors || 0, state.completed || 0)
@@ -696,10 +709,10 @@ function getSummaryCellTooltip(i, j) {
     }
   })
   
-  if (totalAgg === 0) return `${competitor} vs ${opponent}\n\nNo data yet`
+  if (completedAgg === 0) return `${competitor} vs ${opponent}\n\nNo data yet`
   
   const metrics = calculateCellMetrics({
-    total: totalAgg,
+    total: expectedTotal,
     completed: completedAgg,
     agreements: agreementsAgg,
     errors: errorsAgg,
@@ -707,7 +720,7 @@ function getSummaryCellTooltip(i, j) {
   })
   
   let tooltip = `${competitor} vs ${opponent}\n`
-  tooltip += `\nTotal negotiations: ${totalAgg}`
+  tooltip += `\nTotal negotiations: ${expectedTotal}`
   tooltip += `\nCompleted: ${completedAgg} (${metrics.completion}%)`
   tooltip += `\nAgreements: ${agreementsAgg} (${metrics.agreement}%)`
   tooltip += `\nSuccess: ${metrics.success}%`

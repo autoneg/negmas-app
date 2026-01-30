@@ -115,7 +115,20 @@ const emit = defineEmits(['close'])
 const loading = ref(false)
 const error = ref(null)
 const leaderboard = ref([])
-const availableMetrics = ref(['utility', 'advantage', 'welfare', 'partner_welfare', 'time'])
+// Initial list includes all possible metrics (will be updated from API with actual available metrics)
+// Note: reserved_value is intentionally excluded as it's not a useful ranking metric
+const availableMetrics = ref([
+  'utility', 
+  'advantage', 
+  'welfare', 
+  'partner_welfare', 
+  'time',
+  'nash_optimality',
+  'kalai_optimality',
+  'ks_optimality',
+  'max_welfare_optimality',
+  'pareto_optimality'
+])
 const availableStatistics = ref(['mean', 'median', 'min', 'max', 'std', 'count'])
 const scenarios = ref([])
 const partners = ref([])

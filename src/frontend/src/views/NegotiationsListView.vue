@@ -446,6 +446,63 @@ const tagEditorTags = ref([])
 const newTagInput = ref('')
 
 // Data conversion utilities for tournament negotiations
+
+/**
+ * Parse a Python list or tuple string representation into a JavaScript array.
+ * Handles formats like: "['Atlas3', 'Aspiration']" or "('Atlas3', 'Aspiration')"
+ * @param {string} str - The string to parse
+ * @returns {Array|null} - Parsed array or null if not a list/tuple format
+ */
+function parsePythonListString(str) {
+  if (!str || typeof str !== 'string') return null
+  
+  const trimmed = str.trim()
+  
+  // Check if it looks like a Python list or tuple
+  if ((trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+      (trimmed.startsWith('(') && trimmed.endsWith(')'))) {
+    // Remove outer brackets/parens
+    const inner = trimmed.slice(1, -1).trim()
+    if (!inner) return []
+    
+    // Split by comma, handling quoted strings properly
+    const items = []
+    let current = ''
+    let inQuote = false
+    let quoteChar = null
+    
+    for (let i = 0; i < inner.length; i++) {
+      const char = inner[i]
+      
+      if ((char === '"' || char === "'") && (i === 0 || inner[i-1] !== '\\')) {
+        if (!inQuote) {
+          inQuote = true
+          quoteChar = char
+        } else if (char === quoteChar) {
+          inQuote = false
+          quoteChar = null
+        } else {
+          current += char
+        }
+      } else if (char === ',' && !inQuote) {
+        items.push(current.trim())
+        current = ''
+      } else {
+        current += char
+      }
+    }
+    
+    // Don't forget the last item
+    if (current.trim()) {
+      items.push(current.trim())
+    }
+    
+    return items
+  }
+  
+  return null
+}
+
 function convertTournamentRunningNegotiation(neg) {
   // Convert from tournament running negotiation format to negotiation list format
   return {
@@ -470,11 +527,17 @@ function convertTournamentCompletedNegotiation(neg) {
   // Ensure partners is always an array (not a string)
   let partners = neg.partners || []
   if (typeof partners === 'string') {
-    // If it's a string, try to parse it or split by common separators
-    try {
-      partners = JSON.parse(partners)
-    } catch {
-      partners = partners.includes(',') ? partners.split(',').map(s => s.trim()) : [partners]
+    // First try to parse Python list/tuple format like "['Atlas3', 'Aspiration']"
+    const parsed = parsePythonListString(partners)
+    if (parsed !== null) {
+      partners = parsed
+    } else {
+      // Try JSON parse, then fallback to comma split
+      try {
+        partners = JSON.parse(partners)
+      } catch {
+        partners = partners.includes(',') ? partners.split(',').map(s => s.trim()) : [partners]
+      }
     }
   }
   if (!Array.isArray(partners)) {
