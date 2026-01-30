@@ -1049,6 +1049,23 @@
     </div>
   </div>
   
+  <!-- Name Conflict Confirmation Dialog -->
+  <div v-if="showOverwriteConfirm" class="modal-overlay active" style="z-index: 2000;" @click.self="showOverwriteConfirm = false">
+    <div class="modal small">
+      <div class="modal-header">
+        <h2 class="modal-title">Preset Already Exists</h2>
+        <button class="modal-close" @click="showOverwriteConfirm = false">×</button>
+      </div>
+      <div class="modal-body">
+        <p>A preset named "<strong>{{ pendingPresetName }}</strong>" already exists. What would you like to do?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="showOverwriteConfirm = false">Cancel</button>
+        <button class="btn btn-primary" @click="confirmOverwritePreset">Overwrite</button>
+      </div>
+    </div>
+  </div>
+  
   <!-- Negotiator Configuration Modal -->
   <NegotiatorConfigModal
     :show="showConfigModal"
@@ -1220,6 +1237,8 @@ const recentDropdownOpen = ref(false)
 const savedDropdownOpen = ref(false)
 const isLoadingPresets = ref(false)
 const saveSuccessMessage = ref('')
+const showOverwriteConfirm = ref(false)
+const pendingPresetName = ref('')
 
 // Negotiator configuration modal
 const showConfigModal = ref(false)
@@ -1727,14 +1746,36 @@ async function saveFullSession() {
     return
   }
   
-  const preset = buildSessionPreset(savePresetName.value.trim())
+  const name = savePresetName.value.trim()
+  
+  // Check if preset with this name already exists
+  const existingPreset = negotiationsStore.sessionPresets.find(p => p.name === name)
+  if (existingPreset) {
+    // Show confirmation dialog
+    pendingPresetName.value = name
+    showOverwriteConfirm.value = true
+    return
+  }
+  
+  // Save the preset
+  await doSavePreset(name)
+}
+
+async function confirmOverwritePreset() {
+  showOverwriteConfirm.value = false
+  await doSavePreset(pendingPresetName.value)
+  pendingPresetName.value = ''
+}
+
+async function doSavePreset(name) {
+  const preset = buildSessionPreset(name)
   console.log('[NewNegotiationModal] Built preset:', preset)
   
   const result = await negotiationsStore.saveSessionPreset(preset)
   console.log('[NewNegotiationModal] Save result:', result)
   
   // Show success message
-  saveSuccessMessage.value = `Configuration "${savePresetName.value.trim()}" saved successfully!`
+  saveSuccessMessage.value = `Configuration "${name}" saved successfully!`
   setTimeout(() => {
     saveSuccessMessage.value = ''
   }, 3000)

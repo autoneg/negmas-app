@@ -826,6 +826,19 @@
                         Save
                       </button>
                     </div>
+                    <p v-if="saveSuccessMessage" class="save-success-message">{{ saveSuccessMessage }}</p>
+                  </div>
+                  
+                  <!-- Name Conflict Confirmation Dialog -->
+                  <div v-if="showOverwriteConfirm" class="confirm-dialog-overlay" @click.self="showOverwriteConfirm = false">
+                    <div class="confirm-dialog">
+                      <h4>Preset Already Exists</h4>
+                      <p>A preset named "<strong>{{ pendingPresetName }}</strong>" already exists. What would you like to do?</p>
+                      <div class="confirm-dialog-actions">
+                        <button class="btn btn-secondary" @click="showOverwriteConfirm = false">Cancel</button>
+                        <button class="btn btn-primary" @click="confirmOverwrite">Overwrite</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -954,6 +967,9 @@ const settings = ref({
 const presets = ref([])
 const selectedPreset = ref('')
 const presetName = ref('')
+const saveSuccessMessage = ref('')
+const showOverwriteConfirm = ref(false)
+const pendingPresetName = ref('')
 
 // UI state
 const starting = ref(false)
@@ -1220,11 +1236,39 @@ function buildTournamentPreset(name) {
 const savePreset = async () => {
   if (!presetName.value.trim()) return
   
-  const preset = buildTournamentPreset(presetName.value.trim())
+  const name = presetName.value.trim()
+  
+  // Check if preset with this name already exists
+  const existingPreset = tournamentsStore.tournamentPresets.find(p => p.name === name)
+  if (existingPreset) {
+    // Show confirmation dialog
+    pendingPresetName.value = name
+    showOverwriteConfirm.value = true
+    return
+  }
+  
+  // Save the preset
+  await doSavePreset(name)
+}
+
+const confirmOverwrite = async () => {
+  showOverwriteConfirm.value = false
+  await doSavePreset(pendingPresetName.value)
+  pendingPresetName.value = ''
+}
+
+const doSavePreset = async (name) => {
+  const preset = buildTournamentPreset(name)
   await tournamentsStore.saveTournamentPreset(preset)
   
   // Refresh presets list
   await tournamentsStore.loadTournamentPresets()
+  
+  // Show success message
+  saveSuccessMessage.value = `Preset "${name}" saved successfully!`
+  setTimeout(() => {
+    saveSuccessMessage.value = ''
+  }, 3000)
   
   // Clear preset name
   presetName.value = ''
@@ -1997,5 +2041,56 @@ onMounted(() => {
 .btn-sm {
   font-size: 11px;
   padding: 6px 12px;
+}
+
+/* Confirmation Dialog */
+.confirm-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.confirm-dialog {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.confirm-dialog h4 {
+  margin: 0 0 12px 0;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+.confirm-dialog p {
+  margin: 0 0 20px 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Success Message */
+.save-success-message {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--success-bg, rgba(16, 185, 129, 0.1));
+  color: var(--success-color, #10b981);
+  border-radius: 4px;
+  font-size: 13px;
 }
 </style>

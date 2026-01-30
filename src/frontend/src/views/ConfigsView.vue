@@ -99,12 +99,24 @@
               <span v-if="isConfigDisabled(config)" class="badge badge-disabled">Disabled</span>
             </div>
           </div>
-          <div class="config-item-meta">
-            <span>{{ config.scenario_name || 'No scenario' }}</span>
-          </div>
-          <div class="config-item-meta">
-            <span>{{ config.negotiators?.length || 0 }} negotiators</span>
-          </div>
+          <!-- Negotiation preset info -->
+          <template v-if="currentTab === 'negotiations'">
+            <div class="config-item-meta">
+              <span>{{ config.scenario_name || 'No scenario' }}</span>
+            </div>
+            <div class="config-item-meta">
+              <span>{{ config.negotiators?.length || 0 }} negotiators</span>
+            </div>
+          </template>
+          <!-- Tournament preset info -->
+          <template v-else>
+            <div class="config-item-meta">
+              <span>{{ config.scenario_paths?.length || 0 }} scenarios</span>
+            </div>
+            <div class="config-item-meta">
+              <span>{{ config.competitor_types?.length || 0 }} competitors</span>
+            </div>
+          </template>
           <div v-if="config.tags && config.tags.length > 0" class="config-tags">
             <span v-for="tag in config.tags" :key="tag" class="tag">{{ tag }}</span>
           </div>
@@ -212,8 +224,8 @@
           </div>
         </div>
         
-        <!-- Config Details -->
-        <div class="details-section">
+        <!-- Config Details - Negotiations -->
+        <div v-if="currentTab === 'negotiations'" class="details-section">
           <h4>Configuration</h4>
           
           <div class="detail-row">
@@ -251,6 +263,77 @@
                 <span class="param-value">{{ value !== null ? value : 'null' }}</span>
               </template>
             </div>
+          </div>
+        </div>
+        
+        <!-- Config Details - Tournaments -->
+        <div v-else class="details-section">
+          <h4>Tournament Configuration</h4>
+          
+          <div class="detail-row">
+            <span class="detail-label">Scenarios:</span>
+            <span class="detail-value">{{ selectedConfig.scenario_paths?.length || 0 }}</span>
+          </div>
+          
+          <div v-if="selectedConfig.scenario_paths && selectedConfig.scenario_paths.length > 0" class="detail-subsection">
+            <div v-for="(path, idx) in selectedConfig.scenario_paths.slice(0, 5)" :key="idx" class="scenario-item">
+              {{ path.split('/').pop() }}
+            </div>
+            <div v-if="selectedConfig.scenario_paths.length > 5" class="more-items">
+              +{{ selectedConfig.scenario_paths.length - 5 }} more...
+            </div>
+          </div>
+          
+          <div class="detail-row">
+            <span class="detail-label">Competitors:</span>
+            <span class="detail-value">{{ selectedConfig.competitor_types?.length || 0 }}</span>
+          </div>
+          
+          <div v-if="selectedConfig.competitor_types && selectedConfig.competitor_types.length > 0" class="detail-subsection">
+            <div v-for="(type, idx) in selectedConfig.competitor_types" :key="idx" class="competitor-item">
+              {{ type }}
+            </div>
+          </div>
+          
+          <div class="detail-row">
+            <span class="detail-label">Opponents:</span>
+            <span class="detail-value">
+              {{ selectedConfig.opponents_same_as_competitors ? 'Same as competitors' : (selectedConfig.opponent_types?.length || 0) + ' types' }}
+            </span>
+          </div>
+          
+          <div class="detail-row">
+            <span class="detail-label">Repetitions:</span>
+            <span class="detail-value">{{ selectedConfig.n_repetitions || 1 }}</span>
+          </div>
+          
+          <div class="detail-row">
+            <span class="detail-label">Mechanism:</span>
+            <span class="detail-value">{{ selectedConfig.mechanism_type || 'SAOMechanism' }}</span>
+          </div>
+          
+          <div class="detail-row">
+            <span class="detail-label">Steps:</span>
+            <span class="detail-value">
+              {{ selectedConfig.n_steps_min && selectedConfig.n_steps_max 
+                ? `${selectedConfig.n_steps_min}-${selectedConfig.n_steps_max}` 
+                : (selectedConfig.n_steps || 100) }}
+            </span>
+          </div>
+          
+          <div class="detail-row">
+            <span class="detail-label">Self-Play:</span>
+            <span class="detail-value">{{ selectedConfig.self_play ? 'Yes' : 'No' }}</span>
+          </div>
+          
+          <div class="detail-row">
+            <span class="detail-label">Rotate Ufuns:</span>
+            <span class="detail-value">{{ selectedConfig.rotate_ufuns ? 'Yes' : 'No' }}</span>
+          </div>
+          
+          <div class="detail-row">
+            <span class="detail-label">Score Metric:</span>
+            <span class="detail-value">{{ selectedConfig.final_score_metric || 'advantage' }} ({{ selectedConfig.final_score_stat || 'mean' }})</span>
           </div>
         </div>
         
@@ -305,13 +388,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNegotiationsStore } from '../stores/negotiations'
+import { useTournamentsStore } from '../stores/tournaments'
 import NewNegotiationModal from '../components/NewNegotiationModal.vue'
 
 const router = useRouter()
 const negotiationsStore = useNegotiationsStore()
+const tournamentsStore = useTournamentsStore()
 
 const currentTab = ref('negotiations')
 const searchQuery = ref('')
@@ -338,8 +423,7 @@ const configs = computed(() => {
   if (currentTab.value === 'negotiations') {
     return negotiationsStore.sessionPresets || []
   } else {
-    // TODO: Add tournament configs from store
-    return []
+    return tournamentsStore.tournamentPresets || []
   }
 })
 
@@ -349,11 +433,20 @@ const filteredConfigs = computed(() => {
   // Search filter
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
-    result = result.filter(c => 
-      c.name.toLowerCase().includes(query) ||
-      c.scenario_name?.toLowerCase().includes(query) ||
-      c.tags?.some(t => t.toLowerCase().includes(query))
-    )
+    result = result.filter(c => {
+      // Common search: name and tags
+      if (c.name.toLowerCase().includes(query)) return true
+      if (c.tags?.some(t => t.toLowerCase().includes(query))) return true
+      
+      // Negotiation-specific: scenario_name
+      if (c.scenario_name?.toLowerCase().includes(query)) return true
+      
+      // Tournament-specific: competitor_types, scenario_paths
+      if (c.competitor_types?.some(t => t.toLowerCase().includes(query))) return true
+      if (c.scenario_paths?.some(p => p.toLowerCase().includes(query))) return true
+      
+      return false
+    })
   }
   
   // Tag filter
@@ -393,7 +486,7 @@ async function loadData() {
     if (currentTab.value === 'negotiations') {
       await negotiationsStore.loadSessionPresets()
     } else {
-      // TODO: Load tournament configs
+      await tournamentsStore.loadTournamentPresets()
     }
   } finally {
     loading.value = false
@@ -406,7 +499,12 @@ function selectConfig(config) {
 }
 
 function createNew() {
-  showCreateModal.value = true
+  if (currentTab.value === 'negotiations') {
+    showCreateModal.value = true
+  } else {
+    // Navigate to tournaments page to create new tournament
+    router.push('/tournaments')
+  }
 }
 
 function editConfig() {
@@ -419,10 +517,20 @@ function editConfig() {
 
 function startFromConfig() {
   if (!selectedConfig.value) return
-  console.log('[ConfigsView] Opening start modal for:', selectedConfig.value.name)
-  startingConfig.value = { ...selectedConfig.value }
-  showStartModal.value = true
-  console.log('[ConfigsView] showStartModal:', showStartModal.value, 'showNegotiationModal:', showNegotiationModal.value)
+  
+  if (currentTab.value === 'negotiations') {
+    console.log('[ConfigsView] Opening start modal for:', selectedConfig.value.name)
+    startingConfig.value = { ...selectedConfig.value }
+    showStartModal.value = true
+    console.log('[ConfigsView] showStartModal:', showStartModal.value, 'showNegotiationModal:', showNegotiationModal.value)
+  } else {
+    // For tournaments, navigate to the tournaments page with the preset loaded
+    // TODO: Implement tournament start from preset
+    router.push({
+      path: '/tournaments',
+      query: { preset: selectedConfig.value.name }
+    })
+  }
 }
 
 function closeModals() {
@@ -470,7 +578,11 @@ async function toggleEnabled() {
   // Toggle the disabled flag (defaults to false/enabled if not set)
   selectedConfig.value.disabled = !isConfigDisabled(selectedConfig.value)
   
-  await negotiationsStore.saveSessionPreset(selectedConfig.value)
+  if (currentTab.value === 'negotiations') {
+    await negotiationsStore.saveSessionPreset(selectedConfig.value)
+  } else {
+    await tournamentsStore.saveTournamentPreset(selectedConfig.value)
+  }
   await loadData()
   
   // Re-select the config to refresh the view
@@ -504,8 +616,13 @@ async function confirmRename() {
   selectedConfig.value.name = newNameTrimmed
   
   // Delete old config and save with new name
-  await negotiationsStore.deleteSessionPreset(oldName)
-  await negotiationsStore.saveSessionPreset(selectedConfig.value)
+  if (currentTab.value === 'negotiations') {
+    await negotiationsStore.deleteSessionPreset(oldName)
+    await negotiationsStore.saveSessionPreset(selectedConfig.value)
+  } else {
+    await tournamentsStore.deleteTournamentPreset(oldName)
+    await tournamentsStore.saveTournamentPreset(selectedConfig.value)
+  }
   
   showRenameModal.value = false
   newName.value = ''
@@ -525,7 +642,11 @@ async function deleteConfig() {
   if (!selectedConfig.value) return
   
   if (confirm(`Delete configuration "${selectedConfig.value.name}"?`)) {
-    await negotiationsStore.deleteSessionPreset(selectedConfig.value.name)
+    if (currentTab.value === 'negotiations') {
+      await negotiationsStore.deleteSessionPreset(selectedConfig.value.name)
+    } else {
+      await tournamentsStore.deleteTournamentPreset(selectedConfig.value.name)
+    }
     selectedConfig.value = null
     await loadData()
   }
@@ -540,7 +661,11 @@ async function addTag() {
   
   if (!selectedConfig.value.tags.includes(newTag.value.trim())) {
     selectedConfig.value.tags.push(newTag.value.trim())
-    await negotiationsStore.saveSessionPreset(selectedConfig.value)
+    if (currentTab.value === 'negotiations') {
+      await negotiationsStore.saveSessionPreset(selectedConfig.value)
+    } else {
+      await tournamentsStore.saveTournamentPreset(selectedConfig.value)
+    }
     
     // Reload the selected config after save to get fresh data
     const configName = selectedConfig.value.name
@@ -556,7 +681,11 @@ async function removeTag(idx) {
   if (!selectedConfig.value || !selectedConfig.value.tags) return
   
   selectedConfig.value.tags.splice(idx, 1)
-  await negotiationsStore.saveSessionPreset(selectedConfig.value)
+  if (currentTab.value === 'negotiations') {
+    await negotiationsStore.saveSessionPreset(selectedConfig.value)
+  } else {
+    await tournamentsStore.saveTournamentPreset(selectedConfig.value)
+  }
   
   // Reload the selected config after save to get fresh data
   const configName = selectedConfig.value.name
@@ -565,6 +694,14 @@ async function removeTag(idx) {
 }
 
 onMounted(() => {
+  loadData()
+})
+
+// Reload data when tab changes
+watch(currentTab, () => {
+  selectedConfig.value = null
+  searchQuery.value = ''
+  selectedTag.value = ''
   loadData()
 })
 </script>
@@ -936,5 +1073,23 @@ onMounted(() => {
 .badge-neutral {
   background: var(--bg-tertiary);
   color: var(--text-secondary);
+}
+
+/* Tournament preset display */
+.scenario-item,
+.competitor-item {
+  padding: 6px 10px;
+  margin: 4px 0;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: var(--font-mono, monospace);
+}
+
+.more-items {
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-style: italic;
 }
 </style>
