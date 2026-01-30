@@ -193,9 +193,14 @@
         
         <!-- Bottom Row: Event Log and Configuration -->
         <div class="panels-bottom-row">
-          <!-- Event Log Panel (2/3 width) -->
+          <!-- Event Log / Score History Tabbed Panel (2/3 width) -->
           <div class="panel-event-log-wrapper">
-            <TournamentEventLogPanel :events="eventLog" @clear="clearEventLog" />
+            <TournamentTabbedPanel 
+              :events="eventLog" 
+              :scoreHistory="scoreHistory"
+              :status="currentSession.status"
+              @clearEvents="clearEventLog" 
+            />
           </div>
           
           <!-- Configuration Panel (1/3 width) -->
@@ -269,7 +274,7 @@ import NewTournamentModal from '../components/NewTournamentModal.vue'
 import TournamentGridPanel from '../components/TournamentGridPanel.vue'
 import TournamentScoresPanel from '../components/TournamentScoresPanel.vue'
 import TournamentErrorsPanel from '../components/TournamentErrorsPanel.vue'
-import TournamentEventLogPanel from '../components/TournamentEventLogPanel.vue'
+import TournamentTabbedPanel from '../components/TournamentTabbedPanel.vue'
 import TournamentConfigPanel from '../components/TournamentConfigPanel.vue'
 import TournamentRankingModal from '../components/TournamentRankingModal.vue'
 import TournamentDataModal from '../components/TournamentDataModal.vue'
@@ -291,6 +296,7 @@ const {
   runningNegotiations,
   errorNegotiations,
   eventLog,
+  scoreHistory,
 } = storeToRefs(tournamentsStore)
 
 const showNewTournamentModal = ref(false)
@@ -588,6 +594,9 @@ onMounted(async () => {
         gridInit.value = savedData.gridInit
         cellStates.value = savedData.cellStates || {}
         leaderboard.value = savedData.leaderboard || []
+        
+        // Load event log if available
+        await tournamentsStore.loadEventLog(tournamentId)
         
         loading.value = false
       } else {

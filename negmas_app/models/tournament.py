@@ -158,6 +158,9 @@ class TournamentConfig:
 
     # Monitoring
     monitor_negotiations: bool = False  # Enable live monitoring of individual negotiations (requires negmas support)
+    progress_sample_rate: int = (
+        1  # Emit progress event every N steps (1 = every step, 10 = every 10 steps)
+    )
 
     # Output
     save_path: str | None = None  # Path to save results (None = don't save)

@@ -647,6 +647,17 @@
                     </label>
                     <div class="form-hint">Enable live monitoring of individual negotiations during tournament execution. Shows real-time step-by-step progress of each negotiation as it runs. May impact performance with large tournaments.</div>
                   </div>
+                  <div v-if="settings.monitorNegotiations" class="form-group">
+                    <label class="form-label">Progress Sample Rate</label>
+                    <select v-model.number="settings.progressSampleRate" class="form-select">
+                      <option :value="1">Every step</option>
+                      <option :value="5">Every 5 steps</option>
+                      <option :value="10">Every 10 steps</option>
+                      <option :value="25">Every 25 steps</option>
+                      <option :value="50">Every 50 steps</option>
+                    </select>
+                    <div class="form-hint">How often to emit progress updates. Higher values reduce network load for long negotiations.</div>
+                  </div>
                   
                   <h4>Plotting & Visualization</h4>
                   <div class="settings-grid">
@@ -928,6 +939,7 @@ const settings = ref({
   externalTimeout: null,
   verbosity: 0,
   monitorNegotiations: false,  // Currently disabled, requires negmas support
+  progressSampleRate: 1,  // Emit progress every N steps (1 = every step)
   // NEW: Plotting
   plotFraction: 0.0,
   // NEW: Advanced negotiator options
@@ -1265,6 +1277,7 @@ const startTournament = async () => {
       external_timeout: settings.value.externalTimeout || null,
       verbosity: settings.value.verbosity || 0,
       monitor_negotiations: settings.value.monitorNegotiations || false,
+      progress_sample_rate: settings.value.progressSampleRate || 1,
       // NEW: Plotting
       plot_fraction: settings.value.plotFraction || 0.0,
       // NEW: Advanced negotiator options

@@ -19,6 +19,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   const runningNegotiations = ref({}) // Map of run_id -> negotiation progress data
   const errorNegotiations = ref([]) // Failed negotiations with error details
   const eventLog = ref([]) // Tournament event log (populated from callbacks, not neg_* events)
+  const scoreHistory = ref([]) // Score snapshots for chart (captured on each leaderboard update)
   const saveLogs = ref(false) // Whether to save logs on completion
   
   // Grid display settings
@@ -88,6 +89,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     runningNegotiations.value = {}
     errorNegotiations.value = []
     eventLog.value = []
+    scoreHistory.value = []
     progress.value = null
     setupProgress.value = null
     tournamentComplete.value = null
@@ -346,6 +348,27 @@ export const useTournamentsStore = defineStore('tournaments', () => {
       console.log('[Tournaments Store] Leaderboard event received:', data)
       // Backend sends array directly, not wrapped in {leaderboard: [...]}
       leaderboard.value = Array.isArray(data) ? data : []
+      
+      // Capture score snapshot for history chart
+      if (leaderboard.value.length > 0) {
+        const completedCount = progress.value?.completed || liveNegotiations.value.length || 0
+        const scores = {}
+        leaderboard.value.forEach(entry => {
+          // Use score if available, otherwise fall back to mean_utility
+          const score = entry.score ?? entry.mean_utility ?? entry.avg_utility ?? null
+          if (score !== null && !isNaN(score)) {
+            scores[entry.name || entry.competitor] = score
+          }
+        })
+        
+        if (Object.keys(scores).length > 0) {
+          scoreHistory.value.push({
+            negotiation: completedCount,
+            timestamp: Date.now(),
+            scores: scores
+          })
+        }
+      }
     })
     
     eventSource.value.addEventListener('setup_progress', (event) => {
@@ -716,6 +739,32 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     eventLog.value = []
   }
 
+  // Load event log for a saved tournament
+  async function loadEventLog(tournamentId) {
+    try {
+      const response = await fetch(`/api/tournament/saved/${tournamentId}/logs`)
+      if (!response.ok) {
+        console.warn(`Failed to load event log for ${tournamentId}:`, response.statusText)
+        return []
+      }
+      const data = await response.json()
+      if (data.logs && data.logs.length > 0) {
+        // Convert logs to eventLog format
+        eventLog.value = data.logs.map((log, index) => ({
+          id: index,
+          timestamp: new Date(log.timestamp).getTime(),
+          type: log.type,
+          message: log.message
+        }))
+        return eventLog.value
+      }
+      return []
+    } catch (error) {
+      console.error('Failed to load event log:', error)
+      return []
+    }
+  }
+
   return {
     sessions,
     currentSession,
@@ -728,6 +777,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     runningNegotiations,
     errorNegotiations,
     eventLog,
+    scoreHistory,
     saveLogs,
     gridDisplayModes,
     progress,
@@ -760,5 +810,6 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     deleteSavedTournament,
     updateTournamentTags,
     clearEventLog,
+    loadEventLog,
   }
 })

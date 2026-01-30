@@ -140,15 +140,36 @@ def _make_neg_progress_callback(
     event_queue: queue.Queue,  # type: ignore[type-arg]
     cancel_flags: dict[str, bool],
     session_id: str,
+    sample_rate: int = 1,
 ) -> Callable[[str | int, Any], None]:
-    """Create a negotiation progress callback."""
+    """Create a negotiation progress callback.
+
+    Args:
+        event_queue: Queue to put progress events.
+        cancel_flags: Dict of session_id -> cancelled flag.
+        session_id: The tournament session ID.
+        sample_rate: Emit progress event every N steps (1 = every step).
+    """
+    # Track last emitted step per run_id to implement sampling
+    last_emitted: dict[str, int] = {}
 
     def callback(run_id: str | int, neg_state: Any) -> None:
         if cancel_flags.get(session_id, False):
             return
+
+        run_key = str(run_id)
+        current_step = neg_state.step
+
+        # Only emit if we've advanced by sample_rate steps since last emit
+        last_step = last_emitted.get(run_key, -sample_rate)
+        if current_step - last_step < sample_rate:
+            return
+
+        last_emitted[run_key] = current_step
+
         data = {
-            "run_id": str(run_id),
-            "step": neg_state.step,
+            "run_id": run_key,
+            "step": current_step,
             "relative_time": neg_state.relative_time,
             "current_offer": list(neg_state.current_offer)
             if neg_state.current_offer
@@ -416,7 +437,10 @@ class TournamentManager:
                 state.event_queue, self._cancel_flags, session_id
             )
             neg_progress_callback = _make_neg_progress_callback(
-                state.event_queue, self._cancel_flags, session_id
+                state.event_queue,
+                self._cancel_flags,
+                session_id,
+                sample_rate=config.progress_sample_rate,
             )
             neg_end_callback = _make_neg_end_callback(
                 state.event_queue, self._cancel_flags, session_id

@@ -48,7 +48,7 @@
               </span>
             </div>
           </div>
-          <div class="leaderboard-score">{{ entry.score?.toFixed(3) || 'N/A' }}</div>
+          <div class="leaderboard-score">{{ formatScore(entry) }}</div>
         </div>
       </div>
     </div>
@@ -72,6 +72,32 @@ const props = defineProps({
 const isCollapsed = ref(false)
 
 const isCompleted = computed(() => props.status === 'completed')
+
+/**
+ * Format the score for display, handling null/undefined/NaN/Infinity cases.
+ * Falls back to mean_utility or avg_utility if score is not available.
+ */
+function formatScore(entry) {
+  // Try score first
+  if (entry.score !== null && entry.score !== undefined && 
+      isFinite(entry.score) && !isNaN(entry.score)) {
+    return entry.score.toFixed(3)
+  }
+  
+  // Fallback to mean_utility
+  if (entry.mean_utility !== null && entry.mean_utility !== undefined &&
+      isFinite(entry.mean_utility) && !isNaN(entry.mean_utility)) {
+    return entry.mean_utility.toFixed(3)
+  }
+  
+  // Fallback to avg_utility (alternative naming)
+  if (entry.avg_utility !== null && entry.avg_utility !== undefined &&
+      isFinite(entry.avg_utility) && !isNaN(entry.avg_utility)) {
+    return entry.avg_utility.toFixed(3)
+  }
+  
+  return 'N/A'
+}
 </script>
 
 <style scoped>
