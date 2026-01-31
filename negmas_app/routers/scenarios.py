@@ -493,30 +493,79 @@ async def get_scenario_info(scenario_id: str):
         # Get cached stats if available
         has_stats = (
             (scenario_path / "_stats.yaml").exists()
+            or (scenario_path / "_stats.yml").exists()
             if scenario_path.is_dir()
             else False
         )
         has_info = (
-            (scenario_path / "_info.yaml").exists() if scenario_path.is_dir() else False
+            (scenario_path / "_info.yaml").exists()
+            or (scenario_path / "_info.yml").exists()
+            if scenario_path.is_dir()
+            else False
         )
 
         # Extract from scenario.info dict if available
         info_dict = scenario.info or {}
-        normalized = info_dict.get(
-            "normalized",
-            scenario.is_normalized if hasattr(scenario, "is_normalized") else None,
-        )
+
+        # Get normalized status - try info dict first, then call method
+        normalized = info_dict.get("normalized")
+        if normalized is None and hasattr(scenario, "is_normalized"):
+            try:
+                normalized = scenario.is_normalized()
+            except Exception:
+                normalized = None
+
         description = info_dict.get("description", "")
 
-        # Detect format from files
+        # Detect format from files and determine format label
         format_type = None
+        format_label = None
         if scenario_path.is_dir():
             if (scenario_path / "domain.xml").exists():
                 format_type = "xml"
-            elif (scenario_path / "domain.yaml").exists():
+                format_label = "Genius"
+            elif (scenario_path / "domain.yaml").exists() or (
+                scenario_path / "domain.yml"
+            ).exists():
                 format_type = "yaml"
+                format_label = "NegMAS"
             elif (scenario_path / "domain.json").exists():
                 format_type = "json"
+                format_label = "GeniusWeb"
+            else:
+                # Check for other yaml/yml ufun files (NegMAS format)
+                yaml_files = list(scenario_path.glob("*.yaml")) + list(
+                    scenario_path.glob("*.yml")
+                )
+                # Filter out cache files
+                yaml_files = [f for f in yaml_files if not f.name.startswith("_")]
+                if yaml_files:
+                    format_type = "yaml"
+                    format_label = "NegMAS"
+
+        # Get tags from registry if available
+        tags = []
+        try:
+            from negmas import scenario_registry
+
+            path_str = str(scenario_path)
+            if path_str in scenario_registry:
+                reg_info = scenario_registry[path_str]
+                if hasattr(reg_info, "tags") and reg_info.tags:
+                    tags = list(reg_info.tags)
+        except Exception:
+            pass
+
+        # Check if ufuns have finite reserved values
+        finite_ufuns = all(
+            hasattr(ufun, "reserved_value")
+            and ufun.reserved_value is not None
+            and float(ufun.reserved_value) > float("-inf")
+            for ufun in scenario.ufuns
+        )
+
+        # Get n_pareto from info if available
+        n_pareto = info_dict.get("n_pareto")
 
         return {
             "id": encode_scenario_path(str(scenario_path)),
@@ -528,17 +577,21 @@ async def get_scenario_info(scenario_id: str):
             "n_issues": len(scenario.outcome_space.issues),
             "n_outcomes": n_outcomes if n_outcomes != float("inf") else None,
             "rational_fraction": info_dict.get("rational_fraction"),
-            "opposition": info_dict.get("opposition"),
+            "opposition": info_dict.get("opposition_level")
+            or info_dict.get("opposition"),
             "source": scenario_path.parent.name
             if scenario_path.is_dir()
             else "unknown",
-            "tags": [],
+            "tags": tags,
             "has_stats": has_stats,
             "has_info": has_info,
             "normalized": normalized,
+            "finite_ufuns": finite_ufuns,
             "format": format_type,
+            "format_label": format_label,
             "description": description,
             "issues": issues,
+            "n_pareto": n_pareto,
         }
 
     except FileNotFoundError:

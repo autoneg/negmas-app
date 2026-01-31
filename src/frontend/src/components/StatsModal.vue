@@ -37,14 +37,17 @@
         </div>
         
         <div v-else class="stats-container">
-          <!-- Top Section: Basic Info & Metrics (3 columns) -->
-          <div class="stats-grid-3col">
-            <!-- Basic Information -->
-            <div class="stats-section">
-              <h4 class="stats-section-title">Basic Information</h4>
-              <div v-if="scenarioInfo || props.negotiation?.scenario_path" class="stats-rows">
+          <!-- Top Section: 4 collapsible panels -->
+          <div class="stats-grid-4col">
+            <!-- Basic Information Panel -->
+            <div class="stats-section" :class="{ collapsed: !panels.basicInfo }">
+              <h4 class="stats-section-title clickable" @click="togglePanel('basicInfo')">
+                <span class="collapse-icon">{{ panels.basicInfo ? '▼' : '▶' }}</span>
+                Basic Information
+              </h4>
+              <div v-show="panels.basicInfo" class="stats-rows">
                 <div v-if="props.negotiation?.scenario_path" class="stats-row">
-                  <span class="stats-label">Scenario Path:</span>
+                  <span class="stats-label">Path:</span>
                   <span class="stats-value monospace small" :title="props.negotiation.scenario_path">{{ truncatePath(props.negotiation.scenario_path) }}</span>
                 </div>
                 <div class="stats-row">
@@ -52,69 +55,68 @@
                   <span class="stats-value">{{ scenarioInfo?.name || 'N/A' }}</span>
                 </div>
                 <div class="stats-row">
+                  <span class="stats-label">Format:</span>
+                  <span class="stats-value">
+                    <span v-if="scenarioInfo?.format_label" class="format-badge" :class="formatClass">{{ scenarioInfo.format_label }}</span>
+                    <span v-else class="text-muted">N/A</span>
+                  </span>
+                </div>
+                <div class="stats-row">
                   <span class="stats-label">Negotiators:</span>
                   <span class="stats-value">{{ scenarioInfo?.n_negotiators || 'N/A' }}</span>
                 </div>
                 <div class="stats-row">
                   <span class="stats-label">Issues:</span>
-                  <span class="stats-value">{{ scenarioInfo?.n_issues || 0 }}</span>
-                </div>
-                <!-- Show issue names and value counts -->
-                <div v-if="scenarioInfo?.issues && scenarioInfo.issues.length > 0" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color);">
-                  <div v-for="(issue, idx) in scenarioInfo.issues" :key="`basic-issue-${idx}`" class="stats-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
-                    <span class="stats-label" style="font-weight: 600;">{{ issue.name }}:</span>
-                    <span class="stats-value" style="font-size: 11px; color: var(--text-secondary);">
-                      <span v-if="issue.values && issue.values.length > 0">
-                        {{ issue.values.slice(0, 3).join(', ') }}<span v-if="issue.values.length > 3"> (+{{ issue.values.length - 3 }} more)</span>
-                      </span>
-                      <span v-else-if="issue.min_value !== undefined && issue.max_value !== undefined">
-                        Range: [{{ issue.min_value }}, {{ issue.max_value }}]
-                      </span>
-                    </span>
-                  </div>
+                  <span class="stats-value">{{ scenarioInfo?.n_issues || 'N/A' }}</span>
                 </div>
                 <div class="stats-row">
-                  <span class="stats-label">Total Outcomes:</span>
-                  <span class="stats-value">{{ scenarioInfo?.n_outcomes?.toLocaleString() || stats?.total_outcomes?.toLocaleString() || 'N/A' }}</span>
-                </div>
-                <div class="stats-row">
-                  <span class="stats-label">Format:</span>
-                  <span class="stats-value">{{ scenarioInfo?.format?.toUpperCase() || 'N/A' }}</span>
+                  <span class="stats-label">Outcomes:</span>
+                  <span class="stats-value">{{ scenarioInfo?.n_outcomes?.toLocaleString() || 'N/A' }}</span>
                 </div>
                 <div class="stats-row">
                   <span class="stats-label">Normalized:</span>
-                  <span class="stats-value">{{ scenarioInfo?.normalized !== undefined ? (scenarioInfo.normalized ? 'Yes' : 'No') : 'N/A' }}</span>
+                  <span class="stats-value">
+                    <span v-if="scenarioInfo?.normalized === true" class="status-badge success">Yes</span>
+                    <span v-else-if="scenarioInfo?.normalized === false" class="status-badge warning">No</span>
+                    <span v-else class="text-muted">N/A</span>
+                  </span>
+                </div>
+                <div class="stats-row">
+                  <span class="stats-label">Finite UFs:</span>
+                  <span class="stats-value">
+                    <span v-if="scenarioInfo?.finite_ufuns === true" class="status-badge success">Yes</span>
+                    <span v-else-if="scenarioInfo?.finite_ufuns === false" class="status-badge warning">No</span>
+                    <span v-else class="text-muted">N/A</span>
+                  </span>
+                </div>
+                <!-- Tags -->
+                <div v-if="scenarioInfo?.tags && scenarioInfo.tags.length > 0" class="stats-row" style="flex-wrap: wrap;">
+                  <span class="stats-label">Tags:</span>
+                  <span class="stats-value">
+                    <span v-for="(tag, idx) in scenarioInfo.tags" :key="`tag-${idx}`" class="tag-chip">{{ tag }}</span>
+                  </span>
                 </div>
               </div>
             </div>
             
-            <!-- Scenario Metrics -->
-            <div class="stats-section">
-              <h4 class="stats-section-title">Scenario Metrics</h4>
-              <div class="stats-rows">
-                <div v-if="scenarioInfo?.opposition !== undefined && scenarioInfo?.opposition !== null" class="stats-row">
-                  <span class="stats-label">Opposition Level:</span>
-                  <span class="stats-value">{{ scenarioInfo.opposition.toFixed(4) }}</span>
+            <!-- Scenario Metrics Panel -->
+            <div class="stats-section" :class="{ collapsed: !panels.metrics }">
+              <h4 class="stats-section-title clickable" @click="togglePanel('metrics')">
+                <span class="collapse-icon">{{ panels.metrics ? '▼' : '▶' }}</span>
+                Scenario Metrics
+              </h4>
+              <div v-show="panels.metrics" class="stats-rows">
+                <div class="stats-row">
+                  <span class="stats-label">Opposition:</span>
+                  <span class="stats-value">{{ formatNumber(scenarioInfo?.opposition, 4) }}</span>
                 </div>
-                <div v-else-if="stats?.opposition !== undefined && stats?.opposition !== null" class="stats-row">
-                  <span class="stats-label">Opposition Level:</span>
-                  <span class="stats-value">{{ stats.opposition.toFixed(4) }}</span>
-                </div>
-                <div v-if="stats?.rational_fraction !== undefined && stats?.rational_fraction !== null" class="stats-row">
+                <div class="stats-row">
                   <span class="stats-label">Rational Fraction:</span>
-                  <span class="stats-value">{{ (stats.rational_fraction * 100).toFixed(1) }}%</span>
+                  <span class="stats-value">{{ formatPercent(scenarioInfo?.rational_fraction) }}</span>
                 </div>
-                <div v-else-if="scenarioInfo?.rational_fraction !== undefined && scenarioInfo?.rational_fraction !== null" class="stats-row">
-                  <span class="stats-label">Rational Fraction:</span>
-                  <span class="stats-value">{{ (scenarioInfo.rational_fraction * 100).toFixed(1) }}%</span>
-                </div>
-                <div v-if="paretoCount !== null && paretoCount > 0" class="stats-row">
+                <div class="stats-row">
                   <span class="stats-label">Pareto Outcomes:</span>
-                  <span class="stats-value">{{ paretoCount.toLocaleString() }}</span>
-                </div>
-                <div v-else class="stats-row">
-                  <span class="stats-label">Pareto Outcomes:</span>
-                  <span class="stats-value text-muted">N/A</span>
+                  <span class="stats-value">{{ scenarioInfo?.n_pareto?.toLocaleString() || paretoCount?.toLocaleString() || 'N/A' }}</span>
                 </div>
                 <div v-if="stats?.utility_ranges" class="stats-row">
                   <span class="stats-label">Utility Ranges:</span>
@@ -122,90 +124,92 @@
                     {{ stats.utility_ranges.map(r => `[${r[0].toFixed(2)}, ${r[1].toFixed(2)}]`).join(', ') }}
                   </span>
                 </div>
+                <div class="stats-row">
+                  <span class="stats-label">Has Stats:</span>
+                  <span class="stats-value">
+                    <span v-if="scenarioInfo?.has_stats" class="status-badge success">Yes</span>
+                    <span v-else class="status-badge warning">No</span>
+                  </span>
+                </div>
+                <div class="stats-row">
+                  <span class="stats-label">Has Info:</span>
+                  <span class="stats-value">
+                    <span v-if="scenarioInfo?.has_info" class="status-badge success">Yes</span>
+                    <span v-else class="status-badge warning">No</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Outcome Space Panel -->
+            <div class="stats-section" :class="{ collapsed: !panels.outcomeSpace }">
+              <h4 class="stats-section-title clickable" @click="togglePanel('outcomeSpace')">
+                <span class="collapse-icon">{{ panels.outcomeSpace ? '▼' : '▶' }}</span>
+                Outcome Space
+              </h4>
+              <div v-show="panels.outcomeSpace" class="stats-rows">
+                <div v-if="scenarioInfo?.issues && scenarioInfo.issues.length > 0">
+                  <div v-for="(issue, idx) in scenarioInfo.issues" :key="`issue-${idx}`" class="issue-item">
+                    <div class="issue-header-compact">
+                      <span class="issue-name-compact">{{ issue.name }}</span>
+                      <span class="issue-type-badge-small">{{ formatIssueType(issue.type) }}</span>
+                    </div>
+                    <div class="issue-values-compact">
+                      <span v-if="issue.values && issue.values.length > 0" class="issue-values-text">
+                        {{ issue.values.slice(0, 4).join(', ') }}<span v-if="issue.values.length > 4"> (+{{ issue.values.length - 4 }})</span>
+                      </span>
+                      <span v-else-if="issue.min_value !== undefined && issue.max_value !== undefined" class="issue-range-text">
+                        [{{ issue.min_value }}, {{ issue.max_value }}]
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="empty-text">No issues data</div>
               </div>
             </div>
             
-            <!-- Utility Functions -->
-            <div class="stats-section">
-              <h4 class="stats-section-title">Utility Functions</h4>
-              <div v-if="loadingUfuns" class="empty-text">
-                <div class="loading-spinner-small"></div>
-                Loading utility functions...
-              </div>
-              <div v-else-if="ufunDetails && ufunDetails.length > 0" class="ufuns-list">
-                <div v-for="(ufun, idx) in ufunDetails" :key="`ufun-${idx}`" class="ufun-item-compact">
-                  <div class="ufun-header-compact">
-                    <span class="ufun-name-compact">{{ ufun.name || `Utility Function ${idx + 1}` }}</span>
-                    <span class="ufun-type-badge">{{ ufun.type }}</span>
-                  </div>
-                  <div class="ufun-details-compact">
-                    <span v-if="stats?.reserved_values && stats.reserved_values[idx] !== null && stats.reserved_values[idx] !== undefined" class="ufun-meta-compact">
-                      Reserved: {{ stats.reserved_values[idx].toFixed(3) }}
-                    </span>
-                    <span v-if="stats?.nash_point?.utilities && stats.nash_point.utilities[idx] !== undefined" class="ufun-meta-compact">
-                      Nash: {{ stats.nash_point.utilities[idx].toFixed(3) }}
-                    </span>
-                  </div>
-                  <!-- String representation (like in ScenariosView) -->
-                  <div v-if="ufun.string_representation" class="ufun-representation">
-                    <pre>{{ ufun.string_representation }}</pre>
+            <!-- Utility Functions Panel -->
+            <div class="stats-section" :class="{ collapsed: !panels.ufuns }">
+              <h4 class="stats-section-title clickable" @click="togglePanel('ufuns')">
+                <span class="collapse-icon">{{ panels.ufuns ? '▼' : '▶' }}</span>
+                Utility Functions
+              </h4>
+              <div v-show="panels.ufuns">
+                <div v-if="loadingUfuns" class="empty-text">
+                  <div class="loading-spinner-small"></div>
+                  Loading...
+                </div>
+                <div v-else-if="ufunDetails && ufunDetails.length > 0" class="ufuns-list">
+                  <div v-for="(ufun, idx) in ufunDetails" :key="`ufun-${idx}`" class="ufun-item-compact">
+                    <div class="ufun-header-compact">
+                      <span class="ufun-name-compact">{{ ufun.name || `Utility Function ${idx + 1}` }}</span>
+                      <span class="ufun-type-badge">{{ formatUfunType(ufun.type) }}</span>
+                    </div>
+                    <!-- String representation shows type, reserved value, weights, etc. -->
+                    <div v-if="ufun.string_representation" class="ufun-representation">
+                      <pre>{{ ufun.string_representation }}</pre>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div v-else-if="negotiatorNames && negotiatorNames.length > 0" class="ufuns-list">
-                <div v-for="(name, idx) in negotiatorNames" :key="`ufun-${idx}`" class="ufun-item-compact">
-                  <div class="ufun-header-compact">
-                    <span class="ufun-name-compact">{{ name || `Negotiator ${idx + 1}` }}</span>
-                  </div>
-                  <div class="ufun-details-compact">
-                    <span v-if="stats?.reserved_values && stats.reserved_values[idx] !== null" class="ufun-meta-compact">
-                      Reserved: {{ stats.reserved_values[idx].toFixed(3) }}
-                    </span>
-                    <span v-if="stats?.nash_point?.utilities && stats.nash_point.utilities[idx] !== undefined" class="ufun-meta-compact">
-                      Nash: {{ stats.nash_point.utilities[idx].toFixed(3) }}
-                    </span>
+                <div v-else-if="scenarioInfo?.n_negotiators" class="ufuns-list">
+                  <div v-for="idx in scenarioInfo.n_negotiators" :key="`ufun-${idx}`" class="ufun-item-compact">
+                    <div class="ufun-header-compact">
+                      <span class="ufun-name-compact">Utility Function {{ idx }}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div v-else-if="scenarioInfo?.n_negotiators" class="ufuns-list">
-                <div v-for="idx in scenarioInfo.n_negotiators" :key="`ufun-${idx}`" class="ufun-item-compact">
-                  <div class="ufun-header-compact">
-                    <span class="ufun-name-compact">Negotiator {{ idx }}</span>
-                  </div>
-                </div>
-              </div>
-              <div v-else class="empty-text">No utility functions</div>
-            </div>
-          </div>
-
-          <!-- Issues Section -->
-          <div v-if="scenarioInfo?.issues && scenarioInfo.issues.length > 0" class="stats-section-full">
-            <h4 class="stats-section-title">Issues ({{ scenarioInfo.issues.length }})</h4>
-            <div class="issues-grid">
-              <div v-for="(issue, idx) in scenarioInfo.issues" :key="`issue-${idx}`" class="issue-card">
-                <div class="issue-header">
-                  <span class="issue-name">{{ issue.name }}</span>
-                  <span class="issue-type-badge">{{ issue.type }}</span>
-                </div>
-                <div v-if="issue.values && issue.values.length > 0" class="issue-values">
-                  <span v-for="(val, vidx) in issue.values.slice(0, 5)" :key="`val-${vidx}`" class="value-chip">
-                    {{ val }}
-                  </span>
-                  <span v-if="issue.values.length > 5" class="value-chip more">
-                    +{{ issue.values.length - 5 }} more
-                  </span>
-                </div>
-                <div v-else-if="issue.min_value !== undefined && issue.max_value !== undefined" class="issue-range">
-                  Range: [{{ issue.min_value }}, {{ issue.max_value }}]
-                </div>
+                <div v-else class="empty-text">No utility functions</div>
               </div>
             </div>
           </div>
 
           <!-- Solution Concepts (4 columns) -->
           <div v-if="stats && (stats.nash_point || stats.kalai_point || stats.kalai_smorodinsky_point || stats.max_welfare_point)" class="solution-concepts-section">
-            <h4 class="stats-section-title" style="margin-bottom: 16px;">Solution Concepts</h4>
-            <div class="stats-grid-4col">
+            <h4 class="stats-section-title clickable" @click="togglePanel('solutions')" style="margin-bottom: 16px;">
+              <span class="collapse-icon">{{ panels.solutions ? '▼' : '▶' }}</span>
+              Solution Concepts
+            </h4>
+            <div v-show="panels.solutions" class="stats-grid-4col">
               <!-- Nash Point -->
               <div v-if="stats.nash_point" class="stats-section compact">
                 <h5 class="solution-title">Nash Bargaining</h5>
@@ -221,7 +225,7 @@
                     </span>
                   </div>
                   <div v-for="(utility, idx) in stats.nash_point.utilities" :key="`nash-${idx}`" class="stats-row">
-                    <span class="stats-label">{{ negotiatorNames[idx] || `U${idx + 1}` }}:</span>
+                    <span class="stats-label">{{ getUfunName(idx) }}:</span>
                     <span class="stats-value">{{ utility.toFixed(3) }}</span>
                   </div>
                   <div v-if="stats.nash_point.welfare" class="stats-row">
@@ -246,7 +250,7 @@
                     </span>
                   </div>
                   <div v-for="(utility, idx) in stats.kalai_point.utilities" :key="`kalai-${idx}`" class="stats-row">
-                    <span class="stats-label">{{ negotiatorNames[idx] || `U${idx + 1}` }}:</span>
+                    <span class="stats-label">{{ getUfunName(idx) }}:</span>
                     <span class="stats-value">{{ utility.toFixed(3) }}</span>
                   </div>
                   <div v-if="stats.kalai_point.welfare" class="stats-row">
@@ -271,7 +275,7 @@
                     </span>
                   </div>
                   <div v-for="(utility, idx) in stats.kalai_smorodinsky_point.utilities" :key="`ks-${idx}`" class="stats-row">
-                    <span class="stats-label">{{ negotiatorNames[idx] || `U${idx + 1}` }}:</span>
+                    <span class="stats-label">{{ getUfunName(idx) }}:</span>
                     <span class="stats-value">{{ utility.toFixed(3) }}</span>
                   </div>
                   <div v-if="stats.kalai_smorodinsky_point.welfare" class="stats-row">
@@ -296,7 +300,7 @@
                     </span>
                   </div>
                   <div v-for="(utility, idx) in stats.max_welfare_point.utilities" :key="`welfare-${idx}`" class="stats-row">
-                    <span class="stats-label">{{ negotiatorNames[idx] || `U${idx + 1}` }}:</span>
+                    <span class="stats-label">{{ getUfunName(idx) }}:</span>
                     <span class="stats-value">{{ utility.toFixed(3) }}</span>
                   </div>
                   <div v-if="stats.max_welfare_point.welfare" class="stats-row">
@@ -369,7 +373,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, reactive } from 'vue'
 
 const props = defineProps({
   show: {
@@ -391,6 +395,15 @@ const loadingStats = ref(false)
 const loadingInfo = ref(false)
 const loadingUfuns = ref(false)
 const calculatingStats = ref(false)
+
+// Collapsible panel states
+const panels = reactive({
+  basicInfo: true,
+  metrics: true,
+  outcomeSpace: true,
+  ufuns: true,
+  solutions: true
+})
 
 // Outcome detail modal
 const showOutcomeModal = ref(false)
@@ -490,6 +503,8 @@ async function calculateStats() {
     })
     if (response.ok) {
       scenarioStats.value = await response.json()
+      // Reload info to get updated has_stats
+      await loadScenarioInfo()
     }
   } catch (err) {
     console.error('[StatsModal] Failed to calculate scenario stats:', err)
@@ -497,6 +512,11 @@ async function calculateStats() {
   } finally {
     calculatingStats.value = false
   }
+}
+
+// Toggle panel visibility
+function togglePanel(panel) {
+  panels[panel] = !panels[panel]
 }
 
 // Use scenario stats if available, otherwise fall back to outcome_space_data
@@ -507,7 +527,7 @@ const stats = computed(() => {
       total_outcomes: scenarioStats.value.n_outcomes,
       sampled: false,
       sample_size: null,
-      reserved_values: null, // Could extract from scenario stats if needed
+      reserved_values: null,
       nash_point: scenarioStats.value.nash_outcomes?.[0] ? {
         outcome: scenarioStats.value.nash_outcomes[0],
         utilities: scenarioStats.value.nash_utils[0],
@@ -528,21 +548,17 @@ const stats = computed(() => {
         utilities: scenarioStats.value.max_welfare_utils[0],
         welfare: scenarioStats.value.max_welfare_utils[0].reduce((a, b) => a + b, 0)
       } : null,
-      pareto_utilities: null, // Not included (too large)
-      // Additional stats from scenario
+      pareto_utilities: null,
       rational_fraction: scenarioStats.value.rational_fraction,
       opposition: scenarioStats.value.opposition,
       utility_ranges: scenarioStats.value.utility_ranges,
       n_pareto_outcomes: scenarioStats.value.n_pareto_outcomes,
+      has_stats: true
     }
   }
   
   // Fall back to outcome_space_data
   return props.negotiation?.outcome_space_data || null
-})
-
-const negotiatorNames = computed(() => {
-  return props.negotiation?.negotiator_names || []
 })
 
 const paretoCount = computed(() => {
@@ -564,6 +580,53 @@ const paretoCount = computed(() => {
   // No pareto data available
   return null
 })
+
+// Format class for scenario format badge
+const formatClass = computed(() => {
+  const format = scenarioInfo.value?.format_label
+  if (format === 'Genius') return 'format-genius'
+  if (format === 'NegMAS') return 'format-negmas'
+  if (format === 'GeniusWeb') return 'format-geniusweb'
+  return ''
+})
+
+// Get ufun name by index (prefer ufun name over negotiator name)
+function getUfunName(idx) {
+  // First try ufun details
+  if (ufunDetails.value?.[idx]?.name) {
+    return ufunDetails.value[idx].name
+  }
+  // Fall back to negotiator names from negotiation
+  if (props.negotiation?.negotiator_names?.[idx]) {
+    return props.negotiation.negotiator_names[idx]
+  }
+  return `U${idx + 1}`
+}
+
+// Format ufun type name (remove "UtilityFunction" suffix for brevity)
+function formatUfunType(type) {
+  if (!type) return 'Unknown'
+  return type.replace(/UtilityFunction$/, '').replace(/UFun$/, '')
+}
+
+// Format issue type
+function formatIssueType(type) {
+  if (!type) return '?'
+  // Convert class names like "CategoricalIssue" to just "categorical"
+  return type.replace(/Issue$/, '').toLowerCase()
+}
+
+// Format number with fallback
+function formatNumber(value, decimals = 2) {
+  if (value === null || value === undefined) return 'N/A'
+  return Number(value).toFixed(decimals)
+}
+
+// Format percentage
+function formatPercent(value) {
+  if (value === null || value === undefined) return 'N/A'
+  return `${(value * 100).toFixed(1)}%`
+}
 
 function formatOutcome(outcome) {
   if (!outcome) return 'N/A'
@@ -627,12 +690,21 @@ function truncatePath(path) {
 
 .clickable:hover {
   color: var(--accent-primary);
-  text-decoration: underline;
 }
 
 .text-muted {
   color: var(--text-tertiary) !important;
   font-style: italic;
+}
+
+.collapse-icon {
+  font-size: 10px;
+  margin-right: 6px;
+  color: var(--text-tertiary);
+}
+
+.stats-section.collapsed {
+  padding-bottom: 12px;
 }
 
 .outcome-detail-list {
@@ -700,14 +772,8 @@ function truncatePath(path) {
 .stats-container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 8px;
-}
-
-.stats-grid-3col {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
+  padding: 8px;
 }
 
 .stats-grid-4col {
@@ -736,12 +802,18 @@ function truncatePath(path) {
 }
 
 .stats-section-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   margin: 0 0 12px 0;
   color: var(--text-primary);
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.stats-section-title.clickable:hover {
+  color: var(--accent-primary);
 }
 
 .solution-title {
@@ -765,8 +837,8 @@ function truncatePath(path) {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: 6px 0;
-  gap: 12px;
+  padding: 4px 0;
+  gap: 8px;
 }
 
 .stats-row:not(:last-child) {
@@ -796,82 +868,113 @@ function truncatePath(path) {
 
 .stats-value.monospace.small {
   font-size: 9px;
-  max-width: 200px;
+  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .empty-text {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-tertiary);
   font-style: italic;
   text-align: center;
-  padding: 12px;
+  padding: 8px;
 }
 
-/* Issues Grid */
-.issues-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 12px;
-  margin-top: 8px;
+/* Format badges */
+.format-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
 }
 
-.issue-card {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 12px;
+.format-genius {
+  background: #e3f2fd;
+  color: #1565c0;
 }
 
-.issue-header {
+.format-negmas {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.format-geniusweb {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+/* Status badges */
+.status-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.status-badge.success {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-badge.warning {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+/* Tag chips */
+.tag-chip {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  margin-right: 4px;
+  margin-bottom: 4px;
+  display: inline-block;
+}
+
+/* Issue items */
+.issue-item {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.issue-item:last-child {
+  border-bottom: none;
+}
+
+.issue-header-compact {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 2px;
 }
 
-.issue-name {
-  font-size: 13px;
+.issue-name-compact {
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.issue-type-badge {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--accent-primary);
-  color: white;
-  font-weight: 500;
+.issue-type-badge-small {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   text-transform: capitalize;
 }
 
-.issue-values {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+.issue-values-compact {
+  margin-top: 2px;
 }
 
-.value-chip {
+.issue-values-text,
+.issue-range-text {
   font-size: 10px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-}
-
-.value-chip.more {
-  background: var(--bg-secondary);
   color: var(--text-tertiary);
-  font-style: italic;
-}
-
-.issue-range {
-  font-size: 11px;
-  color: var(--text-secondary);
   font-family: 'SF Mono', Monaco, monospace;
 }
 
@@ -883,13 +986,16 @@ function truncatePath(path) {
 }
 
 .ufun-item-compact {
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  padding: 8px 10px;
+  padding: 8px;
 }
 
 .ufun-header-compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 4px;
 }
 
@@ -899,21 +1005,6 @@ function truncatePath(path) {
   color: var(--text-primary);
 }
 
-.ufun-details-compact {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.ufun-meta-compact {
-  font-size: 10px;
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  padding: 2px 6px;
-  border-radius: 3px;
-  border: 1px solid var(--border-color);
-}
-
 .ufun-type-badge {
   font-size: 9px;
   padding: 2px 6px;
@@ -921,13 +1012,12 @@ function truncatePath(path) {
   background: var(--accent-primary);
   color: white;
   font-weight: 500;
-  margin-left: 8px;
 }
 
 .ufun-representation {
-  margin-top: 6px;
-  padding: 6px 8px;
-  background: var(--bg-primary);
+  margin-top: 4px;
+  padding: 4px 6px;
+  background: var(--bg-secondary);
   border-radius: 4px;
   border: 1px solid var(--border-color);
 }
@@ -963,14 +1053,7 @@ function truncatePath(path) {
   }
 }
 
-@media (max-width: 900px) {
-  .stats-grid-3col {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 @media (max-width: 600px) {
-  .stats-grid-3col,
   .stats-grid-4col {
     grid-template-columns: 1fr;
   }
