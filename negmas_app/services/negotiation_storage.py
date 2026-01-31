@@ -439,12 +439,22 @@ class NegotiationStorageService:
         else:
             end_reason = "no_agreement"
 
+        # Get scenario path - prefer app_metadata, then run.metadata, then source_path
+        scenario_path_str = (
+            app_metadata.get("scenario_path")
+            or (run.metadata.get("scenario_path") if run.metadata else None)
+            or source_path
+        )
+        scenario_name_str = (
+            app_metadata.get("scenario_name") or Path(scenario_path_str).stem
+        )
+
         # Create session
         session = NegotiationSession(
             id=session_id,
             status=status,
-            scenario_path=app_metadata.get("scenario_path", source_path),
-            scenario_name=app_metadata.get("scenario_name", Path(source_path).stem),
+            scenario_path=scenario_path_str,
+            scenario_name=scenario_name_str,
             mechanism_type=config.get("mechanism_type", "SAOMechanism"),
             negotiator_names=negotiator_names,
             negotiator_types=negotiator_types,
@@ -507,9 +517,15 @@ class NegotiationStorageService:
         # Build outcome space data from scenario if available
         scenario = run.scenario
 
-        # If scenario not in CompletedRun, try to load from scenario_path in app_metadata
-        if scenario is None and app_metadata:
-            scenario_path = app_metadata.get("scenario_path")
+        # If scenario not in CompletedRun, try to load from scenario_path
+        # Check app_metadata first, then run.metadata (negmas native metadata.yaml)
+        if scenario is None:
+            scenario_path = None
+            if app_metadata:
+                scenario_path = app_metadata.get("scenario_path")
+            if not scenario_path and run.metadata:
+                scenario_path = run.metadata.get("scenario_path")
+
             if scenario_path:
                 try:
                     from negmas import Scenario
@@ -717,6 +733,18 @@ class NegotiationStorageService:
                     else [],
                 )
 
+            # Get reserved values from ufuns
+            reserved_values: list[float] = []
+            try:
+                for ufun in scenario.ufuns:
+                    rv = getattr(ufun, "reserved_value", None)
+                    if rv is not None:
+                        reserved_values.append(float(rv))
+                    else:
+                        reserved_values.append(0.0)
+            except Exception:
+                pass
+
             return OutcomeSpaceData(
                 outcome_utilities=outcome_utilities,
                 pareto_utilities=pareto_utilities,
@@ -724,6 +752,7 @@ class NegotiationStorageService:
                 kalai_point=kalai_point,
                 kalai_smorodinsky_point=ks_point,
                 max_welfare_point=max_welfare_point,
+                reserved_values=reserved_values,
                 total_outcomes=len(outcome_utilities),
                 sampled=len(outcome_utilities) >= MAX_OUTCOMES,
                 sample_size=len(outcome_utilities),

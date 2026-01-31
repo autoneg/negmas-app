@@ -170,6 +170,99 @@
         </div>
       </div>
       
+      <!-- Calculate Stats Button - Show when agreement exists but no optimality stats -->
+      <div 
+        v-if="negotiation?.agreement && !hasOptimalityStats && negotiation?.scenario_path"
+        class="result-calculate-stats-section"
+        style="padding: 8px; background: var(--bg-tertiary); border-top: 1px solid var(--border-color); margin-top: 4px;"
+      >
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+          <div style="font-size: 11px; color: var(--text-secondary);">
+            Agreement quality metrics not available
+          </div>
+          <button 
+            class="btn btn-sm btn-primary calculate-stats-btn"
+            @click="calculateStats"
+            :disabled="calculatingStats"
+            style="padding: 4px 12px; font-size: 11px;"
+          >
+            <span v-if="calculatingStats" class="spinner-small"></span>
+            <span v-else>Calculate Stats</span>
+          </button>
+        </div>
+        <div v-if="calculateStatsError" class="text-danger" style="font-size: 10px; margin-top: 4px;">
+          {{ calculateStatsError }}
+        </div>
+      </div>
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; font-size: 11px;">
+          <!-- Pareto -->
+          <div 
+            class="optimality-stat-card" 
+            style="text-align: center; padding: 4px; background: var(--bg-secondary); border-radius: 4px; border: 1px solid var(--border-color);"
+          >
+            <div class="text-muted" style="font-size: 9px; margin-bottom: 2px;">Pareto</div>
+            <div 
+              style="font-weight: 600; font-size: 13px;"
+              :class="getOptimalityClass(negotiation.optimality_stats.pareto_optimality)"
+            >
+              {{ formatOptimality(negotiation.optimality_stats.pareto_optimality) }}
+            </div>
+          </div>
+          <!-- Nash -->
+          <div 
+            class="optimality-stat-card" 
+            style="text-align: center; padding: 4px; background: var(--bg-secondary); border-radius: 4px; border: 1px solid var(--border-color);"
+          >
+            <div class="text-muted" style="font-size: 9px; margin-bottom: 2px;">Nash</div>
+            <div 
+              style="font-weight: 600; font-size: 13px;"
+              :class="getOptimalityClass(negotiation.optimality_stats.nash_optimality)"
+            >
+              {{ formatOptimality(negotiation.optimality_stats.nash_optimality) }}
+            </div>
+          </div>
+          <!-- Kalai -->
+          <div 
+            class="optimality-stat-card" 
+            style="text-align: center; padding: 4px; background: var(--bg-secondary); border-radius: 4px; border: 1px solid var(--border-color);"
+          >
+            <div class="text-muted" style="font-size: 9px; margin-bottom: 2px;">Kalai</div>
+            <div 
+              style="font-weight: 600; font-size: 13px;"
+              :class="getOptimalityClass(negotiation.optimality_stats.kalai_optimality)"
+            >
+              {{ formatOptimality(negotiation.optimality_stats.kalai_optimality) }}
+            </div>
+          </div>
+          <!-- Max Welfare -->
+          <div 
+            class="optimality-stat-card" 
+            style="text-align: center; padding: 4px; background: var(--bg-secondary); border-radius: 4px; border: 1px solid var(--border-color);"
+          >
+            <div class="text-muted" style="font-size: 9px; margin-bottom: 2px;">Welfare</div>
+            <div 
+              style="font-weight: 600; font-size: 13px;"
+              :class="getOptimalityClass(negotiation.optimality_stats.max_welfare_optimality)"
+            >
+              {{ formatOptimality(negotiation.optimality_stats.max_welfare_optimality) }}
+            </div>
+          </div>
+          <!-- KS -->
+          <div 
+            class="optimality-stat-card" 
+            style="text-align: center; padding: 4px; background: var(--bg-secondary); border-radius: 4px; border: 1px solid var(--border-color);"
+          >
+            <div class="text-muted" style="font-size: 9px; margin-bottom: 2px;">KS</div>
+            <div 
+              style="font-weight: 600; font-size: 13px;"
+              :class="getOptimalityClass(negotiation.optimality_stats.ks_optimality)"
+            >
+              {{ formatOptimality(negotiation.optimality_stats.ks_optimality) }}
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <!-- No Agreement Display -->
       <div 
         v-if="negotiation?.end_reason && !negotiation?.agreement" 
@@ -351,12 +444,16 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['saveResults'])
+const emit = defineEmits(['saveResults', 'statsCalculated'])
 
 // Collapse state
 const collapsed = ref(false)
 const showInteractive = ref(false)
 const showAgreementModal = ref(false)
+
+// Calculate stats state
+const calculatingStats = ref(false)
+const calculateStatsError = ref('')
 
 // Compute agreement issue count
 const agreementIssueCount = computed(() => {
@@ -402,6 +499,47 @@ function getOptimalityClass(value) {
   if (value >= 0.95) return 'text-success'
   if (value >= 0.7) return 'text-warning'
   return 'text-danger'
+}
+
+// Calculate outcome statistics
+async function calculateStats() {
+  if (!props.negotiation?.agreement || !props.negotiation?.scenario_path) {
+    calculateStatsError.value = 'Missing agreement or scenario path'
+    return
+  }
+
+  calculatingStats.value = true
+  calculateStatsError.value = ''
+
+  try {
+    const response = await fetch('/api/negotiation/calculate-stats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scenario_path: props.negotiation.scenario_path,
+        agreement: props.negotiation.agreement,
+        session_id: props.negotiation.isTemporary ? null : props.negotiation.id,
+        source_path: props.negotiation.source_path || null
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to calculate statistics')
+    }
+
+    const data = await response.json()
+    
+    // Emit event so parent can update the negotiation object
+    emit('statsCalculated', data.optimality_stats)
+    
+    console.log('[ResultPanel] Stats calculated:', data.optimality_stats, 'cached:', data.cached)
+  } catch (error) {
+    console.error('Failed to calculate stats:', error)
+    calculateStatsError.value = error.message
+  } finally {
+    calculatingStats.value = false
+  }
 }
 </script>
 
@@ -655,6 +793,33 @@ function getOptimalityClass(value) {
 .optimality-value {
   font-size: 20px;
   font-weight: 700;
+}
+
+/* Calculate Stats Button */
+.calculate-stats-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.calculate-stats-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.spinner-small {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
 

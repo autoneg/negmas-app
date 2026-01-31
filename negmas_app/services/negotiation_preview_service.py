@@ -151,7 +151,7 @@ class NegotiationPreviewService:
             y_utils,
             s=2,
             alpha=0.3,
-            color="#6495ED",  # Cornflower blue
+            color="#888888",  # Gray
             label="Outcomes",
             zorder=1,
         )

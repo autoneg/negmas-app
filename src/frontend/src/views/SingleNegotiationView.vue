@@ -78,6 +78,7 @@
             :negotiation="negotiation"
             @saveResults="handleSaveResults"
             @zoom="handleZoom('Result', 'result')"
+            @statsCalculated="handleStatsCalculated"
           />
         </template>
         
@@ -489,6 +490,20 @@ async function handleCancel() {
 function handleSaveResults() {
   console.log('[SingleNegotiationView] Save results')
   // TODO: Implement save results to file
+}
+
+/**
+ * Handle stats calculated from ResultPanel
+ */
+function handleStatsCalculated(stats) {
+  console.log('[SingleNegotiationView] Stats calculated:', stats)
+  if (negotiation.value && stats) {
+    // Update the negotiation object with the new stats
+    negotiation.value = {
+      ...negotiation.value,
+      optimality_stats: stats
+    }
+  }
 }
 
 /**

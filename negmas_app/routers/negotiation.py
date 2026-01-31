@@ -108,6 +108,15 @@ class ImportNegotiationRequest(BaseModel):
     tags: list[str] | None = None  # Optional tags to add to the imported negotiation
 
 
+class CalculateStatsRequest(BaseModel):
+    """Request model for calculating outcome statistics."""
+
+    scenario_path: str  # Path to scenario
+    agreement: dict  # Agreement as {issue_name: value}
+    session_id: str | None = None  # If provided and internal, cache results
+    source_path: str | None = None  # Original path for external negotiations
+
+
 def sanitize_float(value: float) -> float | None:
     """Convert NaN/Infinity to None for JSON serialization."""
     if value is None or math.isnan(value) or math.isinf(value):
@@ -1148,4 +1157,89 @@ async def rerun_negotiation(session_id: str):
         "original_session_id": session_id,
         "status": "running",
         "stream_url": f"/api/negotiation/{new_session.id}/stream?step_delay=0.1&share_ufuns=false",
+    }
+
+
+@router.post("/calculate-stats")
+async def calculate_outcome_stats(request: CalculateStatsRequest):
+    """Calculate outcome statistics for a negotiation agreement.
+
+    This computes optimality metrics (Pareto, Nash, Kalai, KS, Max Welfare)
+    for a given agreement relative to the scenario's outcome space.
+
+    If session_id is provided and the negotiation is stored in ~/negmas/app/negotiations,
+    the computed stats will be cached in the negotiation folder.
+
+    Returns the computed optimality statistics.
+    """
+    from pathlib import Path
+
+    from negmas import Scenario
+
+    from ..services.outcome_analysis import compute_optimality_stats
+
+    # Load scenario
+    scenario_path = Path(request.scenario_path)
+    if not scenario_path.exists():
+        raise HTTPException(
+            status_code=404, detail=f"Scenario not found: {request.scenario_path}"
+        )
+
+    try:
+        scenario = Scenario.load(scenario_path, load_stats=True, load_info=True)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Failed to load scenario: {str(e)}"
+        )
+
+    # Convert agreement dict to tuple in correct order
+    if not scenario.outcome_space or not scenario.outcome_space.issues:
+        raise HTTPException(status_code=400, detail="Scenario has no outcome space")
+
+    issue_names = [
+        getattr(issue, "name", f"issue_{i}")
+        for i, issue in enumerate(scenario.outcome_space.issues)
+    ]
+
+    # Build agreement tuple from dict
+    agreement_tuple = tuple(request.agreement.get(name) for name in issue_names)
+
+    # Compute optimality stats
+    stats = await asyncio.to_thread(compute_optimality_stats, scenario, agreement_tuple)
+
+    if stats is None:
+        raise HTTPException(
+            status_code=500, detail="Failed to compute optimality statistics"
+        )
+
+    # Cache results if this is an internal negotiation
+    cached = False
+    if request.session_id:
+        session_dir = NegotiationStorageService.get_session_dir(request.session_id)
+        if session_dir.exists():
+            # This is an internal negotiation - cache the stats
+            try:
+                import yaml
+
+                stats_file = session_dir / "outcome_stats.yaml"
+                # Merge with existing stats if present
+                existing_stats = {}
+                if stats_file.exists():
+                    with open(stats_file) as f:
+                        existing_stats = yaml.safe_load(f) or {}
+
+                # Add optimality stats
+                existing_stats.update(stats)
+
+                with open(stats_file, "w") as f:
+                    yaml.dump(existing_stats, f, default_flow_style=False)
+
+                cached = True
+            except Exception as e:
+                print(f"Warning: Failed to cache stats: {e}")
+
+    return {
+        "optimality_stats": sanitize_nan_values(stats),
+        "cached": cached,
+        "scenario_path": request.scenario_path,
     }
