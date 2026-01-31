@@ -53,11 +53,11 @@
                 </div>
                 <div class="stats-row">
                   <span class="stats-label">Negotiators:</span>
-                  <span class="stats-value">{{ scenarioInfo.n_negotiators || 'N/A' }}</span>
+                  <span class="stats-value">{{ scenarioInfo?.n_negotiators || 'N/A' }}</span>
                 </div>
                 <div class="stats-row">
                   <span class="stats-label">Issues:</span>
-                  <span class="stats-value">{{ scenarioInfo.n_issues || 0 }}</span>
+                  <span class="stats-value">{{ scenarioInfo?.n_issues || 0 }}</span>
                 </div>
                 <!-- Show issue names and value counts -->
                 <div v-if="scenarioInfo?.issues && scenarioInfo.issues.length > 0" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color);">
@@ -75,15 +75,15 @@
                 </div>
                 <div class="stats-row">
                   <span class="stats-label">Total Outcomes:</span>
-                  <span class="stats-value">{{ scenarioInfo.n_outcomes?.toLocaleString() || stats?.total_outcomes?.toLocaleString() || 'N/A' }}</span>
+                  <span class="stats-value">{{ scenarioInfo?.n_outcomes?.toLocaleString() || stats?.total_outcomes?.toLocaleString() || 'N/A' }}</span>
                 </div>
                 <div class="stats-row">
                   <span class="stats-label">Format:</span>
-                  <span class="stats-value">{{ scenarioInfo.format?.toUpperCase() || 'N/A' }}</span>
+                  <span class="stats-value">{{ scenarioInfo?.format?.toUpperCase() || 'N/A' }}</span>
                 </div>
                 <div class="stats-row">
                   <span class="stats-label">Normalized:</span>
-                  <span class="stats-value">{{ scenarioInfo.normalized !== undefined ? (scenarioInfo.normalized ? 'Yes' : 'No') : 'N/A' }}</span>
+                  <span class="stats-value">{{ scenarioInfo?.normalized !== undefined ? (scenarioInfo.normalized ? 'Yes' : 'No') : 'N/A' }}</span>
                 </div>
               </div>
             </div>
