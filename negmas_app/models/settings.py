@@ -34,8 +34,8 @@ class NegotiationSaveOptions:
     save_config: bool = True
 
     # Source of history data to save
-    # Options: "history", "trace", "extended_trace", "full_trace", "full_trace_with_utils"
-    source: str = "full_trace"
+    # Options: None (auto), "history", "trace", "extended_trace", "full_trace", "full_trace_with_utils"
+    source: str | None = None
 
     # Storage format for tables: "csv", "gzip", "parquet"
     storage_format: str = "parquet"

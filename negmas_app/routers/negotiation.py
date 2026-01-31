@@ -76,7 +76,9 @@ class SaveOptionsRequest(BaseModel):
     save_scenario_stats: bool = False  # Save scenario statistics
     save_agreement_stats: bool = True  # Save agreement optimality stats
     save_config: bool = True  # Save mechanism configuration
-    source: str = "full_trace"  # History source: history, trace, extended_trace, full_trace, full_trace_with_utils
+    source: str | None = (
+        None  # History source: None (auto), history, trace, extended_trace, full_trace, full_trace_with_utils
+    )
     storage_format: str = "parquet"  # Table format: csv, gzip, parquet
     generate_previews: bool = True  # Generate preview images (app-specific)
 

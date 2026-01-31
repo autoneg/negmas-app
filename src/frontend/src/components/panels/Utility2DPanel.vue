@@ -427,18 +427,25 @@ async function initPlot() {
       })
     }
     
-    // 9. Reserved value lines
+    // 9. Reserved value lines - only draw if reserved values are finite and positive
     const reservedValues = osd.reserved_values || []
     const shapes = []
-    if (reservedValues[xIdx] > 0) {
+    
+    // Check if reserved values are valid (finite and positive numbers)
+    const xReserved = reservedValues[xIdx]
+    const yReserved = reservedValues[yIdx]
+    const hasValidXReserved = typeof xReserved === 'number' && isFinite(xReserved) && xReserved > 0
+    const hasValidYReserved = typeof yReserved === 'number' && isFinite(yReserved) && yReserved > 0
+    
+    if (hasValidXReserved) {
       // Vertical line for X-axis negotiator's reserved value
       shapes.push({
         type: 'line',
         xref: 'x',
         yref: 'paper',
-        x0: reservedValues[xIdx],
+        x0: xReserved,
         y0: 0,
-        x1: reservedValues[xIdx],
+        x1: xReserved,
         y1: 1,
         line: {
           color: colors.textColor,
@@ -448,16 +455,16 @@ async function initPlot() {
         opacity: 0.5
       })
     }
-    if (reservedValues[yIdx] > 0) {
+    if (hasValidYReserved) {
       // Horizontal line for Y-axis negotiator's reserved value
       shapes.push({
         type: 'line',
         xref: 'paper',
         yref: 'y',
         x0: 0,
-        y0: reservedValues[yIdx],
+        y0: yReserved,
         x1: 1,
-        y1: reservedValues[yIdx],
+        y1: yReserved,
         line: {
           color: colors.textColor,
           width: 2,
@@ -467,8 +474,8 @@ async function initPlot() {
       })
     }
     
-    // Add irrational region shading (below reserved values)
-    if (reservedValues[xIdx] > 0 || reservedValues[yIdx] > 0) {
+    // Add irrational region shading (below reserved values) - only if at least one reserved value is valid
+    if (hasValidXReserved || hasValidYReserved) {
       // Get min/max utilities to determine bounds
       const allX = traces.flatMap(t => t.x || []).filter(x => typeof x === 'number')
       const allY = traces.flatMap(t => t.y || []).filter(y => typeof y === 'number')
@@ -477,37 +484,39 @@ async function initPlot() {
       const minY = Math.min(...allY, 0)
       const maxY = Math.max(...allY, 1)
       
-      // Add gray rectangle for irrational region (below both reserved values)
-      const rvX = reservedValues[xIdx] || minX
-      const rvY = reservedValues[yIdx] || minY
+      // Add gray rectangle for irrational region below X reserved value (if valid)
+      if (hasValidXReserved) {
+        shapes.push({
+          type: 'rect',
+          xref: 'x',
+          yref: 'y',
+          x0: minX,
+          y0: minY,
+          x1: xReserved,
+          y1: maxY,
+          fillcolor: colors.textColor,
+          opacity: 0.1,
+          line: { width: 0 },
+          layer: 'below'
+        })
+      }
       
-      shapes.push({
-        type: 'rect',
-        xref: 'x',
-        yref: 'y',
-        x0: minX,
-        y0: minY,
-        x1: rvX,
-        y1: maxY,
-        fillcolor: colors.textColor,
-        opacity: 0.1,
-        line: { width: 0 },
-        layer: 'below'
-      })
-      
-      shapes.push({
-        type: 'rect',
-        xref: 'x',
-        yref: 'y',
-        x0: minX,
-        y0: minY,
-        x1: maxX,
-        y1: rvY,
-        fillcolor: colors.textColor,
-        opacity: 0.1,
-        line: { width: 0 },
-        layer: 'below'
-      })
+      // Add gray rectangle for irrational region below Y reserved value (if valid)
+      if (hasValidYReserved) {
+        shapes.push({
+          type: 'rect',
+          xref: 'x',
+          yref: 'y',
+          x0: minX,
+          y0: minY,
+          x1: maxX,
+          y1: yReserved,
+          fillcolor: colors.textColor,
+          opacity: 0.1,
+          line: { width: 0 },
+          layer: 'below'
+        })
+      }
     }
     
     const layout = {

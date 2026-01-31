@@ -993,6 +993,85 @@
                 <div class="form-hint">Save results to disk when negotiation completes</div>
               </div>
 
+              <!-- Save Options (collapsible) -->
+              <div v-if="autoSave" class="param-section collapsible">
+                <h4 class="param-section-title" @click="showSaveOptions = !showSaveOptions">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    width="16"
+                    height="16"
+                    :style="{ transform: showSaveOptions ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }"
+                  >
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                  Save Options
+                </h4>
+                
+                <div v-if="showSaveOptions" class="param-section-content">
+                  <div class="form-group">
+                    <label class="form-label">History Source</label>
+                    <select class="form-select" v-model="saveOptions.source">
+                      <option value="">Auto (let negmas decide)</option>
+                      <option value="history">History (minimal)</option>
+                      <option value="trace">Trace</option>
+                      <option value="extended_trace">Extended Trace</option>
+                      <option value="full_trace">Full Trace</option>
+                      <option value="full_trace_with_utils">Full Trace with Utils</option>
+                    </select>
+                    <div class="form-hint">What negotiation history data to save</div>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label class="form-label">Storage Format</label>
+                    <select class="form-select" v-model="saveOptions.storage_format">
+                      <option value="parquet">Parquet (best compression)</option>
+                      <option value="csv">CSV (human-readable)</option>
+                      <option value="gzip">Gzip (compressed CSV)</option>
+                    </select>
+                    <div class="form-hint">Format for trace files</div>
+                  </div>
+                  
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="saveOptions.single_file" />
+                    <span>Save as single file</span>
+                  </label>
+                  <div class="form-hint">Save entire trace in one file instead of a directory</div>
+                  
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="saveOptions.save_scenario" />
+                    <span>Save scenario</span>
+                  </label>
+                  <div class="form-hint">Save utility functions and outcome space</div>
+                  
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="saveOptions.save_scenario_stats" />
+                    <span>Save scenario statistics</span>
+                  </label>
+                  <div class="form-hint">Save Pareto frontier, Nash, Kalai-Smorodinsky points</div>
+                  
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="saveOptions.save_agreement_stats" />
+                    <span>Save agreement statistics</span>
+                  </label>
+                  <div class="form-hint">Save optimality metrics of the agreement</div>
+                  
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="saveOptions.save_config" />
+                    <span>Save mechanism config</span>
+                  </label>
+                  <div class="form-hint">Save mechanism parameters</div>
+                  
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="saveOptions.generate_previews" />
+                    <span>Generate preview images</span>
+                  </label>
+                  <div class="form-hint">Generate thumbnail previews for the negotiations list</div>
+                </div>
+              </div>
+
               <!-- Panel visibility controls removed - panels are always visible and can be collapsed individually -->
             </div>
           </div>
@@ -1229,6 +1308,17 @@ const displayOptions = ref({
 })
 const autoSave = ref(true)
 const starting = ref(false)
+const showSaveOptions = ref(false)
+const saveOptions = ref({
+  source: '',  // Empty string means null/auto on backend
+  storage_format: 'parquet',
+  single_file: false,
+  save_scenario: true,
+  save_scenario_stats: false,
+  save_agreement_stats: true,
+  save_config: true,
+  generate_previews: true,
+})
 
 // Session preset management
 const showSaveModal = ref(false)
@@ -1600,6 +1690,16 @@ async function startNegotiation() {
       step_delay: stepDelay.value / 1000, // Convert ms to seconds
       share_ufuns: shareUfuns.value,
       auto_save: autoSave.value,
+      save_options: autoSave.value ? {
+        source: saveOptions.value.source || null,  // Convert empty string to null
+        storage_format: saveOptions.value.storage_format,
+        single_file: saveOptions.value.single_file,
+        save_scenario: saveOptions.value.save_scenario,
+        save_scenario_stats: saveOptions.value.save_scenario_stats,
+        save_agreement_stats: saveOptions.value.save_agreement_stats,
+        save_config: saveOptions.value.save_config,
+        generate_previews: saveOptions.value.generate_previews,
+      } : null,
     }
 
     // Use background endpoint so negotiation continues even if we navigate away

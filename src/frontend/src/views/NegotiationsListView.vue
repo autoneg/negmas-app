@@ -258,6 +258,16 @@
                     📁
                   </button>
                   
+                  <!-- Download button (only for saved negotiations) -->
+                  <button 
+                    v-if="neg.source === 'saved'"
+                    class="btn-icon-small" 
+                    @click="downloadNegotiation(neg.id)" 
+                    title="Download as ZIP"
+                  >
+                    ⬇️
+                  </button>
+                  
                   <!-- Hide these buttons in tournament mode -->
                   <template v-if="!isTournamentMode">
                     <button 
@@ -1374,6 +1384,25 @@ async function openNegotiationFolder(sessionId) {
   } catch (error) {
     console.error('[NegotiationsListView] Failed to open folder:', error)
     alert(`Failed to open folder: ${error.message}`)
+  }
+}
+
+async function downloadNegotiation(sessionId) {
+  try {
+    console.log('[NegotiationsListView] Downloading negotiation:', sessionId)
+    
+    // Trigger download by creating a link to the download endpoint
+    const link = document.createElement('a')
+    link.href = `/api/negotiation/saved/${sessionId}/download`
+    link.download = `${sessionId}.zip`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    console.log('[NegotiationsListView] Download started for:', sessionId)
+  } catch (error) {
+    console.error('[NegotiationsListView] Failed to download:', error)
+    alert(`Failed to download: ${error.message}`)
   }
 }
 
