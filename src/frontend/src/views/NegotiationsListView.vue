@@ -557,9 +557,9 @@ function convertTournamentCompletedNegotiation(neg) {
     scenario_name: scenarioName,
     negotiator_names: partners,
     negotiator_colors: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, partners.length),
-    agreement: neg.agreement,
+    agreement: parseArrayField(neg.agreement),
     agreement_dict: neg.agreement_dict,
-    final_utilities: neg.utilities || [],
+    final_utilities: parseArrayField(neg.utilities) || [],
     has_agreement: neg.has_agreement,
     end_reason: neg.has_error ? 'error' : (neg.has_agreement ? 'agreement' : 'disagreement'),
     timestamp: neg.timestamp || Date.now(),
@@ -567,6 +567,52 @@ function convertTournamentCompletedNegotiation(neg) {
     index: neg.index,
     tournament_id: tournamentId, // Keep this for reference
   }
+}
+
+/**
+ * Parse a field that might be a Python list/tuple string, JSON string, or already an array.
+ * Converts numeric strings to numbers where applicable.
+ */
+function parseArrayField(value) {
+  if (value === null || value === undefined) return null
+  if (Array.isArray(value)) {
+    // Convert string numbers to actual numbers
+    return value.map(v => {
+      if (typeof v === 'string') {
+        const num = parseFloat(v)
+        return !isNaN(num) ? num : v
+      }
+      return v
+    })
+  }
+  if (typeof value === 'string') {
+    // First try Python list/tuple format
+    const parsed = parsePythonListString(value)
+    if (parsed !== null) {
+      // Convert string numbers to actual numbers
+      return parsed.map(v => {
+        if (typeof v === 'string') {
+          const num = parseFloat(v)
+          return !isNaN(num) ? num : v
+        }
+        return v
+      })
+    }
+    // Try JSON parse
+    try {
+      const jsonParsed = JSON.parse(value)
+      if (Array.isArray(jsonParsed)) {
+        return jsonParsed
+      }
+    } catch {
+      // Not JSON, return as single-element array if non-empty
+      if (value.trim()) {
+        const num = parseFloat(value)
+        return !isNaN(num) ? [num] : [value]
+      }
+    }
+  }
+  return null
 }
 
 // Separate running from completed negotiations
@@ -1091,12 +1137,14 @@ function getResultTooltip(neg) {
     if (Array.isArray(neg.final_utilities)) {
       neg.final_utilities.forEach((utility, idx) => {
         const name = neg.negotiator_names?.[idx] || `Agent ${idx}`
-        tooltip.push(`  ${name}: ${utility.toFixed(3)}`)
+        const utilVal = typeof utility === 'number' ? utility.toFixed(3) : String(utility ?? '-')
+        tooltip.push(`  ${name}: ${utilVal}`)
       })
     } else if (typeof neg.final_utilities === 'object') {
       // Handle dict format from tournament negotiations
       Object.entries(neg.final_utilities).forEach(([name, utility]) => {
-        tooltip.push(`  ${name}: ${utility.toFixed(3)}`)
+        const utilVal = typeof utility === 'number' ? utility.toFixed(3) : String(utility ?? '-')
+        tooltip.push(`  ${name}: ${utilVal}`)
       })
     }
   }
