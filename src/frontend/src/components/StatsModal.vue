@@ -15,9 +15,16 @@
       
       <!-- Body -->
       <div class="modal-body" style="max-height: 80vh; overflow-y: auto; background: var(--bg-primary);">
-        <div v-if="loadingInfo || loadingStats" class="empty-state" style="padding: 40px;">
+        <div v-if="isLoading" class="empty-state" style="padding: 40px;">
           <div class="loading-spinner"></div>
           <p>Loading scenario data...</p>
+        </div>
+        
+        <div v-else-if="loadError" class="empty-state" style="padding: 40px;">
+          <p style="color: var(--text-error);">{{ loadError }}</p>
+          <button @click="loadAllData" class="btn btn-primary" style="margin-top: 16px;">
+            Retry
+          </button>
         </div>
         
         <div v-else-if="!scenarioInfo && !stats" class="empty-state" style="padding: 40px;">
@@ -180,22 +187,16 @@
                   Loading...
                 </div>
                 <div v-else-if="ufunDetails && ufunDetails.length > 0" class="ufuns-list">
-                  <div v-for="(ufun, idx) in ufunDetails" :key="`ufun-${idx}`" class="ufun-item-compact">
-                    <div class="ufun-header-compact">
-                      <span class="ufun-name-compact">{{ ufun.name || `Utility Function ${idx + 1}` }}</span>
-                      <span class="ufun-type-badge">{{ formatUfunType(ufun.type) }}</span>
-                    </div>
-                    <!-- String representation shows type, reserved value, weights, etc. -->
-                    <div v-if="ufun.string_representation" class="ufun-representation">
-                      <pre>{{ ufun.string_representation }}</pre>
-                    </div>
-                  </div>
+                  <UfunDisplay 
+                    v-for="(ufun, idx) in ufunDetails" 
+                    :key="`ufun-${idx}`"
+                    :ufun="ufun"
+                    :index="idx"
+                  />
                 </div>
                 <div v-else-if="scenarioInfo?.n_negotiators" class="ufuns-list">
-                  <div v-for="idx in scenarioInfo.n_negotiators" :key="`ufun-${idx}`" class="ufun-item-compact">
-                    <div class="ufun-header-compact">
-                      <span class="ufun-name-compact">Utility Function {{ idx }}</span>
-                    </div>
+                  <div v-for="idx in scenarioInfo.n_negotiators" :key="`ufun-${idx}`" class="ufun-placeholder">
+                    Utility Function {{ idx }}
                   </div>
                 </div>
                 <div v-else class="empty-text">No utility functions</div>
@@ -313,7 +314,7 @@
           </div>
 
           <!-- Calculate Stats Button (if no stats) -->
-          <div v-if="scenarioId && !stats?.has_stats && !calculatingStats" class="stats-section-full">
+          <div v-if="scenarioId && !scenarioInfo?.has_stats && !calculatingStats" class="stats-section-full">
             <button @click="calculateStats" class="btn btn-primary" style="width: 100%;">
               Calculate Full Statistics
             </button>
@@ -374,6 +375,7 @@
 
 <script setup>
 import { computed, ref, watch, reactive } from 'vue'
+import UfunDisplay from './UfunDisplay.vue'
 
 const props = defineProps({
   show: {
@@ -395,6 +397,10 @@ const loadingStats = ref(false)
 const loadingInfo = ref(false)
 const loadingUfuns = ref(false)
 const calculatingStats = ref(false)
+const loadError = ref(null)
+
+// Track which scenario path we've loaded data for
+const loadedScenarioPath = ref(null)
 
 // Collapsible panel states
 const panels = reactive({
@@ -416,21 +422,51 @@ const scenarioId = computed(() => {
   return btoa(props.negotiation.scenario_path)
 })
 
-// Load scenario data when modal opens
+// Combined loading state
+const isLoading = computed(() => loadingInfo.value || loadingStats.value)
+
+// Reset all data
+function resetData() {
+  scenarioInfo.value = null
+  scenarioStats.value = null
+  ufunDetails.value = []
+  loadError.value = null
+}
+
+// Load all data
+async function loadAllData() {
+  if (!scenarioId.value) return
+  
+  loadError.value = null
+  
+  // Load all data in parallel
+  await Promise.all([
+    loadScenarioInfo(),
+    loadScenarioStats(),
+    loadUfunDetails()
+  ])
+  
+  // Mark as loaded for this path
+  loadedScenarioPath.value = props.negotiation?.scenario_path
+}
+
+// Load scenario data when modal opens or scenario changes
 watch(() => props.show, async (show) => {
   if (show && scenarioId.value) {
-    // Load all data in parallel
-    const promises = []
-    if (!scenarioInfo.value) {
-      promises.push(loadScenarioInfo())
+    // Check if we need to reload (different scenario or no data)
+    const currentPath = props.negotiation?.scenario_path
+    if (loadedScenarioPath.value !== currentPath || !scenarioInfo.value) {
+      resetData()
+      await loadAllData()
     }
-    if (!scenarioStats.value) {
-      promises.push(loadScenarioStats())
-    }
-    if (ufunDetails.value.length === 0) {
-      promises.push(loadUfunDetails())
-    }
-    await Promise.all(promises)
+  }
+}, { immediate: true })
+
+// Also watch for scenario path changes while modal is open
+watch(() => props.negotiation?.scenario_path, async (newPath, oldPath) => {
+  if (props.show && newPath && newPath !== oldPath) {
+    resetData()
+    await loadAllData()
   }
 })
 
@@ -443,9 +479,14 @@ async function loadScenarioInfo() {
     const response = await fetch(`/api/scenarios/${scenarioId.value}/info`)
     if (response.ok) {
       scenarioInfo.value = await response.json()
+    } else {
+      const errorText = await response.text()
+      console.error('[StatsModal] Failed to load scenario info:', response.status, errorText)
+      loadError.value = `Failed to load scenario info: ${response.status}`
     }
   } catch (err) {
     console.error('[StatsModal] Failed to load scenario info:', err)
+    loadError.value = `Failed to load scenario info: ${err.message}`
   } finally {
     loadingInfo.value = false
   }
@@ -461,6 +502,7 @@ async function loadScenarioStats() {
     if (response.ok) {
       scenarioStats.value = await response.json()
     }
+    // Don't set error for stats - they might not exist
   } catch (err) {
     console.error('[StatsModal] Failed to load scenario stats:', err)
   } finally {
@@ -601,12 +643,6 @@ function getUfunName(idx) {
     return props.negotiation.negotiator_names[idx]
   }
   return `U${idx + 1}`
-}
-
-// Format ufun type name (remove "UtilityFunction" suffix for brevity)
-function formatUfunType(type) {
-  if (!type) return 'Unknown'
-  return type.replace(/UtilityFunction$/, '').replace(/UFun$/, '')
 }
 
 // Format issue type
@@ -978,57 +1014,20 @@ function truncatePath(path) {
   font-family: 'SF Mono', Monaco, monospace;
 }
 
-/* Utility Functions Compact List */
+/* Utility Functions List */
 .ufuns-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.ufun-item-compact {
+.ufun-placeholder {
+  padding: 8px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  padding: 8px;
-}
-
-.ufun-header-compact {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 4px;
-}
-
-.ufun-name-compact {
   font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.ufun-type-badge {
-  font-size: 9px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--accent-primary);
-  color: white;
-  font-weight: 500;
-}
-
-.ufun-representation {
-  margin-top: 4px;
-  padding: 4px 6px;
-  background: var(--bg-secondary);
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-}
-
-.ufun-representation pre {
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-  font-size: 10px;
-  color: var(--text-secondary);
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
+  color: var(--text-tertiary);
 }
 
 .loading-spinner-small {
