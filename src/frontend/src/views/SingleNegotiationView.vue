@@ -253,27 +253,65 @@ async function loadTournamentNegotiation(sessionId) {
 
     const fullData = await response.json()
 
+    // Extract negotiator names from either partners or negotiators array
+    const negotiatorNames = fullData.partners || 
+      (fullData.negotiators || []).map(n => n.name || n.short_type || 'Unknown')
+    const negotiatorTypes = fullData.negotiator_types || 
+      (fullData.negotiators || []).map(n => n.type || n.short_type || 'Unknown')
+    
+    // Get issue names for converting arrays to dicts
+    const issueNames = fullData.issue_names || []
+    
+    // Helper to convert array to dict using issue_names
+    const arrayToDict = (arr) => {
+      if (!arr || !Array.isArray(arr) || issueNames.length === 0) {
+        return arr  // Return as-is if not an array or no issue names
+      }
+      const dict = {}
+      issueNames.forEach((name, i) => {
+        if (i < arr.length) {
+          dict[name] = arr[i]
+        }
+      })
+      return dict
+    }
+    
+    // Convert agreement array to dict if needed
+    const agreement = arrayToDict(fullData.agreement)
+
     // Map to negotiation format
     negotiation.value = {
       id: sessionId,
       scenario_name: fullData.scenario,
-      negotiator_names: fullData.partners || [],
-      negotiator_types: fullData.negotiator_types || [],
-      negotiator_colors: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, (fullData.partners || []).length),
-      issue_names: fullData.issue_names || [],
+      negotiator_names: negotiatorNames,
+      negotiator_types: negotiatorTypes,
+      negotiator_colors: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, negotiatorNames.length),
+      issue_names: issueNames,
       n_steps: fullData.n_steps,
       status: 'completed',
-      agreement: fullData.agreement,
-      final_utilities: fullData.utilities || [],
-      optimality_stats: fullData.optimality_stats,
+      agreement: agreement,
+      final_utilities: fullData.final_utilities || fullData.utilities || [],
+      optimality_stats: fullData.optimality_stats || {
+        pareto_optimality: fullData.pareto_optimality,
+        nash_optimality: fullData.nash_optimality,
+        kalai_optimality: fullData.kalai_optimality,
+        ks_optimality: fullData.ks_optimality,
+        max_welfare_optimality: fullData.max_welfare_optimality,
+      },
       outcome_space_data: fullData.outcome_space_data,
-      offers: (fullData.history || []).map((item, idx) => ({
-        step: item.step || idx,
-        offer: item.offer || item.current_offer,
-        proposer_index: item.proposer || item.current_proposer || 0,
-        relative_time: item.relative_time || 0,
-        utilities: item.utilities || [],
-      })),
+      offers: (fullData.history || []).map((item, idx) => {
+        // Convert offer array to dict using issue_names
+        const rawOffer = item.offer || item.current_offer
+        const offer = arrayToDict(rawOffer)
+        
+        return {
+          step: item.step ?? idx,
+          offer: offer,
+          proposer_index: item.proposer ?? item.current_proposer ?? (item.negotiator ? 0 : 0),
+          relative_time: item.relative_time || 0,
+          utilities: item.utilities || [],
+        }
+      }),
     }
 
     loading.value = false
