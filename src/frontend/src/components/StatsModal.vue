@@ -14,7 +14,7 @@
       </div>
       
       <!-- Body -->
-      <div class="modal-body" style="max-height: 75vh; overflow-y: auto; background: var(--bg-primary);">
+      <div class="modal-body" style="max-height: 80vh; overflow-y: auto; background: var(--bg-primary);">
         <div v-if="loadingInfo || loadingStats" class="empty-state" style="padding: 40px;">
           <div class="loading-spinner"></div>
           <p>Loading scenario data...</p>
@@ -42,10 +42,14 @@
             <!-- Basic Information -->
             <div class="stats-section">
               <h4 class="stats-section-title">Basic Information</h4>
-              <div v-if="scenarioInfo" class="stats-rows">
+              <div v-if="scenarioInfo || props.negotiation?.scenario_path" class="stats-rows">
+                <div v-if="props.negotiation?.scenario_path" class="stats-row">
+                  <span class="stats-label">Scenario Path:</span>
+                  <span class="stats-value monospace small" :title="props.negotiation.scenario_path">{{ truncatePath(props.negotiation.scenario_path) }}</span>
+                </div>
                 <div class="stats-row">
                   <span class="stats-label">Name:</span>
-                  <span class="stats-value">{{ scenarioInfo.name || 'N/A' }}</span>
+                  <span class="stats-value">{{ scenarioInfo?.name || 'N/A' }}</span>
                 </div>
                 <div class="stats-row">
                   <span class="stats-label">Negotiators:</span>
@@ -124,7 +128,31 @@
             <!-- Utility Functions -->
             <div class="stats-section">
               <h4 class="stats-section-title">Utility Functions</h4>
-              <div v-if="negotiatorNames && negotiatorNames.length > 0" class="ufuns-list">
+              <div v-if="loadingUfuns" class="empty-text">
+                <div class="loading-spinner-small"></div>
+                Loading utility functions...
+              </div>
+              <div v-else-if="ufunDetails && ufunDetails.length > 0" class="ufuns-list">
+                <div v-for="(ufun, idx) in ufunDetails" :key="`ufun-${idx}`" class="ufun-item-compact">
+                  <div class="ufun-header-compact">
+                    <span class="ufun-name-compact">{{ ufun.name || `Utility Function ${idx + 1}` }}</span>
+                    <span class="ufun-type-badge">{{ ufun.type }}</span>
+                  </div>
+                  <div class="ufun-details-compact">
+                    <span v-if="stats?.reserved_values && stats.reserved_values[idx] !== null && stats.reserved_values[idx] !== undefined" class="ufun-meta-compact">
+                      Reserved: {{ stats.reserved_values[idx].toFixed(3) }}
+                    </span>
+                    <span v-if="stats?.nash_point?.utilities && stats.nash_point.utilities[idx] !== undefined" class="ufun-meta-compact">
+                      Nash: {{ stats.nash_point.utilities[idx].toFixed(3) }}
+                    </span>
+                  </div>
+                  <!-- String representation (like in ScenariosView) -->
+                  <div v-if="ufun.string_representation" class="ufun-representation">
+                    <pre>{{ ufun.string_representation }}</pre>
+                  </div>
+                </div>
+              </div>
+              <div v-else-if="negotiatorNames && negotiatorNames.length > 0" class="ufuns-list">
                 <div v-for="(name, idx) in negotiatorNames" :key="`ufun-${idx}`" class="ufun-item-compact">
                   <div class="ufun-header-compact">
                     <span class="ufun-name-compact">{{ name || `Negotiator ${idx + 1}` }}</span>
@@ -358,8 +386,10 @@ const emit = defineEmits(['close'])
 
 const scenarioStats = ref(null)
 const scenarioInfo = ref(null)
+const ufunDetails = ref([])
 const loadingStats = ref(false)
 const loadingInfo = ref(false)
+const loadingUfuns = ref(false)
 const calculatingStats = ref(false)
 
 // Outcome detail modal
@@ -376,12 +406,18 @@ const scenarioId = computed(() => {
 // Load scenario data when modal opens
 watch(() => props.show, async (show) => {
   if (show && scenarioId.value) {
+    // Load all data in parallel
+    const promises = []
     if (!scenarioInfo.value) {
-      await loadScenarioInfo()
+      promises.push(loadScenarioInfo())
     }
     if (!scenarioStats.value) {
-      await loadScenarioStats()
+      promises.push(loadScenarioStats())
     }
+    if (ufunDetails.value.length === 0) {
+      promises.push(loadUfunDetails())
+    }
+    await Promise.all(promises)
   }
 })
 
@@ -416,6 +452,26 @@ async function loadScenarioStats() {
     console.error('[StatsModal] Failed to load scenario stats:', err)
   } finally {
     loadingStats.value = false
+  }
+}
+
+// Load ufun details from backend (includes ufun names, types, string representations)
+async function loadUfunDetails() {
+  if (!scenarioId.value) return
+  
+  loadingUfuns.value = true
+  try {
+    const response = await fetch(`/api/scenarios/${scenarioId.value}/ufuns`)
+    if (response.ok) {
+      const data = await response.json()
+      if (data.success && data.ufuns) {
+        ufunDetails.value = data.ufuns
+      }
+    }
+  } catch (err) {
+    console.error('[StatsModal] Failed to load ufun details:', err)
+  } finally {
+    loadingUfuns.value = false
   }
 }
 
@@ -542,12 +598,21 @@ function showOutcomeDetail(title, outcome) {
   outcomeModalData.value = outcome
   showOutcomeModal.value = true
 }
+
+function truncatePath(path) {
+  if (!path) return 'N/A'
+  // Show last 2 path segments or the whole path if short
+  const parts = path.split('/')
+  if (parts.length <= 3) return path
+  return '.../' + parts.slice(-2).join('/')
+}
 </script>
 
 <style scoped>
 .modal-xlg {
-  max-width: 1400px;
+  max-width: 1600px;
   width: 95vw;
+  max-height: 90vh;
 }
 
 .modal-sm {
@@ -847,6 +912,49 @@ function showOutcomeDetail(title, outcome) {
   padding: 2px 6px;
   border-radius: 3px;
   border: 1px solid var(--border-color);
+}
+
+.ufun-type-badge {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--accent-primary);
+  color: white;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.ufun-representation {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: var(--bg-primary);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.ufun-representation pre {
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.loading-spinner-small {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-color);
+  border-radius: 50%;
+  border-top-color: var(--accent-primary);
+  animation: spin 1s linear infinite;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 1200px) {

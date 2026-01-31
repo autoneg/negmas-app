@@ -32,6 +32,7 @@ class NegotiationOffer:
 
     step: int
     relative_time: float
+    time: float  # Absolute time in seconds
     proposer: str
     proposer_index: int
     offer: tuple | dict | None  # The offer values (None for end-of-negotiation entries)
@@ -121,6 +122,7 @@ class NegotiationData:
                 {
                     "step": o.step,
                     "relative_time": o.relative_time,
+                    "time": o.time,
                     "proposer": o.proposer,
                     "proposer_index": o.proposer_index,
                     "offer": o.offer_dict,
@@ -587,6 +589,7 @@ class NegotiationLoader:
             if history_type == "full_trace":
                 # Full trace: time, relative_time, step, negotiator, offer, responses, state, [text, data]
                 if isinstance(item, dict):
+                    time_val = item.get("time", 0.0)
                     step = item.get("step", 0)
                     relative_time = item.get("relative_time", 0.0)
                     proposer = item.get("negotiator", "")
@@ -595,6 +598,7 @@ class NegotiationLoader:
                     state = item.get("state", "continuing")
                 else:
                     # Named tuple or regular tuple
+                    time_val = item[0] if len(item) > 0 else 0.0
                     step = item[2] if len(item) > 2 else 0
                     relative_time = item[1] if len(item) > 1 else 0.0
                     proposer = item[3] if len(item) > 3 else ""
@@ -612,6 +616,7 @@ class NegotiationLoader:
                     step = item[0] if len(item) > 0 else 0
                     proposer = item[1] if len(item) > 1 else ""
                     offer_raw = item[2] if len(item) > 2 else None
+                time_val = 0.0
                 relative_time = 0.0
                 responses = {}
                 state = "continuing"
@@ -625,6 +630,7 @@ class NegotiationLoader:
                     proposer = item[0] if len(item) > 0 else ""
                     offer_raw = item[1] if len(item) > 1 else None
                 step = len(offers)
+                time_val = 0.0
                 relative_time = 0.0
                 responses = {}
                 state = "continuing"
@@ -725,6 +731,7 @@ class NegotiationLoader:
                 NegotiationOffer(
                     step=int(step) if step else 0,
                     relative_time=float(relative_time) if relative_time else 0.0,
+                    time=float(time_val) if time_val else 0.0,
                     proposer=proposer,
                     proposer_index=proposer_index,
                     offer=offer_tuple_parsed,  # Use parsed tuple, not raw string

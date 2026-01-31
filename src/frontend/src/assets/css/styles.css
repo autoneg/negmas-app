@@ -3171,6 +3171,64 @@ body {
     margin-right: 4px;
 }
 
+/* Opacity slider for panel controls */
+.panel-opacity-slider {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 4px;
+    padding: 0 4px;
+}
+
+.panel-opacity-slider .slider-icon {
+    width: 14px;
+    height: 14px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.panel-opacity-slider .opacity-range {
+    width: 50px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.panel-opacity-slider .opacity-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+    border: none;
+    transition: transform 0.1s ease;
+}
+
+.panel-opacity-slider .opacity-range::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.panel-opacity-slider .opacity-range::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+    border: none;
+}
+
+.panel-opacity-slider .opacity-range::-moz-range-track {
+    height: 4px;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+}
+
 /* Extra small form select */
 .form-select-xs {
     padding: 2px 4px;

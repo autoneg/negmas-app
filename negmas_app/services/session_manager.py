@@ -237,6 +237,7 @@ def _run_negotiation_in_thread(
                                 offer_dict=dict(zip(session.issue_names, offer)),
                                 utilities=utilities,
                                 relative_time=h.relative_time,
+                                time=h.time if hasattr(h, "time") else 0.0,
                             )
                             session.offers.append(offer_event)
 
@@ -808,6 +809,9 @@ class SessionManager:
                             offer_dict=offer_dict,
                             utilities=utilities,
                             relative_time=historical_state.relative_time,
+                            time=historical_state.time
+                            if hasattr(historical_state, "time")
+                            else 0.0,
                         )
 
                         # Debug: Check for backwards relative_time

@@ -29,6 +29,7 @@ class OfferEvent:
     timestamp: datetime = field(default_factory=datetime.now)
     response: str | None = None  # "accept", "reject", or None
     relative_time: float = 0.0  # Relative time (0-1) in negotiation
+    time: float = 0.0  # Absolute time in seconds from negotiation start
 
 
 @dataclass

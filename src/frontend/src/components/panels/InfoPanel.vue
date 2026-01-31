@@ -110,6 +110,18 @@
           <span class="summary-value" :class="{ 'success': negotiation?.agreement }">
             {{ negotiation?.agreement ? 'Agreement Reached' : endReasonText }}
           </span>
+          <span v-if="negotiation?.agreement && agreementProposer" class="summary-label" style="margin-left: 8px;">by</span>
+          <span 
+            v-if="negotiation?.agreement && agreementProposer" 
+            class="badge badge-xs"
+            :style="{ 
+              background: agreementProposerColor, 
+              color: 'white',
+              marginLeft: '4px'
+            }"
+          >
+            {{ agreementProposer }}
+          </span>
           <span class="summary-label" style="margin-left: 12px;">Steps:</span>
           <span class="summary-value">{{ negotiation?.step || 0 }} / {{ negotiation?.n_steps || '∞' }}</span>
         </div>
@@ -256,6 +268,24 @@ const formatUtilities = computed(() => {
       return `${name.substring(0, 6)}: ${u.toFixed(3)}`
     })
     .join(', ')
+})
+
+// Get the proposer of the agreement (from the last offer)
+const agreementProposer = computed(() => {
+  if (!props.negotiation?.agreement || !props.negotiation?.offers?.length) return null
+  const lastOffer = props.negotiation.offers[props.negotiation.offers.length - 1]
+  const proposerIndex = lastOffer?.proposer_index
+  if (proposerIndex === undefined || proposerIndex === null) return null
+  return props.negotiation.negotiator_names?.[proposerIndex] || `Agent ${proposerIndex + 1}`
+})
+
+// Get the color of the agreement proposer
+const agreementProposerColor = computed(() => {
+  if (!props.negotiation?.agreement || !props.negotiation?.offers?.length) return 'var(--primary)'
+  const lastOffer = props.negotiation.offers[props.negotiation.offers.length - 1]
+  const proposerIndex = lastOffer?.proposer_index
+  if (proposerIndex === undefined || proposerIndex === null) return 'var(--primary)'
+  return props.negotiation.negotiator_colors?.[proposerIndex] || 'var(--primary)'
 })
 
 // Open negotiation folder in file explorer

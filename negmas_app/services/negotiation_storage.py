@@ -242,7 +242,7 @@ class NegotiationStorageService:
         for offer in session.offers:
             history.append(
                 {
-                    "time": 0.0,
+                    "time": offer.time if hasattr(offer, "time") else 0.0,
                     "relative_time": offer.relative_time,
                     "step": offer.step,
                     "negotiator": offer.proposer,
@@ -566,6 +566,7 @@ class NegotiationStorageService:
             # Extract fields based on history type
             if history_type in ("full_trace", "full_trace_with_utils"):
                 if isinstance(item, dict):
+                    time_val = item.get("time", 0.0)
                     step = item.get("step", 0)
                     relative_time = item.get("relative_time", 0.0)
                     proposer = item.get("negotiator", "")
@@ -573,6 +574,7 @@ class NegotiationStorageService:
                     response = item.get("responses", "")
                 else:
                     # Named tuple
+                    time_val = item[0] if len(item) > 0 else 0.0
                     step = item[2] if len(item) > 2 else 0
                     relative_time = item[1] if len(item) > 1 else 0.0
                     proposer = item[3] if len(item) > 3 else ""
@@ -588,6 +590,7 @@ class NegotiationStorageService:
                     step = item[0] if len(item) > 0 else 0
                     proposer = item[1] if len(item) > 1 else ""
                     offer_raw = item[2] if len(item) > 2 else None
+                time_val = 0.0
                 relative_time = 0.0
                 response = ""
 
@@ -599,6 +602,7 @@ class NegotiationStorageService:
                     proposer = item[0] if len(item) > 0 else ""
                     offer_raw = item[1] if len(item) > 1 else None
                 step = len(offers)
+                time_val = 0.0
                 relative_time = 0.0
                 response = ""
 
@@ -663,6 +667,7 @@ class NegotiationStorageService:
                     timestamp=datetime.now(),
                     response=str(response) if response else None,
                     relative_time=float(relative_time) if relative_time else 0.0,
+                    time=float(time_val) if time_val else 0.0,
                 )
             )
 

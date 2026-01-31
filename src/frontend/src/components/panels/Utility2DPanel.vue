@@ -86,6 +86,27 @@
         </svg>
       </button>
       
+      <!-- Outcome Opacity Slider -->
+      <div 
+        class="panel-opacity-slider" 
+        v-show="!collapsed && hasData"
+        title="Outcome space visibility"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="slider-icon">
+          <circle cx="12" cy="12" r="2"/>
+          <circle cx="12" cy="12" r="6" opacity="0.5"/>
+          <circle cx="12" cy="12" r="10" opacity="0.2"/>
+        </svg>
+        <input 
+          type="range" 
+          min="0" 
+          max="100" 
+          v-model.number="outcomeOpacityPercent"
+          @input="onOpacityChange"
+          class="opacity-range"
+        />
+      </div>
+      
       <!-- Collapse -->
       <button 
         class="panel-btn panel-collapse-btn" 
@@ -184,6 +205,7 @@ const plotDiv = ref(null)
 const collapsed = ref(false)
 const plotInitialized = ref(false)
 const showInteractive = ref(false)
+const outcomeOpacityPercent = ref(50) // 0-100, default 50%
 
 // Axis indices
 const xAxisIndex = ref(props.initialXAxis)
@@ -267,7 +289,9 @@ async function initPlot() {
     const traces = []
     
     // 1. All outcomes - use scattergl (WebGL) for large outcome spaces
-    if (osd.outcome_utilities && osd.outcome_utilities.length > 0) {
+    // Only add if opacity > 0
+    const outcomeOpacity = outcomeOpacityPercent.value / 100 * 0.7 // Max opacity 0.7
+    if (osd.outcome_utilities && osd.outcome_utilities.length > 0 && outcomeOpacity > 0) {
       // Filter out outcomes with null values (NaN/Infinity from backend)
       const validOutcomes = osd.outcome_utilities
         .map((u, i) => ({ x: u[xIdx], y: u[yIdx], i }))
@@ -280,7 +304,7 @@ async function initPlot() {
           type: 'scattergl',
           mode: 'markers',
           name: 'Outcomes',
-          marker: { color: colors.outcomeColor, size: 3, opacity: 0.5 },
+          marker: { color: colors.outcomeColor, size: 3, opacity: outcomeOpacity },
           hoverinfo: 'skip'
         })
       }
@@ -410,8 +434,33 @@ async function initPlot() {
       }
     }
     
-    // 8. Agreement point
+    // 8. Agreement point with connecting line to proposer's last offer
     if (neg.agreement && neg.final_utilities && neg.final_utilities.length > Math.max(xIdx, yIdx)) {
+      // Find the proposer of the agreement (last offer's proposer)
+      const lastOffer = offers.length > 0 ? offers[offers.length - 1] : null
+      const proposerIndex = lastOffer ? Number(lastOffer.proposer_index) : null
+      
+      // If we know the proposer, draw a dotted line from their last offer to the agreement
+      if (proposerIndex !== null && lastOffer?.utilities) {
+        const proposerColor = negColors[proposerIndex % negColors.length]
+        
+        // Add dotted line connecting proposer's last offer to agreement
+        traces.push({
+          x: [lastOffer.utilities[xIdx] || 0, neg.final_utilities[xIdx]],
+          y: [lastOffer.utilities[yIdx] || 0, neg.final_utilities[yIdx]],
+          type: 'scattergl',
+          mode: 'lines',
+          name: 'Agreement Link',
+          showlegend: false,
+          line: { 
+            color: proposerColor, 
+            width: 2.5,
+            dash: 'dot'
+          }
+        })
+      }
+      
+      // Agreement star marker
       traces.push({
         x: [neg.final_utilities[xIdx]],
         y: [neg.final_utilities[yIdx]],
@@ -624,6 +673,19 @@ function onAxisChange() {
   nextTick(() => {
     initPlot()
   })
+}
+
+// Opacity change handler - debounced to avoid too many re-renders
+let opacityUpdateTimeout = null
+function onOpacityChange() {
+  if (opacityUpdateTimeout) {
+    clearTimeout(opacityUpdateTimeout)
+  }
+  opacityUpdateTimeout = setTimeout(() => {
+    if (plotInitialized.value) {
+      initPlot()
+    }
+  }, 50) // 50ms debounce for smooth slider interaction
 }
 
 // Image error handler for preview mode
