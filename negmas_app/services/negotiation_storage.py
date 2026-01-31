@@ -656,11 +656,11 @@ class NegotiationStorageService:
     def _build_outcome_space_from_scenario(scenario) -> OutcomeSpaceData | None:  # type: ignore[type-arg]
         """Build outcome space data from a Scenario object."""
         try:
-            # Calculate stats if needed
-            if not hasattr(scenario, "_stats") or scenario._stats is None:
+            # Calculate stats if needed (use public .stats property)
+            if scenario.stats is None:
                 scenario.calc_stats()
 
-            stats = scenario._stats
+            stats = scenario.stats
             if not stats:
                 return None
 
