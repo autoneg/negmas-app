@@ -354,6 +354,46 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     }
   }
 
+  // Temporary sessions storage (for loaded negotiations from external paths)
+  const temporarySessions = ref({})
+
+  /**
+   * Store a temporary session for viewing (loaded from external path)
+   */
+  function setTemporarySession(sessionId, sessionData) {
+    temporarySessions.value[sessionId] = {
+      ...sessionData,
+      isTemporary: true,
+      loadedAt: Date.now()
+    }
+    console.log('[negotiations store] Set temporary session:', sessionId)
+  }
+
+  /**
+   * Get a temporary session by ID
+   */
+  function getTemporarySession(sessionId) {
+    return temporarySessions.value[sessionId] || null
+  }
+
+  /**
+   * Clear a temporary session
+   */
+  function clearTemporarySession(sessionId) {
+    if (temporarySessions.value[sessionId]) {
+      delete temporarySessions.value[sessionId]
+      console.log('[negotiations store] Cleared temporary session:', sessionId)
+    }
+  }
+
+  /**
+   * Clear all temporary sessions (cleanup)
+   */
+  function clearAllTemporarySessions() {
+    temporarySessions.value = {}
+    console.log('[negotiations store] Cleared all temporary sessions')
+  }
+
   return {
     // State
     sessions,
@@ -366,6 +406,7 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     availableTags,
     sessionPresets,
     recentSessions,
+    temporarySessions,
     
     // Actions
     loadSessions,
@@ -389,5 +430,9 @@ export const useNegotiationsStore = defineStore('negotiations', () => {
     rerunNegotiation,
     updateNegotiationTags,
     loadTournamentNegotiation,
+    setTemporarySession,
+    getTemporarySession,
+    clearTemporarySession,
+    clearAllTemporarySessions,
   }
 })

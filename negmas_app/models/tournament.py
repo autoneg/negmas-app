@@ -140,6 +140,7 @@ class TournamentConfig:
         True  # Capture offer trace for each negotiation (for viewing)
     )
     save_logs: bool = False  # Save event log as CSV at tournament end
+    save_negotiations_as_folders: bool = True  # Save each negotiation as a folder with full details (CompletedRun format)
 
     # Scenario options
     # Normalization mode: "none", "scale_min", "scale_max", "normalize"

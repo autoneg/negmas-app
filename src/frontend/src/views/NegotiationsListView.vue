@@ -20,6 +20,12 @@
           <button class="btn btn-primary" @click="showNewNegotiationModal = true">
             + New Negotiation
           </button>
+          <button class="btn btn-secondary" @click="showLoadModal = true" title="Load negotiation from disk (temporary view)">
+            Load
+          </button>
+          <button class="btn btn-secondary" @click="showImportModal = true" title="Import negotiation and save to app storage">
+            Import
+          </button>
         </template>
       </div>
       <div class="header-right">
@@ -386,6 +392,127 @@
         </div>
       </div>
     </Teleport>
+    
+    <!-- Load Negotiation Modal -->
+    <Teleport to="body">
+      <div v-if="showLoadModal" class="modal-overlay active" @click.self="showLoadModal = false">
+        <div class="modal" style="max-width: 600px;">
+          <div class="modal-header">
+            <h3>Load Negotiation</h3>
+            <button class="modal-close" @click="showLoadModal = false">×</button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted" style="margin-bottom: 16px;">
+              Load a negotiation from disk for temporary viewing. The negotiation will not be saved to the app's storage.
+            </p>
+            
+            <div style="margin-bottom: 16px;">
+              <label class="form-label">Path to negotiation file or folder:</label>
+              <input 
+                type="text" 
+                v-model="loadImportPath" 
+                @keyup.enter="loadNegotiationFromPath"
+                placeholder="/path/to/negotiation or /path/to/trace.parquet"
+                class="form-input"
+                style="width: 100%;"
+              >
+            </div>
+            
+            <p class="text-muted" style="font-size: 12px;">
+              Supports: CompletedRun folders, trace files (.parquet, .csv), or tournament negotiation folders.
+            </p>
+            
+            <div v-if="loadImportError" class="error-message" style="margin-top: 12px;">
+              {{ loadImportError }}
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="showLoadModal = false">Cancel</button>
+            <button 
+              class="btn btn-primary" 
+              @click="loadNegotiationFromPath"
+              :disabled="!loadImportPath.trim() || loadImportLoading"
+            >
+              {{ loadImportLoading ? 'Loading...' : 'Load' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+    
+    <!-- Import Negotiation Modal -->
+    <Teleport to="body">
+      <div v-if="showImportModal" class="modal-overlay active" @click.self="showImportModal = false">
+        <div class="modal" style="max-width: 600px;">
+          <div class="modal-header">
+            <h3>Import Negotiation</h3>
+            <button class="modal-close" @click="showImportModal = false">×</button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted" style="margin-bottom: 16px;">
+              Import a negotiation from disk and save it to the app's storage. The negotiation will be copied and can be managed like any other saved negotiation.
+            </p>
+            
+            <div style="margin-bottom: 16px;">
+              <label class="form-label">Path to negotiation file or folder:</label>
+              <input 
+                type="text" 
+                v-model="loadImportPath" 
+                @keyup.enter="importNegotiationFromPath"
+                placeholder="/path/to/negotiation or /path/to/trace.parquet"
+                class="form-input"
+                style="width: 100%;"
+              >
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+              <label class="form-label">Tags (optional):</label>
+              <div style="display: flex; gap: 8px;">
+                <input 
+                  type="text" 
+                  v-model="importTagInput" 
+                  @keyup.enter="addImportTag"
+                  placeholder="Add tag..."
+                  class="form-input"
+                  style="flex: 1;"
+                >
+                <button class="btn btn-secondary" @click="addImportTag">Add</button>
+              </div>
+              <div v-if="importTags.length > 0" style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;">
+                <span 
+                  v-for="tag in importTags" 
+                  :key="tag"
+                  class="badge badge-primary"
+                  style="display: flex; align-items: center; gap: 6px; cursor: pointer;"
+                  @click="removeImportTag(tag)"
+                >
+                  {{ tag }}
+                  <span style="font-weight: bold;">×</span>
+                </span>
+              </div>
+            </div>
+            
+            <p class="text-muted" style="font-size: 12px;">
+              Supports: CompletedRun folders, trace files (.parquet, .csv), or tournament negotiation folders.
+            </p>
+            
+            <div v-if="loadImportError" class="error-message" style="margin-top: 12px;">
+              {{ loadImportError }}
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="showImportModal = false">Cancel</button>
+            <button 
+              class="btn btn-primary" 
+              @click="importNegotiationFromPath"
+              :disabled="!loadImportPath.trim() || loadImportLoading"
+            >
+              {{ loadImportLoading ? 'Importing...' : 'Import' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -444,6 +571,15 @@ const sortDirection = ref('desc')
 const tagEditorNegotiation = ref(null)
 const tagEditorTags = ref([])
 const newTagInput = ref('')
+
+// Load/Import modal state
+const showLoadModal = ref(false)
+const showImportModal = ref(false)
+const loadImportPath = ref('')
+const loadImportLoading = ref(false)
+const loadImportError = ref('')
+const importTagInput = ref('')
+const importTags = ref([])
 
 // Data conversion utilities for tournament negotiations
 
@@ -1279,6 +1415,121 @@ async function saveTagsFromEditor() {
   }
 }
 
+// Load/Import functions
+function resetLoadImportState() {
+  loadImportPath.value = ''
+  loadImportError.value = ''
+  loadImportLoading.value = false
+  importTagInput.value = ''
+  importTags.value = []
+}
+
+function addImportTag() {
+  const tag = importTagInput.value.trim()
+  if (tag && !importTags.value.includes(tag)) {
+    importTags.value.push(tag)
+    importTagInput.value = ''
+  }
+}
+
+function removeImportTag(tag) {
+  const index = importTags.value.indexOf(tag)
+  if (index > -1) {
+    importTags.value.splice(index, 1)
+  }
+}
+
+async function loadNegotiationFromPath() {
+  const path = loadImportPath.value.trim()
+  if (!path) return
+  
+  loadImportLoading.value = true
+  loadImportError.value = ''
+  
+  try {
+    const response = await fetch('/api/negotiation/load-from-path', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path })
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to load negotiation')
+    }
+    
+    const data = await response.json()
+    
+    // Close modal and navigate to SingleNegotiation view with temporary data
+    showLoadModal.value = false
+    resetLoadImportState()
+    
+    // Store the loaded data temporarily and navigate
+    // We use a special session ID format to indicate it's from external path
+    const tempSessionId = `temp-${Date.now()}`
+    
+    // Store in negotiationsStore temporarily for viewing
+    negotiationsStore.setTemporarySession(tempSessionId, data)
+    
+    router.push({ 
+      name: 'SingleNegotiation', 
+      params: { id: tempSessionId },
+      query: { source: 'loaded', path: path }
+    })
+    
+  } catch (error) {
+    console.error('Failed to load negotiation:', error)
+    loadImportError.value = error.message
+  } finally {
+    loadImportLoading.value = false
+  }
+}
+
+async function importNegotiationFromPath() {
+  const path = loadImportPath.value.trim()
+  if (!path) return
+  
+  loadImportLoading.value = true
+  loadImportError.value = ''
+  
+  try {
+    const response = await fetch('/api/negotiation/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        path,
+        tags: importTags.value.length > 0 ? importTags.value : null
+      })
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to import negotiation')
+    }
+    
+    const data = await response.json()
+    
+    // Close modal and navigate to the imported negotiation
+    showImportModal.value = false
+    resetLoadImportState()
+    
+    // Reload the list to show the imported negotiation
+    await loadData()
+    
+    // Navigate to the imported negotiation
+    router.push({ 
+      name: 'SingleNegotiation', 
+      params: { id: data.session_id }
+    })
+    
+  } catch (error) {
+    console.error('Failed to import negotiation:', error)
+    loadImportError.value = error.message
+  } finally {
+    loadImportLoading.value = false
+  }
+}
+
 function onNegotiationStart(data) {
   showNewNegotiationModal.value = false
   
@@ -1812,6 +2063,130 @@ function onNegotiationStart(data) {
 
 .btn-secondary:hover {
   background: var(--bg-hover);
+}
+
+/* Load/Import Modal Styles */
+.error-message {
+  padding: 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: rgb(239, 68, 68);
+  font-size: 13px;
+}
+
+.form-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.form-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.form-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.text-muted {
+  color: var(--text-secondary);
+}
+
+.badge-primary {
+  background: var(--primary-color);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
 }
 
 </style>

@@ -84,6 +84,9 @@ class TournamentConfigRequest(BaseModel):
     save_scenario_figs: bool = False
     save_every: int = 0
     save_logs: bool = False  # Save event log as CSV at tournament end
+    save_negotiations_as_folders: bool = (
+        True  # Save negotiations as folders (CompletedRun format)
+    )
 
     # Scenario options
     # Normalization mode: "none", "scale_min", "scale_max", "normalize"
@@ -165,6 +168,7 @@ async def start_tournament(request: TournamentConfigRequest):
         save_scenario_figs=request.save_scenario_figs,
         save_every=request.save_every,
         save_logs=request.save_logs,
+        save_negotiations_as_folders=request.save_negotiations_as_folders,
         normalization=request.normalization,
         ignore_discount=request.ignore_discount,
         ignore_reserved=request.ignore_reserved,

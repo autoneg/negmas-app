@@ -174,6 +174,12 @@ async function loadNegotiation(sessionId) {
   console.log('[SingleNegotiationView] Loading session:', sessionId)
 
   try {
+    // Check if this is a temporary session (loaded from external path)
+    if (sessionId.startsWith('temp-') || route.query.source === 'loaded') {
+      await loadTemporaryNegotiation(sessionId)
+      return
+    }
+
     // Check if this is a tournament negotiation
     if (sessionId.startsWith('tournament:') || route.query.tournament_id) {
       await loadTournamentNegotiation(sessionId)
@@ -223,6 +229,48 @@ async function loadNegotiation(sessionId) {
     error.value = err.message || 'Failed to load negotiation'
     loading.value = false
   }
+}
+
+/**
+ * Load temporary negotiation (loaded from external path)
+ */
+async function loadTemporaryNegotiation(sessionId) {
+  console.log('[SingleNegotiationView] Loading temporary session:', sessionId)
+  
+  // Get the temporary session from the store
+  const tempData = negotiationsStore.getTemporarySession(sessionId)
+  
+  if (!tempData) {
+    error.value = 'Temporary negotiation not found. It may have expired.'
+    loading.value = false
+    return
+  }
+
+  // Map to negotiation format
+  negotiation.value = {
+    id: sessionId,
+    scenario_name: tempData.scenario_name,
+    scenario_path: tempData.scenario_path,
+    negotiator_names: tempData.negotiator_names,
+    negotiator_types: tempData.negotiator_types,
+    negotiator_colors: tempData.negotiator_colors || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, (tempData.negotiator_names || []).length),
+    issue_names: tempData.issue_names,
+    n_steps: tempData.n_steps,
+    time_limit: tempData.time_limit,
+    status: tempData.status || 'completed',
+    current_step: tempData.current_step,
+    agreement: tempData.agreement,
+    final_utilities: tempData.final_utilities,
+    end_reason: tempData.end_reason,
+    optimality_stats: tempData.optimality_stats,
+    outcome_space_data: tempData.outcome_space_data,
+    offers: tempData.offers || [],
+    isTemporary: true,
+    source_path: tempData.source_path,
+  }
+
+  loading.value = false
+  console.log('[SingleNegotiationView] Loaded temporary negotiation:', negotiation.value.scenario_name)
 }
 
 /**

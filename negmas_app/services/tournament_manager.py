@@ -1262,6 +1262,11 @@ class TournamentManager:
             if config.storage_format is not None:
                 tournament_kwargs["storage_format"] = config.storage_format
 
+            # Add save_negotiations_as_folders option
+            tournament_kwargs["save_negotiations_as_folders"] = (
+                config.save_negotiations_as_folders
+            )
+
             # Add image format from performance settings
             perf_settings = SettingsService.load_performance()
             tournament_kwargs["image_format"] = perf_settings.plot_image_format

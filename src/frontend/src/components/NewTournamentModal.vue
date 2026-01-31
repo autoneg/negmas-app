@@ -600,6 +600,13 @@
                     </label>
                     <div class="form-hint">Save tournament events to logs.csv at completion</div>
                   </div>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.saveNegotiationsAsFolders" type="checkbox" />
+                      <span>Save Negotiations as Folders</span>
+                    </label>
+                    <div class="form-hint">Save each negotiation as a folder with full details (CompletedRun format)</div>
+                  </div>
                   
                   <h4>Information Sharing</h4>
                   <div class="form-group">
@@ -945,6 +952,7 @@ const settings = ref({
   recalculateStats: false,
   saveEvery: 0,
   saveLogs: false,
+  saveNegotiationsAsFolders: true,
   passOpponentUfun: false,
   raiseExceptions: false,
   // NEW: Execution & Performance
@@ -1179,6 +1187,7 @@ const loadPreset = async () => {
   settings.value.saveStats = preset.save_stats ?? true
   settings.value.saveScenarioFigs = preset.save_scenario_figs ?? true
   settings.value.saveEvery = preset.save_every || 0
+  settings.value.saveNegotiationsAsFolders = preset.save_negotiations_as_folders ?? true
   settings.value.passOpponentUfun = preset.pass_opponent_ufun ?? false
   settings.value.raiseExceptions = preset.raise_exceptions ?? false
   settings.value.storageOptimization = preset.storage_optimization || 'balanced'
@@ -1222,6 +1231,7 @@ function buildTournamentPreset(name) {
     recalculate_stats: settings.value.recalculateStats,
     save_every: settings.value.saveEvery,
     save_logs: settings.value.saveLogs,
+    save_negotiations_as_folders: settings.value.saveNegotiationsAsFolders,
     pass_opponent_ufun: settings.value.passOpponentUfun,
     raise_exceptions: settings.value.raiseExceptions,
     storage_optimization: settings.value.storageOptimization,
@@ -1300,6 +1310,7 @@ const startTournament = async () => {
       save_stats: settings.value.saveStats,
       recalculate_stats: settings.value.recalculateStats,
       save_logs: settings.value.saveLogs,
+      save_negotiations_as_folders: settings.value.saveNegotiationsAsFolders,
       // Advanced settings
       step_time_limit: settings.value.stepTimeLimit || null,
       negotiator_time_limit: settings.value.negotiatorTimeLimit || null,

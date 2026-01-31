@@ -308,6 +308,7 @@ class SessionManager:
         self._scenario_options: dict[
             str, dict
         ] = {}  # ignore_discount, ignore_reserved, normalize
+        self._save_options: dict[str, dict | None] = {}  # CompletedRun save options
         self._auto_save: dict[str, bool] = {}  # Whether to auto-save on completion
         self._cancel_flags: dict[str, bool] = {}
         self._pause_flags: dict[str, bool] = {}
@@ -323,6 +324,7 @@ class SessionManager:
         ignore_reserved: bool = False,
         normalize: bool = False,
         auto_save: bool = True,
+        save_options: dict | None = None,
     ) -> NegotiationSession:
         """Create a new negotiation session.
 
@@ -335,6 +337,9 @@ class SessionManager:
             ignore_reserved: If True, ignore reserved values in utility functions.
             normalize: If True, normalize utility functions to [0, 1] range.
             auto_save: If True, save negotiation to disk on completion.
+            save_options: Optional dict with CompletedRun save options (single_file,
+                per_negotiator, save_scenario, save_scenario_stats, save_agreement_stats,
+                save_config, source, storage_format, generate_previews).
 
         Returns:
             Created session (not yet started).
@@ -358,6 +363,7 @@ class SessionManager:
             "ignore_reserved": ignore_reserved,
             "normalize": normalize,
         }
+        self._save_options[session_id] = save_options
         self._auto_save[session_id] = auto_save
         self._cancel_flags[session_id] = False
         self._pause_flags[session_id] = False
@@ -424,6 +430,14 @@ class SessionManager:
         """Get negotiator configs for a session."""
         return self._configs.get(session_id)
 
+    def get_save_options(self, session_id: str) -> dict | None:
+        """Get save options for a session."""
+        return self._save_options.get(session_id)
+
+    def get_scenario_options(self, session_id: str) -> dict | None:
+        """Get scenario options for a session."""
+        return self._scenario_options.get(session_id)
+
     def cancel_session(self, session_id: str) -> bool:
         """Request cancellation of a running session."""
         if session_id in self._cancel_flags:
@@ -479,6 +493,7 @@ class SessionManager:
         self._mechanism_params.pop(session_id, None)
         self._mechanism_types.pop(session_id, None)
         self._scenario_options.pop(session_id, None)
+        self._save_options.pop(session_id, None)
         self._auto_save.pop(session_id, None)
         self._cancel_flags.pop(session_id, None)
         self._pause_flags.pop(session_id, None)

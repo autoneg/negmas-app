@@ -7,6 +7,44 @@ from negmas.plots.util import SUPPORTED_IMAGE_FORMATS
 
 
 @dataclass
+class NegotiationSaveOptions:
+    """Options for saving negotiations using CompletedRun format.
+
+    These options mirror Mechanism.save() parameters to provide full control
+    over how negotiations are persisted to disk.
+    """
+
+    # Whether to save as a single file (just the trace) or a directory
+    single_file: bool = False
+
+    # If True, save per-negotiator trace files in a subdirectory
+    # Only works with full_trace source
+    per_negotiator: bool = False
+
+    # Whether to save the scenario (ufuns, outcome space)
+    save_scenario: bool = True
+
+    # Whether to save scenario statistics (Pareto, Nash, etc.)
+    save_scenario_stats: bool = False
+
+    # Whether to save agreement optimality statistics
+    save_agreement_stats: bool = True
+
+    # Whether to save mechanism configuration
+    save_config: bool = True
+
+    # Source of history data to save
+    # Options: "history", "trace", "extended_trace", "full_trace", "full_trace_with_utils"
+    source: str = "full_trace"
+
+    # Storage format for tables: "csv", "gzip", "parquet"
+    storage_format: str = "parquet"
+
+    # Whether to generate preview images (app-specific feature)
+    generate_previews: bool = True
+
+
+@dataclass
 class ThemeSettings:
     """Theme and accessibility settings."""
 

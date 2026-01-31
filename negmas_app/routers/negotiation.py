@@ -64,6 +64,21 @@ class StartNegotiationRequest(BaseModel):
     ignore_reserved: bool = False
     normalize: bool = False  # Whether to normalize the scenario utility functions
     auto_save: bool = True  # Whether to save negotiation on completion
+    save_options: SaveOptionsRequest | None = None  # Advanced save options
+
+
+class SaveOptionsRequest(BaseModel):
+    """Request model for negotiation save options (mirrors Mechanism.save() params)."""
+
+    single_file: bool = False  # Save as single trace file vs directory
+    per_negotiator: bool = False  # Save per-negotiator trace files
+    save_scenario: bool = True  # Save scenario (ufuns, outcome space)
+    save_scenario_stats: bool = False  # Save scenario statistics
+    save_agreement_stats: bool = True  # Save agreement optimality stats
+    save_config: bool = True  # Save mechanism configuration
+    source: str = "full_trace"  # History source: history, trace, extended_trace, full_trace, full_trace_with_utils
+    storage_format: str = "parquet"  # Table format: csv, gzip, parquet
+    generate_previews: bool = True  # Generate preview images (app-specific)
 
 
 class TagsUpdateRequest(BaseModel):
@@ -76,6 +91,19 @@ class TagRequest(BaseModel):
     """Request model for adding/removing a single tag."""
 
     tag: str
+
+
+class LoadFromPathRequest(BaseModel):
+    """Request model for loading a negotiation from an external path."""
+
+    path: str  # Path to a negotiation file or directory
+
+
+class ImportNegotiationRequest(BaseModel):
+    """Request model for importing a negotiation from an external path."""
+
+    path: str  # Path to a negotiation file or directory
+    tags: list[str] | None = None  # Optional tags to add to the imported negotiation
 
 
 def sanitize_float(value: float) -> float | None:
@@ -122,6 +150,9 @@ async def start_negotiation(request: StartNegotiationRequest):
         ignore_reserved=request.ignore_reserved,
         normalize=request.normalize,
         auto_save=request.auto_save,
+        save_options=request.save_options.model_dump()
+        if request.save_options
+        else None,
     )
 
     return {
@@ -160,6 +191,9 @@ async def start_negotiation_background(request: StartNegotiationRequest):
         ignore_reserved=request.ignore_reserved,
         normalize=request.normalize,
         auto_save=request.auto_save,
+        save_options=request.save_options.model_dump()
+        if request.save_options
+        else None,
     )
 
     # Start negotiation in background thread (non-blocking)
@@ -871,6 +905,158 @@ async def open_negotiation_folder(session_id: str):
             status_code=500,
             detail=f"File explorer command not found for platform: {system}",
         )
+
+
+@router.post("/load-from-path")
+async def load_negotiation_from_path(request: LoadFromPathRequest):
+    """Load a negotiation from an external file/folder path.
+
+    This loads the negotiation temporarily for viewing without saving it
+    to the app's storage. Use /import for permanent storage.
+
+    Returns full negotiation data that can be displayed in the UI.
+    """
+    from pathlib import Path
+
+    path = Path(request.path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Path not found: {request.path}")
+
+    session = await asyncio.to_thread(
+        NegotiationStorageService.load_from_path, request.path
+    )
+    if session is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to load negotiation from path: {request.path}",
+        )
+
+    # Convert to response format (same as get_saved_negotiation)
+    return {
+        "id": session.id,
+        "status": session.status.value,
+        "scenario_path": session.scenario_path,
+        "scenario_name": session.scenario_name
+        or (
+            session.scenario_path.split("/")[-1] if session.scenario_path else "Unknown"
+        ),
+        "mechanism_type": session.mechanism_type,
+        "negotiator_names": session.negotiator_names,
+        "negotiator_types": session.negotiator_types,
+        "negotiator_colors": [info.color for info in session.negotiator_infos]
+        if session.negotiator_infos
+        else [],
+        "current_step": session.current_step,
+        "n_steps": sanitize_float(session.n_steps) if session.n_steps else None,
+        "relative_time": session.offers[-1].relative_time if session.offers else 0.0,
+        "time_limit": sanitize_float(session.time_limit)
+        if session.time_limit
+        else None,
+        "issue_names": session.issue_names,
+        "start_time": session.start_time.isoformat() if session.start_time else None,
+        "end_time": session.end_time.isoformat() if session.end_time else None,
+        "agreement": session.agreement_dict,
+        "final_utilities": session.final_utilities,
+        "end_reason": session.end_reason,
+        "error": session.error,
+        "optimality_stats": sanitize_nan_values(session.optimality_stats),
+        "offers": [
+            {
+                "step": o.step,
+                "proposer": o.proposer,
+                "proposer_index": o.proposer_index,
+                "offer": o.offer_dict,
+                "utilities": o.utilities,
+                "relative_time": o.relative_time,
+            }
+            for o in session.offers
+        ],
+        "outcome_space_data": {
+            "outcome_utilities": sanitize_utilities(
+                session.outcome_space_data.outcome_utilities
+            ),
+            "pareto_utilities": sanitize_utilities(
+                session.outcome_space_data.pareto_utilities
+            ),
+            "reserved_values": [
+                sanitize_float(v) for v in session.outcome_space_data.reserved_values
+            ]
+            if session.outcome_space_data.reserved_values
+            else None,
+            "nash_point": {
+                "outcome": session.outcome_space_data.nash_point.outcome_dict,
+                "utilities": session.outcome_space_data.nash_point.utilities,
+                "welfare": sum(session.outcome_space_data.nash_point.utilities),
+            }
+            if session.outcome_space_data.nash_point
+            else None,
+            "kalai_point": {
+                "outcome": session.outcome_space_data.kalai_point.outcome_dict,
+                "utilities": session.outcome_space_data.kalai_point.utilities,
+                "welfare": sum(session.outcome_space_data.kalai_point.utilities),
+            }
+            if session.outcome_space_data.kalai_point
+            else None,
+            "kalai_smorodinsky_point": {
+                "outcome": session.outcome_space_data.kalai_smorodinsky_point.outcome_dict,
+                "utilities": session.outcome_space_data.kalai_smorodinsky_point.utilities,
+                "welfare": sum(
+                    session.outcome_space_data.kalai_smorodinsky_point.utilities
+                ),
+            }
+            if session.outcome_space_data.kalai_smorodinsky_point
+            else None,
+            "max_welfare_point": {
+                "outcome": session.outcome_space_data.max_welfare_point.outcome_dict,
+                "utilities": session.outcome_space_data.max_welfare_point.utilities,
+                "welfare": sum(session.outcome_space_data.max_welfare_point.utilities),
+            }
+            if session.outcome_space_data.max_welfare_point
+            else None,
+            "total_outcomes": session.outcome_space_data.total_outcomes,
+            "sampled": session.outcome_space_data.sampled,
+            "sample_size": session.outcome_space_data.sample_size,
+        }
+        if session.outcome_space_data
+        else None,
+        "source_path": request.path,  # Include source path for reference
+        "is_temporary": True,  # Flag indicating this is not saved to app storage
+    }
+
+
+@router.post("/import")
+async def import_negotiation(request: ImportNegotiationRequest):
+    """Import a negotiation from an external file/folder path.
+
+    This loads the negotiation, saves it to the app's storage directory
+    (~/negmas/app/negotiations) with import metadata, and returns the new session ID.
+
+    The imported negotiation can then be viewed, tagged, and managed like
+    any other saved negotiation.
+    """
+    from pathlib import Path
+
+    path = Path(request.path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Path not found: {request.path}")
+
+    session = await asyncio.to_thread(
+        NegotiationStorageService.import_negotiation,
+        request.path,
+        request.tags,
+    )
+    if session is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to import negotiation from path: {request.path}",
+        )
+
+    return {
+        "session_id": session.id,
+        "status": "imported",
+        "source_path": request.path,
+        "message": f"Negotiation imported successfully as '{session.id}'",
+    }
 
 
 @router.post("/saved/{session_id}/rerun")
