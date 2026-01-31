@@ -136,17 +136,19 @@ const displayData = computed(() => {
 
 // Watch for show changes to trigger fetch
 watch(() => props.show, (newShow) => {
-  if (newShow && props.fetchUrl && !fetchedData.value) {
+  if (newShow && props.fetchUrl) {
     fetchData()
   }
 })
 
-// Watch for URL changes
-watch(() => props.fetchUrl, () => {
-  fetchedData.value = null
-  error.value = null
-  if (props.show && props.fetchUrl) {
-    fetchData()
+// Watch for URL changes - always refetch when URL changes
+watch(() => props.fetchUrl, (newUrl, oldUrl) => {
+  if (newUrl !== oldUrl) {
+    fetchedData.value = null
+    error.value = null
+    if (props.show && newUrl) {
+      fetchData()
+    }
   }
 })
 
@@ -216,7 +218,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 2100;
   padding: 20px;
 }
 
