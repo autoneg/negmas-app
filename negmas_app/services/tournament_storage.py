@@ -2117,7 +2117,7 @@ class TournamentStorageService:
         """Load a negotiation from a standalone folder (like those in tournament negotiations/).
 
         This can load negotiations saved by cartesian_tournament or similar formats.
-        The folder should contain a CSV trace file and optionally scenario data.
+        Supports both CompletedRun folder format and legacy CSV trace files.
 
         Args:
             folder_path: Path to the folder containing negotiation data, or path to a CSV file.
@@ -2127,13 +2127,23 @@ class TournamentStorageService:
         """
         from pathlib import Path as P
 
+        from .negotiation_loader import NegotiationLoader
+
         folder = P(folder_path)
 
-        # If it's a file, load it directly as a trace
+        # First, try to load using NegotiationLoader (supports CompletedRun format)
+        # This handles: directories with run_info.yaml/config.yaml, CSV files, parquet files
+        try:
+            neg_data = NegotiationLoader.from_file(folder_path)
+            return neg_data.to_frontend_dict()
+        except Exception:
+            pass  # Fall back to legacy CSV loading
+
+        # Legacy fallback: If it's a file, load it directly as a trace
         if folder.is_file() and folder.suffix == ".csv":
             return cls._load_negotiation_from_csv(folder)
 
-        # If it's a directory, look for CSV files
+        # Legacy fallback: If it's a directory, look for CSV files
         if folder.is_dir():
             csv_files = list(folder.glob("*.csv"))
             if csv_files:
