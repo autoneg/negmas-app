@@ -418,14 +418,21 @@
             
             <div style="margin-bottom: 16px;">
               <label class="form-label">Path to negotiation file or folder:</label>
-              <input 
-                type="text" 
-                v-model="loadImportPath" 
-                @keyup.enter="loadNegotiationFromPath"
-                placeholder="/path/to/negotiation or /path/to/trace.parquet"
-                class="form-input"
-                style="width: 100%;"
-              >
+              <div style="display: flex; gap: 8px;">
+                <input 
+                  type="text" 
+                  v-model="loadImportPath" 
+                  @keyup.enter="loadNegotiationFromPath"
+                  placeholder="/path/to/negotiation or /path/to/trace.parquet"
+                  class="form-input"
+                  style="flex: 1;"
+                >
+                <button class="btn btn-secondary" @click="browseForPath('load')" title="Browse for folder">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </button>
+              </div>
             </div>
             
             <p class="text-muted" style="font-size: 12px;">
@@ -465,14 +472,21 @@
             
             <div style="margin-bottom: 16px;">
               <label class="form-label">Path to negotiation file or folder:</label>
-              <input 
-                type="text" 
-                v-model="loadImportPath" 
-                @keyup.enter="importNegotiationFromPath"
-                placeholder="/path/to/negotiation or /path/to/trace.parquet"
-                class="form-input"
-                style="width: 100%;"
-              >
+              <div style="display: flex; gap: 8px;">
+                <input 
+                  type="text" 
+                  v-model="loadImportPath" 
+                  @keyup.enter="importNegotiationFromPath"
+                  placeholder="/path/to/negotiation or /path/to/trace.parquet"
+                  class="form-input"
+                  style="flex: 1;"
+                >
+                <button class="btn btn-secondary" @click="browseForPath('import')" title="Browse for folder">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </button>
+              </div>
             </div>
             
             <div style="margin-bottom: 16px;">
@@ -1465,6 +1479,32 @@ function removeImportTag(tag) {
   const index = importTags.value.indexOf(tag)
   if (index > -1) {
     importTags.value.splice(index, 1)
+  }
+}
+
+async function browseForPath(mode) {
+  try {
+    const response = await fetch('/api/system/browse-folder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        title: mode === 'load' ? 'Select Negotiation Folder' : 'Select Negotiation to Import',
+        initial_dir: loadImportPath.value || null
+      })
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Browse failed:', error.detail)
+      return
+    }
+    
+    const data = await response.json()
+    if (!data.cancelled && data.path) {
+      loadImportPath.value = data.path
+    }
+  } catch (error) {
+    console.error('Failed to open folder browser:', error)
   }
 }
 

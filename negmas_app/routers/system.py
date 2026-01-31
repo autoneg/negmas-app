@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import platform
 import subprocess
+import threading
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -16,6 +17,21 @@ class OpenFolderRequest(BaseModel):
     """Request to open a folder in the system file explorer."""
 
     path: str
+
+
+class BrowseRequest(BaseModel):
+    """Request to open a file/folder browser dialog."""
+
+    initial_dir: str | None = None
+    title: str | None = None
+    file_types: list[tuple[str, str]] | None = None  # e.g., [("JSON files", "*.json")]
+
+
+class BrowseResponse(BaseModel):
+    """Response from file/folder browser dialog."""
+
+    path: str | None
+    cancelled: bool
 
 
 @router.post("/open-folder")
@@ -78,3 +94,113 @@ async def open_folder(request: OpenFolderRequest) -> dict[str, str]:
         raise HTTPException(status_code=500, detail=f"Failed to open folder: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
+
+
+def _run_folder_dialog(initial_dir: str | None, title: str | None) -> str | None:
+    """Run folder selection dialog in a separate thread (required for tkinter)."""
+    import tkinter as tk
+    from tkinter import filedialog
+
+    result: list[str | None] = [None]
+
+    def show_dialog():
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
+        root.attributes("-topmost", True)  # Bring dialog to front
+
+        selected = filedialog.askdirectory(
+            initialdir=initial_dir or str(Path.home()),
+            title=title or "Select Folder",
+        )
+
+        result[0] = selected if selected else None
+        root.destroy()
+
+    # Run in main thread context
+    show_dialog()
+    return result[0]
+
+
+def _run_file_dialog(
+    initial_dir: str | None,
+    title: str | None,
+    file_types: list[tuple[str, str]] | None,
+) -> str | None:
+    """Run file selection dialog in a separate thread (required for tkinter)."""
+    import tkinter as tk
+    from tkinter import filedialog
+
+    result: list[str | None] = [None]
+
+    def show_dialog():
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
+        root.attributes("-topmost", True)  # Bring dialog to front
+
+        # Default file types if none provided
+        ftypes = file_types or [("All files", "*.*")]
+
+        selected = filedialog.askopenfilename(
+            initialdir=initial_dir or str(Path.home()),
+            title=title or "Select File",
+            filetypes=ftypes,
+        )
+
+        result[0] = selected if selected else None
+        root.destroy()
+
+    # Run in main thread context
+    show_dialog()
+    return result[0]
+
+
+@router.post("/browse-folder", response_model=BrowseResponse)
+async def browse_folder(request: BrowseRequest) -> BrowseResponse:
+    """Open a native folder selection dialog.
+
+    Args:
+        request: Request with optional initial directory and title.
+
+    Returns:
+        Selected folder path or cancelled status.
+    """
+    try:
+        # Run tkinter dialog (must be in main thread on macOS)
+        selected_path = _run_folder_dialog(request.initial_dir, request.title)
+
+        if selected_path:
+            return BrowseResponse(path=selected_path, cancelled=False)
+        else:
+            return BrowseResponse(path=None, cancelled=True)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to open folder dialog: {e}"
+        )
+
+
+@router.post("/browse-file", response_model=BrowseResponse)
+async def browse_file(request: BrowseRequest) -> BrowseResponse:
+    """Open a native file selection dialog.
+
+    Args:
+        request: Request with optional initial directory, title, and file types.
+
+    Returns:
+        Selected file path or cancelled status.
+    """
+    try:
+        # Convert file_types from list of lists to list of tuples if needed
+        file_types: list[tuple[str, str]] | None = None
+        if request.file_types:
+            file_types = [(str(ft[0]), str(ft[1])) for ft in request.file_types]
+
+        selected_path = _run_file_dialog(request.initial_dir, request.title, file_types)
+
+        if selected_path:
+            return BrowseResponse(path=selected_path, cancelled=False)
+        else:
+            return BrowseResponse(path=None, cancelled=True)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to open file dialog: {e}")
