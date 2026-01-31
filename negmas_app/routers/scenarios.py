@@ -842,6 +842,138 @@ async def get_ufun_details(scenario_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/{scenario_id}/ufuns/{ufun_index}/serialized")
+async def get_ufun_serialized(scenario_id: str, ufun_index: int):
+    """Get fully serialized utility function data for detailed display.
+
+    Uses negmas.serialize() with deep=True to convert the ufun to a
+    nested dict/list structure suitable for tree view display.
+
+    Args:
+        scenario_id: Base64-encoded scenario path.
+        ufun_index: Index of the utility function (0-based).
+
+    Returns:
+        Serialized ufun data as nested dict/list.
+    """
+    from negmas.serialization import serialize
+
+    try:
+        path = decode_scenario_path(scenario_id)
+        scenario = await get_cached_scenario(path, load_info=True, load_stats=False)
+
+        if ufun_index < 0 or ufun_index >= len(scenario.ufuns):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Ufun index {ufun_index} out of range (0-{len(scenario.ufuns) - 1})",
+            )
+
+        ufun = scenario.ufuns[ufun_index]
+
+        # Serialize with type field for display
+        serialized = await asyncio.to_thread(
+            serialize,
+            ufun,
+            deep=True,
+            python_class_identifier="type",
+            shorten_type_field=False,
+        )
+
+        return {
+            "success": True,
+            "data": serialized,
+            "name": getattr(ufun, "name", f"Utility Function {ufun_index + 1}"),
+            "object_type": "ufun",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{scenario_id}/outcome-space/serialized")
+async def get_outcome_space_serialized(scenario_id: str):
+    """Get fully serialized outcome space data for detailed display.
+
+    Uses negmas.serialize() with deep=True to convert the outcome space to a
+    nested dict/list structure suitable for tree view display.
+
+    Args:
+        scenario_id: Base64-encoded scenario path.
+
+    Returns:
+        Serialized outcome space data as nested dict/list.
+    """
+    from negmas.serialization import serialize
+
+    try:
+        path = decode_scenario_path(scenario_id)
+        scenario = await get_cached_scenario(path, load_info=True, load_stats=False)
+
+        # Serialize with type field for display
+        serialized = await asyncio.to_thread(
+            serialize,
+            scenario.outcome_space,
+            deep=True,
+            python_class_identifier="type",
+            shorten_type_field=False,
+        )
+
+        return {
+            "success": True,
+            "data": serialized,
+            "name": getattr(scenario.outcome_space, "name", "Outcome Space"),
+            "object_type": "outcome_space",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{scenario_id}/serialized")
+async def get_scenario_serialized(scenario_id: str):
+    """Get fully serialized scenario data for detailed display.
+
+    Uses negmas.serialize() with deep=True to convert the entire scenario to a
+    nested dict/list structure suitable for tree view display.
+
+    Args:
+        scenario_id: Base64-encoded scenario path.
+
+    Returns:
+        Serialized scenario data as nested dict/list.
+    """
+    from negmas.serialization import serialize
+
+    try:
+        path = decode_scenario_path(scenario_id)
+        scenario = await get_cached_scenario(path, load_info=True, load_stats=True)
+
+        # Serialize with type field for display
+        serialized = await asyncio.to_thread(
+            serialize,
+            scenario,
+            deep=True,
+            python_class_identifier="type",
+            shorten_type_field=False,
+        )
+
+        return {
+            "success": True,
+            "data": serialized,
+            "name": Path(path).name,
+            "object_type": "scenario",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{scenario_id}/files/{file_path:path}")
 async def get_scenario_file_content(scenario_id: str, file_path: str):
     """Get the content of a scenario file for editing.

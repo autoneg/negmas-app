@@ -153,6 +153,14 @@
               <h4 class="stats-section-title clickable" @click="togglePanel('outcomeSpace')">
                 <span class="collapse-icon">{{ panels.outcomeSpace ? '▼' : '▶' }}</span>
                 Outcome Space
+                <button 
+                  v-if="scenarioId && panels.outcomeSpace" 
+                  class="btn-details" 
+                  @click.stop="showObjectDetail('outcome_space', 'Outcome Space', 'OutcomeSpace')"
+                  title="View full details"
+                >
+                  Details
+                </button>
               </h4>
               <div v-show="panels.outcomeSpace" class="stats-rows">
                 <div v-if="scenarioInfo?.issues && scenarioInfo.issues.length > 0">
@@ -187,12 +195,19 @@
                   Loading...
                 </div>
                 <div v-else-if="ufunDetails && ufunDetails.length > 0" class="ufuns-list">
-                  <UfunDisplay 
-                    v-for="(ufun, idx) in ufunDetails" 
-                    :key="`ufun-${idx}`"
-                    :ufun="ufun"
-                    :index="idx"
-                  />
+                  <div v-for="(ufun, idx) in ufunDetails" :key="`ufun-${idx}`" class="ufun-with-details">
+                    <UfunDisplay 
+                      :ufun="ufun"
+                      :index="idx"
+                    />
+                    <button 
+                      class="btn-details-small" 
+                      @click="showObjectDetail('ufun', ufun.name || `Utility Function ${idx + 1}`, ufun.type || 'UtilityFunction', idx)"
+                      title="View full details"
+                    >
+                      Details
+                    </button>
+                  </div>
                 </div>
                 <div v-else-if="scenarioInfo?.n_negotiators" class="ufuns-list">
                   <div v-for="idx in scenarioInfo.n_negotiators" :key="`ufun-${idx}`" class="ufun-placeholder">
@@ -371,11 +386,23 @@
       </div>
     </div>
   </div>
+
+  <!-- Object Detail Modal (for ufuns, outcome space, scenario) -->
+  <ObjectDetailModal
+    :show="showObjectDetailModal"
+    :title="objectDetailTitle"
+    :object-type="objectDetailType"
+    :fetch-url="objectDetailUrl"
+    :large="true"
+    :default-expand-depth="2"
+    @close="showObjectDetailModal = false"
+  />
 </template>
 
 <script setup>
 import { computed, ref, watch, reactive } from 'vue'
 import UfunDisplay from './UfunDisplay.vue'
+import ObjectDetailModal from './ObjectDetailModal.vue'
 
 const props = defineProps({
   show: {
@@ -415,6 +442,12 @@ const panels = reactive({
 const showOutcomeModal = ref(false)
 const outcomeModalTitle = ref('')
 const outcomeModalData = ref(null)
+
+// Object detail modal (for ufuns, outcome space, etc.)
+const showObjectDetailModal = ref(false)
+const objectDetailTitle = ref('')
+const objectDetailType = ref('')
+const objectDetailUrl = ref('')
 
 // Compute scenario ID from path
 const scenarioId = computed(() => {
@@ -696,6 +729,25 @@ function showOutcomeDetail(title, outcome) {
   outcomeModalTitle.value = `${title} Solution - Full Outcome`
   outcomeModalData.value = outcome
   showOutcomeModal.value = true
+}
+
+// Show object detail modal (ufun, outcome space, scenario)
+function showObjectDetail(type, title, objectType, index = null) {
+  if (!scenarioId.value) return
+  
+  objectDetailTitle.value = title
+  objectDetailType.value = objectType
+  
+  // Build URL based on type
+  if (type === 'ufun' && index !== null) {
+    objectDetailUrl.value = `/api/scenarios/${scenarioId.value}/ufuns/${index}/serialized`
+  } else if (type === 'outcome_space') {
+    objectDetailUrl.value = `/api/scenarios/${scenarioId.value}/outcome-space/serialized`
+  } else if (type === 'scenario') {
+    objectDetailUrl.value = `/api/scenarios/${scenarioId.value}/serialized`
+  }
+  
+  showObjectDetailModal.value = true
 }
 
 function truncatePath(path) {
@@ -1056,5 +1108,46 @@ function truncatePath(path) {
   .stats-grid-4col {
     grid-template-columns: 1fr;
   }
+}
+
+/* Details buttons */
+.btn-details {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 10px;
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-details:hover {
+  background: var(--accent-primary-hover, #0056b3);
+}
+
+.ufun-with-details {
+  position: relative;
+}
+
+.btn-details-small {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 6px;
+  font-size: 9px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-details-small:hover {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
 }
 </style>
