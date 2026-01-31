@@ -167,7 +167,12 @@ def _run_negotiation_in_thread(
         )
 
         # Compute outcome space data for visualization
-        outcome_space_data = compute_outcome_space_data(scenario, max_outcome_samples)
+        outcome_space_data = compute_outcome_space_data(
+            scenario,
+            max_samples=max_outcome_samples,
+            use_cached_stats=True,
+            scenario_path=scenario_path,
+        )
         session.outcome_space_data = outcome_space_data
 
         # Run mechanism and collect history

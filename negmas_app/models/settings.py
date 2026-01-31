@@ -203,6 +203,12 @@ class PerformanceSettings:
     # (scenarios without named issues where histogram shows all outcomes)
     max_histogram_outcomes: int = 10_000
 
+    # Maximum number of outcomes for auto-calculating stats in 2D utility view
+    # If a scenario has fewer outcomes than this and stats are not cached,
+    # stats will be computed automatically and cached (if in ~/negmas/app)
+    # Set to 0 to disable auto-calculation
+    max_auto_calc_stats: int = 10_000
+
     # Maximum number of Pareto frontier outcomes to save in cache
     # If the Pareto frontier has more outcomes than this limit, it will not be saved
     # This also affects special point outcomes (nash_outcomes, kalai_outcomes, etc.)

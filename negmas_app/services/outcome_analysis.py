@@ -63,6 +63,9 @@ def compute_outcome_space_data(
     scenario: Scenario,
     max_samples: int = 50000,
     use_cached_stats: bool = True,
+    max_auto_calc_stats: int = 10000,
+    scenario_path: str | None = None,
+    cache_if_under_app_dir: bool = True,
 ) -> OutcomeSpaceData:
     """Compute full outcome space analysis data.
 
@@ -70,15 +73,61 @@ def compute_outcome_space_data(
         scenario: Loaded scenario with ufuns and outcome_space.
         max_samples: Maximum outcomes to sample for display.
         use_cached_stats: If True and scenario.stats exists, use cached values.
+        max_auto_calc_stats: If scenario has fewer outcomes than this and stats
+            are not cached, compute stats automatically. Set to 0 to disable.
+        scenario_path: Path to the scenario directory (for caching).
+        cache_if_under_app_dir: If True and scenario_path is under ~/negmas/app,
+            cache computed stats to disk.
 
     Returns:
         OutcomeSpaceData with all computed values.
     """
+    from pathlib import Path
+
     # Use cached stats if available
     if use_cached_stats and scenario.stats is not None:
         return _from_cached_stats(scenario, max_samples)
 
-    # Otherwise compute from scratch
+    # Check if we should auto-calculate stats for small scenarios
+    total_outcomes = scenario.outcome_space.cardinality
+    should_auto_calc = (
+        max_auto_calc_stats > 0
+        and isinstance(total_outcomes, int)
+        and total_outcomes <= max_auto_calc_stats
+    )
+
+    if should_auto_calc:
+        # Calculate stats (this computes Pareto, Nash, Kalai, etc.)
+        try:
+            scenario.calc_stats()
+            # Also calculate info
+            scenario.calc_info()
+
+            # Cache to disk if under ~/negmas/app
+            if cache_if_under_app_dir and scenario_path:
+                app_dir = Path.home() / "negmas" / "app"
+                scenario_dir = Path(scenario_path).expanduser().resolve()
+                try:
+                    # Check if scenario is under app directory
+                    scenario_dir.relative_to(app_dir.resolve())
+                    # Save stats and info to disk
+                    scenario.dumpas(
+                        scenario_dir,
+                        save_stats=True,
+                        save_info=True,
+                    )
+                except (ValueError, OSError):
+                    # Not under app dir or save failed - continue without caching
+                    pass
+        except Exception:
+            # Stats calculation failed - continue without stats
+            pass
+
+        # Now use cached stats if they were computed
+        if scenario.stats is not None:
+            return _from_cached_stats(scenario, max_samples)
+
+    # Otherwise compute from scratch (without special points)
     return _compute_from_scratch(scenario, max_samples)
 
 

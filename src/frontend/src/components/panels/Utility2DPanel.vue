@@ -107,6 +107,21 @@
         />
       </div>
       
+      <!-- Aspect Ratio Toggle -->
+      <button 
+        class="panel-btn" 
+        :class="{ 'active': lockAspectRatio }"
+        :title="lockAspectRatio ? 'Unlock aspect ratio' : 'Lock aspect ratio (1:1)'"
+        @click="toggleAspectRatio" 
+        v-show="!collapsed && hasData"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <line x1="3" y1="12" x2="21" y2="12" opacity="0.5"/>
+          <line x1="12" y1="3" x2="12" y2="21" opacity="0.5"/>
+        </svg>
+      </button>
+      
       <!-- Collapse -->
       <button 
         class="panel-btn panel-collapse-btn" 
@@ -206,6 +221,7 @@ const collapsed = ref(false)
 const plotInitialized = ref(false)
 const showInteractive = ref(false)
 const outcomeOpacityPercent = ref(50) // 0-100, default 50%
+const lockAspectRatio = ref(true) // Default to locked (1:1) aspect ratio
 
 // Axis indices
 const xAxisIndex = ref(props.initialXAxis)
@@ -476,18 +492,17 @@ async function initPlot() {
       })
     }
     
-    // 9. Reserved value lines - only draw if reserved values are finite and positive
+    // 9. Reserved value lines
+    // Vertical line at x=reservedX, horizontal at y=reservedY
+    // Always draw if the reserved value is finite (not NaN, not Infinity)
     const reservedValues = osd.reserved_values || []
     const shapes = []
     
-    // Check if reserved values are valid (finite and positive numbers)
     const xReserved = reservedValues[xIdx]
     const yReserved = reservedValues[yIdx]
-    const hasValidXReserved = typeof xReserved === 'number' && isFinite(xReserved) && xReserved > 0
-    const hasValidYReserved = typeof yReserved === 'number' && isFinite(yReserved) && yReserved > 0
     
-    if (hasValidXReserved) {
-      // Vertical line for X-axis negotiator's reserved value
+    // Vertical dashed line at x = reservedX (if finite)
+    if (typeof xReserved === 'number' && isFinite(xReserved)) {
       shapes.push({
         type: 'line',
         xref: 'x',
@@ -504,8 +519,9 @@ async function initPlot() {
         opacity: 0.5
       })
     }
-    if (hasValidYReserved) {
-      // Horizontal line for Y-axis negotiator's reserved value
+    
+    // Horizontal dashed line at y = reservedY (if finite)
+    if (typeof yReserved === 'number' && isFinite(yReserved)) {
       shapes.push({
         type: 'line',
         xref: 'paper',
@@ -523,50 +539,31 @@ async function initPlot() {
       })
     }
     
-    // Add irrational region shading (below reserved values) - only if at least one reserved value is valid
-    if (hasValidXReserved || hasValidYReserved) {
-      // Get min/max utilities to determine bounds
-      const allX = traces.flatMap(t => t.x || []).filter(x => typeof x === 'number')
-      const allY = traces.flatMap(t => t.y || []).filter(y => typeof y === 'number')
-      const minX = Math.min(...allX, 0)
-      const maxX = Math.max(...allX, 1)
-      const minY = Math.min(...allY, 0)
-      const maxY = Math.max(...allY, 1)
-      
-      // Add gray rectangle for irrational region below X reserved value (if valid)
-      if (hasValidXReserved) {
-        shapes.push({
-          type: 'rect',
-          xref: 'x',
-          yref: 'y',
-          x0: minX,
-          y0: minY,
-          x1: xReserved,
-          y1: maxY,
-          fillcolor: colors.textColor,
-          opacity: 0.1,
-          line: { width: 0 },
-          layer: 'below'
-        })
-      }
-      
-      // Add gray rectangle for irrational region below Y reserved value (if valid)
-      if (hasValidYReserved) {
-        shapes.push({
-          type: 'rect',
-          xref: 'x',
-          yref: 'y',
-          x0: minX,
-          y0: minY,
-          x1: maxX,
-          y1: yReserved,
-          fillcolor: colors.textColor,
-          opacity: 0.1,
-          line: { width: 0 },
-          layer: 'below'
-        })
-      }
-    }
+    // Determine legend position based on panel dimensions
+    const panelWidth = plotDiv.value?.clientWidth || 400
+    const panelHeight = plotDiv.value?.clientHeight || 300
+    const isWide = panelWidth > panelHeight
+    
+    // Legend configuration: right side if wide, bottom if tall
+    const legendConfig = isWide 
+      ? { 
+          orientation: 'v', 
+          x: 1.02, 
+          y: 1, 
+          xanchor: 'left',
+          yanchor: 'top',
+          font: { color: colors.textColor, size: 10 } 
+        }
+      : { 
+          orientation: 'h', 
+          y: -0.15, 
+          font: { color: colors.textColor, size: 10 } 
+        }
+    
+    // Adjust margins based on legend position
+    const marginConfig = isWide
+      ? { t: 30, r: 120, b: 50, l: 50 }  // More right margin for legend
+      : { t: 30, r: 30, b: 50, l: 50 }
     
     const layout = {
       shapes: shapes,
@@ -578,7 +575,8 @@ async function initPlot() {
         tickfont: { color: colors.textColor },
         gridcolor: colors.gridColor,
         linecolor: colors.gridColor,
-        zerolinecolor: colors.gridColor
+        zerolinecolor: colors.gridColor,
+        constrain: lockAspectRatio.value ? 'domain' : undefined
       },
       yaxis: { 
         title: { 
@@ -588,14 +586,13 @@ async function initPlot() {
         tickfont: { color: colors.textColor },
         gridcolor: colors.gridColor,
         linecolor: colors.gridColor,
-        zerolinecolor: colors.gridColor
+        zerolinecolor: colors.gridColor,
+        scaleanchor: lockAspectRatio.value ? 'x' : undefined,
+        scaleratio: lockAspectRatio.value ? 1 : undefined,
+        constrain: lockAspectRatio.value ? 'domain' : undefined
       },
-      margin: { t: 30, r: 30, b: 50, l: 50 },
-      legend: { 
-        orientation: 'h', 
-        y: -0.15, 
-        font: { color: colors.textColor, size: 10 } 
-      },
+      margin: marginConfig,
+      legend: legendConfig,
       paper_bgcolor: colors.bgColor,
       plot_bgcolor: colors.bgColor,
       font: { 
@@ -696,6 +693,14 @@ function onImageError(event) {
   })
   console.warn('Failed to load preview image, falling back to interactive mode')
   showInteractive.value = true
+}
+
+// Toggle aspect ratio lock
+function toggleAspectRatio() {
+  lockAspectRatio.value = !lockAspectRatio.value
+  if (plotInitialized.value) {
+    initPlot()
+  }
 }
 
 // Watch for data changes - throttled for smooth updates

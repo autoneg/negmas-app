@@ -1660,13 +1660,17 @@ class TournamentStorageService:
 
             # Compute outcome space data
             osd = compute_outcome_space_data(
-                scenario, max_samples=max_samples, use_cached_stats=True
+                scenario,
+                max_samples=max_samples,
+                use_cached_stats=True,
+                scenario_path=str(scenario_dir),
             )
 
             # Convert to JSON-serializable format
             return {
                 "outcome_utilities": osd.outcome_utilities,
                 "pareto_utilities": osd.pareto_utilities,
+                "reserved_values": osd.reserved_values,
                 "nash_point": osd.nash_point.utilities if osd.nash_point else None,
                 "kalai_point": osd.kalai_point.utilities if osd.kalai_point else None,
                 "kalai_smorodinsky_point": osd.kalai_smorodinsky_point.utilities
@@ -1916,11 +1920,15 @@ class TournamentStorageService:
 
                     # Compute outcome space data
                     osd = compute_outcome_space_data(
-                        scenario, max_samples=50000, use_cached_stats=True
+                        scenario,
+                        max_samples=50000,
+                        use_cached_stats=True,
+                        scenario_path=str(scenario_dir),
                     )
                     outcome_space_data = {
                         "outcome_utilities": osd.outcome_utilities,
                         "pareto_utilities": osd.pareto_utilities,
+                        "reserved_values": osd.reserved_values,
                         "nash_point": osd.nash_point.utilities
                         if osd.nash_point
                         else None,

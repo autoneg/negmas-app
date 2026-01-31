@@ -154,6 +154,7 @@ class NegotiationData:
         result: dict[str, Any] = {
             "outcome_utilities": osd.outcome_utilities,
             "pareto_utilities": osd.pareto_utilities,
+            "reserved_values": osd.reserved_values,
             "total_outcomes": osd.total_outcomes,
             "sampled": osd.sampled,
             "sample_size": osd.sample_size,
@@ -326,7 +327,10 @@ class NegotiationLoader:
             }
 
         # Build outcome space data from scenario
-        outcome_space_data = cls._build_outcome_space_data(scenario)
+        outcome_space_data = cls._build_outcome_space_data(
+            scenario,
+            scenario_path=scenario_path_from_meta or source_path,
+        )
 
         # Determine scenario name
         final_scenario_name = scenario_name or ""
@@ -746,85 +750,35 @@ class NegotiationLoader:
 
     @classmethod
     def _build_outcome_space_data(
-        cls, scenario: Scenario | None
+        cls,
+        scenario: Scenario | None,
+        scenario_path: str | None = None,
+        max_auto_calc_stats: int = 10000,
     ) -> OutcomeSpaceData | None:
-        """Build outcome space visualization data from scenario."""
+        """Build outcome space visualization data from scenario.
+
+        Args:
+            scenario: The loaded scenario.
+            scenario_path: Path to the scenario directory (for caching).
+            max_auto_calc_stats: If scenario has fewer outcomes than this and stats
+                are not cached, compute stats automatically.
+
+        Returns:
+            OutcomeSpaceData with all computed values, or None if scenario is invalid.
+        """
         if not scenario or not scenario.outcome_space:
             return None
 
         try:
-            # Calculate stats if not already done
-            if not hasattr(scenario, "_stats") or scenario._stats is None:
-                scenario.calc_stats()
+            from .outcome_analysis import compute_outcome_space_data
 
-            stats = scenario._stats
-            if not stats:
-                return None
-
-            # Get all outcome utilities (sample if too large)
-            MAX_OUTCOMES = 5000
-            outcome_utilities: list[tuple[float, ...]] = []
-
-            try:
-                outcomes = list(
-                    scenario.outcome_space.enumerate_or_sample(MAX_OUTCOMES)
-                )
-                for outcome in outcomes:
-                    utils = tuple(
-                        float(ufun(outcome)) if ufun(outcome) is not None else 0.0
-                        for ufun in scenario.ufuns
-                    )
-                    outcome_utilities.append(utils)
-            except Exception:
-                pass
-
-            # Get Pareto frontier
-            pareto_utilities: list[tuple[float, ...]] = []
-            if hasattr(stats, "pareto_utils") and stats.pareto_utils:
-                pareto_utilities = [tuple(u) for u in stats.pareto_utils]
-
-            # Get special points
-            nash_point = None
-            if hasattr(stats, "nash_utils") and stats.nash_utils:
-                nash_point = AnalysisPoint(
-                    name="nash",
-                    utilities=list(stats.nash_utils[0]) if stats.nash_utils else [],
-                )
-
-            kalai_point = None
-            if hasattr(stats, "kalai_utils") and stats.kalai_utils:
-                kalai_point = AnalysisPoint(
-                    name="kalai",
-                    utilities=list(stats.kalai_utils[0]) if stats.kalai_utils else [],
-                )
-
-            ks_point = None
-            if hasattr(stats, "ks_utils") and stats.ks_utils:
-                ks_point = AnalysisPoint(
-                    name="kalai_smorodinsky",
-                    utilities=list(stats.ks_utils[0]) if stats.ks_utils else [],
-                )
-
-            max_welfare_point = None
-            if hasattr(stats, "max_welfare_utils") and stats.max_welfare_utils:
-                max_welfare_point = AnalysisPoint(
-                    name="max_welfare",
-                    utilities=list(stats.max_welfare_utils[0])
-                    if stats.max_welfare_utils
-                    else [],
-                )
-
-            return OutcomeSpaceData(
-                outcome_utilities=outcome_utilities,
-                pareto_utilities=pareto_utilities,
-                nash_point=nash_point,
-                kalai_point=kalai_point,
-                kalai_smorodinsky_point=ks_point,
-                max_welfare_point=max_welfare_point,
-                total_outcomes=len(outcome_utilities),
-                sampled=len(outcome_utilities) >= MAX_OUTCOMES,
-                sample_size=len(outcome_utilities),
+            return compute_outcome_space_data(
+                scenario,
+                max_samples=5000,
+                use_cached_stats=True,
+                max_auto_calc_stats=max_auto_calc_stats,
+                scenario_path=scenario_path,
+                cache_if_under_app_dir=True,
             )
-
         except Exception:
             return None

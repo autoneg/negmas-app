@@ -279,6 +279,20 @@
                   placeholder="10000000"
                 />
               </div>
+              
+              <div class="setting-row">
+                <div class="setting-info">
+                  <div class="setting-name">Max Outcomes for Auto-Calculate Stats</div>
+                  <div class="setting-desc">Auto-calculate stats for small scenarios (0 = disabled). If a scenario has fewer outcomes than this and stats are not cached, they will be computed automatically.</div>
+                </div>
+                <input
+                  v-model.number="localSettings.performance.max_auto_calc_stats"
+                  type="number"
+                  min="0"
+                  class="setting-input number"
+                  placeholder="10000"
+                />
+              </div>
             </div>
             
             <div class="setting-group">
