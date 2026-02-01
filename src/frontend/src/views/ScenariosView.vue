@@ -849,6 +849,147 @@
       :fetch-url="objectDetailUrl"
       @close="showObjectDetailModal = false"
     />
+    
+    <!-- Import Scenario Modal -->
+    <Teleport to="body">
+      <div v-if="showImportModal" class="modal-overlay" @click="closeImportModal">
+        <div class="modal import-modal" @click.stop>
+          <div class="modal-header">
+            <h3>Import Scenario</h3>
+            <button class="btn-close" @click="closeImportModal">×</button>
+          </div>
+          
+          <div class="modal-body">
+            <!-- Path Input -->
+            <div class="form-group">
+              <label>Source Path</label>
+              <div class="path-input-row">
+                <input
+                  v-model="importPath"
+                  type="text"
+                  class="input-text"
+                  placeholder="Enter path to scenario folder, zip file, or file..."
+                  @keyup.enter="validateImportPath"
+                />
+                <button 
+                  class="btn-secondary btn-icon-browse" 
+                  @click="browseForFolder"
+                  title="Browse for folder"
+                  :disabled="importLoading"
+                >
+                  📁
+                </button>
+                <button 
+                  class="btn-secondary btn-icon-browse" 
+                  @click="browseForFile"
+                  title="Browse for file (zip or scenario file)"
+                  :disabled="importLoading"
+                >
+                  📄
+                </button>
+              </div>
+              <p class="form-hint">
+                Supports: folder with scenario files, .zip archive, or single scenario file (yaml/xml/json)
+              </p>
+            </div>
+            
+            <!-- Validation Status -->
+            <div v-if="importValidating" class="import-status validating">
+              <span class="spinner-small"></span> Validating scenario...
+            </div>
+            
+            <div v-if="importError" class="import-status error">
+              {{ importError }}
+            </div>
+            
+            <div v-if="importValidated && !importError" class="import-status success">
+              Scenario validated successfully!
+            </div>
+            
+            <!-- Scenario Info (shown after validation) -->
+            <div v-if="importValidated && importScenarioInfo" class="import-scenario-info">
+              <div class="info-row">
+                <span class="info-label">Negotiators:</span>
+                <span class="info-value">{{ importScenarioInfo.n_negotiators }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Issues:</span>
+                <span class="info-value">{{ importScenarioInfo.n_issues }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Outcomes:</span>
+                <span class="info-value">{{ formatNumber(importScenarioInfo.n_outcomes) }}</span>
+              </div>
+              <div class="info-row" v-if="importScenarioInfo.format">
+                <span class="info-label">Format:</span>
+                <span class="info-value">{{ importScenarioInfo.format.toUpperCase() }}</span>
+              </div>
+            </div>
+            
+            <!-- Name Input -->
+            <div class="form-group" v-if="importValidated">
+              <label>Scenario Name</label>
+              <input
+                v-model="importName"
+                type="text"
+                class="input-text"
+                placeholder="Enter a name for the imported scenario"
+              />
+              <p class="form-hint">
+                Will be saved to ~/negmas/app/scenarios/imported/{{ importName || '...' }}
+              </p>
+            </div>
+            
+            <!-- Cache Options -->
+            <div class="form-group" v-if="importValidated">
+              <label>Options</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="importCacheStats" />
+                  <span>Calculate and cache statistics</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="importGeneratePreviews" />
+                  <span>Generate preview images</span>
+                </label>
+              </div>
+            </div>
+            
+            <!-- Import Progress -->
+            <div v-if="importLoading && !importValidating" class="import-progress">
+              <div class="progress-bar">
+                <div class="progress-fill" :style="{ width: importProgress + '%' }"></div>
+              </div>
+              <p class="progress-text">{{ importProgressText }}</p>
+            </div>
+          </div>
+          
+          <div class="modal-footer">
+            <button class="btn-secondary" @click="closeImportModal" :disabled="importLoading">
+              Cancel
+            </button>
+            <button 
+              v-if="!importValidated"
+              class="btn-primary" 
+              @click="validateImportPath"
+              :disabled="!importPath || importLoading"
+            >
+              <span v-if="importValidating">Validating...</span>
+              <span v-else>Validate</span>
+            </button>
+            <button 
+              v-else
+              class="btn-primary" 
+              @click="performImport"
+              :disabled="!importName || importLoading"
+            >
+              <span v-if="importLoading && !importValidating">Importing...</span>
+              <span v-else>Import</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -919,6 +1060,20 @@ const editingFileTitle = ref('')
 // Status dropdown state
 const showStatusDropdown = ref(false)
 const showBulkActionsMenu = ref(false)
+
+// Import modal state
+const showImportModal = ref(false)
+const importPath = ref('')
+const importName = ref('')
+const importLoading = ref(false)
+const importValidating = ref(false)
+const importValidated = ref(false)
+const importError = ref('')
+const importScenarioInfo = ref(null)
+const importCacheStats = ref(true)
+const importGeneratePreviews = ref(true)
+const importProgress = ref(0)
+const importProgressText = ref('')
 
 // Collapsible panel states
 const panelsCollapsed = ref({
@@ -1886,6 +2041,187 @@ async function bulkDelete() {
   } catch (error) {
     console.error('Failed to bulk delete:', error)
     alert(`Failed to delete scenarios: ${error.message}`)
+  }
+}
+
+// Import modal functions
+function closeImportModal() {
+  showImportModal.value = false
+  resetImportState()
+}
+
+function resetImportState() {
+  importPath.value = ''
+  importName.value = ''
+  importLoading.value = false
+  importValidating.value = false
+  importValidated.value = false
+  importError.value = ''
+  importScenarioInfo.value = null
+  importCacheStats.value = true
+  importGeneratePreviews.value = true
+  importProgress.value = 0
+  importProgressText.value = ''
+}
+
+async function browseForFolder() {
+  try {
+    const response = await fetch('/api/system/browse-folder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Select Scenario Folder',
+        initial_dir: importPath.value || null
+      })
+    })
+    
+    const data = await response.json()
+    if (!data.cancelled && data.path) {
+      importPath.value = data.path
+      // Reset validation when path changes
+      importValidated.value = false
+      importError.value = ''
+      importScenarioInfo.value = null
+      // Auto-set name from folder name
+      const parts = data.path.split('/')
+      importName.value = parts[parts.length - 1] || ''
+    }
+  } catch (error) {
+    console.error('Failed to open folder browser:', error)
+    importError.value = 'Failed to open folder browser'
+  }
+}
+
+async function browseForFile() {
+  try {
+    const response = await fetch('/api/system/browse-file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Select Scenario File',
+        initial_dir: importPath.value || null,
+        file_types: [
+          ['Scenario files', '*.zip *.yaml *.yml *.xml *.json'],
+          ['ZIP archives', '*.zip'],
+          ['YAML files', '*.yaml *.yml'],
+          ['XML files', '*.xml'],
+          ['JSON files', '*.json'],
+          ['All files', '*.*']
+        ]
+      })
+    })
+    
+    const data = await response.json()
+    if (!data.cancelled && data.path) {
+      importPath.value = data.path
+      // Reset validation when path changes
+      importValidated.value = false
+      importError.value = ''
+      importScenarioInfo.value = null
+      // Auto-set name from file stem
+      const parts = data.path.split('/')
+      const filename = parts[parts.length - 1] || ''
+      // Remove extension
+      const stem = filename.replace(/\.(zip|yaml|yml|xml|json)$/i, '')
+      importName.value = stem
+    }
+  } catch (error) {
+    console.error('Failed to open file browser:', error)
+    importError.value = 'Failed to open file browser'
+  }
+}
+
+async function validateImportPath() {
+  if (!importPath.value) return
+  
+  importValidating.value = true
+  importLoading.value = true
+  importError.value = ''
+  importValidated.value = false
+  importScenarioInfo.value = null
+  
+  try {
+    const response = await fetch('/api/scenarios/import/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        path: importPath.value
+      })
+    })
+    
+    const data = await response.json()
+    
+    if (!response.ok) {
+      throw new Error(data.detail || 'Validation failed')
+    }
+    
+    if (data.success) {
+      importValidated.value = true
+      importScenarioInfo.value = data.info
+      
+      // Set default name if not already set
+      if (!importName.value && data.suggested_name) {
+        importName.value = data.suggested_name
+      }
+    } else {
+      importError.value = data.error || 'Validation failed'
+    }
+  } catch (error) {
+    console.error('Failed to validate import path:', error)
+    importError.value = error.message || 'Failed to validate path'
+  } finally {
+    importValidating.value = false
+    importLoading.value = false
+  }
+}
+
+async function performImport() {
+  if (!importPath.value || !importName.value) return
+  
+  importLoading.value = true
+  importError.value = ''
+  importProgress.value = 0
+  importProgressText.value = 'Starting import...'
+  
+  try {
+    const response = await fetch('/api/scenarios/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source_path: importPath.value,
+        name: importName.value,
+        cache_stats: importCacheStats.value,
+        generate_previews: importGeneratePreviews.value
+      })
+    })
+    
+    const data = await response.json()
+    
+    if (!response.ok) {
+      throw new Error(data.detail || 'Import failed')
+    }
+    
+    if (data.success) {
+      importProgress.value = 100
+      importProgressText.value = 'Import complete!'
+      
+      // Close modal after a short delay
+      setTimeout(() => {
+        closeImportModal()
+        // Reload scenarios list to show the imported scenario
+        loadData()
+        
+        // Show success message
+        alert(`Successfully imported scenario "${importName.value}"`)
+      }, 500)
+    } else {
+      importError.value = data.error || 'Import failed'
+    }
+  } catch (error) {
+    console.error('Failed to import scenario:', error)
+    importError.value = error.message || 'Failed to import scenario'
+  } finally {
+    importLoading.value = false
   }
 }
 
@@ -3193,5 +3529,179 @@ textarea.input-text {
 
 .checkbox-label input[type="checkbox"] {
   cursor: pointer;
+}
+
+/* Import modal styles */
+.import-modal {
+  max-width: 550px;
+  width: 90%;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--text-primary);
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  line-height: 1;
+  padding: 0 4px;
+  transition: color 0.2s;
+}
+
+.btn-close:hover {
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 20px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.path-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.path-input-row .input-text {
+  flex: 1;
+}
+
+.btn-icon-browse {
+  padding: 8px 12px;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+}
+
+.form-hint {
+  margin: 6px 0 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.import-status {
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.import-status.validating {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--primary-color);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.import-status.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.import-status.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.import-scenario-info {
+  padding: 12px 14px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 0.9rem;
+}
+
+.info-label {
+  color: var(--text-secondary);
+}
+
+.info-value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.import-progress {
+  margin-top: 16px;
+}
+
+.import-progress .progress-bar {
+  height: 8px;
+  margin: 0;
+}
+
+.import-progress .progress-text {
+  font-size: 0.85rem;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.filter-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 </style>

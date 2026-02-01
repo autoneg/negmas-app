@@ -1094,9 +1094,10 @@ function shouldShowMetrics(i, j) {
 
 .tournament-cell {
   background: var(--bg-primary);
-  padding: 8px;
+  padding: 6px 8px;
   min-width: 60px;
   min-height: 40px;
+  max-height: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1104,6 +1105,7 @@ function shouldShowMetrics(i, j) {
   font-size: 12px;
   cursor: pointer;
   transition: all 0.2s;
+  overflow: hidden;
 }
 
 .tournament-cell:not(.self-play):hover {

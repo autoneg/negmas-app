@@ -1325,3 +1325,305 @@ async def bulk_delete(request: BulkDeleteRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Import Scenario Endpoints ---
+
+
+class ImportValidateRequest(BaseModel):
+    """Request body for validating a scenario import path."""
+
+    path: str
+
+
+class ImportRequest(BaseModel):
+    """Request body for importing a scenario."""
+
+    source_path: str
+    name: str
+    cache_stats: bool = True
+    generate_previews: bool = True
+
+
+def _get_imported_scenarios_dir() -> Path:
+    """Get or create the imported scenarios directory."""
+    import os
+
+    home = Path(os.path.expanduser("~"))
+    imported_dir = home / "negmas" / "app" / "scenarios" / "imported"
+    imported_dir.mkdir(parents=True, exist_ok=True)
+    return imported_dir
+
+
+def _generate_unique_name(base_name: str, target_dir: Path) -> str:
+    """Generate a unique name for the scenario, adding counter suffix if needed."""
+    # Clean the name to be filesystem-safe
+    clean_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in base_name)
+    clean_name = clean_name.strip("_")
+
+    if not clean_name:
+        clean_name = "imported_scenario"
+
+    # Check if name already exists
+    if not (target_dir / clean_name).exists():
+        return clean_name
+
+    # Add counter suffix
+    counter = 1
+    while (target_dir / f"{clean_name}-{counter}").exists():
+        counter += 1
+
+    return f"{clean_name}-{counter}"
+
+
+def _load_scenario_from_path(source_path: Path):
+    """Load a scenario from various source formats.
+
+    Supports:
+    - Folder with scenario files
+    - ZIP archive containing scenario
+    - Single scenario file (yaml/xml/json)
+
+    Returns:
+        tuple: (scenario, temp_dir, format_type) where temp_dir needs cleanup if not None
+    """
+    import shutil
+    import tempfile
+    import zipfile
+
+    from negmas import Scenario
+
+    temp_dir = None
+    format_type = None
+
+    if source_path.is_dir():
+        # Direct folder - load as-is
+        scenario = Scenario.load(source_path)
+        # Detect format
+        if (source_path / "domain.xml").exists():
+            format_type = "xml"
+        elif (source_path / "domain.yaml").exists() or (
+            source_path / "domain.yml"
+        ).exists():
+            format_type = "yaml"
+        elif (source_path / "domain.json").exists():
+            format_type = "json"
+        else:
+            format_type = "yaml"  # Default to yaml
+
+    elif source_path.suffix.lower() == ".zip":
+        # ZIP archive - extract to temp directory
+        temp_dir = Path(tempfile.mkdtemp(prefix="negmas_import_"))
+        try:
+            with zipfile.ZipFile(source_path, "r") as zf:
+                zf.extractall(temp_dir)
+
+            # Find the scenario directory inside the extracted files
+            # It could be either directly in temp_dir or in a subdirectory
+            extracted_items = list(temp_dir.iterdir())
+
+            if len(extracted_items) == 1 and extracted_items[0].is_dir():
+                # Single directory inside the zip
+                scenario_dir = extracted_items[0]
+            else:
+                # Files directly in the zip
+                scenario_dir = temp_dir
+
+            scenario = Scenario.load(scenario_dir)
+
+            # Detect format
+            if (scenario_dir / "domain.xml").exists():
+                format_type = "xml"
+            elif (scenario_dir / "domain.yaml").exists() or (
+                scenario_dir / "domain.yml"
+            ).exists():
+                format_type = "yaml"
+            elif (scenario_dir / "domain.json").exists():
+                format_type = "json"
+            else:
+                format_type = "yaml"
+
+        except Exception:
+            # Clean up temp dir on error
+            if temp_dir and temp_dir.exists():
+                shutil.rmtree(temp_dir)
+            raise
+
+    else:
+        # Single file - try to load directly
+        scenario = Scenario.load(source_path)
+        format_type = source_path.suffix.lower().lstrip(".")
+
+    return scenario, temp_dir, format_type
+
+
+@router.post("/import/validate")
+async def validate_import_path(request: ImportValidateRequest):
+    """Validate a scenario import path and return basic info.
+
+    Args:
+        request: Request with path to validate.
+
+    Returns:
+        Dict with validation result and scenario info if valid.
+    """
+    import shutil
+
+    try:
+        source_path = Path(request.path)
+
+        if not source_path.exists():
+            return {
+                "success": False,
+                "error": f"Path does not exist: {request.path}",
+            }
+
+        # Try to load the scenario
+        def _validate():
+            scenario, temp_dir, format_type = _load_scenario_from_path(source_path)
+
+            # Clean up temp dir if created
+            if temp_dir and temp_dir.exists():
+                shutil.rmtree(temp_dir)
+
+            # Extract basic info
+            n_outcomes = scenario.outcome_space.cardinality
+            if n_outcomes == float("inf"):
+                n_outcomes = None
+
+            # Suggest a name from the path
+            if source_path.is_dir():
+                suggested_name = source_path.name
+            else:
+                suggested_name = source_path.stem
+                if suggested_name.endswith(".scenario"):
+                    suggested_name = suggested_name[:-9]
+
+            return {
+                "success": True,
+                "info": {
+                    "n_negotiators": len(scenario.ufuns),
+                    "n_issues": len(scenario.outcome_space.issues),
+                    "n_outcomes": n_outcomes,
+                    "format": format_type,
+                },
+                "suggested_name": suggested_name,
+            }
+
+        result = await asyncio.to_thread(_validate)
+        return result
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to load scenario: {str(e)}",
+        }
+
+
+@router.post("/import")
+async def import_scenario(request: ImportRequest):
+    """Import a scenario from external source.
+
+    Args:
+        request: Request with source path, name, and options.
+
+    Returns:
+        Dict with import result and scenario info.
+    """
+    import shutil
+
+    try:
+        source_path = Path(request.source_path)
+
+        if not source_path.exists():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Source path does not exist: {request.source_path}",
+            )
+
+        def _import():
+            # Get target directory
+            imported_dir = _get_imported_scenarios_dir()
+
+            # Generate unique name
+            unique_name = _generate_unique_name(request.name, imported_dir)
+            target_path = imported_dir / unique_name
+
+            # Load the scenario
+            scenario, temp_dir, format_type = _load_scenario_from_path(source_path)
+
+            try:
+                # Save scenario in negmas native YAML format
+                scenario.dumpas(
+                    target_path,
+                    save_stats=False,  # We'll calculate stats separately if requested
+                    save_info=True,
+                )
+
+                # Add import info to the scenario's _info.yaml
+                info_path = target_path / "_info.yaml"
+                import yaml
+
+                if info_path.exists():
+                    with open(info_path) as f:
+                        info_data = yaml.safe_load(f) or {}
+                else:
+                    info_data = {}
+
+                info_data["original_path"] = str(source_path)
+                info_data["original_format"] = format_type
+                info_data["imported"] = True
+                info_data["tags"] = list(set(info_data.get("tags", []) + ["imported"]))
+
+                with open(info_path, "w") as f:
+                    yaml.safe_dump(info_data, f, default_flow_style=False)
+
+                # Calculate stats if requested
+                if request.cache_stats:
+                    try:
+                        get_loader().calculate_and_save_stats(
+                            str(target_path), force=True
+                        )
+                    except Exception as e:
+                        # Log but don't fail the import
+                        print(f"Warning: Failed to calculate stats: {e}")
+
+                # Generate preview images if requested
+                if request.generate_previews:
+                    try:
+                        from ..services.plot_service import generate_and_save_plot
+
+                        generate_and_save_plot(scenario, str(target_path))
+                    except Exception as e:
+                        # Log but don't fail the import
+                        print(f"Warning: Failed to generate preview: {e}")
+
+                # Clear cache file to force re-registration on next load
+                # This ensures the new scenario is picked up
+                try:
+                    cache_file = (
+                        Path.home() / ".negmas" / "scenario_registry_cache.json"
+                    )
+                    if cache_file.exists():
+                        cache_file.unlink()
+                except Exception:
+                    pass  # Cache invalidation is best-effort
+
+                return {
+                    "success": True,
+                    "path": str(target_path),
+                    "name": unique_name,
+                }
+
+            finally:
+                # Clean up temp dir if created
+                if temp_dir and temp_dir.exists():
+                    shutil.rmtree(temp_dir)
+
+        result = await asyncio.to_thread(_import)
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

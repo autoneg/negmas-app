@@ -1729,22 +1729,29 @@ const renderOppositionPlot = async () => {
   const x = [] // n_outcomes
   const y = [] // opposition
   const hoverText = []
+  let scenariosWithoutData = 0
   
   for (const scenario of selectedScenarios.value) {
-    const nOutcomes = scenario.n_outcomes || scenario.stats?.n_outcomes
-    const opposition = scenario.opposition || scenario.stats?.opposition
+    const nOutcomes = scenario.n_outcomes ?? scenario.stats?.n_outcomes
+    const opposition = scenario.opposition ?? scenario.stats?.opposition
     
-    if (nOutcomes !== undefined && opposition !== undefined) {
+    // Check for valid numeric values (not null, undefined, or NaN)
+    if (nOutcomes != null && opposition != null && !isNaN(nOutcomes) && !isNaN(opposition)) {
       x.push(nOutcomes)
       y.push(opposition)
       hoverText.push(`${scenario.name}<br>Outcomes: ${nOutcomes}<br>Opposition: ${opposition.toFixed(3)}`)
+    } else {
+      scenariosWithoutData++
     }
   }
   
   if (x.length === 0) {
     // No data with both fields - show message
     Plotly.purge(oppositionPlotDiv.value)
-    oppositionPlotDiv.value.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">No scenario data available</div>'
+    const message = scenariosWithoutData > 0
+      ? `No scenario data available<br><span style="font-size: 11px;">${scenariosWithoutData} scenario(s) missing opposition or outcome data.<br>Calculate stats in Scenario Explorer to populate this data.</span>`
+      : 'No scenario data available'
+    oppositionPlotDiv.value.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">${message}</div>`
     return
   }
   
@@ -1762,9 +1769,15 @@ const renderOppositionPlot = async () => {
     hoverinfo: 'text',
   }
   
+  // Build title with data availability info
+  const totalScenarios = selectedScenarios.value.length
+  const titleText = scenariosWithoutData > 0
+    ? `Opposition vs Outcomes (${x.length}/${totalScenarios} with data)`
+    : 'Opposition vs Number of Outcomes'
+  
   const layout = {
     title: {
-      text: 'Opposition vs Number of Outcomes',
+      text: titleText,
       font: { size: 14, color: colors.text }
     },
     xaxis: {
