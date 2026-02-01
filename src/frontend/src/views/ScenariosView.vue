@@ -24,10 +24,19 @@
       <div class="filter-section">
         <div class="filter-header">
           <h3>Scenarios</h3>
-          <button class="btn-icon" @click="loadData" :disabled="loading" title="Refresh">
-            <span v-if="loading">⟳</span>
-            <span v-else>↻</span>
-          </button>
+          <div class="filter-header-actions">
+            <button class="btn-icon" @click="showImportModal = true" title="Import Scenario">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </button>
+            <button class="btn-icon" @click="loadData" :disabled="loading" title="Refresh">
+              <span v-if="loading">⟳</span>
+              <span v-else>↻</span>
+            </button>
+          </div>
         </div>
         
         <!-- Search -->
@@ -371,6 +380,12 @@
                   <span class="collapse-icon">{{ panelsCollapsed.info ? '▶' : '▼' }}</span>
                   Information
                 </h3>
+                <div class="panel-header-actions" @click.stop>
+                  <DetailsIcon 
+                    title="View full scenario details"
+                    @click="showObjectDetail('scenario', selectedScenario.name, 'Scenario')"
+                  />
+                </div>
               </div>
               
               <div v-if="!panelsCollapsed.info" class="panel-content">
@@ -520,6 +535,10 @@
                   Outcome Space
                 </h3>
                 <div class="panel-header-actions" @click.stop>
+                  <DetailsIcon 
+                    title="View full outcome space details"
+                    @click="showObjectDetail('outcome_space', 'Outcome Space', 'OutcomeSpace')"
+                  />
                   <button 
                     v-if="scenarioFiles?.domain_file" 
                     class="btn-secondary btn-sm" 
@@ -601,6 +620,11 @@
                     <div class="ufun-header">
                       <div class="ufun-title-row">
                         <span class="ufun-name">{{ ufun.name || `Negotiator ${idx + 1}` }}</span>
+                        <DetailsIcon 
+                          :small="true"
+                          title="View full ufun details"
+                          @click="showObjectDetail('ufun', ufun.name || `Utility Function ${idx + 1}`, ufun.type || 'UtilityFunction', idx)"
+                        />
                         <span class="ufun-type badge">{{ ufun.type }}</span>
                       </div>
                       <button 
@@ -631,6 +655,11 @@
                   <div v-for="(name, idx) in selectedScenarioStats.negotiator_names" :key="idx" class="ufun-item">
                     <div class="ufun-header">
                       <span class="ufun-name">{{ name || `Negotiator ${idx + 1}` }}</span>
+                      <DetailsIcon 
+                        :small="true"
+                        title="View full ufun details"
+                        @click="showObjectDetail('ufun', name || `Utility Function ${idx + 1}`, 'UtilityFunction', idx)"
+                      />
                     </div>
                     <div class="ufun-details">
                       <span v-if="selectedScenarioPlotData?.reserved_values && selectedScenarioPlotData.reserved_values[idx] !== null" class="ufun-meta">
@@ -811,6 +840,15 @@
         </div>
       </div>
     </Teleport>
+    
+    <!-- Object Detail Modal -->
+    <ObjectDetailModal
+      :show="showObjectDetailModal"
+      :title="objectDetailTitle"
+      :object-type="objectDetailType"
+      :fetch-url="objectDetailUrl"
+      @close="showObjectDetailModal = false"
+    />
   </div>
 </template>
 
@@ -823,6 +861,8 @@ import { storeToRefs } from 'pinia'
 import Plotly from 'plotly.js-dist-min'
 import NewNegotiationModal from '../components/NewNegotiationModal.vue'
 import FileEditorModal from '../components/FileEditorModal.vue'
+import DetailsIcon from '../components/DetailsIcon.vue'
+import ObjectDetailModal from '../components/ObjectDetailModal.vue'
 
 const scenariosStore = useScenariosStore()
 const negotiationsStore = useNegotiationsStore()
@@ -920,6 +960,13 @@ const plotImageUrl = computed(() => {
 })
 const showNewNegotiationModal = ref(false)
 const router = useRouter()
+
+// Object Detail Modal state
+const showObjectDetailModal = ref(false)
+const objectDetailTitle = ref('')
+const objectDetailType = ref('')
+const objectDetailUrl = ref('')
+
 const registrationStatus = ref({
   registered: false,
   in_progress: false,
@@ -1353,6 +1400,24 @@ async function openScenarioFolder() {
     console.error('Failed to open scenario folder:', error)
     alert('Failed to open scenario folder. See console for details.')
   }
+}
+
+// Show object detail modal for scenario, outcome space, or ufun
+function showObjectDetail(type, title, objectType, ufunIndex = null) {
+  if (!selectedScenario.value?.id) return
+  
+  objectDetailTitle.value = title
+  objectDetailType.value = objectType
+  
+  if (type === 'scenario') {
+    objectDetailUrl.value = `/api/scenarios/${selectedScenario.value.id}/serialized`
+  } else if (type === 'outcome_space') {
+    objectDetailUrl.value = `/api/scenarios/${selectedScenario.value.id}/outcome-space/serialized`
+  } else if (type === 'ufun' && ufunIndex !== null) {
+    objectDetailUrl.value = `/api/scenarios/${selectedScenario.value.id}/ufuns/${ufunIndex}/serialized`
+  }
+  
+  showObjectDetailModal.value = true
 }
 
 async function loadPlotData(forceRegenerate = false) {

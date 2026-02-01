@@ -316,6 +316,17 @@
                     <span>Normalize utilities</span>
                     <span class="text-muted-sm">(scale to [0, 1] range)</span>
                   </label>
+                  <label class="checkbox-label" :class="{ disabled: scenarioModified }">
+                    <input 
+                      type="checkbox" 
+                      v-model="options.saveScenario" 
+                      :disabled="scenarioModified"
+                      :checked="scenarioModified || options.saveScenario"
+                    />
+                    <span>Save scenario with negotiation</span>
+                    <span class="text-muted-sm" v-if="scenarioModified">(required when modifying scenario)</span>
+                    <span class="text-muted-sm" v-else>(save a copy of the scenario)</span>
+                  </label>
                 </div>
               </div>
             </div>
@@ -1183,7 +1194,7 @@ const props = defineProps({
   initialData: Object,
 })
 
-const emit = defineEmits(['close', 'start', 'saved'])
+const emit = defineEmits(['close', 'start', 'startBackground', 'saved'])
 
 
 
@@ -1222,6 +1233,7 @@ const options = ref({
   ignoreDiscount: false,
   ignoreReserved: false,
   normalize: false,
+  saveScenario: false,  // Save modified scenario with negotiation
 })
 
 // Negotiators data
@@ -1416,6 +1428,11 @@ const canProceed = computed(() => {
            negotiators.value.every(n => n.type_name)
   }
   return true
+})
+
+// Check if scenario is being modified (normalize, ignore discount, or ignore reserved)
+const scenarioModified = computed(() => {
+  return options.value.normalize || options.value.ignoreDiscount || options.value.ignoreReserved
 })
 
 const issueOptions = computed(() => {
@@ -1672,6 +1689,10 @@ async function startNegotiation() {
   starting.value = true
 
   try {
+    // Determine if scenario should be saved with negotiation
+    // Always save if scenario is modified (normalize, ignore discount, ignore reserved)
+    const shouldSaveScenario = scenarioModified.value || options.value.saveScenario
+    
     // Only send fields that backend expects
     const request = {
       scenario_path: selectedScenario.value.path,
@@ -1687,6 +1708,7 @@ async function startNegotiation() {
       ignore_discount: options.value.ignoreDiscount,
       ignore_reserved: options.value.ignoreReserved,
       normalize: options.value.normalize,
+      save_scenario: shouldSaveScenario,  // Save (modified) scenario with negotiation
       step_delay: stepDelay.value / 1000, // Convert ms to seconds
       share_ufuns: shareUfuns.value,
       auto_save: autoSave.value,
@@ -1694,7 +1716,7 @@ async function startNegotiation() {
         source: saveOptions.value.source || null,  // Convert empty string to null
         storage_format: saveOptions.value.storage_format,
         single_file: saveOptions.value.single_file,
-        save_scenario: saveOptions.value.save_scenario,
+        save_scenario: shouldSaveScenario,  // Use the computed value
         save_scenario_stats: saveOptions.value.save_scenario_stats,
         save_agreement_stats: saveOptions.value.save_agreement_stats,
         save_config: saveOptions.value.save_config,
@@ -1742,8 +1764,75 @@ async function startNegotiation() {
 }
 
 async function startWithoutMonitoring() {
-  // TODO: Implement background start
-  await startNegotiation()
+  if (starting.value) return
+  starting.value = true
+
+  try {
+    // Determine if scenario should be saved with negotiation
+    const shouldSaveScenario = scenarioModified.value || options.value.saveScenario
+    
+    const request = {
+      scenario_path: selectedScenario.value.path,
+      negotiators: negotiators.value.map(n => ({
+        type_name: n.type_name,
+        name: n.name || null,
+        params: n.params || {},
+        time_limit: n.time_limit || null,
+        n_steps: n.n_steps || null,
+      })),
+      mechanism_type: mechanismType.value,
+      mechanism_params: mechanismParams.value,
+      ignore_discount: options.value.ignoreDiscount,
+      ignore_reserved: options.value.ignoreReserved,
+      normalize: options.value.normalize,
+      save_scenario: shouldSaveScenario,
+      step_delay: stepDelay.value / 1000,
+      share_ufuns: shareUfuns.value,
+      auto_save: autoSave.value,
+      save_options: autoSave.value ? {
+        source: saveOptions.value.source || null,
+        storage_format: saveOptions.value.storage_format,
+        single_file: saveOptions.value.single_file,
+        save_scenario: shouldSaveScenario,
+        save_scenario_stats: saveOptions.value.save_scenario_stats,
+        save_agreement_stats: saveOptions.value.save_agreement_stats,
+        save_config: saveOptions.value.save_config,
+        generate_previews: saveOptions.value.generate_previews,
+      } : null,
+    }
+
+    const response = await fetch('/api/negotiation/start_background', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    })
+
+    const data = await response.json()
+    
+    // Add to recent sessions
+    const preset = buildSessionPreset(selectedScenario.value.name)
+    await negotiationsStore.addToRecentSessions(preset)
+    
+    // Store panel settings in localStorage for this session
+    if (data.session_id) {
+      const panelSettings = {
+        panels: panels.value,
+        runMode: runMode.value,
+        stepDelay: stepDelay.value,
+        displayOptions: displayOptions.value,
+      }
+      localStorage.setItem(`negotiation_settings_${data.session_id}`, JSON.stringify(panelSettings))
+    }
+    
+    // Emit startBackground event - parent should NOT navigate to single view
+    emit('startBackground', { session_id: data.session_id })
+    emit('close')
+  } catch (error) {
+    console.error('Failed to start negotiation:', error)
+    alert('Failed to start negotiation: ' + error.message)
+  } finally {
+    starting.value = false
+  }
 }
 
 async function loadScenarios() {

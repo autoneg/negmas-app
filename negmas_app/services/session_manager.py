@@ -38,6 +38,7 @@ def _run_negotiation_in_thread(
     share_ufuns: bool,
     cancel_flags: dict,
     pause_flags: dict,
+    save_options: dict | None = None,
 ):
     """
     Run negotiation synchronously in background thread.
@@ -70,6 +71,12 @@ def _run_negotiation_in_thread(
         if normalize:
             scenario.normalize()
 
+        ignore_discount = scenario_options.get("ignore_discount", False)
+        # Note: ignore_discount is typically handled at ufun level if needed
+
+        # Track if scenario was modified - cached stats won't match modified ufuns
+        scenario_modified = ignore_reserved or normalize or ignore_discount
+
         # Ensure one_offer_per_step for SAO
         if (
             mechanism_type == "SAOMechanism"
@@ -96,12 +103,6 @@ def _run_negotiation_in_thread(
                 add_kwargs["time_limit"] = config.time_limit
             if config.n_steps is not None:
                 add_kwargs["n_steps"] = config.n_steps
-
-            # Debug: Log what we're passing to mechanism.add()
-            if config.time_limit is not None or config.n_steps is not None:
-                print(
-                    f"[DEBUG] Adding negotiator {config.name or config.type_name} with time_limit={config.time_limit}, n_steps={config.n_steps}"
-                )
 
             try:
                 mechanism.add(neg, **add_kwargs)
@@ -161,16 +162,13 @@ def _run_negotiation_in_thread(
         session.n_steps = mechanism.n_steps
         session.time_limit = mechanism.time_limit
 
-        # Debug: Log effective mechanism limits
-        print(
-            f"[DEBUG] Mechanism effective n_steps={mechanism.n_steps}, time_limit={mechanism.time_limit}"
-        )
-
         # Compute outcome space data for visualization
+        # Don't use cached stats if scenario was modified (normalize, ignore_reserved, etc.)
+        # because cached stats are in the original scale, not the modified scale
         outcome_space_data = compute_outcome_space_data(
             scenario,
             max_samples=max_outcome_samples,
-            use_cached_stats=True,
+            use_cached_stats=not scenario_modified,
             scenario_path=scenario_path,
         )
         session.outcome_space_data = outcome_space_data
@@ -289,7 +287,7 @@ def _run_negotiation_in_thread(
         if auto_save:
             try:
                 NegotiationStorageService.save_negotiation(
-                    session, negotiator_configs, None, scenario_options
+                    session, negotiator_configs, None, scenario_options, save_options
                 )
             except Exception as e:
                 print(f"Failed to auto-save negotiation {session_id}: {e}")
@@ -408,6 +406,7 @@ class SessionManager:
         mechanism_params = self._mechanism_params.get(session_id, {}).copy()
         scenario_options = self._scenario_options.get(session_id, {})
         auto_save = self._auto_save.get(session_id, True)
+        save_options = self._save_options.get(session_id)
 
         # Start in thread (non-blocking)
         asyncio.create_task(
@@ -425,6 +424,7 @@ class SessionManager:
                 share_ufuns,
                 self._cancel_flags,  # Pass cancel flags
                 self._pause_flags,  # Pass pause flags
+                save_options,  # Pass save options
             )
         )
 

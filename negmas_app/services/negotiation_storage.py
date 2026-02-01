@@ -4,7 +4,6 @@ All saving and loading is done through negmas CompletedRun.save() and CompletedR
 This ensures compatibility with all formats supported by negmas.
 """
 
-import json
 import shutil
 from dataclasses import asdict
 from datetime import datetime
@@ -27,9 +26,6 @@ from .negotiation_preview_service import NegotiationPreviewService
 # Storage directory paths
 NEGOTIATIONS_DIR = Path.home() / "negmas" / "app" / "negotiations"
 ARCHIVE_DIR = Path.home() / "negmas" / "app" / "negotiations_archive"
-
-# Metadata filename for app-specific data
-APP_METADATA_FILE = "app_metadata.json"
 
 
 def _ensure_dir(path: Path) -> None:
@@ -70,41 +66,60 @@ class NegotiationStorageService:
         return NEGOTIATIONS_DIR / session_id
 
     @staticmethod
-    def _build_app_metadata(
+    def _build_metadata(
         session: NegotiationSession,
         negotiator_configs: list[NegotiatorConfig] | None = None,
         tags: list[str] | None = None,
         scenario_options: dict | None = None,
     ) -> dict[str, Any]:
-        """Build app-specific metadata dict to include in CompletedRun."""
+        """Build metadata dict for CompletedRun's metadata.yaml.
+
+        All app-specific data is stored in run.metadata (metadata.yaml):
+        - scenario_path: path to scenario directory
+        - session_id: app's unique identifier
+        - tags: app categorization feature
+        - archived: app archive feature
+        - negotiator_infos: includes UI colors
+        - start_time, end_time: absolute timestamps
+        - scenario_options: normalize, ignore_discount, ignore_reserved flags
+        - negotiator_configs: for rerun feature
+        """
         scenario_opts = scenario_options or {}
 
-        app_metadata: dict[str, Any] = {
+        # Build negotiator_infos with colors
+        negotiator_infos = []
+        if session.negotiator_infos:
+            negotiator_infos = [
+                {
+                    "name": info.name,
+                    "type_name": info.type_name,
+                    "index": info.index,
+                    "color": info.color,
+                }
+                for info in session.negotiator_infos
+            ]
+
+        metadata: dict[str, Any] = {
             "app_version": "2.0",
             "session_id": session.id,
             "scenario_path": session.scenario_path,
             "scenario_name": session.scenario_name,
-            "negotiator_names": session.negotiator_names,
-            "negotiator_types": session.negotiator_types,
-            "issue_names": session.issue_names,
-            "start_time": _serialize_datetime(session.start_time),
-            "end_time": _serialize_datetime(session.end_time),
             "tags": tags or [],
             "archived": False,
+            "start_time": _serialize_datetime(session.start_time),
+            "end_time": _serialize_datetime(session.end_time),
+            "negotiator_infos": negotiator_infos,
+            # Scenario options for reloading with same settings
             "normalize": scenario_opts.get("normalize", False),
             "ignore_discount": scenario_opts.get("ignore_discount", False),
             "ignore_reserved": scenario_opts.get("ignore_reserved", False),
         }
 
-        if session.negotiator_infos:
-            app_metadata["negotiator_infos"] = [
-                asdict(info) for info in session.negotiator_infos
-            ]
-
+        # Store negotiator configs if provided (needed for rerun feature)
         if negotiator_configs:
-            app_metadata["negotiator_configs"] = [asdict(c) for c in negotiator_configs]
+            metadata["negotiator_configs"] = [asdict(c) for c in negotiator_configs]
 
-        return app_metadata
+        return metadata
 
     @staticmethod
     def save_negotiation_from_mechanism(
@@ -151,8 +166,8 @@ class NegotiationStorageService:
         storage_format = opts.get("storage_format", "parquet")
         generate_previews = opts.get("generate_previews", True)
 
-        # Build app-specific metadata
-        app_metadata = NegotiationStorageService._build_app_metadata(
+        # Build metadata (all app data goes to metadata.yaml via run.metadata)
+        metadata = NegotiationStorageService._build_metadata(
             session, negotiator_configs, tags, scenario_options
         )
 
@@ -170,13 +185,13 @@ class NegotiationStorageService:
             save_agreement_stats=save_agreement_stats,
             save_config=save_config,
             source=source,  # type: ignore[arg-type] # negmas now supports None
-            metadata=app_metadata,
+            metadata=metadata,  # All app data goes to metadata.yaml
             overwrite=True,
             warn_if_existing=False,
             storage_format=storage_format,
         )
 
-        # For single-file saves, wrap in a directory for app metadata and previews
+        # For single-file saves, wrap in a directory for previews
         if single_file:
             trace_file = saved_path
             session_dir = NEGOTIATIONS_DIR / session.id
@@ -186,12 +201,8 @@ class NegotiationStorageService:
                 shutil.move(str(trace_file), str(new_trace_path))
             saved_path = session_dir
 
-        # Save app-specific metadata as separate file for easy access
-        session_dir = saved_path if saved_path.is_dir() else saved_path.parent
-        with open(session_dir / APP_METADATA_FILE, "w") as f:
-            json.dump(app_metadata, f, indent=2)
-
         # Generate preview images if requested
+        session_dir = saved_path if saved_path.is_dir() else saved_path.parent
         if generate_previews and not single_file:
             try:
                 NegotiationPreviewService.generate_all_previews(session, session_dir)
@@ -232,8 +243,8 @@ class NegotiationStorageService:
         save_agreement_stats = opts.get("save_agreement_stats", True)
         save_config = opts.get("save_config", True)
 
-        # Build app-specific metadata
-        app_metadata = NegotiationStorageService._build_app_metadata(
+        # Build metadata (all app data goes to metadata.yaml via run.metadata)
+        metadata = NegotiationStorageService._build_metadata(
             session, negotiator_configs, tags, scenario_options
         )
 
@@ -285,7 +296,7 @@ class NegotiationStorageService:
             agreement_stats=None,  # Will be calculated if save_agreement_stats=True
             config=config,
             outcome_stats=outcome_stats,
-            metadata=app_metadata,
+            metadata=metadata,  # All app data goes to metadata.yaml
         )
 
         # Ensure storage directory exists
@@ -305,12 +316,8 @@ class NegotiationStorageService:
             storage_format=storage_format,
         )
 
-        # Save app-specific metadata as separate file for easy access
-        session_dir = saved_path if saved_path.is_dir() else saved_path.parent
-        with open(session_dir / APP_METADATA_FILE, "w") as f:
-            json.dump(app_metadata, f, indent=2)
-
         # Generate preview images
+        session_dir = saved_path if saved_path.is_dir() else saved_path.parent
         if generate_previews:
             try:
                 NegotiationPreviewService.generate_all_previews(session, session_dir)
@@ -345,6 +352,7 @@ class NegotiationStorageService:
         """Load a negotiation from an arbitrary path (file or directory).
 
         Uses CompletedRun.load() to load any format supported by negmas.
+        App metadata is read from run.metadata (metadata.yaml).
 
         Args:
             path: Path to a negotiation file or directory.
@@ -357,14 +365,6 @@ class NegotiationStorageService:
             return None
 
         try:
-            # Load app metadata if available (for app-specific fields like colors, tags)
-            app_metadata: dict[str, Any] = {}
-            if path.is_dir():
-                app_metadata_path = path / APP_METADATA_FILE
-                if app_metadata_path.exists():
-                    with open(app_metadata_path) as f:
-                        app_metadata = json.load(f)
-
             # Use CompletedRun.load() for all formats
             run = CompletedRun.load(
                 path,
@@ -374,9 +374,13 @@ class NegotiationStorageService:
                 load_config=True,
             )
 
-            session_id = app_metadata.get("session_id", path.stem)
+            # App metadata comes from run.metadata (metadata.yaml)
+            # Session ID from metadata, or fall back to directory name
+            run_metadata = run.metadata or {}
+            session_id = run_metadata.get("session_id", path.stem)
+
             return NegotiationStorageService._session_from_completed_run(
-                run, session_id, str(path), app_metadata
+                run, session_id, str(path)
             )
 
         except Exception as e:
@@ -391,26 +395,30 @@ class NegotiationStorageService:
         run: CompletedRun,  # type: ignore[type-arg]
         session_id: str,
         source_path: str,
-        app_metadata: dict[str, Any] | None = None,
     ) -> NegotiationSession:
-        """Convert a CompletedRun to a NegotiationSession."""
+        """Convert a CompletedRun to a NegotiationSession.
+
+        All data comes from CompletedRun:
+        - config.yaml (run.config): negotiator_names, negotiator_types, mechanism_type,
+          n_steps, time_limit, broken, timedout, final_step
+        - metadata.yaml (run.metadata): scenario_path, session_id, tags, archived,
+          negotiator_infos (with colors), start_time, end_time, scenario options
+        - scenario/: issue_names from outcome_space.issues
+        - outcome_stats.yaml (run.outcome_stats): utilities, broken, timedout, optimality stats
+        """
         from ..models.session import SessionStatus
 
-        app_metadata = app_metadata or run.metadata or {}
         config = run.config or {}
         outcome_stats = run.outcome_stats or {}
+        run_metadata = run.metadata or {}
 
-        # Extract negotiator info - prefer app_metadata, fall back to config
-        negotiator_names = app_metadata.get(
-            "negotiator_names", config.get("negotiator_names", [])
-        )
-        negotiator_types = app_metadata.get(
-            "negotiator_types", config.get("negotiator_types", [])
-        )
-        issue_names = app_metadata.get("issue_names", [])
+        # Get negotiator info from config (standard CompletedRun)
+        negotiator_names = config.get("negotiator_names", [])
+        negotiator_types = config.get("negotiator_types", [])
 
-        # Try to get issue names from scenario if not in metadata
-        if not issue_names and run.scenario and run.scenario.outcome_space:
+        # Get issue names from scenario (standard CompletedRun)
+        issue_names: list[str] = []
+        if run.scenario and run.scenario.outcome_space:
             try:
                 issues = run.scenario.outcome_space.issues
                 if isinstance(issues, (list, tuple)):
@@ -421,32 +429,28 @@ class NegotiationStorageService:
             except Exception:
                 pass
 
-        # Determine status
-        status_str = app_metadata.get("status", "completed")
+        # Determine status (app-specific, default to completed)
+        status_str = run_metadata.get("status", "completed")
         try:
             status = SessionStatus(status_str)
         except ValueError:
             status = SessionStatus.COMPLETED
 
-        # Determine end reason
+        # Determine end reason from config (standard CompletedRun)
         end_reason = None
-        if outcome_stats.get("timedout") or config.get("timedout"):
+        if config.get("timedout") or outcome_stats.get("timedout"):
             end_reason = "timedout"
-        elif outcome_stats.get("broken") or config.get("broken"):
+        elif config.get("broken") or outcome_stats.get("broken"):
             end_reason = "broken"
         elif run.agreement is not None:
             end_reason = "agreement"
         else:
             end_reason = "no_agreement"
 
-        # Get scenario path - prefer app_metadata, then run.metadata, then source_path
-        scenario_path_str = (
-            app_metadata.get("scenario_path")
-            or (run.metadata.get("scenario_path") if run.metadata else None)
-            or source_path
-        )
+        # Get scenario path from run.metadata
+        scenario_path_str = run_metadata.get("scenario_path") or source_path
         scenario_name_str = (
-            app_metadata.get("scenario_name") or Path(scenario_path_str).stem
+            run_metadata.get("scenario_name") or Path(scenario_path_str).stem
         )
 
         # Create session
@@ -462,13 +466,13 @@ class NegotiationStorageService:
             issue_values={},
             n_steps=config.get("n_steps"),
             time_limit=config.get("time_limit"),
-            start_time=_deserialize_datetime(app_metadata.get("start_time")),
-            end_time=_deserialize_datetime(app_metadata.get("end_time")),
+            start_time=_deserialize_datetime(run_metadata.get("start_time")),
+            end_time=_deserialize_datetime(run_metadata.get("end_time")),
             current_step=config.get("final_step", 0),
             error=None,
         )
 
-        # Set agreement
+        # Set agreement from run (standard CompletedRun)
         if run.agreement:
             if isinstance(run.agreement, dict):
                 session.agreement_dict = run.agreement
@@ -481,7 +485,7 @@ class NegotiationStorageService:
         session.final_utilities = outcome_stats.get("utilities")
         session.end_reason = end_reason
 
-        # Set optimality stats
+        # Set optimality stats from run.agreement_stats (extracted from outcome_stats.yaml by CompletedRun)
         if run.agreement_stats:
             session.optimality_stats = {
                 "pareto_optimality": run.agreement_stats.pareto_optimality,
@@ -491,16 +495,46 @@ class NegotiationStorageService:
                 "ks_optimality": run.agreement_stats.ks_optimality,
             }
 
-        # Load negotiator infos from app_metadata
-        for info_data in app_metadata.get("negotiator_infos", []):
-            session.negotiator_infos.append(
-                SessionNegotiatorInfo(
-                    name=info_data["name"],
-                    type_name=info_data["type_name"],
-                    index=info_data["index"],
-                    color=info_data["color"],
+        # Build negotiator_infos from run.metadata (includes colors)
+        negotiator_infos_data = run_metadata.get("negotiator_infos", [])
+        default_colors = [
+            "#4a6fa5",
+            "#22a06b",
+            "#f59e0b",
+            "#ef4444",
+            "#8b5cf6",
+            "#06b6d4",
+        ]
+
+        if negotiator_infos_data:
+            # Use negotiator_infos from metadata (has colors)
+            for info_data in negotiator_infos_data:
+                session.negotiator_infos.append(
+                    SessionNegotiatorInfo(
+                        name=info_data.get("name", ""),
+                        type_name=info_data.get("type_name", ""),
+                        index=info_data.get("index", 0),
+                        color=info_data.get(
+                            "color",
+                            default_colors[
+                                info_data.get("index", 0) % len(default_colors)
+                            ],
+                        ),
+                    )
                 )
-            )
+        else:
+            # Fallback: build from config negotiator_names
+            for i, name in enumerate(negotiator_names):
+                session.negotiator_infos.append(
+                    SessionNegotiatorInfo(
+                        name=name,
+                        type_name=negotiator_types[i]
+                        if i < len(negotiator_types)
+                        else "",
+                        index=i,
+                        color=default_colors[i % len(default_colors)],
+                    )
+                )
 
         # Parse history into offers
         ufuns_list = (
@@ -517,28 +551,21 @@ class NegotiationStorageService:
         # Build outcome space data from scenario if available
         scenario = run.scenario
 
-        # If scenario not in CompletedRun, try to load from scenario_path
-        # Check app_metadata first, then run.metadata (negmas native metadata.yaml)
-        if scenario is None:
-            scenario_path = None
-            if app_metadata:
-                scenario_path = app_metadata.get("scenario_path")
-            if not scenario_path and run.metadata:
-                scenario_path = run.metadata.get("scenario_path")
+        # If scenario not in CompletedRun, try to load from scenario_path in run.metadata
+        scenario_path_from_meta = run_metadata.get("scenario_path")
+        if scenario is None and scenario_path_from_meta:
+            try:
+                from negmas import Scenario
 
-            if scenario_path:
-                try:
-                    from negmas import Scenario
-
-                    scenario_path_obj = Path(scenario_path)
-                    if scenario_path_obj.exists():
-                        scenario = Scenario.load(  # type: ignore[attr-defined]
-                            scenario_path_obj,
-                            load_stats=True,
-                            load_info=True,
-                        )
-                except Exception as e:
-                    print(f"Failed to load scenario from {scenario_path}: {e}")
+                scenario_path_obj = Path(scenario_path_from_meta)
+                if scenario_path_obj.exists():
+                    scenario = Scenario.load(  # type: ignore[attr-defined]
+                        scenario_path_obj,
+                        load_stats=True,
+                        load_info=True,
+                    )
+            except Exception as e:
+                print(f"Failed to load scenario from {scenario_path_from_meta}: {e}")
 
         if scenario:
             session.outcome_space_data = (
@@ -798,7 +825,11 @@ class NegotiationStorageService:
 
     @staticmethod
     def _list_from_dir(directory: Path, archived: bool = False) -> list[dict]:
-        """List negotiations from a specific directory."""
+        """List negotiations from a specific directory.
+
+        Uses CompletedRun standard files (config.yaml, metadata.yaml, outcome_stats.yaml).
+        All app-specific data is in metadata.yaml (run.metadata).
+        """
         negotiations = []
 
         for session_path in directory.iterdir():
@@ -808,18 +839,7 @@ class NegotiationStorageService:
             ):
                 continue
 
-            # Try to load app metadata for summary info
-            app_metadata: dict[str, Any] = {}
-            if session_path.is_dir():
-                app_metadata_path = session_path / APP_METADATA_FILE
-                if app_metadata_path.exists():
-                    try:
-                        with open(app_metadata_path) as f:
-                            app_metadata = json.load(f)
-                    except (json.JSONDecodeError, KeyError):
-                        pass
-
-            # Try to load basic info from CompletedRun
+            # Try to load from CompletedRun (standard format)
             try:
                 run = CompletedRun.load(
                     session_path,
@@ -830,35 +850,32 @@ class NegotiationStorageService:
                 )
                 config = run.config or {}
                 outcome_stats = run.outcome_stats or {}
+                run_metadata = run.metadata or {}
 
-                # Merge with app_metadata (app_metadata takes precedence)
-                scenario_name = app_metadata.get("scenario_name")
-                if not scenario_name:
-                    scenario_path = app_metadata.get("scenario_path", "")
-                    if scenario_path:
-                        scenario_name = Path(scenario_path).name
-                    else:
-                        scenario_name = session_path.stem
+                # Get scenario info from run.metadata
+                scenario_path = run_metadata.get("scenario_path", "")
+                scenario_name = run_metadata.get("scenario_name") or (
+                    Path(scenario_path).name if scenario_path else session_path.stem
+                )
 
                 summary = {
-                    "id": app_metadata.get("id", session_path.stem),
-                    "status": app_metadata.get("status", "completed"),
+                    "id": run_metadata.get("session_id", session_path.stem),
+                    "status": run_metadata.get("status", "completed"),
                     "scenario_name": scenario_name,
-                    "scenario_path": app_metadata.get("scenario_path"),
+                    "scenario_path": scenario_path,
                     "mechanism_type": config.get("mechanism_type"),
-                    "negotiator_names": app_metadata.get(
-                        "negotiator_names", config.get("negotiator_names", [])
-                    ),
-                    "negotiator_types": app_metadata.get(
-                        "negotiator_types", config.get("negotiator_types", [])
-                    ),
-                    "start_time": app_metadata.get("start_time"),
-                    "end_time": app_metadata.get("end_time"),
+                    # From config.yaml (standard CompletedRun)
+                    "negotiator_names": config.get("negotiator_names", []),
+                    "negotiator_types": config.get("negotiator_types", []),
+                    # From metadata.yaml (run.metadata)
+                    "start_time": run_metadata.get("start_time"),
+                    "end_time": run_metadata.get("end_time"),
                     "n_steps": config.get("n_steps"),
-                    "tags": app_metadata.get("tags", []),
-                    "archived": archived,
-                    "created_at": app_metadata.get("start_time"),
-                    "completed_at": app_metadata.get("end_time"),
+                    "tags": run_metadata.get("tags", []),
+                    "archived": archived or run_metadata.get("archived", False),
+                    "created_at": run_metadata.get("start_time"),
+                    "completed_at": run_metadata.get("end_time"),
+                    # From outcome_stats.yaml (standard CompletedRun)
                     "agreement": outcome_stats.get("agreement"),
                     "has_agreement": outcome_stats.get("agreement") is not None,
                     "final_utilities": outcome_stats.get("utilities"),
@@ -867,23 +884,8 @@ class NegotiationStorageService:
                 negotiations.append(summary)
 
             except Exception:
-                # If CompletedRun.load fails, try just using app_metadata
-                if app_metadata:
-                    summary = {
-                        "id": app_metadata.get("id", session_path.stem),
-                        "status": app_metadata.get("status", "completed"),
-                        "scenario_name": app_metadata.get(
-                            "scenario_name", session_path.stem
-                        ),
-                        "scenario_path": app_metadata.get("scenario_path"),
-                        "negotiator_names": app_metadata.get("negotiator_names", []),
-                        "negotiator_types": app_metadata.get("negotiator_types", []),
-                        "start_time": app_metadata.get("start_time"),
-                        "end_time": app_metadata.get("end_time"),
-                        "tags": app_metadata.get("tags", []),
-                        "archived": archived,
-                    }
-                    negotiations.append(summary)
+                # If CompletedRun.load fails, skip this entry
+                pass
 
         return negotiations
 
@@ -898,14 +900,8 @@ class NegotiationStorageService:
         archive_dest = ARCHIVE_DIR / session_id
         shutil.move(str(session_dir), str(archive_dest))
 
-        # Update app metadata to mark as archived
-        metadata_path = archive_dest / APP_METADATA_FILE
-        if metadata_path.exists():
-            with open(metadata_path) as f:
-                metadata = json.load(f)
-            metadata["archived"] = True
-            with open(metadata_path, "w") as f:
-                json.dump(metadata, f, indent=2)
+        # Update metadata.yaml to mark as archived
+        NegotiationStorageService._update_metadata_field(archive_dest, "archived", True)
 
         return True
 
@@ -920,16 +916,28 @@ class NegotiationStorageService:
         dest = NEGOTIATIONS_DIR / session_id
         shutil.move(str(archive_dir), str(dest))
 
-        # Update app metadata
-        metadata_path = dest / APP_METADATA_FILE
-        if metadata_path.exists():
-            with open(metadata_path) as f:
-                metadata = json.load(f)
-            metadata["archived"] = False
-            with open(metadata_path, "w") as f:
-                json.dump(metadata, f, indent=2)
+        # Update metadata.yaml
+        NegotiationStorageService._update_metadata_field(dest, "archived", False)
 
         return True
+
+    @staticmethod
+    def _update_metadata_field(session_dir: Path, field: str, value: Any) -> bool:
+        """Update a field in metadata.yaml."""
+        from negmas.helpers.inout import dump, load
+
+        metadata_path = session_dir / "metadata.yaml"
+        if not metadata_path.exists():
+            return False
+
+        try:
+            metadata = load(metadata_path) or {}
+            metadata[field] = value
+            dump(metadata, metadata_path)
+            return True
+        except Exception as e:
+            print(f"Warning: Failed to update metadata: {e}")
+            return False
 
     @staticmethod
     def update_tags(session_id: str, tags: list[str]) -> bool:
@@ -940,62 +948,63 @@ class NegotiationStorageService:
         if not session_dir.exists():
             return False
 
-        metadata_path = session_dir / APP_METADATA_FILE
-        if metadata_path.exists():
-            with open(metadata_path) as f:
-                metadata = json.load(f)
-            metadata["tags"] = tags
-            with open(metadata_path, "w") as f:
-                json.dump(metadata, f, indent=2)
-            return True
-
-        return False
+        return NegotiationStorageService._update_metadata_field(
+            session_dir, "tags", tags
+        )
 
     @staticmethod
     def add_tag(session_id: str, tag: str) -> bool:
         """Add a tag to a negotiation."""
+        from negmas.helpers.inout import load
+
         session_dir = NEGOTIATIONS_DIR / session_id
         if not session_dir.exists():
             session_dir = ARCHIVE_DIR / session_id
         if not session_dir.exists():
             return False
 
-        metadata_path = session_dir / APP_METADATA_FILE
-        if metadata_path.exists():
-            with open(metadata_path) as f:
-                metadata = json.load(f)
+        metadata_path = session_dir / "metadata.yaml"
+        if not metadata_path.exists():
+            return False
+
+        try:
+            metadata = load(metadata_path) or {}
             tags = metadata.get("tags", [])
             if tag not in tags:
                 tags.append(tag)
-                metadata["tags"] = tags
-                with open(metadata_path, "w") as f:
-                    json.dump(metadata, f, indent=2)
+                return NegotiationStorageService._update_metadata_field(
+                    session_dir, "tags", tags
+                )
             return True
-
-        return False
+        except Exception:
+            return False
 
     @staticmethod
     def remove_tag(session_id: str, tag: str) -> bool:
         """Remove a tag from a negotiation."""
+        from negmas.helpers.inout import load
+
         session_dir = NEGOTIATIONS_DIR / session_id
         if not session_dir.exists():
             session_dir = ARCHIVE_DIR / session_id
         if not session_dir.exists():
             return False
 
-        metadata_path = session_dir / APP_METADATA_FILE
-        if metadata_path.exists():
-            with open(metadata_path) as f:
-                metadata = json.load(f)
+        metadata_path = session_dir / "metadata.yaml"
+        if not metadata_path.exists():
+            return False
+
+        try:
+            metadata = load(metadata_path) or {}
             tags = metadata.get("tags", [])
             if tag in tags:
                 tags.remove(tag)
-                metadata["tags"] = tags
-                with open(metadata_path, "w") as f:
-                    json.dump(metadata, f, indent=2)
+                return NegotiationStorageService._update_metadata_field(
+                    session_dir, "tags", tags
+                )
             return True
-
-        return False
+        except Exception:
+            return False
 
     @staticmethod
     def get_all_tags() -> list[str]:
@@ -1010,13 +1019,14 @@ class NegotiationStorageService:
                 if not session_dir.is_dir():
                     continue
 
-                metadata_path = session_dir / APP_METADATA_FILE
+                metadata_path = session_dir / "metadata.yaml"
                 if metadata_path.exists():
                     try:
-                        with open(metadata_path) as f:
-                            metadata = json.load(f)
+                        from negmas.helpers.inout import load
+
+                        metadata = load(metadata_path) or {}
                         all_tags.update(metadata.get("tags", []))
-                    except (json.JSONDecodeError, KeyError):
+                    except Exception:
                         pass
 
         return sorted(all_tags)
@@ -1095,13 +1105,13 @@ class NegotiationStorageService:
                 agreement_stats=run.agreement_stats,
                 config=run.config,
                 outcome_stats=run.outcome_stats,
-                metadata=app_metadata,
+                metadata=app_metadata,  # All app data goes to metadata.yaml
             )
 
             # Ensure storage directory exists
             _ensure_dir(NEGOTIATIONS_DIR)
 
-            # Save using CompletedRun.save()
+            # Save using CompletedRun.save() - metadata goes to metadata.yaml
             saved_path = imported_run.save(
                 parent=NEGOTIATIONS_DIR,
                 name=new_session_id,
@@ -1115,12 +1125,8 @@ class NegotiationStorageService:
                 storage_format="parquet",
             )
 
-            # Save app metadata as separate file for easy access
-            session_dir = saved_path if saved_path.is_dir() else saved_path.parent
-            with open(session_dir / APP_METADATA_FILE, "w") as f:
-                json.dump(app_metadata, f, indent=2)
-
             # Load and return the session
+            session_dir = saved_path if saved_path.is_dir() else saved_path.parent
             return NegotiationStorageService.load_from_path(session_dir)
 
         except Exception as e:

@@ -18,6 +18,12 @@ class OpenFolderRequest(BaseModel):
     path: str
 
 
+class OpenPathRequest(BaseModel):
+    """Request to open a file or folder in the system."""
+
+    path: str
+
+
 class BrowseRequest(BaseModel):
     """Request to open a file/folder browser dialog."""
 
@@ -91,6 +97,53 @@ async def open_folder(request: OpenFolderRequest) -> dict[str, str]:
 
     except subprocess.CalledProcessError as e:
         raise HTTPException(status_code=500, detail=f"Failed to open folder: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
+
+
+@router.post("/open-path")
+async def open_path(request: OpenPathRequest) -> dict[str, str]:
+    """Open a file or folder in the system's default application.
+
+    For files: opens in the default editor/application for that file type.
+    For folders: opens in the system file explorer.
+
+    Args:
+        request: Request containing the path to open.
+
+    Returns:
+        Success message.
+
+    Raises:
+        HTTPException: If the path doesn't exist or can't be opened.
+    """
+    file_path = Path(request.path)
+
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=404, detail=f"Path does not exist: {request.path}"
+        )
+
+    try:
+        system = platform.system()
+
+        if system == "Darwin":  # macOS
+            subprocess.run(["open", str(file_path)], check=True)
+        elif system == "Windows":
+            # os.startfile is Windows-only, use subprocess for consistency
+            subprocess.run(["explorer", str(file_path)], check=True)
+        elif system == "Linux":
+            subprocess.run(["xdg-open", str(file_path)], check=True)
+        else:
+            raise HTTPException(
+                status_code=500, detail=f"Unsupported platform: {system}"
+            )
+
+        path_type = "folder" if file_path.is_dir() else "file"
+        return {"status": "success", "message": f"Opened {path_type}: {request.path}"}
+
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to open path: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 

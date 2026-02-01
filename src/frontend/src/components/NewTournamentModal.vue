@@ -1,8 +1,98 @@
 <template>
   <div v-if="show" class="modal-overlay active" @click.self="$emit('close')">
     <div class="modal large">
+      <!-- Success Message Toast -->
+      <div v-if="saveSuccessMessage" class="success-toast">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        {{ saveSuccessMessage }}
+      </div>
+      
       <div class="modal-header">
         <h2>New Tournament</h2>
+        <div class="modal-header-actions">
+          <!-- Recent Tournaments Dropdown -->
+          <div class="dropdown">
+            <button class="btn btn-sm btn-secondary" @click.stop="recentDropdownOpen = !recentDropdownOpen">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              Recent
+            </button>
+            <div v-if="recentDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
+              <div v-if="recentTournaments.length === 0" class="dropdown-item text-muted">
+                No recent tournaments
+              </div>
+              <div
+                v-for="tournament in recentTournaments"
+                :key="tournament.name + tournament.last_used_at"
+                class="dropdown-item"
+                @click="loadTournamentPreset(tournament); recentDropdownOpen = false"
+              >
+                <div class="font-medium">{{ tournament.name }}</div>
+                <div class="text-muted" style="font-size: 11px;">
+                  {{ tournament.scenario_count || 0 }} scenarios, {{ tournament.competitor_count || 0 }} competitors
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Saved Presets Dropdown -->
+          <div class="dropdown">
+            <button 
+              class="btn btn-sm btn-secondary" 
+              @click.stop="savedDropdownOpen = !savedDropdownOpen; loadTournamentPresets()"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              Load
+            </button>
+            <div v-if="savedDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
+              <div v-if="isLoadingPresets" class="dropdown-item text-muted">
+                Loading...
+              </div>
+              <div v-else-if="tournamentsStore.tournamentPresets.length === 0" class="dropdown-item text-muted">
+                No saved presets
+              </div>
+              <div
+                v-else
+                v-for="preset in tournamentsStore.tournamentPresets"
+                :key="preset.name"
+                class="dropdown-item"
+                style="display: flex; justify-content: space-between; align-items: center;"
+              >
+                <div @click="loadTournamentPreset(preset); savedDropdownOpen = false" style="flex: 1; cursor: pointer;">
+                  <div class="font-medium">{{ preset.name }}</div>
+                  <div class="text-muted" style="font-size: 11px;">
+                    {{ preset.scenario_paths?.length || 0 }} scenarios, {{ preset.competitor_types?.length || 0 }} competitors
+                  </div>
+                </div>
+                <button class="btn-icon-sm" @click.stop="deleteTournamentPreset(preset.name)" title="Delete">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Save Preset Button -->
+          <button class="btn btn-sm btn-primary" @click.stop="showSaveModal = true" :disabled="!canStartTournament">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            Save
+          </button>
+        </div>
         <button class="modal-close" @click="$emit('close')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -11,20 +101,25 @@
         </button>
       </div>
       
+      <!-- Save Preset Modal -->
+      <div v-if="showSaveModal" class="save-modal-overlay" @click.self="showSaveModal = false">
+        <div class="save-modal">
+          <h3>Save Tournament Preset</h3>
+          <div class="form-group">
+            <label class="form-label">Preset Name</label>
+            <input v-model="savePresetName" type="text" class="form-input" placeholder="Enter preset name...">
+          </div>
+          <div class="save-modal-actions">
+            <button class="btn btn-secondary" @click="showSaveModal = false">Cancel</button>
+            <button class="btn btn-primary" @click="saveTournamentPreset" :disabled="!savePresetName.trim()">Save</button>
+          </div>
+        </div>
+      </div>
+      
       <div class="modal-body" style="padding: 0;">
         <div class="wizard-layout">
           <!-- Sidebar with tabs -->
           <div class="wizard-sidebar">
-            <!-- Preset selector at top -->
-            <div class="wizard-preset-selector">
-              <label class="form-label">Load Preset</label>
-              <select v-model="selectedPreset" class="form-select" @change="loadPreset">
-                <option value="">-- Select preset --</option>
-                <option v-for="preset in tournamentsStore.tournamentPresets" :key="preset.name" :value="preset.name">
-                  {{ preset.name }}
-                </option>
-              </select>
-            </div>
             
             <button 
               class="wizard-tab" 
@@ -204,7 +299,7 @@
                   <span class="graph-count">{{ selectedScenarios.length }} scenarios</span>
                 </div>
                 <div v-if="showOppositionGraph" class="graph-content">
-                  <div class="graph-placeholder">Chart placeholder - integrate with existing charting library</div>
+                  <div ref="oppositionPlotDiv" class="opposition-plot"></div>
                 </div>
               </div>
             </div>
@@ -858,16 +953,24 @@
         <button class="btn btn-secondary" @click="$emit('close')">
           Cancel
         </button>
-        <button 
-          v-if="currentTab === 'review'" 
-          class="btn btn-primary" 
-          @click="startTournament" 
-          :disabled="!canStartTournament || starting"
-        >
-          {{ starting ? 'Starting...' : 'Start Tournament' }}
-        </button>
-        <button v-else class="btn btn-primary" @click="goToReview">
-          Review & Start
+        <template v-if="currentTab === 'review'">
+          <button 
+            class="btn btn-secondary" 
+            @click="startTournamentBackground" 
+            :disabled="!canStartTournament || starting"
+          >
+            Start without Monitoring
+          </button>
+          <button 
+            class="btn btn-primary" 
+            @click="startTournament" 
+            :disabled="!canStartTournament || starting"
+          >
+            {{ starting ? 'Starting...' : 'Start Tournament' }}
+          </button>
+        </template>
+        <button v-else class="btn btn-primary" @click="goToNextTab">
+          Next
         </button>
       </div>
     </div>
@@ -875,9 +978,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import DualListSelector from './DualListSelector.vue'
 import { useTournamentsStore } from '../stores/tournaments'
+import Plotly from 'plotly.js-dist-min'
 
 const tournamentsStore = useTournamentsStore()
 
@@ -885,7 +989,15 @@ const props = defineProps({
   show: Boolean,
 })
 
-const emit = defineEmits(['close', 'start'])
+const emit = defineEmits(['close', 'start', 'startBackground'])
+
+// UI state for dropdowns and save modal
+const recentDropdownOpen = ref(false)
+const savedDropdownOpen = ref(false)
+const showSaveModal = ref(false)
+const savePresetName = ref('')
+const isLoadingPresets = ref(false)
+const recentTournaments = ref([])
 
 // Current tab
 const currentTab = ref('scenarios')
@@ -904,6 +1016,7 @@ const scenarioFilters = ref({
   maxOpposition: null,
 })
 const showOppositionGraph = ref(false)
+const oppositionPlotDiv = ref(null)
 
 // Competitors
 const negotiators = ref([])
@@ -1113,6 +1226,129 @@ const copyCompetitorsToOpponents = () => {
 
 const goToReview = () => {
   currentTab.value = 'review'
+}
+
+const goToNextTab = () => {
+  const tabs = ['scenarios', 'competitors', 'opponents', 'settings', 'review']
+  const currentIndex = tabs.indexOf(currentTab.value)
+  if (currentIndex < tabs.length - 1) {
+    currentTab.value = tabs[currentIndex + 1]
+  }
+}
+
+// Preset management functions
+const loadTournamentPresets = async () => {
+  isLoadingPresets.value = true
+  try {
+    await tournamentsStore.loadTournamentPresets()
+  } catch (error) {
+    console.error('Failed to load tournament presets:', error)
+  } finally {
+    isLoadingPresets.value = false
+  }
+}
+
+const loadTournamentPreset = async (preset) => {
+  if (!preset) return
+  
+  // Load scenarios
+  selectedScenarios.value = scenarios.value.filter(s => 
+    preset.scenario_paths?.includes(s.path)
+  )
+  
+  // Load competitors
+  selectedCompetitors.value = negotiators.value.filter(n => 
+    preset.competitor_types?.includes(n.type_name)
+  )
+  
+  // Load opponents
+  if (preset.opponents_same_as_competitors) {
+    opponentsSameAsCompetitors.value = true
+    selectedOpponents.value = []
+  } else {
+    opponentsSameAsCompetitors.value = false
+    selectedOpponents.value = negotiators.value.filter(n => 
+      preset.opponent_types && preset.opponent_types.includes(n.type_name)
+    )
+  }
+  
+  // Load settings
+  settings.value.nRepetitions = preset.n_repetitions || 1
+  settings.value.mechanismType = preset.mechanism_type || 'SAOMechanism'
+  settings.value.rotateUfuns = preset.rotate_ufuns ?? true
+  settings.value.selfPlay = preset.self_play ?? true
+  settings.value.finalScoreMetric = preset.final_score_metric || 'advantage'
+  settings.value.finalScoreStat = preset.final_score_stat || 'mean'
+  settings.value.normalization = preset.normalization || 'normalize'
+  settings.value.ignoreDiscount = preset.ignore_discount ?? false
+  settings.value.ignoreReserved = preset.ignore_reserved ?? false
+  
+  // Add to recent tournaments
+  const recentEntry = {
+    ...preset,
+    name: preset.name,
+    last_used_at: new Date().toISOString(),
+    scenario_count: preset.scenario_paths?.length || 0,
+    competitor_count: preset.competitor_types?.length || 0,
+  }
+  addToRecentTournaments(recentEntry)
+}
+
+const addToRecentTournaments = (tournament) => {
+  // Keep only last 10 recent tournaments
+  const existing = recentTournaments.value.findIndex(t => t.name === tournament.name)
+  if (existing >= 0) {
+    recentTournaments.value.splice(existing, 1)
+  }
+  recentTournaments.value.unshift(tournament)
+  if (recentTournaments.value.length > 10) {
+    recentTournaments.value = recentTournaments.value.slice(0, 10)
+  }
+  // Save to localStorage
+  localStorage.setItem('recentTournaments', JSON.stringify(recentTournaments.value))
+}
+
+const saveTournamentPreset = async () => {
+  if (!savePresetName.value.trim()) return
+  
+  const preset = {
+    name: savePresetName.value.trim(),
+    scenario_paths: selectedScenarios.value.map(s => s.path),
+    competitor_types: selectedCompetitors.value.map(c => c.type_name),
+    opponent_types: opponentsSameAsCompetitors.value ? null : selectedOpponents.value.map(o => o.type_name),
+    opponents_same_as_competitors: opponentsSameAsCompetitors.value,
+    n_repetitions: settings.value.nRepetitions,
+    mechanism_type: settings.value.mechanismType,
+    rotate_ufuns: settings.value.rotateUfuns,
+    self_play: settings.value.selfPlay,
+    final_score_metric: settings.value.finalScoreMetric,
+    final_score_stat: settings.value.finalScoreStat,
+    normalization: settings.value.normalization,
+    ignore_discount: settings.value.ignoreDiscount,
+    ignore_reserved: settings.value.ignoreReserved,
+  }
+  
+  try {
+    await tournamentsStore.saveTournamentPreset(preset)
+    saveSuccessMessage.value = `Preset "${preset.name}" saved successfully`
+    showSaveModal.value = false
+    savePresetName.value = ''
+    setTimeout(() => { saveSuccessMessage.value = '' }, 3000)
+  } catch (error) {
+    console.error('Failed to save preset:', error)
+    alert('Failed to save preset: ' + error.message)
+  }
+}
+
+const deleteTournamentPreset = async (name) => {
+  if (!confirm(`Delete preset "${name}"?`)) return
+  
+  try {
+    await tournamentsStore.deleteTournamentPreset(name)
+  } catch (error) {
+    console.error('Failed to delete preset:', error)
+    alert('Failed to delete preset: ' + error.message)
+  }
 }
 
 const loadPreset = async () => {
@@ -1364,6 +1600,82 @@ const startTournament = async () => {
   }
 }
 
+const startTournamentBackground = async () => {
+  if (!canStartTournament.value || starting.value) return
+  
+  starting.value = true
+  
+  try {
+    const request = {
+      competitor_types: selectedCompetitors.value.map(c => c.type_name),
+      scenario_paths: selectedScenarios.value.map(s => s.path),
+      opponent_types: opponentsSameAsCompetitors.value ? null : selectedOpponents.value.map(o => o.type_name),
+      competitor_params: null,
+      opponent_params: null,
+      n_repetitions: settings.value.nRepetitions,
+      rotate_ufuns: settings.value.rotateUfuns,
+      self_play: settings.value.selfPlay,
+      mechanism_type: settings.value.mechanismType,
+      n_steps: settings.value.nStepsRangeEnabled ? [settings.value.nStepsMin, settings.value.nStepsMax] : settings.value.nSteps,
+      time_limit: settings.value.timeLimitRangeEnabled ? [settings.value.timeLimitMin, settings.value.timeLimitMax] : (settings.value.timeLimit || null),
+      final_score_metric: settings.value.finalScoreMetric,
+      final_score_stat: settings.value.finalScoreStat,
+      normalization: settings.value.normalization,
+      ignore_discount: settings.value.ignoreDiscount,
+      ignore_reserved: settings.value.ignoreReserved,
+      save_stats: settings.value.saveStats,
+      recalculate_stats: settings.value.recalculateStats,
+      save_logs: settings.value.saveLogs,
+      save_negotiations_as_folders: settings.value.saveNegotiationsAsFolders,
+      // Advanced settings
+      step_time_limit: settings.value.stepTimeLimit || null,
+      negotiator_time_limit: settings.value.negotiatorTimeLimit || null,
+      hidden_time_limit: settings.value.hiddenTimeLimit || null,
+      pend: settings.value.pend || 0,
+      pend_per_second: settings.value.pendPerSecond || 0,
+      id_reveals_type: settings.value.idRevealsType,
+      name_reveals_type: settings.value.nameRevealsType,
+      mask_scenario_names: settings.value.maskScenarioNames,
+      randomize_runs: settings.value.randomizeRuns,
+      sort_runs: settings.value.sortRuns,
+      only_failures_on_self_play: settings.value.onlyFailuresOnSelfPlay,
+      save_scenario_figs: settings.value.saveScenarioFigs,
+      save_every: settings.value.saveEvery || 0,
+      pass_opponent_ufun: settings.value.passOpponentUfun,
+      raise_exceptions: settings.value.raiseExceptions,
+      njobs: settings.value.njobs,
+      external_timeout: settings.value.externalTimeout || null,
+      verbosity: settings.value.verbosity || 0,
+      monitor_negotiations: false,  // Background mode - no monitoring
+      progress_sample_rate: settings.value.progressSampleRate || 1,
+      plot_fraction: settings.value.plotFraction || 0.0,
+      rotate_private_infos: settings.value.rotatePrivateInfos,
+      storage_optimization: settings.value.storageOptimization,
+      memory_optimization: settings.value.memoryOptimization,
+      storage_format: settings.value.storageFormat || null,
+    }
+    
+    const response = await fetch('/api/tournament/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    
+    const data = await response.json()
+    emit('startBackground', data)
+    emit('close')
+  } catch (error) {
+    console.error('Failed to start tournament:', error)
+    alert('Failed to start tournament: ' + error.message)
+  } finally {
+    starting.value = false
+  }
+}
+
 const loadData = async () => {
   try {
     console.log('[NewTournamentModal] Starting loadData...')
@@ -1399,6 +1711,102 @@ const loadData = async () => {
   }
 }
 
+// Opposition vs Outcomes plot
+const renderOppositionPlot = async () => {
+  if (!oppositionPlotDiv.value || selectedScenarios.value.length === 0) return
+  
+  await nextTick()
+  
+  const isDark = document.documentElement.classList.contains('dark')
+  const colors = {
+    background: isDark ? '#1a1a2e' : '#ffffff',
+    text: isDark ? '#e0e0e0' : '#333333',
+    grid: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+    marker: isDark ? '#4fc3f7' : '#1976d2',
+  }
+  
+  // Extract data from selected scenarios
+  const x = [] // n_outcomes
+  const y = [] // opposition
+  const hoverText = []
+  
+  for (const scenario of selectedScenarios.value) {
+    const nOutcomes = scenario.n_outcomes || scenario.stats?.n_outcomes
+    const opposition = scenario.opposition || scenario.stats?.opposition
+    
+    if (nOutcomes !== undefined && opposition !== undefined) {
+      x.push(nOutcomes)
+      y.push(opposition)
+      hoverText.push(`${scenario.name}<br>Outcomes: ${nOutcomes}<br>Opposition: ${opposition.toFixed(3)}`)
+    }
+  }
+  
+  if (x.length === 0) {
+    // No data with both fields - show message
+    Plotly.purge(oppositionPlotDiv.value)
+    oppositionPlotDiv.value.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">No scenario data available</div>'
+    return
+  }
+  
+  const trace = {
+    x: x,
+    y: y,
+    mode: 'markers',
+    type: 'scatter',
+    marker: {
+      size: 8,
+      color: colors.marker,
+      opacity: 0.7,
+    },
+    text: hoverText,
+    hoverinfo: 'text',
+  }
+  
+  const layout = {
+    title: {
+      text: 'Opposition vs Number of Outcomes',
+      font: { size: 14, color: colors.text }
+    },
+    xaxis: {
+      title: { text: 'Number of Outcomes', font: { size: 12, color: colors.text } },
+      type: 'log',
+      gridcolor: colors.grid,
+      tickfont: { color: colors.text },
+      linecolor: colors.grid,
+    },
+    yaxis: {
+      title: { text: 'Opposition Level', font: { size: 12, color: colors.text } },
+      range: [0, 1],
+      gridcolor: colors.grid,
+      tickfont: { color: colors.text },
+      linecolor: colors.grid,
+    },
+    paper_bgcolor: colors.background,
+    plot_bgcolor: colors.background,
+    margin: { t: 40, r: 20, b: 50, l: 60 },
+    showlegend: false,
+  }
+  
+  const config = {
+    responsive: true,
+    displayModeBar: false,
+  }
+  
+  try {
+    await Plotly.newPlot(oppositionPlotDiv.value, [trace], layout, config)
+  } catch (error) {
+    console.error('Failed to render opposition plot:', error)
+  }
+}
+
+// Watch for graph toggle and scenario changes
+watch([showOppositionGraph, selectedScenarios], async ([showGraph, scenarios]) => {
+  if (showGraph && scenarios.length > 0) {
+    await nextTick()
+    renderOppositionPlot()
+  }
+}, { deep: true })
+
 // Watch for modal open/close
 watch(() => props.show, (newShow, oldShow) => {
   console.log('[NewTournamentModal] props.show changed:', { oldShow, newShow })
@@ -1416,6 +1824,17 @@ watch(() => props.show, (newShow, oldShow) => {
 
 onMounted(() => {
   console.log('[NewTournamentModal] Component mounted, props.show:', props.show)
+  
+  // Load recent tournaments from localStorage
+  try {
+    const stored = localStorage.getItem('recentTournaments')
+    if (stored) {
+      recentTournaments.value = JSON.parse(stored)
+    }
+  } catch (e) {
+    console.error('Failed to load recent tournaments:', e)
+  }
+  
   if (props.show) {
     console.log('[NewTournamentModal] Loading data on mount...')
     loadData()
@@ -1485,6 +1904,62 @@ onMounted(() => {
 
 .modal-close:hover {
   background: var(--bg-hover);
+}
+
+.modal-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-right: auto;
+  margin-left: 20px;
+}
+
+.success-toast {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--success-bg, #d4edda);
+  color: var(--success-text, #155724);
+  padding: 10px 20px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.save-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+}
+
+.save-modal {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  padding: 24px;
+  width: 400px;
+  max-width: 90%;
+}
+
+.save-modal h3 {
+  margin: 0 0 16px 0;
+}
+
+.save-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 .modal-body {
@@ -1807,6 +2282,13 @@ onMounted(() => {
   border-radius: 6px;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.opposition-plot {
+  height: 250px;
+  width: 100%;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
 }
 
 .checkbox-card {

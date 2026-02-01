@@ -315,7 +315,7 @@ class NegotiationLoader:
             elif outcome_stats.get("broken"):
                 end_reason = "broken"
 
-        # Build optimality stats
+        # Build optimality stats from run.agreement_stats (extracted from outcome_stats.yaml by CompletedRun)
         optimality_stats = None
         if run.agreement_stats:
             optimality_stats = {

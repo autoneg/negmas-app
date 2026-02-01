@@ -132,19 +132,24 @@ def compute_outcome_space_data(
 
 
 def _from_cached_stats(scenario: Scenario, max_samples: int) -> OutcomeSpaceData:
-    """Build OutcomeSpaceData from cached scenario.stats."""
+    """Build OutcomeSpaceData from cached scenario.stats.
+
+    Note: The scenario passed in should already be in the desired state
+    (normalized if needed). We use the scenario's ufuns directly without
+    any additional normalization.
+    """
     stats = scenario.stats
     ufuns = scenario.ufuns
     outcome_space = scenario.outcome_space
 
-    # Normalize ufuns if stats has utility_ranges (indicates stats were computed with normalized ufuns)
-    # This ensures outcome_utilities match the scale of cached special points
-    if stats.utility_ranges and len(stats.utility_ranges) == len(ufuns):
-        from negmas.preferences.ops import normalize
+    # Extract reserved values from scenario ufuns as-is
+    # The caller is responsible for normalizing the scenario if needed
+    reserved_values = []
+    for ufun in ufuns:
+        rv = getattr(ufun, "reserved_value", None)
+        reserved_values.append(float(rv) if rv is not None else 0.0)
 
-        ufuns = [normalize(ufun) for ufun in ufuns]
-
-    # Still need to compute outcome utilities for the scatter plot
+    # Compute outcome utilities using the scenario's ufuns directly
     outcomes = list(outcome_space.enumerate_or_sample(max_cardinality=max_samples * 2))
     total_outcomes = outcome_space.cardinality
 
@@ -157,12 +162,6 @@ def _from_cached_stats(scenario: Scenario, max_samples: int) -> OutcomeSpaceData
     if stats.pareto_utils:
         for utils in stats.pareto_utils:
             pareto_utilities.append(tuple(float(u) for u in utils))
-
-    # Extract reserved values
-    reserved_values = []
-    for ufun in ufuns:
-        rv = getattr(ufun, "reserved_value", None)
-        reserved_values.append(float(rv) if rv is not None else 0.0)
 
     data = OutcomeSpaceData(
         outcome_utilities=outcome_utilities,

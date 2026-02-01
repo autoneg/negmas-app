@@ -2,6 +2,12 @@
   <div class="ufun-display">
     <div class="ufun-header">
       <span class="ufun-name">{{ ufun.name || `Utility Function ${index + 1}` }}</span>
+      <DetailsIcon 
+        v-if="showDetailsIcon"
+        :small="true"
+        title="View full ufun details"
+        @click="$emit('details')"
+      />
       <span class="ufun-type-badge">{{ formatUfunType(ufun.type) }}</span>
     </div>
     
@@ -13,18 +19,7 @@
         <span class="detail-value">{{ formatNumber(getReservedValue()) }}</span>
       </div>
       
-      <!-- For LinearAdditive: show weights -->
-      <div v-if="hasWeights" class="ufun-detail-row">
-        <span class="detail-label">Weights:</span>
-        <span class="detail-value monospace">{{ formatWeights() }}</span>
-      </div>
-      
-      <!-- For Discounted: show discount factor and base ufun type -->
-      <div v-if="isDiscounted" class="ufun-detail-row">
-        <span class="detail-label">Discount:</span>
-        <span class="detail-value">{{ formatNumber(getDiscountFactor()) }}</span>
-      </div>
-      
+      <!-- For Discounted: show base ufun type -->
       <div v-if="isDiscounted && baseUfunType" class="ufun-detail-row">
         <span class="detail-label">Base Type:</span>
         <span class="detail-value">{{ formatUfunType(baseUfunType) }}</span>
@@ -52,6 +47,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import DetailsIcon from './DetailsIcon.vue'
 
 const props = defineProps({
   ufun: {
@@ -69,8 +65,14 @@ const props = defineProps({
   compact: {
     type: Boolean,
     default: false
+  },
+  showDetailsIcon: {
+    type: Boolean,
+    default: false
   }
 })
+
+defineEmits(['details'])
 
 // Check if this is a discounted utility function
 const isDiscounted = computed(() => {
@@ -198,7 +200,7 @@ function formatNumber(value, decimals = 3) {
   font-size: 10px;
   padding: 2px 8px;
   border-radius: 4px;
-  background: var(--accent-primary);
+  background: var(--color-success, #28a745);
   color: white;
   font-weight: 500;
 }

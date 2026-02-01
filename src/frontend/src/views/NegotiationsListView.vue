@@ -352,6 +352,7 @@
       :show="showNewNegotiationModal"
       @close="showNewNegotiationModal = false"
       @start="onNegotiationStart"
+      @startBackground="onNegotiationStartBackground"
     />
     
     <!-- Tag Editor Modal -->
@@ -1606,6 +1607,14 @@ function onNegotiationStart(data) {
     // Just navigate - SingleNegotiationView will handle polling
     router.push({ name: 'SingleNegotiation', params: { id: data.session_id } })
   }
+}
+
+function onNegotiationStartBackground(data) {
+  showNewNegotiationModal.value = false
+  
+  // Don't navigate - stay on the list view
+  // Refresh the sessions list to show the new running negotiation
+  negotiationsStore.loadSessions()
 }
 </script>
 

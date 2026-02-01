@@ -85,10 +85,13 @@
           {{ statusText }}
         </span>
         <span class="info-stats">
-          {{ negotiation?.step || 0 }}/{{ negotiation?.n_steps || '∞' }} steps
+          {{ negotiation?.step || negotiation?.current_step || 0 }}/{{ negotiation?.n_steps || '∞' }} steps
         </span>
-        <span class="info-stats">
-          {{ negotiation?.offers?.length || 0 }} offers
+        <span class="info-stats" v-if="negotiation?.time !== undefined || negotiation?.time_limit">
+          {{ formatTime(negotiation?.time) }}/{{ negotiation?.time_limit ? formatTime(negotiation.time_limit) : '∞' }}
+        </span>
+        <span class="info-stats" v-if="negotiation?.relative_time !== undefined">
+          ({{ Math.round((negotiation?.relative_time || 0) * 100) }}%)
         </span>
         <div 
           class="info-progress" 
@@ -123,7 +126,9 @@
             {{ agreementProposer }}
           </span>
           <span class="summary-label" style="margin-left: 12px;">Steps:</span>
-          <span class="summary-value">{{ negotiation?.step || 0 }} / {{ negotiation?.n_steps || '∞' }}</span>
+          <span class="summary-value">{{ negotiation?.step || negotiation?.current_step || 0 }}/{{ negotiation?.n_steps || '∞' }}</span>
+          <span class="summary-label" style="margin-left: 12px;">Time:</span>
+          <span class="summary-value">{{ formatTime(negotiation?.time) }}/{{ negotiation?.time_limit ? formatTime(negotiation.time_limit) : '∞' }} ({{ Math.round((negotiation?.relative_time || 0) * 100) }}%)</span>
         </div>
         <div class="summary-row" v-if="negotiation?.final_utilities">
           <span class="summary-label">Utilities:</span>
@@ -269,6 +274,15 @@ const formatUtilities = computed(() => {
     })
     .join(', ')
 })
+
+// Format time in seconds to a readable string
+function formatTime(seconds) {
+  if (seconds === undefined || seconds === null) return '0s'
+  if (seconds < 60) return `${seconds.toFixed(1)}s`
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}m ${secs.toFixed(0)}s`
+}
 
 // Get the proposer of the agreement (from the last offer)
 const agreementProposer = computed(() => {

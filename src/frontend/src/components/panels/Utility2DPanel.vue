@@ -230,14 +230,7 @@ const yAxisIndex = ref(props.initialYAxis)
 // Computed
 const negotiatorNames = computed(() => props.negotiation?.negotiator_names || [])
 const hasData = computed(() => {
-  const result = !!props.negotiation?.outcome_space_data
-  console.log('[Utility2DPanel] hasData check:', {
-    hasNegotiation: !!props.negotiation,
-    hasOutcomeSpaceData: !!props.negotiation?.outcome_space_data,
-    result,
-    negotiation: props.negotiation
-  })
-  return result
+  return !!props.negotiation?.outcome_space_data
 })
 
 // Preview image URL for compact mode
@@ -338,11 +331,21 @@ async function initPlot() {
       })
     }
     
+    // Helper to extract utilities from special points
+    // Points can be either arrays [u1, u2] or objects {utilities: [u1, u2], outcome: {...}}
+    const getPointUtilities = (point) => {
+      if (!point) return null
+      if (Array.isArray(point)) return point
+      if (point.utilities && Array.isArray(point.utilities)) return point.utilities
+      return null
+    }
+    
     // 3. Nash point - outlined triangle
-    if (osd.nash_point && osd.nash_point.length > Math.max(xIdx, yIdx)) {
+    const nashUtils = getPointUtilities(osd.nash_point)
+    if (nashUtils && nashUtils.length > Math.max(xIdx, yIdx)) {
       traces.push({
-        x: [osd.nash_point[xIdx]],
-        y: [osd.nash_point[yIdx]],
+        x: [nashUtils[xIdx]],
+        y: [nashUtils[yIdx]],
         type: 'scattergl',
         mode: 'markers',
         name: 'Nash',
@@ -356,10 +359,11 @@ async function initPlot() {
     }
     
     // 4. Kalai point - outlined triangle
-    if (osd.kalai_point && osd.kalai_point.length > Math.max(xIdx, yIdx)) {
+    const kalaiUtils = getPointUtilities(osd.kalai_point)
+    if (kalaiUtils && kalaiUtils.length > Math.max(xIdx, yIdx)) {
       traces.push({
-        x: [osd.kalai_point[xIdx]],
-        y: [osd.kalai_point[yIdx]],
+        x: [kalaiUtils[xIdx]],
+        y: [kalaiUtils[yIdx]],
         type: 'scattergl',
         mode: 'markers',
         name: 'Kalai',
@@ -373,10 +377,11 @@ async function initPlot() {
     }
     
     // 5. Kalai-Smorodinsky point - outlined triangle
-    if (osd.kalai_smorodinsky_point && osd.kalai_smorodinsky_point.length > Math.max(xIdx, yIdx)) {
+    const ksUtils = getPointUtilities(osd.kalai_smorodinsky_point)
+    if (ksUtils && ksUtils.length > Math.max(xIdx, yIdx)) {
       traces.push({
-        x: [osd.kalai_smorodinsky_point[xIdx]],
-        y: [osd.kalai_smorodinsky_point[yIdx]],
+        x: [ksUtils[xIdx]],
+        y: [ksUtils[yIdx]],
         type: 'scattergl',
         mode: 'markers',
         name: 'Kalai-Smorodinsky',
@@ -390,10 +395,11 @@ async function initPlot() {
     }
     
     // 6. Max welfare point - outlined triangle
-    if (osd.max_welfare_point && osd.max_welfare_point.length > Math.max(xIdx, yIdx)) {
+    const mwUtils = getPointUtilities(osd.max_welfare_point)
+    if (mwUtils && mwUtils.length > Math.max(xIdx, yIdx)) {
       traces.push({
-        x: [osd.max_welfare_point[xIdx]],
-        y: [osd.max_welfare_point[yIdx]],
+        x: [mwUtils[xIdx]],
+        y: [mwUtils[yIdx]],
         type: 'scattergl',
         mode: 'markers',
         name: 'Max Welfare',
@@ -687,11 +693,7 @@ function onOpacityChange() {
 
 // Image error handler for preview mode
 function onImageError(event) {
-  console.log('[Utility2DPanel] Preview image failed to load:', {
-    url: previewImageUrl.value,
-    error: event
-  })
-  console.warn('Failed to load preview image, falling back to interactive mode')
+  // Fall back to interactive mode if preview image fails
   showInteractive.value = true
 }
 

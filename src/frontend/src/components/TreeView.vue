@@ -3,7 +3,18 @@
     <!-- Primitive value -->
     <div v-if="isPrimitive" class="tree-node tree-leaf">
       <span v-if="nodeKey !== null" class="tree-key">{{ nodeKey }}:</span>
-      <span :class="['tree-value', valueClass]">{{ formattedValue }}</span>
+      <!-- Path link -->
+      <a 
+        v-if="pathValue" 
+        href="#" 
+        class="tree-value value-path"
+        @click.prevent="openPath(pathValue)"
+        :title="'Open: ' + pathValue"
+      >
+        {{ pathValue }}
+      </a>
+      <!-- Regular value -->
+      <span v-else :class="['tree-value', valueClass]">{{ formattedValue }}</span>
     </div>
     
     <!-- Object or Array -->
@@ -77,6 +88,31 @@ const isPrimitive = computed(() => {
          props.data === undefined ||
          typeof props.data !== 'object'
 })
+
+// Check if value is a path (starts with __PATH__:)
+const pathValue = computed(() => {
+  if (typeof props.data === 'string' && props.data.startsWith('__PATH__:')) {
+    return props.data.substring(9) // Remove '__PATH__:' prefix
+  }
+  return null
+})
+
+// Open path in system
+async function openPath(path) {
+  try {
+    const response = await fetch('/api/system/open-path', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path })
+    })
+    if (!response.ok) {
+      const data = await response.json()
+      console.error('Failed to open path:', data.detail || 'Unknown error')
+    }
+  } catch (err) {
+    console.error('Failed to open path:', err)
+  }
+}
 
 // Check if data is an array
 const isArray = computed(() => Array.isArray(props.data))
@@ -263,11 +299,21 @@ onMounted(() => {
   color: var(--color-string, #22863a);
 }
 
+.tree-value.value-path {
+  color: var(--color-link, #0366d6);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.tree-value.value-path:hover {
+  color: var(--color-link-hover, #0056b3);
+}
+
 .tree-type-badge {
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 3px;
-  background: var(--accent-primary, #007bff);
+  background: #17a2b8;
   color: white;
   font-weight: 500;
   margin-left: 4px;
@@ -295,5 +341,7 @@ onMounted(() => {
   --color-boolean: #f97583;
   --color-number: #79b8ff;
   --color-string: #85e89d;
+  --color-link: #58a6ff;
+  --color-link-hover: #79b8ff;
 }
 </style>

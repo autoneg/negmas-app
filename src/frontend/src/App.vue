@@ -151,6 +151,7 @@
       :show="showNewNegotiationModal" 
       @close="showNewNegotiationModal = false"
       @start="onNegotiationStart"
+      @startBackground="onNegotiationStartBackground"
     />
     
     <!-- New Tournament Modal -->
@@ -158,6 +159,7 @@
       :show="showNewTournamentModal"
       @close="showNewTournamentModal = false"
       @start="onTournamentStart"
+      @startBackground="onTournamentStartBackground"
     />
   </div>
 </template>
@@ -283,12 +285,22 @@ function onNegotiationStart(data) {
   })
 }
 
+function onNegotiationStartBackground(data) {
+  // Don't navigate - go to negotiations list to see running negotiation
+  router.push({ name: 'NegotiationsList' })
+}
+
 function onTournamentStart(data) {
   // Navigate to tournaments view with the session
   router.push({
     name: 'tournaments',
     query: { session_id: data.session_id }
   })
+}
+
+function onTournamentStartBackground(data) {
+  // Don't navigate to single tournament view - go to tournaments list
+  router.push({ name: 'tournaments' })
 }
 
 // Global toast notification function

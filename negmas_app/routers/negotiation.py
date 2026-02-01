@@ -63,6 +63,7 @@ class StartNegotiationRequest(BaseModel):
     ignore_discount: bool = False
     ignore_reserved: bool = False
     normalize: bool = False  # Whether to normalize the scenario utility functions
+    save_scenario: bool = False  # Whether to save (modified) scenario with negotiation
     auto_save: bool = True  # Whether to save negotiation on completion
     save_options: SaveOptionsRequest | None = None  # Advanced save options
 
@@ -151,6 +152,12 @@ async def start_negotiation(request: StartNegotiationRequest):
         for n in request.negotiators
     ]
 
+    # Build save_options, merging save_scenario from request
+    save_options = request.save_options.model_dump() if request.save_options else {}
+    # Override save_scenario if explicitly set in request (for modified scenarios)
+    if request.save_scenario:
+        save_options["save_scenario"] = True
+
     # Create session
     session = get_manager().create_session(
         scenario_path=request.scenario_path,
@@ -161,9 +168,7 @@ async def start_negotiation(request: StartNegotiationRequest):
         ignore_reserved=request.ignore_reserved,
         normalize=request.normalize,
         auto_save=request.auto_save,
-        save_options=request.save_options.model_dump()
-        if request.save_options
-        else None,
+        save_options=save_options if save_options else None,
     )
 
     return {
@@ -192,6 +197,12 @@ async def start_negotiation_background(request: StartNegotiationRequest):
         for n in request.negotiators
     ]
 
+    # Build save_options, merging save_scenario from request
+    save_options = request.save_options.model_dump() if request.save_options else {}
+    # Override save_scenario if explicitly set in request (for modified scenarios)
+    if request.save_scenario:
+        save_options["save_scenario"] = True
+
     # Create session
     session = get_manager().create_session(
         scenario_path=request.scenario_path,
@@ -202,9 +213,7 @@ async def start_negotiation_background(request: StartNegotiationRequest):
         ignore_reserved=request.ignore_reserved,
         normalize=request.normalize,
         auto_save=request.auto_save,
-        save_options=request.save_options.model_dump()
-        if request.save_options
-        else None,
+        save_options=save_options if save_options else None,
     )
 
     # Start negotiation in background thread (non-blocking)
@@ -250,6 +259,18 @@ async def stream_negotiation(
                     osd = event.outcome_space_data
                     osd_data = None
                     if osd is not None:
+                        # Debug: Log reserved values
+                        print(
+                            f"[DEBUG STREAM] osd.reserved_values = {osd.reserved_values}"
+                        )
+                        sanitized_reserved = (
+                            [sanitize_float(v) for v in osd.reserved_values]
+                            if osd.reserved_values
+                            else None
+                        )
+                        print(
+                            f"[DEBUG STREAM] sanitized reserved_values = {sanitized_reserved}"
+                        )
                         osd_data = {
                             "outcome_utilities": sanitize_utilities(
                                 osd.outcome_utilities
@@ -257,11 +278,7 @@ async def stream_negotiation(
                             "pareto_utilities": sanitize_utilities(
                                 osd.pareto_utilities
                             ),
-                            "reserved_values": [
-                                sanitize_float(v) for v in osd.reserved_values
-                            ]
-                            if osd.reserved_values
-                            else None,
+                            "reserved_values": sanitized_reserved,
                             "nash_point": [
                                 sanitize_float(v) for v in osd.nash_point.utilities
                             ]
@@ -458,8 +475,10 @@ async def get_session(session_id: str):
         "negotiator_colors": [info.color for info in session.negotiator_infos]
         if session.negotiator_infos
         else [],
-        "current_step": session.current_step,
+        "step": session.current_step,  # Current/final step
+        "current_step": session.current_step,  # Alias for compatibility
         "n_steps": sanitize_float(session.n_steps) if session.n_steps else None,
+        "time": session.offers[-1].time if session.offers else 0.0,  # Elapsed time
         "relative_time": session.offers[-1].relative_time if session.offers else 0.0,
         "time_limit": sanitize_float(session.time_limit)
         if session.time_limit
@@ -581,8 +600,12 @@ async def get_saved_negotiation(session_id: str):
         "negotiator_colors": [info.color for info in session.negotiator_infos]
         if session.negotiator_infos
         else [],
-        "current_step": session.current_step,
+        "step": session.current_step,  # Final step for completed negotiations
+        "current_step": session.current_step,  # Alias for compatibility
         "n_steps": sanitize_float(session.n_steps) if session.n_steps else None,
+        "time": session.offers[-1].time
+        if session.offers
+        else 0.0,  # Elapsed time in seconds
         "relative_time": session.offers[-1].relative_time if session.offers else 0.0,
         "time_limit": sanitize_float(session.time_limit)
         if session.time_limit
@@ -957,8 +980,10 @@ async def load_negotiation_from_path(request: LoadFromPathRequest):
         "negotiator_colors": [info.color for info in session.negotiator_infos]
         if session.negotiator_infos
         else [],
-        "current_step": session.current_step,
+        "step": session.current_step,  # Current/final step
+        "current_step": session.current_step,  # Alias for compatibility
         "n_steps": sanitize_float(session.n_steps) if session.n_steps else None,
+        "time": session.offers[-1].time if session.offers else 0.0,  # Elapsed time
         "relative_time": session.offers[-1].relative_time if session.offers else 0.0,
         "time_limit": sanitize_float(session.time_limit)
         if session.time_limit
@@ -1217,22 +1242,53 @@ async def calculate_outcome_stats(request: CalculateStatsRequest):
     if request.session_id:
         session_dir = NegotiationStorageService.get_session_dir(request.session_id)
         if session_dir.exists():
-            # This is an internal negotiation - cache the stats
+            # Load existing CompletedRun, update agreement_stats, and re-save
             try:
-                import yaml
+                from negmas.mechanisms import CompletedRun
+                from negmas.preferences.ops import OutcomeOptimality
 
-                stats_file = session_dir / "outcome_stats.yaml"
-                # Merge with existing stats if present
-                existing_stats = {}
-                if stats_file.exists():
-                    with open(stats_file) as f:
-                        existing_stats = yaml.safe_load(f) or {}
+                # Load existing run
+                run = CompletedRun.load(session_dir, load_agreement_stats=False)
 
-                # Add optimality stats
-                existing_stats.update(stats)
+                # Create OutcomeOptimality from computed stats
+                agreement_stats = OutcomeOptimality(
+                    pareto_optimality=stats.get("pareto_optimality", float("nan")),
+                    nash_optimality=stats.get("nash_optimality", float("nan")),
+                    kalai_optimality=stats.get("kalai_optimality", float("nan")),
+                    modified_kalai_optimality=stats.get(
+                        "modified_kalai_optimality", float("nan")
+                    ),
+                    max_welfare_optimality=stats.get(
+                        "max_welfare_optimality", float("nan")
+                    ),
+                    ks_optimality=stats.get("ks_optimality", float("nan")),
+                    modified_ks_optimality=stats.get(
+                        "modified_ks_optimality", float("nan")
+                    ),
+                )
 
-                with open(stats_file, "w") as f:
-                    yaml.dump(existing_stats, f, default_flow_style=False)
+                # Create updated run with agreement_stats
+                updated_run = CompletedRun(
+                    history=run.history,
+                    history_type=run.history_type,
+                    agreement=run.agreement,
+                    scenario=run.scenario,
+                    agreement_stats=agreement_stats,
+                    outcome_stats=run.outcome_stats,
+                    config=run.config,
+                    metadata=run.metadata,
+                )
+
+                # Re-save to the same location (overwrite)
+                updated_run.save(
+                    session_dir.parent,
+                    session_dir.name,
+                    single_file=False,
+                    save_scenario=False,  # Don't re-save scenario
+                    save_agreement_stats=True,
+                    overwrite=True,
+                    warn_if_existing=False,
+                )
 
                 cached = True
             except Exception as e:

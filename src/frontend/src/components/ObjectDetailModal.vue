@@ -1,57 +1,57 @@
 <template>
   <Teleport to="body">
-    <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
-      <div class="modal object-detail-modal" :class="{ 'modal-large': large }">
+    <div v-if="show" class="odm-overlay" @click.self="$emit('close')">
+      <div class="odm-modal" :class="{ 'odm-large': large }">
         <!-- Header -->
-        <div class="modal-header">
-          <div class="modal-title-section">
+        <div class="odm-header">
+          <div class="odm-title-section">
             <h3>{{ title || 'Object Details' }}</h3>
-            <span v-if="objectType" class="object-type-badge">{{ objectType }}</span>
+            <span v-if="objectType" class="odm-type-badge">{{ objectType }}</span>
           </div>
-          <div class="modal-actions">
+          <div class="odm-actions">
             <button 
-              class="btn-icon" 
+              class="odm-btn-icon" 
               @click="copyToClipboard" 
               :title="copied ? 'Copied!' : 'Copy as JSON'"
             >
               {{ copied ? '✓' : '📋' }}
             </button>
             <button 
-              class="btn-icon" 
+              class="odm-btn-icon" 
               @click="expandAll"
               title="Expand all"
             >
               ⊞
             </button>
             <button 
-              class="btn-icon" 
+              class="odm-btn-icon" 
               @click="collapseAll"
               title="Collapse all"
             >
               ⊟
             </button>
-            <button class="btn-close" @click="$emit('close')">×</button>
+            <button class="odm-btn-close" @click="$emit('close')">×</button>
           </div>
         </div>
         
         <!-- Body -->
-        <div class="modal-body">
+        <div class="odm-body">
           <!-- Loading State -->
-          <div v-if="loading" class="loading-state">
-            <div class="loading-spinner"></div>
+          <div v-if="loading" class="odm-loading-state">
+            <div class="odm-loading-spinner"></div>
             <p>Loading data...</p>
           </div>
           
           <!-- Error State -->
-          <div v-else-if="error" class="error-state">
+          <div v-else-if="error" class="odm-error-state">
             <p>{{ error }}</p>
-            <button v-if="fetchUrl" @click="fetchData" class="btn btn-primary">
+            <button v-if="fetchUrl" @click="fetchData" class="odm-btn odm-btn-primary">
               Retry
             </button>
           </div>
           
           <!-- Tree View -->
-          <div v-else-if="displayData" class="tree-container" ref="treeContainer">
+          <div v-else-if="displayData" class="odm-tree-container" ref="treeContainer">
             <TreeView 
               :data="displayData" 
               :default-expand-depth="expandDepth"
@@ -60,13 +60,13 @@
           </div>
           
           <!-- Empty State -->
-          <div v-else class="empty-state">
+          <div v-else class="odm-empty-state">
             <p>No data available</p>
           </div>
         </div>
         
         <!-- Footer (optional) -->
-        <div v-if="$slots.footer" class="modal-footer">
+        <div v-if="$slots.footer" class="odm-footer">
           <slot name="footer"></slot>
         </div>
       </div>
@@ -207,8 +207,9 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
-.modal-overlay {
+<style>
+/* ObjectDetailModal styles - NOT scoped because of Teleport */
+.odm-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -222,7 +223,7 @@ onMounted(() => {
   padding: 20px;
 }
 
-.object-detail-modal {
+.odm-modal {
   background: var(--bg-primary, white);
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
@@ -233,12 +234,12 @@ onMounted(() => {
   max-width: 90vw;
 }
 
-.object-detail-modal.modal-large {
+.odm-modal.odm-large {
   width: 900px;
   max-height: 85vh;
 }
 
-.modal-header {
+.odm-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -247,35 +248,35 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.modal-title-section {
+.odm-title-section {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.modal-title-section h3 {
+.odm-title-section h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary, #333);
 }
 
-.object-type-badge {
+.odm-type-badge {
   font-size: 11px;
   padding: 3px 8px;
   border-radius: 4px;
-  background: var(--accent-primary, #007bff);
+  background: #28a745;
   color: white;
   font-weight: 500;
 }
 
-.modal-actions {
+.odm-actions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.btn-icon {
+.odm-btn-icon {
   background: none;
   border: 1px solid var(--border-color, #e0e0e0);
   border-radius: 4px;
@@ -286,12 +287,12 @@ onMounted(() => {
   transition: all 0.2s;
 }
 
-.btn-icon:hover {
+.odm-btn-icon:hover {
   background: var(--bg-secondary, #f5f5f5);
   border-color: var(--text-secondary, #666);
 }
 
-.btn-close {
+.odm-btn-close {
   background: none;
   border: none;
   font-size: 24px;
@@ -301,26 +302,26 @@ onMounted(() => {
   line-height: 1;
 }
 
-.btn-close:hover {
+.odm-btn-close:hover {
   color: var(--text-primary, #333);
 }
 
-.modal-body {
+.odm-body {
   flex: 1;
   overflow: auto;
   padding: 0;
   min-height: 200px;
 }
 
-.tree-container {
+.odm-tree-container {
   padding: 12px;
   overflow: auto;
   max-height: 100%;
 }
 
-.loading-state,
-.error-state,
-.empty-state {
+.odm-loading-state,
+.odm-error-state,
+.odm-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -329,29 +330,29 @@ onMounted(() => {
   color: var(--text-secondary, #666);
 }
 
-.loading-spinner {
+.odm-loading-spinner {
   width: 32px;
   height: 32px;
   border: 3px solid var(--border-color, #e0e0e0);
   border-top-color: var(--accent-primary, #007bff);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: odm-spin 1s linear infinite;
   margin-bottom: 12px;
 }
 
-@keyframes spin {
+@keyframes odm-spin {
   to { transform: rotate(360deg); }
 }
 
-.error-state {
+.odm-error-state {
   color: var(--color-error, #dc3545);
 }
 
-.error-state .btn {
+.odm-error-state .odm-btn {
   margin-top: 12px;
 }
 
-.modal-footer {
+.odm-footer {
   padding: 12px 20px;
   border-top: 1px solid var(--border-color, #e0e0e0);
   display: flex;
@@ -360,7 +361,7 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.btn {
+.odm-btn {
   padding: 8px 16px;
   border-radius: 4px;
   font-size: 13px;
@@ -368,18 +369,18 @@ onMounted(() => {
   border: none;
 }
 
-.btn-primary {
+.odm-btn-primary {
   background: var(--accent-primary, #007bff);
   color: white;
 }
 
-.btn-primary:hover {
+.odm-btn-primary:hover {
   background: var(--accent-primary-hover, #0056b3);
 }
 
 /* Dark mode */
-:root[data-theme="dark"] .object-detail-modal,
-.dark .object-detail-modal {
+:root[data-theme="dark"] .odm-modal,
+.dark .odm-modal {
   --bg-primary: #1e1e1e;
   --bg-secondary: #2d2d2d;
   --text-primary: #e0e0e0;

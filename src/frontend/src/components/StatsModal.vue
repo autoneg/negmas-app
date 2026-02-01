@@ -51,6 +51,11 @@
               <h4 class="stats-section-title clickable" @click="togglePanel('basicInfo')">
                 <span class="collapse-icon">{{ panels.basicInfo ? '▼' : '▶' }}</span>
                 Basic Information
+                <DetailsIcon 
+                  v-if="scenarioId && panels.basicInfo"
+                  title="View full scenario details"
+                  @click="showObjectDetail('scenario', 'Scenario', 'Scenario')"
+                />
               </h4>
               <div v-show="panels.basicInfo" class="stats-rows">
                 <div v-if="props.negotiation?.scenario_path" class="stats-row">
@@ -153,14 +158,11 @@
               <h4 class="stats-section-title clickable" @click="togglePanel('outcomeSpace')">
                 <span class="collapse-icon">{{ panels.outcomeSpace ? '▼' : '▶' }}</span>
                 Outcome Space
-                <button 
-                  v-if="scenarioId && panels.outcomeSpace" 
-                  class="btn-details" 
-                  @click.stop="showObjectDetail('outcome_space', 'Outcome Space', 'OutcomeSpace')"
-                  title="View full details"
-                >
-                  Details
-                </button>
+                <DetailsIcon 
+                  v-if="scenarioId && panels.outcomeSpace"
+                  title="View full outcome space details"
+                  @click="showObjectDetail('outcome_space', 'Outcome Space', 'OutcomeSpace')"
+                />
               </h4>
               <div v-show="panels.outcomeSpace" class="stats-rows">
                 <div v-if="scenarioInfo?.issues && scenarioInfo.issues.length > 0">
@@ -195,18 +197,13 @@
                   Loading...
                 </div>
                 <div v-else-if="ufunDetails && ufunDetails.length > 0" class="ufuns-list">
-                  <div v-for="(ufun, idx) in ufunDetails" :key="`ufun-${idx}`" class="ufun-with-details">
+                  <div v-for="(ufun, idx) in ufunDetails" :key="`ufun-${idx}`" class="ufun-item">
                     <UfunDisplay 
                       :ufun="ufun"
                       :index="idx"
+                      :show-details-icon="!!scenarioId"
+                      @details="showObjectDetail('ufun', ufun.name || `Utility Function ${idx + 1}`, ufun.type || 'UtilityFunction', idx)"
                     />
-                    <button 
-                      class="btn-details-small" 
-                      @click="showObjectDetail('ufun', ufun.name || `Utility Function ${idx + 1}`, ufun.type || 'UtilityFunction', idx)"
-                      title="View full details"
-                    >
-                      Details
-                    </button>
                   </div>
                 </div>
                 <div v-else-if="scenarioInfo?.n_negotiators" class="ufuns-list">
@@ -403,6 +400,7 @@
 import { computed, ref, watch, reactive } from 'vue'
 import UfunDisplay from './UfunDisplay.vue'
 import ObjectDetailModal from './ObjectDetailModal.vue'
+import DetailsIcon from './DetailsIcon.vue'
 
 const props = defineProps({
   show: {
@@ -1110,44 +1108,12 @@ function truncatePath(path) {
   }
 }
 
-/* Details buttons */
-.btn-details {
-  margin-left: auto;
-  padding: 2px 8px;
-  font-size: 10px;
-  background: var(--accent-primary);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
+/* Ufun item in list */
+.ufun-item {
+  margin-bottom: 8px;
 }
 
-.btn-details:hover {
-  background: var(--accent-primary-hover, #0056b3);
-}
-
-.ufun-with-details {
-  position: relative;
-}
-
-.btn-details-small {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 2px 6px;
-  font-size: 9px;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 3px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-details-small:hover {
-  background: var(--accent-primary);
-  color: white;
-  border-color: var(--accent-primary);
+.ufun-item:last-child {
+  margin-bottom: 0;
 }
 </style>
