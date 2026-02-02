@@ -161,6 +161,7 @@ const zoomPanelType = ref('')
 const zoomPanelComponent = shallowRef(null)
 const panelLayoutRef = ref(null)
 const fromTournament = ref(false)
+const tournamentId = ref(null)  // Store tournament ID for back navigation
 
 // Polling interval
 let pollInterval = null
@@ -279,22 +280,40 @@ async function loadTemporaryNegotiation(sessionId) {
  */
 async function loadTournamentNegotiation(sessionId) {
   fromTournament.value = true
-  const tournamentIdValue = route.query.tournament_id || sessionId.split(':')[1]
-  const indexStr = route.query.index || sessionId.split(':')[2]
-  const index = parseInt(indexStr, 10)
-
-  if (!tournamentIdValue || isNaN(index)) {
-    error.value = 'Invalid tournament negotiation reference'
-    loading.value = false
-    return
+  
+  // Parse session ID - supports two formats:
+  // 1. tournament:{tournament_id}:{index} (legacy, index-based)
+  // 2. tournament:{tournament_id}:run:{run_id} (preferred, run_id-based)
+  const parts = sessionId.split(':')
+  const tournamentIdValue = route.query.tournament_id || parts[1]
+  
+  // Store tournament ID for back navigation
+  tournamentId.value = tournamentIdValue
+  
+  let apiUrl
+  if (parts[2] === 'run' && parts[3]) {
+    // New format with run_id
+    const runId = parts[3]
+    apiUrl = `/api/tournament/saved/${tournamentIdValue}/negotiation/by-run-id/${runId}`
+  } else {
+    // Legacy format with index
+    const indexStr = route.query.index || parts[2]
+    const index = parseInt(indexStr, 10)
+    
+    if (!tournamentIdValue || isNaN(index)) {
+      error.value = 'Invalid tournament negotiation reference'
+      loading.value = false
+      return
+    }
+    apiUrl = `/api/tournament/saved/${tournamentIdValue}/negotiation/${index}`
   }
 
   try {
-    const response = await fetch(`/api/tournament/saved/${tournamentIdValue}/negotiation/${index}`)
+    const response = await fetch(apiUrl)
     
     if (!response.ok) {
       error.value = response.status === 404 
-        ? `Tournament negotiation not found: ${tournamentIdValue}/${index}`
+        ? `Tournament negotiation not found`
         : `Failed to load tournament negotiation: ${response.statusText}`
       loading.value = false
       return
@@ -332,6 +351,8 @@ async function loadTournamentNegotiation(sessionId) {
     negotiation.value = {
       id: sessionId,
       scenario_name: fullData.scenario,
+      scenario_path: fullData.scenario_path,  // For StatsModal
+      tournament_id: fullData.tournament_id,  // For tournament-specific API
       negotiator_names: negotiatorNames,
       negotiator_types: negotiatorTypes,
       negotiator_colors: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, negotiatorNames.length),
@@ -348,6 +369,7 @@ async function loadTournamentNegotiation(sessionId) {
         max_welfare_optimality: fullData.max_welfare_optimality,
       },
       outcome_space_data: fullData.outcome_space_data,
+      scenario_info: fullData.scenario_info,  // Include full scenario info
       offers: (fullData.history || []).map((item, idx) => {
         // Convert offer array to dict using issue_names
         const rawOffer = item.offer || item.current_offer
@@ -566,10 +588,10 @@ async function handleDownloadNegotiation() {
  * Handle back navigation
  */
 function handleBackNavigation() {
-  if (fromTournament.value && route.query.tournament_id) {
+  if (fromTournament.value && (tournamentId.value || route.query.tournament_id)) {
     router.push({
       name: 'SingleTournament',
-      params: { id: route.query.tournament_id }
+      params: { id: tournamentId.value || route.query.tournament_id }
     })
   } else if (route.query.from === 'configs') {
     router.push({ name: 'Configs' })

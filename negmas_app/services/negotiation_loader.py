@@ -215,10 +215,13 @@ class NegotiationLoader:
         # Negotiator info from config
         negotiator_names = config.get("negotiator_names", [])
         negotiator_types = config.get("negotiator_types", [])
-        _negotiator_ids = config.get(
-            "negotiator_ids", []
-        )  # Extracted for potential future use
+        negotiator_ids = config.get("negotiator_ids", [])
         n_negotiators = config.get("n_negotiators", 0) or len(negotiator_names) or 2
+
+        # In newer negmas data, negotiator_names == negotiator_ids (same value used for both)
+        # Use negotiator_ids for matching since that's what the trace 'negotiator' field uses
+        # Fall back to negotiator_names if ids not available
+        negotiator_identifiers = negotiator_ids if negotiator_ids else negotiator_names
 
         # Assign colors
         negotiator_colors = [
@@ -268,11 +271,23 @@ class NegotiationLoader:
                 except Exception:
                     pass
 
-        # Parse history based on history_type
+        # Convert to full_trace_with_utils format if possible for consistent handling
+        # This normalizes all history types (trace, extended_trace, full_trace, history)
+        working_run = run
+        if run.history_type != "full_trace_with_utils":
+            try:
+                # Try to convert - requires scenario with ufuns
+                working_run = run.convert("full_trace_with_utils", scenario=scenario)
+            except (ValueError, AttributeError):
+                # Conversion failed (no scenario/ufuns), use original
+                pass
+
+        # Parse history - handles full_trace_with_utils natively, falls back for others
+        # Use negotiator_identifiers (ids preferred) for matching proposers in trace
         offers = cls._parse_history(
-            run.history,
-            run.history_type,
-            negotiator_names,
+            working_run.history,
+            working_run.history_type,
+            negotiator_identifiers,
             issue_names,
             scenario,
         )
@@ -345,7 +360,7 @@ class NegotiationLoader:
             source_path=source_path,
             scenario_name=final_scenario_name,
             scenario_path=source_path,
-            negotiator_names=negotiator_names,
+            negotiator_names=negotiator_identifiers,  # Use identifiers (ids == names in new data)
             negotiator_types=negotiator_types,
             negotiator_colors=negotiator_colors,
             issue_names=issue_names,
@@ -575,13 +590,24 @@ class NegotiationLoader:
         issue_names: list[str],
         scenario: Scenario | None,
     ) -> list[NegotiationOffer]:
-        """Parse history data into NegotiationOffer objects."""
+        """Parse history data into NegotiationOffer objects.
+
+        Primarily handles full_trace_with_utils format (preferred after conversion).
+        Falls back to handling other formats if conversion wasn't possible.
+
+        Supported history types:
+        - full_trace_with_utils: Full trace with embedded utility values (preferred)
+        - full_trace: Full trace (utilities computed from ufuns)
+        - extended_trace: step, negotiator, offer
+        - trace: negotiator, offer
+        - history: List of SAOState dicts
+        """
         offers: list[NegotiationOffer] = []
 
         # Create name to index mapping
         name_to_idx = {name: i for i, name in enumerate(negotiator_names)}
 
-        # Get utility functions for calculating utilities
+        # Get utility functions for calculating utilities when not embedded
         ufuns = None
         if scenario:
             try:
@@ -589,58 +615,123 @@ class NegotiationLoader:
             except Exception:
                 pass
 
-        for item in history:
-            if history_type == "full_trace":
-                # Full trace: time, relative_time, step, negotiator, offer, responses, state, [text, data]
+        # Standard trace field names (for extracting utility columns from full_trace_with_utils)
+        trace_fields = {
+            "time",
+            "relative_time",
+            "step",
+            "negotiator",
+            "offer",
+            "responses",
+            "state",
+            "text",
+            "data",
+        }
+
+        for idx, item in enumerate(history):
+            # Extract fields based on history type
+            time_val = 0.0
+            relative_time = 0.0
+            step = idx
+            proposer = ""
+            offer_raw = None
+            responses: dict | str = {}
+            state = "continuing"
+            embedded_utilities: list[float] | None = None
+
+            if history_type in ("full_trace_with_utils", "full_trace"):
+                # Full trace format: time, relative_time, step, negotiator, offer, responses, state, [text, data]
+                # full_trace_with_utils adds utility columns
                 if isinstance(item, dict):
-                    time_val = item.get("time", 0.0)
-                    step = item.get("step", 0)
-                    relative_time = item.get("relative_time", 0.0)
-                    proposer = item.get("negotiator", "")
+                    time_val = item.get("time", 0.0) or 0.0
+                    relative_time = item.get("relative_time", 0.0) or 0.0
+                    step = item.get("step", idx) or idx
+                    proposer = item.get("negotiator", "") or ""
                     offer_raw = item.get("offer")
-                    responses = item.get("responses", {})
-                    state = item.get("state", "continuing")
+                    responses = item.get("responses", {}) or {}
+                    state = item.get("state", "continuing") or "continuing"
+
+                    # Extract embedded utilities from extra keys
+                    if history_type == "full_trace_with_utils":
+                        utility_keys = [k for k in item.keys() if k not in trace_fields]
+                        if utility_keys and negotiator_names:
+                            embedded_utilities = []
+                            for name in negotiator_names:
+                                found = False
+                                for uk in utility_keys:
+                                    if uk == name or uk in name or name in uk:
+                                        val = item.get(uk, 0.0)
+                                        embedded_utilities.append(
+                                            float(val) if val is not None else 0.0
+                                        )
+                                        found = True
+                                        break
+                                if not found:
+                                    embedded_utilities.append(0.0)
+                        elif utility_keys:
+                            embedded_utilities = [
+                                float(item.get(k, 0.0) or 0.0)
+                                for k in sorted(utility_keys)
+                            ]
                 else:
                     # Named tuple or regular tuple
-                    time_val = item[0] if len(item) > 0 else 0.0
-                    step = item[2] if len(item) > 2 else 0
-                    relative_time = item[1] if len(item) > 1 else 0.0
-                    proposer = item[3] if len(item) > 3 else ""
+                    time_val = float(item[0]) if len(item) > 0 and item[0] else 0.0
+                    relative_time = float(item[1]) if len(item) > 1 and item[1] else 0.0
+                    step = int(item[2]) if len(item) > 2 and item[2] else idx
+                    proposer = str(item[3]) if len(item) > 3 and item[3] else ""
                     offer_raw = item[4] if len(item) > 4 else None
                     responses = item[5] if len(item) > 5 else {}
-                    state = item[6] if len(item) > 6 else "continuing"
+                    state = str(item[6]) if len(item) > 6 and item[6] else "continuing"
+
+                    # For tuple format, utilities are at indices 9+
+                    if history_type == "full_trace_with_utils" and len(item) > 9:
+                        embedded_utilities = [
+                            float(item[i]) if item[i] is not None else 0.0
+                            for i in range(9, len(item))
+                        ]
 
             elif history_type == "extended_trace":
                 # Extended trace: step, negotiator, offer
                 if isinstance(item, dict):
-                    step = item.get("step", 0)
-                    proposer = item.get("negotiator", "")
+                    step = item.get("step", idx) or idx
+                    proposer = item.get("negotiator", "") or ""
                     offer_raw = item.get("offer")
-                else:
-                    step = item[0] if len(item) > 0 else 0
-                    proposer = item[1] if len(item) > 1 else ""
-                    offer_raw = item[2] if len(item) > 2 else None
-                time_val = 0.0
-                relative_time = 0.0
-                responses = {}
-                state = "continuing"
+                elif isinstance(item, (list, tuple)) and len(item) >= 3:
+                    step = int(item[0]) if item[0] else idx
+                    proposer = str(item[1]) if item[1] else ""
+                    offer_raw = item[2]
 
             elif history_type == "trace":
                 # Simple trace: negotiator, offer
                 if isinstance(item, dict):
-                    proposer = item.get("negotiator", "")
+                    proposer = item.get("negotiator", "") or ""
                     offer_raw = item.get("offer")
+                elif isinstance(item, (list, tuple)) and len(item) >= 2:
+                    proposer = str(item[0]) if item[0] else ""
+                    offer_raw = item[1]
+
+            elif history_type == "history":
+                # History: list of MechanismState dicts
+                if hasattr(item, "asdict"):
+                    d = item.asdict()
+                elif hasattr(item, "_asdict"):
+                    d = item._asdict()
+                elif isinstance(item, dict):
+                    d = item
                 else:
-                    proposer = item[0] if len(item) > 0 else ""
-                    offer_raw = item[1] if len(item) > 1 else None
-                step = len(offers)
-                time_val = 0.0
-                relative_time = 0.0
-                responses = {}
-                state = "continuing"
+                    continue  # Skip unrecognized items
+
+                time_val = d.get("time", 0.0) or 0.0
+                relative_time = d.get("relative_time", 0.0) or 0.0
+                step = d.get("step", idx) or idx
+                # For history format, current_offer and current_proposer are in the state
+                offer_raw = d.get("current_offer")
+                proposer = d.get("current_proposer", "") or ""
+                if not proposer and d.get("current_proposer_agent"):
+                    proposer = str(d.get("current_proposer_agent"))
 
             else:
-                # History (state dicts) - skip for now as it's complex
+                # Unknown format, skip
                 continue
 
             # Convert offer to dict
@@ -695,14 +786,16 @@ class NegotiationLoader:
             proposer_index = name_to_idx.get(proposer, 0)
             # Handle case where proposer might be full ID with UUID
             if proposer_index == 0 and proposer:
-                for name, idx in name_to_idx.items():
+                for name, i in name_to_idx.items():
                     if name in proposer or proposer in name:
-                        proposer_index = idx
+                        proposer_index = i
                         break
 
-            # Calculate utilities
+            # Use embedded utilities if available, otherwise compute from ufuns
             utilities: list[float] = []
-            if ufuns and offer_for_ufun is not None:
+            if embedded_utilities is not None:
+                utilities = embedded_utilities
+            elif ufuns and offer_for_ufun is not None:
                 for ufun in ufuns:
                     try:
                         u = ufun(offer_for_ufun)

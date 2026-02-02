@@ -548,6 +548,18 @@ class NegotiationStorageService:
             ufuns_list,
         )
 
+        # If issue_names is still empty but we have offers with tuples, generate issue names
+        if not issue_names and session.offers:
+            first_offer = session.offers[0].offer
+            if first_offer:
+                n_issues = len(first_offer)
+                issue_names = [f"issue_{i}" for i in range(n_issues)]
+                session.issue_names = issue_names
+                # Rebuild offer_dicts with the new issue names
+                for offer in session.offers:
+                    if offer.offer and len(offer.offer) == n_issues:
+                        offer.offer_dict = dict(zip(issue_names, offer.offer))
+
         # Build outcome space data from scenario if available
         scenario = run.scenario
 
@@ -611,9 +623,47 @@ class NegotiationStorageService:
                     proposer = item.get("negotiator", "")
                     offer_raw = item.get("offer")
                     response = item.get("responses", "")
-                    # For full_trace_with_utils, utilities may be in 'utilities' key
-                    if history_type == "full_trace_with_utils" and "utilities" in item:
-                        embedded_utilities = item.get("utilities", [])
+                    # For full_trace_with_utils, utilities are in columns named after negotiators
+                    if history_type == "full_trace_with_utils":
+                        # First check for explicit 'utilities' key
+                        if "utilities" in item:
+                            embedded_utilities = item.get("utilities", [])
+                        else:
+                            # Extract utilities from negotiator-named columns
+                            # Standard trace fields that are NOT utility columns
+                            trace_fields = {
+                                "time",
+                                "relative_time",
+                                "step",
+                                "negotiator",
+                                "offer",
+                                "responses",
+                                "state",
+                                "text",
+                                "data",
+                            }
+                            utility_keys = [
+                                k for k in item.keys() if k not in trace_fields
+                            ]
+                            if utility_keys and negotiator_names:
+                                for name in negotiator_names:
+                                    found = False
+                                    for uk in utility_keys:
+                                        if uk == name or uk in name or name in uk:
+                                            val = item.get(uk, 0.0)
+                                            embedded_utilities.append(
+                                                float(val) if val is not None else 0.0
+                                            )
+                                            found = True
+                                            break
+                                    if not found:
+                                        embedded_utilities.append(0.0)
+                            elif utility_keys:
+                                # No negotiator names, use sorted keys
+                                embedded_utilities = [
+                                    float(item.get(k, 0.0) or 0.0)
+                                    for k in sorted(utility_keys)
+                                ]
                 else:
                     # Named tuple or list
                     # TraceElement fields: (time, relative_time, step, negotiator, offer, responses)
