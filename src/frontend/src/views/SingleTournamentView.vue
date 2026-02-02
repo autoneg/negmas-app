@@ -198,7 +198,9 @@
             <TournamentTabbedPanel 
               :events="eventLog" 
               :scoreHistory="scoreHistory"
+              :scenarios="tournamentScenarios"
               :status="currentSession.status"
+              :tournamentId="tournamentId"
               @clearEvents="clearEventLog" 
             />
           </div>
@@ -302,6 +304,7 @@ const {
   errorNegotiations,
   eventLog,
   scoreHistory,
+  tournamentScenarios,
 } = storeToRefs(tournamentsStore)
 
 const showNewTournamentModal = ref(false)
@@ -588,6 +591,10 @@ function onTournamentStart(data) {
   showNewTournamentModal.value = false
   
   if (data.session_id) {
+    // Store scenarios if provided
+    if (data.scenarios) {
+      tournamentsStore.tournamentScenarios = data.scenarios
+    }
     router.push({ name: 'SingleTournament', params: { id: data.session_id } })
   }
 }

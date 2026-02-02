@@ -17,6 +17,14 @@
         >
           Score History
         </button>
+        <button 
+          class="tab-btn" 
+          :class="{ active: activeTab === 'scenarios' }"
+          @click="activeTab = 'scenarios'"
+        >
+          Scenarios
+          <span v-if="scenarios.length > 0" class="badge">{{ scenarios.length }}</span>
+        </button>
       </div>
       
       <div class="panel-header-actions">
@@ -66,6 +74,22 @@
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
               <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </button>
+        </template>
+        
+        <!-- Scenarios actions -->
+        <template v-if="activeTab === 'scenarios'">
+          <button 
+            class="btn-icon-sm" 
+            @click="exportScenarioPlot"
+            title="Export plot as image"
+            :disabled="scenarios.length === 0"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
           </button>
         </template>
@@ -142,6 +166,23 @@
           </div>
         </div>
       </div>
+      
+      <!-- Scenarios Tab -->
+      <div v-show="activeTab === 'scenarios'" class="tab-content scenarios-container">
+        <div v-if="scenarios.length === 0 && !savedPlotUrl" class="empty-state-sm">
+          <p class="text-muted">No scenario data available</p>
+        </div>
+        
+        <!-- Show saved plot image for completed tournaments -->
+        <div v-else-if="savedPlotUrl" class="scenarios-plot-wrapper">
+          <img :src="savedPlotUrl" alt="Scenario Opposition Plot" class="saved-plot-image" />
+        </div>
+        
+        <!-- Show interactive plot for running tournaments -->
+        <div v-else class="scenarios-plot-wrapper">
+          <div ref="scenariosPlotDiv" class="scenarios-plot"></div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -149,6 +190,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import Chart from 'chart.js/auto'
+import Plotly from 'plotly.js-dist-min'
 
 const props = defineProps({
   events: {
@@ -159,9 +201,17 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  scenarios: {
+    type: Array,
+    default: () => []
+  },
   status: {
     type: String,
     default: 'running'
+  },
+  tournamentId: {
+    type: String,
+    default: null
   }
 })
 
@@ -179,6 +229,10 @@ const eventFilter = ref('all')
 const chartCanvas = ref(null)
 const hiddenCompetitors = ref(new Set())
 let chartInstance = null
+
+// Scenarios plot state
+const scenariosPlotDiv = ref(null)
+const savedPlotUrl = ref(null)
 
 // Color palette for chart lines
 const colors = [
@@ -224,12 +278,35 @@ watch(() => props.scoreHistory, () => {
 watch(activeTab, (newTab) => {
   if (newTab === 'scores') {
     nextTick(() => updateChart())
+  } else if (newTab === 'scenarios') {
+    nextTick(() => loadOrRenderScenariosPlot())
+  }
+})
+
+// Update scenarios plot when data changes
+watch(() => props.scenarios, () => {
+  if (activeTab.value === 'scenarios') {
+    loadOrRenderScenariosPlot()
+  }
+}, { deep: true })
+
+// Watch for tournamentId changes to load saved plot
+watch(() => props.tournamentId, () => {
+  if (props.tournamentId && props.status === 'completed') {
+    checkSavedPlot()
   }
 })
 
 onMounted(() => {
   if (activeTab.value === 'scores' && props.scoreHistory.length > 0) {
     updateChart()
+  }
+  if (activeTab.value === 'scenarios') {
+    loadOrRenderScenariosPlot()
+  }
+  // Try to load saved plot for completed tournaments
+  if (props.tournamentId && props.status === 'completed') {
+    checkSavedPlot()
   }
 })
 
@@ -238,7 +315,48 @@ onUnmounted(() => {
     chartInstance.destroy()
     chartInstance = null
   }
+  // Clean up Plotly
+  if (scenariosPlotDiv.value) {
+    Plotly.purge(scenariosPlotDiv.value)
+  }
 })
+
+// Check if saved plot exists and load it
+async function checkSavedPlot() {
+  if (!props.tournamentId) return
+  
+  try {
+    const response = await fetch(`/api/tournament/saved/${props.tournamentId}/scenario_plot`, {
+      method: 'HEAD'
+    })
+    if (response.ok) {
+      savedPlotUrl.value = `/api/tournament/saved/${props.tournamentId}/scenario_plot`
+    } else {
+      savedPlotUrl.value = null
+    }
+  } catch {
+    savedPlotUrl.value = null
+  }
+}
+
+// Decide whether to load saved plot or render interactive plot
+async function loadOrRenderScenariosPlot() {
+  if (savedPlotUrl.value) {
+    // Already have saved plot URL, no need to render
+    return
+  }
+  
+  if (props.tournamentId && props.status === 'completed') {
+    // Try to load saved plot first
+    await checkSavedPlot()
+    if (savedPlotUrl.value) return
+  }
+  
+  // Render interactive plot
+  if (props.scenarios.length > 0) {
+    renderScenariosPlot()
+  }
+}
 
 function formatTime(timestamp) {
   if (!timestamp) return ''
@@ -376,6 +494,128 @@ function exportScoresToCSV() {
   a.download = 'score_history.csv'
   a.click()
   URL.revokeObjectURL(url)
+}
+
+// Scenarios plot functions
+async function renderScenariosPlot() {
+  if (!scenariosPlotDiv.value || props.scenarios.length === 0) return
+  
+  await nextTick()
+  
+  const isDark = document.documentElement.classList.contains('dark')
+  const plotColors = {
+    background: isDark ? '#1a1a2e' : '#ffffff',
+    text: isDark ? '#e0e0e0' : '#333333',
+    grid: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+    marker: isDark ? '#4fc3f7' : '#1976d2',
+  }
+  
+  // Extract data from scenarios
+  const x = [] // n_outcomes
+  const y = [] // opposition
+  const hoverText = []
+  let scenariosWithoutData = 0
+  
+  for (const scenario of props.scenarios) {
+    const nOutcomes = scenario.n_outcomes ?? scenario.stats?.n_outcomes
+    const opposition = scenario.opposition ?? scenario.stats?.opposition
+    
+    // Check for valid numeric values (not null, undefined, or NaN)
+    if (nOutcomes != null && opposition != null && !isNaN(nOutcomes) && !isNaN(opposition)) {
+      x.push(nOutcomes)
+      y.push(opposition)
+      hoverText.push(`${scenario.name}<br>Outcomes: ${nOutcomes}<br>Opposition: ${opposition.toFixed(3)}`)
+    } else {
+      scenariosWithoutData++
+    }
+  }
+  
+  if (x.length === 0) {
+    Plotly.purge(scenariosPlotDiv.value)
+    const message = scenariosWithoutData > 0
+      ? `No scenario data available<br><span style="font-size: 11px;">${scenariosWithoutData} scenario(s) missing opposition or outcome data.</span>`
+      : 'No scenario data available'
+    scenariosPlotDiv.value.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">${message}</div>`
+    return
+  }
+  
+  const trace = {
+    x: x,
+    y: y,
+    mode: 'markers',
+    type: 'scatter',
+    marker: {
+      size: 10,
+      color: plotColors.marker,
+      opacity: 0.7,
+    },
+    text: hoverText,
+    hoverinfo: 'text',
+  }
+  
+  // Build title with data availability info
+  const totalScenarios = props.scenarios.length
+  const titleText = scenariosWithoutData > 0
+    ? `Opposition vs Outcomes (${x.length}/${totalScenarios} with data)`
+    : 'Opposition vs Number of Outcomes'
+  
+  const layout = {
+    title: {
+      text: titleText,
+      font: { size: 14, color: plotColors.text }
+    },
+    xaxis: {
+      title: { text: 'Number of Outcomes', font: { size: 12, color: plotColors.text } },
+      type: 'log',
+      gridcolor: plotColors.grid,
+      tickfont: { color: plotColors.text },
+      linecolor: plotColors.grid,
+    },
+    yaxis: {
+      title: { text: 'Opposition Level', font: { size: 12, color: plotColors.text } },
+      range: [0, 1],
+      gridcolor: plotColors.grid,
+      tickfont: { color: plotColors.text },
+      linecolor: plotColors.grid,
+    },
+    paper_bgcolor: plotColors.background,
+    plot_bgcolor: plotColors.background,
+    margin: { t: 40, r: 20, b: 50, l: 60 },
+    showlegend: false,
+  }
+  
+  const config = {
+    responsive: true,
+    displayModeBar: false,
+  }
+  
+  try {
+    await Plotly.newPlot(scenariosPlotDiv.value, [trace], layout, config)
+  } catch (error) {
+    console.error('Failed to render scenarios plot:', error)
+  }
+}
+
+async function exportScenarioPlot() {
+  if (!scenariosPlotDiv.value || props.scenarios.length === 0) return
+  
+  try {
+    // Use Plotly's built-in image export
+    const imageData = await Plotly.toImage(scenariosPlotDiv.value, {
+      format: 'png',
+      width: 800,
+      height: 600,
+      scale: 2
+    })
+    
+    // Download the image
+    const a = document.createElement('a')
+    a.href = imageData
+    a.download = 'scenarios_opposition_plot.png'
+    a.click()
+  } catch (error) {
+    console.error('Failed to export scenarios plot:', error)
+  }
 }
 </script>
 
@@ -648,5 +888,34 @@ function exportScoresToCSV() {
 
 .legend-label {
   color: var(--text-primary);
+}
+
+/* Scenarios Tab styles */
+.scenarios-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.scenarios-plot-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  align-items: center;
+  justify-content: center;
+}
+
+.scenarios-plot {
+  flex: 1;
+  width: 100%;
+  min-height: 250px;
+}
+
+.saved-plot-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
 }
 </style>

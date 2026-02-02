@@ -21,6 +21,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   const eventLog = ref([]) // Tournament event log (populated from callbacks, not neg_* events)
   const scoreHistory = ref([]) // Score snapshots for chart (captured on each leaderboard update)
   const saveLogs = ref(false) // Whether to save logs on completion
+  const tournamentScenarios = ref([]) // Scenario objects for the current tournament
   
   // Grid display settings
   const gridDisplayModes = ref([
@@ -94,6 +95,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     setupProgress.value = null
     tournamentComplete.value = null
     saveLogs.value = config.save_logs || false
+    tournamentScenarios.value = config.scenarios || [] // Store scenario objects
     
     const url = `/api/tournament/${sessionId}/stream`
     eventSource.value = new EventSource(url)
@@ -457,6 +459,26 @@ export const useTournamentsStore = defineStore('tournaments', () => {
             })
             console.log('[Tournaments Store] Saved event log to', tournamentId)
           }
+          
+          // Save scenario plot if we have scenario data
+          if (tournamentId && tournamentScenarios.value.length > 0) {
+            try {
+              await fetch(`/api/tournament/saved/${tournamentId}/scenario_plot`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  scenarios: tournamentScenarios.value.map(s => ({
+                    name: s.name,
+                    n_outcomes: s.n_outcomes ?? s.stats?.n_outcomes ?? null,
+                    opposition: s.opposition ?? s.stats?.opposition ?? null
+                  }))
+                })
+              })
+              console.log('[Tournaments Store] Saved scenario plot to', tournamentId)
+            } catch (plotError) {
+              console.error('[Tournaments Store] Failed to save scenario plot:', plotError)
+            }
+          }
         } catch (error) {
           console.error('[Tournaments Store] Failed to save event log:', error)
         }
@@ -762,6 +784,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     eventLog,
     scoreHistory,
     saveLogs,
+    tournamentScenarios,
     gridDisplayModes,
     progress,
     setupProgress,

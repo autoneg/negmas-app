@@ -840,12 +840,12 @@
                     <div class="form-group">
                       <label class="form-label">Storage Format</label>
                       <select v-model="settings.storageFormat" class="form-select">
-                        <option value="">Auto (default)</option>
+                        <option value="">Auto</option>
                         <option value="csv">CSV (human-readable)</option>
                         <option value="gzip">Gzip (compressed CSV)</option>
-                        <option value="parquet">Parquet (best compression)</option>
+                        <option value="parquet">Parquet (best compression, default)</option>
                       </select>
-                      <div class="form-hint">Format for large result files</div>
+                      <div class="form-hint">Format for large result files (Parquet recommended)</div>
                     </div>
                   </div>
                 </div>
@@ -1143,7 +1143,7 @@ const settings = ref({
   // Storage
   storageOptimization: 'balanced',
   memoryOptimization: 'balanced',
-  storageFormat: '',
+  storageFormat: 'parquet',
 })
 
 // Presets
@@ -1662,7 +1662,8 @@ const startTournament = async () => {
     }
     
     const data = await response.json()
-    emit('start', data)
+    // Include scenario objects in the emitted data for the store
+    emit('start', { ...data, scenarios: selectedScenarios.value })
     emit('close')
   } catch (error) {
     console.error('Failed to start tournament:', error)
@@ -1784,6 +1785,8 @@ const loadData = async () => {
 }
 
 // Opposition vs Outcomes plot
+const isLoadingOppositionData = ref(false)
+
 const renderOppositionPlot = async () => {
   if (!oppositionPlotDiv.value || selectedScenarios.value.length === 0) return
   
@@ -1795,6 +1798,41 @@ const renderOppositionPlot = async () => {
     text: isDark ? '#e0e0e0' : '#333333',
     grid: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
     marker: isDark ? '#4fc3f7' : '#1976d2',
+  }
+  
+  // Find scenarios missing data and fetch quick-info for them
+  const scenariosMissingData = selectedScenarios.value.filter(s => {
+    const nOutcomes = s.n_outcomes ?? s.stats?.n_outcomes
+    const opposition = s.opposition ?? s.stats?.opposition
+    return nOutcomes == null || opposition == null || isNaN(nOutcomes) || isNaN(opposition)
+  })
+  
+  if (scenariosMissingData.length > 0 && !isLoadingOppositionData.value) {
+    // Show loading message
+    oppositionPlotDiv.value.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading scenario data... (${scenariosMissingData.length} scenarios)</div>`
+    
+    isLoadingOppositionData.value = true
+    try {
+      // Fetch quick-info for all scenarios missing data in parallel
+      const fetchPromises = scenariosMissingData.map(async (scenario) => {
+        try {
+          const response = await fetch(`/api/scenarios/${scenario.id}/quick-info`)
+          if (response.ok) {
+            const data = await response.json()
+            // Update the scenario object with the fetched data
+            scenario.n_outcomes = data.n_outcomes ?? scenario.n_outcomes
+            scenario.opposition = data.opposition ?? scenario.opposition
+            scenario.rational_fraction = data.rational_fraction ?? scenario.rational_fraction
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch quick-info for ${scenario.name}:`, error)
+        }
+      })
+      
+      await Promise.all(fetchPromises)
+    } finally {
+      isLoadingOppositionData.value = false
+    }
   }
   
   // Extract data from selected scenarios

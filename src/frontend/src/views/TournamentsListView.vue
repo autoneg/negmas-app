@@ -787,6 +787,10 @@ function onTournamentStart(data) {
   showNewTournamentModal.value = false
   
   if (data.session_id) {
+    // Store scenarios if provided
+    if (data.scenarios) {
+      tournamentsStore.tournamentScenarios = data.scenarios
+    }
     router.push({ name: 'SingleTournament', params: { id: data.session_id } })
   }
 }

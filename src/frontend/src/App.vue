@@ -169,6 +169,7 @@ import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useSettingsStore } from './stores/settings'
+import { useTournamentsStore } from './stores/tournaments'
 import SettingsModal from './components/SettingsModal.vue'
 import KeyboardHelpModal from './components/KeyboardHelpModal.vue'
 import NewNegotiationModal from './components/NewNegotiationModal.vue'
@@ -180,6 +181,9 @@ const router = useRouter()
 // Settings store
 const settingsStore = useSettingsStore()
 const { settings } = storeToRefs(settingsStore)
+
+// Tournaments store
+const tournamentsStore = useTournamentsStore()
 
 // UI state
 const sidebarCollapsed = ref(true)
@@ -291,6 +295,10 @@ function onNegotiationStartBackground(data) {
 }
 
 function onTournamentStart(data) {
+  // Store scenarios if provided
+  if (data.scenarios) {
+    tournamentsStore.tournamentScenarios = data.scenarios
+  }
   // Navigate to tournaments view with the session
   router.push({
     name: 'tournaments',

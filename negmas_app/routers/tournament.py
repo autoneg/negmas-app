@@ -14,6 +14,8 @@ from ..models.tournament import (
     TournamentGridInit,
     CellUpdate,
     LeaderboardEntry,
+    OptimizationLevel,
+    StorageFormat,
 )
 from ..services.tournament_manager import TournamentManager
 from ..services.tournament_storage import TournamentStorageService
@@ -109,6 +111,13 @@ class TournamentConfigRequest(BaseModel):
     # Path handling when save_path already exists
     path_exists: str = "continue"  # "continue", "overwrite", or "fail"
 
+    # Storage and memory optimization
+    storage_optimization: OptimizationLevel = "speed"
+    memory_optimization: OptimizationLevel = "speed"
+    storage_format: StorageFormat | None = (
+        None  # "csv", "gzip", "parquet", or None (auto)
+    )
+
 
 def _to_range_int(value: int | list[int] | None) -> int | tuple[int, int] | None:
     """Convert list [min, max] to tuple for int range parameters."""
@@ -179,6 +188,9 @@ async def start_tournament(request: TournamentConfigRequest):
         save_path=request.save_path,
         verbosity=request.verbosity,
         path_exists=request.path_exists,
+        storage_optimization=request.storage_optimization,
+        memory_optimization=request.memory_optimization,
+        storage_format=request.storage_format,
     )
 
     session = get_manager().create_session(config)
@@ -738,6 +750,20 @@ class SaveLogsRequest(BaseModel):
     logs: list[LogEntry]
 
 
+class ScenarioPlotData(BaseModel):
+    """Single scenario data point for plot."""
+
+    name: str
+    n_outcomes: int | None
+    opposition: float | None
+
+
+class SaveScenarioPlotRequest(BaseModel):
+    """Request model for saving scenario opposition plot."""
+
+    scenarios: list[ScenarioPlotData]
+
+
 @router.post("/saved/{tournament_id}/logs")
 async def save_tournament_logs(tournament_id: str, request: SaveLogsRequest):
     """Save tournament event logs as CSV.
@@ -825,6 +851,112 @@ async def get_tournament_logs(tournament_id: str):
         return {"logs": logs, "exists": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read logs: {e}")
+
+
+@router.post("/saved/{tournament_id}/scenario_plot")
+async def save_scenario_plot(tournament_id: str, request: SaveScenarioPlotRequest):
+    """Save the scenario opposition vs outcomes plot as webp.
+
+    Creates a scatter plot with number of outcomes (x-axis, log scale) vs
+    opposition level (y-axis, 0-1) and saves it as scenario_plot.webp.
+
+    Args:
+        tournament_id: Tournament ID.
+        request: SaveScenarioPlotRequest with scenario data.
+
+    Returns:
+        Status dict with save result.
+    """
+    from pathlib import Path
+
+    import matplotlib
+
+    matplotlib.use("Agg")  # Non-interactive backend
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    tournaments_dir = Path.home() / "negmas" / "app" / "tournaments"
+    tournament_path = tournaments_dir / tournament_id
+
+    if not tournament_path.exists():
+        raise HTTPException(status_code=404, detail="Tournament not found")
+
+    plot_file = tournament_path / "scenario_plot.webp"
+
+    # Extract data
+    x = []  # n_outcomes
+    y = []  # opposition
+    names = []
+
+    for scenario in request.scenarios:
+        if (
+            scenario.n_outcomes is not None
+            and scenario.opposition is not None
+            and scenario.n_outcomes > 0
+        ):
+            x.append(scenario.n_outcomes)
+            y.append(scenario.opposition)
+            names.append(scenario.name)
+
+    if not x:
+        return {"status": "skipped", "reason": "No valid scenario data"}
+
+    try:
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
+
+        # Scatter plot
+        scatter = ax.scatter(x, y, c="#4fc3f7", s=60, alpha=0.7, edgecolors="white")
+
+        # Log scale for x-axis
+        ax.set_xscale("log")
+        ax.set_ylim(0, 1)
+
+        # Labels and title
+        ax.set_xlabel("Number of Outcomes", fontsize=12)
+        ax.set_ylabel("Opposition Level", fontsize=12)
+        ax.set_title(f"Opposition vs Outcomes ({len(x)} scenarios)", fontsize=14)
+
+        # Grid
+        ax.grid(True, alpha=0.3)
+
+        # Tight layout
+        plt.tight_layout()
+
+        # Save as webp
+        fig.savefig(plot_file, format="webp", dpi=100, bbox_inches="tight")
+        plt.close(fig)
+
+        return {"status": "saved", "path": str(plot_file), "count": len(x)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save plot: {e}")
+
+
+@router.get("/saved/{tournament_id}/scenario_plot")
+async def get_scenario_plot(tournament_id: str):
+    """Get the saved scenario opposition plot image.
+
+    Args:
+        tournament_id: Tournament ID.
+
+    Returns:
+        WebP image file if exists, 404 otherwise.
+    """
+    from pathlib import Path
+
+    from fastapi.responses import FileResponse
+
+    tournaments_dir = Path.home() / "negmas" / "app" / "tournaments"
+    plot_file = tournaments_dir / tournament_id / "scenario_plot.webp"
+
+    if not plot_file.exists():
+        raise HTTPException(status_code=404, detail="Scenario plot not found")
+
+    return FileResponse(
+        plot_file,
+        media_type="image/webp",
+        filename=f"{tournament_id}_scenario_plot.webp",
+    )
 
 
 @router.get("/saved/{tournament_id}/trace/{mechanism_name}")
