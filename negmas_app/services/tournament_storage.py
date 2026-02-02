@@ -2666,7 +2666,7 @@ class TournamentStorageService:
         except Exception as e:
             import traceback
 
-            traceback.logger.info_exc()
+            traceback.print_exc()
             return CombineResult(
                 success=False,
                 error=f"Failed to combine tournaments: {e}",
