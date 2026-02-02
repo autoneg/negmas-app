@@ -19,10 +19,24 @@ class TournamentStatus(str, Enum):
 class FinalScoreMetric(str, Enum):
     """Metrics for calculating final tournament scores."""
 
+    # Basic metrics
     ADVANTAGE = "advantage"
     UTILITY = "utility"
     WELFARE = "welfare"
     PARTNER_WELFARE = "partner_welfare"
+    TIME = "time"
+
+    # Optimality metrics (distance to optimal points)
+    NASH_OPTIMALITY = "nash_optimality"
+    KALAI_OPTIMALITY = "kalai_optimality"
+    KS_OPTIMALITY = "ks_optimality"
+    MAX_WELFARE_OPTIMALITY = "max_welfare_optimality"
+    PARETO_OPTIMALITY = "pareto_optimality"
+
+    # Additional optimality metrics
+    FAIRNESS = "fairness"  # max(nash, kalai, ks optimality)
+    MODIFIED_KALAI_OPTIMALITY = "modified_kalai_optimality"
+    MODIFIED_KS_OPTIMALITY = "modified_ks_optimality"
 
 
 class FinalScoreStatistic(str, Enum):

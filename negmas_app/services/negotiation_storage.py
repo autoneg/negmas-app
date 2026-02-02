@@ -584,13 +584,25 @@ class NegotiationStorageService:
     ) -> list[OfferEvent]:
         """Parse CompletedRun history into OfferEvent objects.
 
-        Handles all history types: full_trace, full_trace_with_utils, extended_trace, trace.
+        Handles all history types: full_trace, full_trace_with_utils, extended_trace, trace, history.
+
+        The 'history' type contains raw SAOState objects which need special handling.
         """
         offers: list[OfferEvent] = []
         name_to_idx = {name: i for i, name in enumerate(negotiator_names)}
 
+        # Handle empty history
+        if not history:
+            return offers
+
+        # Debug: print history type for troubleshooting
+        # print(f"[_parse_history_to_offers] history_type={history_type}, len(history)={len(history)}")
+
         for item in history:
             # Extract fields based on history type
+            # For utilities that might be embedded in the trace
+            embedded_utilities: list[float] = []
+
             if history_type in ("full_trace", "full_trace_with_utils"):
                 if isinstance(item, dict):
                     time_val = item.get("time", 0.0)
@@ -599,14 +611,27 @@ class NegotiationStorageService:
                     proposer = item.get("negotiator", "")
                     offer_raw = item.get("offer")
                     response = item.get("responses", "")
+                    # For full_trace_with_utils, utilities may be in 'utilities' key
+                    if history_type == "full_trace_with_utils" and "utilities" in item:
+                        embedded_utilities = item.get("utilities", [])
                 else:
-                    # Named tuple
+                    # Named tuple or list
+                    # TraceElement fields: (time, relative_time, step, negotiator, offer, responses)
+                    # For full_trace_with_utils: utilities are appended at indices 6+
                     time_val = item[0] if len(item) > 0 else 0.0
                     step = item[2] if len(item) > 2 else 0
                     relative_time = item[1] if len(item) > 1 else 0.0
                     proposer = item[3] if len(item) > 3 else ""
                     offer_raw = item[4] if len(item) > 4 else None
                     response = item[5] if len(item) > 5 else ""
+                    # Extract embedded utilities for full_trace_with_utils (at index 6 onwards)
+                    if history_type == "full_trace_with_utils" and len(item) > 6:
+                        for i in range(6, len(item)):
+                            try:
+                                u = float(item[i]) if item[i] is not None else 0.0
+                                embedded_utilities.append(u)
+                            except (ValueError, TypeError):
+                                embedded_utilities.append(0.0)
 
             elif history_type == "extended_trace":
                 if isinstance(item, dict):
@@ -634,8 +659,36 @@ class NegotiationStorageService:
                 response = ""
 
             else:
-                # history type (raw states) - skip complex state parsing
-                continue
+                # "history" type contains raw SAOState objects
+                # Try to extract offer info from the state
+                if isinstance(item, dict):
+                    # SAOState as dict
+                    step = item.get("step", len(offers))
+                    offer_raw = item.get("current_offer")
+                    proposer = item.get("current_proposer", "")
+                    # Try to find proposer name if we have an index
+                    if isinstance(proposer, int) and proposer < len(negotiator_names):
+                        proposer = negotiator_names[proposer]
+                    time_val = item.get("time", 0.0)
+                    relative_time = item.get("relative_time", 0.0)
+                    response = ""
+                elif hasattr(item, "current_offer"):
+                    # SAOState object
+                    step = getattr(item, "step", len(offers))
+                    offer_raw = getattr(item, "current_offer", None)
+                    proposer_val = getattr(item, "current_proposer", 0)
+                    proposer = (
+                        negotiator_names[proposer_val]
+                        if isinstance(proposer_val, int)
+                        and proposer_val < len(negotiator_names)
+                        else str(proposer_val)
+                    )
+                    time_val = getattr(item, "time", 0.0)
+                    relative_time = getattr(item, "relative_time", 0.0)
+                    response = ""
+                else:
+                    # Unknown format, skip
+                    continue
 
             # Parse offer
             offer_tuple = None
@@ -673,9 +726,14 @@ class NegotiationStorageService:
                         proposer_idx = idx
                         break
 
-            # Calculate utilities
+            # Calculate utilities - prefer embedded utilities from full_trace_with_utils,
+            # otherwise calculate from ufuns if available
             utilities: list[float] = []
-            if ufuns and offer_tuple:
+            if embedded_utilities:
+                # Use pre-calculated utilities from full_trace_with_utils
+                utilities = embedded_utilities
+            elif ufuns and offer_tuple:
+                # Calculate utilities from ufuns
                 for ufun in ufuns:
                     try:
                         u = ufun(offer_tuple)

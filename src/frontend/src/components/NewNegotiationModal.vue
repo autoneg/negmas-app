@@ -265,7 +265,20 @@
                     :class="{ selected: selectedScenario?.path === scenario.path }"
                     @click="selectScenario(scenario)"
                   >
-                    <div class="scenario-card-title">{{ scenario.name }}</div>
+                    <div class="scenario-card-header">
+                      <div class="scenario-card-title">{{ scenario.name }}</div>
+                      <button 
+                        class="info-icon-btn" 
+                        @click.stop="showScenarioInfo(scenario)"
+                        title="View scenario details"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="16" x2="12" y2="12"></line>
+                          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                      </button>
+                    </div>
                     <div class="scenario-card-meta">
                       <span class="badge badge-neutral">{{ scenario.source }}</span>
                       <span>{{ scenario.n_negotiators }} parties</span>
@@ -483,7 +496,20 @@
                       class="negotiator-card"
                       @click="selectNegotiatorForSlot(neg)"
                     >
-                      <div class="negotiator-card-name">{{ neg.name }}</div>
+                      <div class="negotiator-card-header">
+                        <div class="negotiator-card-name">{{ neg.name }}</div>
+                        <button 
+                          class="info-icon-btn" 
+                          @click.stop="showNegotiatorInfo(neg)"
+                          title="View negotiator details"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                          </svg>
+                        </button>
+                      </div>
                       <div class="negotiator-card-meta">
                         <span class="badge badge-sm">{{ neg.source }}</span>
                       </div>
@@ -1176,6 +1202,21 @@
     @close="showTimePressureModal = false"
     @apply="applyTimePressure"
   />
+  
+  <!-- Scenario Stats Modal -->
+  <StatsModal
+    :show="showScenarioStatsModal"
+    :negotiation="scenarioForStats"
+    @close="showScenarioStatsModal = false"
+  />
+  
+  <!-- Negotiator Info Modal -->
+  <NegotiatorInfoModal
+    :show="showNegotiatorInfoModal"
+    :type-name="negotiatorForInfo?.type_name || ''"
+    :negotiator="negotiatorForInfo"
+    @close="showNegotiatorInfoModal = false"
+  />
 </template>
 
 <script setup>
@@ -1183,6 +1224,8 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useNegotiationsStore } from '../stores/negotiations'
 import NegotiatorConfigModal from './NegotiatorConfigModal.vue'
 import TimePressureModal from './TimePressureModal.vue'
+import StatsModal from './StatsModal.vue'
+import NegotiatorInfoModal from './NegotiatorInfoModal.vue'
 
 const negotiationsStore = useNegotiationsStore()
 
@@ -1349,6 +1392,14 @@ const configNegotiatorIndex = ref(null)
 // Time pressure modal
 const showTimePressureModal = ref(false)
 const timePressureNegotiatorIndex = ref(null)
+
+// Scenario stats modal
+const showScenarioStatsModal = ref(false)
+const scenarioForStats = ref(null)
+
+// Negotiator info modal
+const showNegotiatorInfoModal = ref(false)
+const negotiatorForInfo = ref(null)
 
 // Computed
 const filteredScenarios = computed(() => {
@@ -1573,6 +1624,16 @@ function applyTimePressure(result) {
     negotiators.value[timePressureNegotiatorIndex.value].n_steps = result.n_steps
   }
   showTimePressureModal.value = false
+}
+
+function showScenarioInfo(scenario) {
+  scenarioForStats.value = { scenario_path: scenario.path }
+  showScenarioStatsModal.value = true
+}
+
+function showNegotiatorInfo(negotiator) {
+  negotiatorForInfo.value = negotiator
+  showNegotiatorInfoModal.value = true
 }
 
 function handleVirtualSaved() {
@@ -2976,5 +3037,30 @@ onUnmounted(() => {
 
 .checkbox-label.disabled input[type="checkbox"] {
   cursor: not-allowed;
+}
+
+/* Info icon button for scenario and negotiator cards */
+.scenario-card-header,
+.negotiator-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.info-icon-btn {
+  padding: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.info-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent-primary);
 }
 </style>

@@ -266,6 +266,13 @@
                       </span>
                     </div>
                   </div>
+                  <button class="info-icon-btn" @click.stop="showScenarioInfo(item)" title="View scenario details">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="16" x2="12" y2="12"></line>
+                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                  </button>
                 </template>
                 
                 <template #selected-item="{ item, remove }">
@@ -340,6 +347,13 @@
                       <span v-if="item.description" class="item-description">{{ item.description }}</span>
                     </div>
                   </div>
+                  <button class="info-icon-btn" @click.stop="showNegotiatorInfo(item)" title="View negotiator details">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="16" x2="12" y2="12"></line>
+                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                  </button>
                 </template>
                 
                 <template #selected-item="{ item, remove }">
@@ -351,6 +365,13 @@
                     </div>
                   </div>
                   <div class="item-actions">
+                    <button class="info-icon-btn" @click.stop="showNegotiatorInfo(item)" title="View negotiator details">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                      </svg>
+                    </button>
                     <button class="btn-config" @click.stop="configureCompetitor(item)" title="Configure">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                         <circle cx="12" cy="12" r="3"></circle>
@@ -413,6 +434,13 @@
                       <span v-if="item.description" class="item-description">{{ item.description }}</span>
                     </div>
                   </div>
+                  <button class="info-icon-btn" @click.stop="showNegotiatorInfo(item)" title="View negotiator details">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="16" x2="12" y2="12"></line>
+                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                  </button>
                 </template>
                 
                 <template #selected-item="{ item, remove }">
@@ -422,12 +450,21 @@
                       <span v-if="isAlsoCompetitor(item)" class="badge badge-success">Also competitor</span>
                     </div>
                   </div>
-                  <button class="btn-remove" @click.stop="remove" title="Remove">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                  </button>
+                  <div class="item-actions">
+                    <button class="info-icon-btn" @click.stop="showNegotiatorInfo(item)" title="View negotiator details">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                      </svg>
+                    </button>
+                    <button class="btn-remove" @click.stop="remove" title="Remove">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
                 </template>
               </DualListSelector>
               
@@ -975,6 +1012,21 @@
       </div>
     </div>
   </div>
+  
+  <!-- Scenario Stats Modal -->
+  <StatsModal
+    :show="showScenarioStatsModal"
+    :negotiation="scenarioForStats"
+    @close="showScenarioStatsModal = false"
+  />
+  
+  <!-- Negotiator Info Modal -->
+  <NegotiatorInfoModal
+    :show="showNegotiatorInfoModal"
+    :type-name="negotiatorForInfo?.type_name || ''"
+    :negotiator="negotiatorForInfo"
+    @close="showNegotiatorInfoModal = false"
+  />
 </template>
 
 <script setup>
@@ -982,6 +1034,8 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import DualListSelector from './DualListSelector.vue'
 import { useTournamentsStore } from '../stores/tournaments'
 import Plotly from 'plotly.js-dist-min'
+import StatsModal from './StatsModal.vue'
+import NegotiatorInfoModal from './NegotiatorInfoModal.vue'
 
 const tournamentsStore = useTournamentsStore()
 
@@ -1028,6 +1082,14 @@ const competitorTagFilter = ref('')
 const selectedOpponents = ref([])
 const opponentsSameAsCompetitors = ref(true)
 const opponentSourceFilter = ref('')
+
+// Scenario stats modal
+const showScenarioStatsModal = ref(false)
+const scenarioForStats = ref(null)
+
+// Negotiator info modal
+const showNegotiatorInfoModal = ref(false)
+const negotiatorForInfo = ref(null)
 
 // Settings
 const settings = ref({
@@ -1218,6 +1280,16 @@ const configureCompetitor = (competitor) => {
 
 const isAlsoCompetitor = (opponent) => {
   return selectedCompetitors.value.some(c => c.type_name === opponent.type_name)
+}
+
+const showScenarioInfo = (scenario) => {
+  scenarioForStats.value = { scenario_path: scenario.path }
+  showScenarioStatsModal.value = true
+}
+
+const showNegotiatorInfo = (negotiator) => {
+  negotiatorForInfo.value = negotiator
+  showNegotiatorInfoModal.value = true
 }
 
 const copyCompetitorsToOpponents = () => {
@@ -2598,5 +2670,22 @@ onMounted(() => {
   color: var(--success-color, #10b981);
   border-radius: 4px;
   font-size: 13px;
+}
+
+/* Info icon button */
+.info-icon-btn {
+  padding: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.info-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent-primary, var(--primary));
 }
 </style>

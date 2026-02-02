@@ -157,7 +157,6 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     
     eventSource.value.addEventListener('cell_complete', (event) => {
       const data = JSON.parse(event.data)
-      console.log('[Tournaments Store] cell_complete event:', data)
       
       // Create cell key using names from gridInit
       if (gridInit.value) {
@@ -165,23 +164,6 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         const opponent = gridInit.value.opponents[data.opponent_idx]
         const scenario = gridInit.value.scenarios[data.scenario_idx]
         const cellKey = `${competitor}::${opponent}::${scenario}`
-        
-        console.log('[Tournaments Store] Cell indices:', {
-          competitor_idx: data.competitor_idx,
-          opponent_idx: data.opponent_idx,
-          scenario_idx: data.scenario_idx
-        })
-        console.log('[Tournaments Store] Cell names:', {
-          competitor,
-          opponent,
-          scenario
-        })
-        console.log('[Tournaments Store] Cell key:', cellKey)
-        console.log('[Tournaments Store] Grid info:', {
-          n_competitors: gridInit.value.competitors?.length,
-          n_opponents: gridInit.value.opponents?.length,
-          n_scenarios: gridInit.value.scenarios?.length
-        })
         
         // Get existing state or create default
         const existingCell = cellStates.value[cellKey] || {
@@ -269,83 +251,72 @@ export const useTournamentsStore = defineStore('tournaments', () => {
           message: `${competitor} vs ${opponent} on ${scenario} - ${endReasonText}`
         })
         
-        // Add to live negotiations if we have the detailed data
-        if (data.issue_names && data.scenario_path) {
-          // Check if this negotiation already exists in liveNegotiations
-          // Match by scenario path and partners (order-independent)
-          const existingIndex = liveNegotiations.value.findIndex(n => {
-            if (n.scenario_path !== data.scenario_path) return false
-            
-            // Check if partners match (order-independent)
-            const nPartners = new Set(n.partners || [])
-            const dataPartners = new Set([competitor, opponent])
-            
-            if (nPartners.size !== dataPartners.size) return false
-            
-            for (const p of dataPartners) {
-              if (!nPartners.has(p)) return false
-            }
-            
-            return true
-          })
+        // Always add to live negotiations (even without detailed data)
+        // Check if this negotiation already exists (match by scenario and partners)
+        const scenarioPath = data.scenario_path || scenario
+        const existingIndex = liveNegotiations.value.findIndex(n => {
+          const nScenario = n.scenario_path || n.scenario
+          if (nScenario !== scenarioPath) return false
           
-          if (existingIndex >= 0) {
-            console.log('[Tournaments Store] Found duplicate negotiation:', {
-              existingIndex,
-              scenario: data.scenario_path,
-              partners: [competitor, opponent],
-              existing: liveNegotiations.value[existingIndex]
-            })
+          // Check if partners match (order-independent)
+          const nPartners = new Set(n.partners || [])
+          const dataPartners = new Set([competitor, opponent])
+          
+          if (nPartners.size !== dataPartners.size) return false
+          
+          for (const p of dataPartners) {
+            if (!nPartners.has(p)) return false
           }
           
-          const negotiation = {
-            index: existingIndex >= 0 ? liveNegotiations.value[existingIndex].index : liveNegotiations.value.length,
-            scenario: data.scenario_path || scenario,
-            scenario_path: data.scenario_path,
+          // Also check repetition and rotated to distinguish multiple runs
+          if (n.repetition !== undefined && data.repetition !== undefined && n.repetition !== data.repetition) return false
+          if (n.rotated !== undefined && data.rotated !== undefined && n.rotated !== data.rotated) return false
+          
+          return true
+        })
+        
+        const negotiation = {
+          index: existingIndex >= 0 ? liveNegotiations.value[existingIndex].index : liveNegotiations.value.length,
+          scenario: scenarioPath,
+          scenario_path: data.scenario_path || null,
+          partners: [competitor, opponent],
+          end_reason: data.end_reason,
+          has_agreement: data.end_reason === 'agreement',
+          has_error: data.end_reason === 'error' || data.end_reason === 'broken',
+          agreement: data.agreement || null,
+          utilities: data.utilities || {},
+          n_steps: data.n_steps || 0,
+          issue_names: data.issue_names || [],
+          offers: data.offers || [],
+          error: data.error || null,
+          repetition: data.repetition,
+          rotated: data.rotated
+        }
+        
+        if (existingIndex >= 0) {
+          // Update existing negotiation
+          liveNegotiations.value[existingIndex] = negotiation
+        } else {
+          // Add new negotiation
+          liveNegotiations.value.push(negotiation)
+        }
+        
+        // Track errors separately for error panel
+        if (negotiation.has_error) {
+          errorNegotiations.value.push({
+            timestamp: Date.now(),
+            scenario: scenarioPath,
             partners: [competitor, opponent],
-            end_reason: data.end_reason,
-            has_agreement: data.end_reason === 'agreement',
-            has_error: data.end_reason === 'error' || data.end_reason === 'broken',
-            agreement: data.agreement || null,
-            utilities: data.utilities || {},
+            error: data.error || 'Unknown error',
             n_steps: data.n_steps || 0,
-            issue_names: data.issue_names || [],
-            offers: data.offers || [],
-            error: data.error || null
-          }
-          
-          if (existingIndex >= 0) {
-            // Update existing negotiation instead of adding duplicate
-            console.log('[Tournaments Store] Updating existing negotiation at index', existingIndex)
-            liveNegotiations.value[existingIndex] = negotiation
-          } else {
-            // Add new negotiation
-            console.log('[Tournaments Store] Adding new negotiation:', {
-              index: negotiation.index,
-              scenario: negotiation.scenario_path,
-              partners: negotiation.partners
-            })
-            liveNegotiations.value.push(negotiation)
-          }
-          
-          // Track errors separately for error panel
-          if (negotiation.has_error) {
-            errorNegotiations.value.push({
-              timestamp: Date.now(),
-              scenario: data.scenario_path || scenario,
-              partners: [competitor, opponent],
-              error: data.error || 'Unknown error',
-              n_steps: data.n_steps || 0,
-              cellKey
-            })
-          }
+            cellKey
+          })
         }
       }
     })
     
     eventSource.value.addEventListener('leaderboard', (event) => {
       const data = JSON.parse(event.data)
-      console.log('[Tournaments Store] Leaderboard event received:', data)
       // Backend sends array directly, not wrapped in {leaderboard: [...]}
       leaderboard.value = Array.isArray(data) ? data : []
       
@@ -373,7 +344,6 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     
     eventSource.value.addEventListener('setup_progress', (event) => {
       const data = JSON.parse(event.data)
-      console.log('[Tournaments Store] Setup progress event:', data)
       setupProgress.value = data
       
       // Add event log entry for setup progress

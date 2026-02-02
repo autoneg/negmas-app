@@ -15,6 +15,7 @@ from typing import Any
 import pandas as pd
 import yaml
 
+from negmas.mechanisms import CompletedRun
 from negmas.tournaments.neg import SimpleTournamentResults
 
 logger = logging.getLogger(__name__)
@@ -1056,27 +1057,23 @@ class TournamentStorageService:
         if not negotiations_dir.exists():
             return None
 
-        # Find the negotiation CSV file by mechanism name
-        # Files are named like: scenario_negotiator1_negotiator2_rep_mechanismname.csv
+        # Find matching negotiation (file or directory) by mechanism_name suffix
         try:
-            matching_files = list(negotiations_dir.glob(f"*_{mechanism_name}.csv"))
-            if not matching_files:
+            matching = list(negotiations_dir.glob(f"*_{mechanism_name}"))
+            if not matching:
+                # Try with common extensions for single-file format
+                for ext in [".csv", ".csv.gz", ".parquet"]:
+                    matching = list(negotiations_dir.glob(f"*_{mechanism_name}{ext}"))
+                    if matching:
+                        break
+            if not matching:
                 return None
 
-            trace_file = matching_files[0]
+            neg_path = matching[0]
+            return cls._load_completed_run_as_dict(
+                neg_path, mechanism_name=mechanism_name
+            )
 
-            # Read the negotiation trace
-            trace_data = []
-            with open(trace_file, "r") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    trace_data.append(dict(row))
-
-            return {
-                "mechanism_name": mechanism_name,
-                "trace": trace_data,
-                "file_name": trace_file.name,
-            }
         except Exception as e:
             logger.info(f"Error loading negotiation trace {mechanism_name}: {e}")
             return None
@@ -1102,32 +1099,19 @@ class TournamentStorageService:
             return None
 
         try:
-            # Build pattern to match files with this scenario and any order of partners
-            # File pattern: {scenario}_{partner1}_{partner2}_{rep}_{id}.csv
-
             # Try both orderings of partners
             for partner_order in [partners, list(reversed(partners))]:
-                # Build a glob pattern - we need to match the scenario and partners
-                # The rep number is 0 in most cases
-                pattern = f"{scenario_name}_{'_'.join(partner_order)}_0_*.csv"
-                matching_files = list(negotiations_dir.glob(pattern))
+                # Build pattern: {scenario}_{partner1}_{partner2}_{rep}_*
+                pattern = f"{scenario_name}_{'_'.join(partner_order)}_0_*"
+                matching = list(negotiations_dir.glob(pattern))
 
-                if matching_files:
-                    trace_file = matching_files[0]
-
-                    # Read the negotiation trace
-                    trace_data = []
-                    with open(trace_file, "r") as f:
-                        reader = csv.DictReader(f)
-                        for row in reader:
-                            trace_data.append(dict(row))
-
-                    return {
-                        "file_name": trace_file.name,
-                        "trace": trace_data,
-                        "scenario": scenario_name,
-                        "partners": partner_order,
-                    }
+                if matching:
+                    neg_path = matching[0]
+                    result = cls._load_completed_run_as_dict(
+                        neg_path, scenario=scenario_name, partners=partner_order
+                    )
+                    if result:
+                        return result
 
             return None
 
@@ -1135,6 +1119,78 @@ class TournamentStorageService:
             logger.error(
                 f"Error loading negotiation trace for {scenario_name} with partners {partners}: {e}"
             )
+            return None
+
+    @classmethod
+    def _load_completed_run_as_dict(
+        cls,
+        path: Path,
+        mechanism_name: str | None = None,
+        scenario: str | None = None,
+        partners: list[str] | None = None,
+    ) -> dict | None:
+        """Load a negotiation from path (file or directory) using CompletedRun.
+
+        Args:
+            path: Path to negotiation file or directory.
+            mechanism_name: Optional mechanism name for metadata.
+            scenario: Optional scenario name for metadata.
+            partners: Optional partner list for metadata.
+
+        Returns:
+            Dict with trace data and metadata, or None if loading fails.
+        """
+        try:
+            completed_run = CompletedRun.load(
+                path, load_scenario=False, load_config=True
+            )
+
+            # Convert history to list of dicts
+            trace_data = []
+            for entry in completed_run.history:
+                if hasattr(entry, "_asdict"):
+                    trace_data.append(entry._asdict())
+                elif isinstance(entry, dict):
+                    trace_data.append(entry)
+                else:
+                    # Tuple or other - convert based on history_type
+                    trace_data.append({"data": entry})
+
+            result = {
+                "trace": trace_data,
+                "history_type": completed_run.history_type,
+                "agreement": completed_run.agreement,
+                "config": completed_run.config,
+                "metadata": completed_run.metadata,
+                "path": str(path),
+            }
+
+            # Add optional metadata
+            if mechanism_name:
+                result["mechanism_name"] = mechanism_name
+            if scenario:
+                result["scenario"] = scenario
+            if partners:
+                result["partners"] = partners
+
+            # Add agreement stats if available
+            if completed_run.agreement_stats:
+                result["agreement_stats"] = {
+                    "pareto_optimality": completed_run.agreement_stats.pareto_optimality,
+                    "nash_optimality": completed_run.agreement_stats.nash_optimality,
+                    "kalai_optimality": completed_run.agreement_stats.kalai_optimality,
+                    "max_welfare_optimality": completed_run.agreement_stats.max_welfare_optimality,
+                    "ks_optimality": completed_run.agreement_stats.ks_optimality,
+                }
+
+            # Add outcome stats if available
+            if completed_run.outcome_stats:
+                result["outcome_stats"] = completed_run.outcome_stats
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"Failed to load CompletedRun from {path}: {e}")
             return None
 
     @classmethod
@@ -1612,7 +1668,6 @@ class TournamentStorageService:
             "scenarios_dir": (path / "scenarios").exists(),
             "plots_dir": (path / "plots").exists(),
             "results_dir": (path / "results").exists(),
-            "negotiator_behavior_dir": (path / "negotiator_behavior").exists(),
         }
 
         # Count files in subdirectories
@@ -1720,6 +1775,7 @@ class TournamentStorageService:
             return None
 
         # Numeric metrics that can be aggregated
+        # These match the columns available in all_scores.csv from negmas tournaments
         numeric_metrics = [
             "utility",
             "reserved_value",
@@ -1727,11 +1783,16 @@ class TournamentStorageService:
             "partner_welfare",
             "welfare",
             "time",
+            # Optimality metrics (how close to optimal points)
             "nash_optimality",
             "kalai_optimality",
             "ks_optimality",
             "max_welfare_optimality",
             "pareto_optimality",
+            # Additional optimality metrics from negmas
+            "fairness",  # max(nash, kalai, ks optimality)
+            "modified_kalai_optimality",
+            "modified_ks_optimality",
         ]
 
         if metric not in numeric_metrics:

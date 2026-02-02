@@ -192,14 +192,23 @@
           </div>
         </div>
         
-        <!-- Bottom Row: Event Log / Score History (full width) -->
+        <!-- Bottom Row: Event Log (half) + Negotiations List (half) -->
         <div class="panels-bottom-row">
-          <div class="panel-event-log-wrapper full-width">
+          <div class="panel-event-log-wrapper">
             <TournamentTabbedPanel 
               :events="eventLog" 
               :scoreHistory="scoreHistory"
               :status="currentSession.status"
               @clearEvents="clearEventLog" 
+            />
+          </div>
+          <div class="panel-negotiations-wrapper">
+            <TournamentNegotiationsPanel 
+              :tournamentId="tournamentId"
+              :liveNegotiations="liveNegotiations"
+              :runningNegotiations="runningNegotiations"
+              :gridInit="gridInit"
+              :status="currentSession.status"
             />
           </div>
         </div>
@@ -273,6 +282,7 @@ import TournamentTabbedPanel from '../components/TournamentTabbedPanel.vue'
 import TournamentInfoTabbedPanel from '../components/TournamentInfoTabbedPanel.vue'
 import TournamentRankingModal from '../components/TournamentRankingModal.vue'
 import TournamentDataModal from '../components/TournamentDataModal.vue'
+import TournamentNegotiationsPanel from '../components/TournamentNegotiationsPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -858,48 +868,54 @@ async function handleLoadTrace(tournamentId, negIndex) {
 
 .panels-container {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 4px;
+  overflow: hidden; /* Don't scroll the container, let children scroll */
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 0; /* Allow flex shrinking */
 }
 
 .panels-top-row {
   display: flex;
   gap: 12px;
-  min-height: 0;
+  flex: 1; /* Take equal space */
+  min-height: 200px; /* Minimum usable height */
 }
 
 .panel-grid-wrapper {
   flex: 2;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden; /* Ensure child handles scrolling */
 }
 
 .panel-scores-wrapper {
   flex: 1;
   min-width: 300px;
   max-width: 400px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .panels-bottom-row {
   display: flex;
   gap: 12px;
-  min-height: 0;
-  max-height: 350px; /* Limit height to prevent overflow */
+  flex: 1; /* Take equal space */
+  min-height: 200px; /* Minimum usable height */
 }
 
 .panel-event-log-wrapper {
-  flex: 2;
+  flex: 1;
   min-width: 0;
-  min-height: 0; /* Allow flex to shrink */
-  overflow: hidden; /* Prevent content from expanding wrapper */
+  min-height: 0;
+  overflow: hidden;
 }
 
-.panel-event-log-wrapper.full-width {
+.panel-negotiations-wrapper {
   flex: 1;
-  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 1200px) {

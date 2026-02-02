@@ -863,8 +863,11 @@ function shouldShowMetrics(i, j) {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 0; /* Remove bottom margin when in flex container */
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Fill parent container */
 }
 
 .tournament-grid-pane.collapsed .tournament-panel-content {
@@ -1002,6 +1005,11 @@ function shouldShowMetrics(i, j) {
 
 .tournament-panel-content {
   padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .tournament-scenario-tabs {
@@ -1039,7 +1047,8 @@ function shouldShowMetrics(i, j) {
 .tournament-grid-wrapper {
   padding: 16px;
   overflow: auto;
-  max-height: 500px;
+  flex: 1;
+  min-height: 0;
 }
 
 .tournament-grid-empty {

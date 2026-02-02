@@ -123,11 +123,16 @@ const availableMetrics = ref([
   'welfare', 
   'partner_welfare', 
   'time',
+  // Optimality metrics (distance to optimal points)
   'nash_optimality',
   'kalai_optimality',
   'ks_optimality',
   'max_welfare_optimality',
-  'pareto_optimality'
+  'pareto_optimality',
+  // Additional optimality metrics
+  'fairness',  // max(nash, kalai, ks optimality)
+  'modified_kalai_optimality',
+  'modified_ks_optimality'
 ])
 const availableStatistics = ref(['mean', 'median', 'min', 'max', 'std', 'count'])
 const scenarios = ref([])
@@ -148,11 +153,16 @@ function formatMetricName(metric) {
     partner_welfare: 'Partner Welfare',
     welfare: 'Welfare',
     time: 'Time',
+    // Optimality metrics
     nash_optimality: 'Nash Optimality',
     kalai_optimality: 'Kalai Optimality',
-    ks_optimality: 'KS Optimality',
+    ks_optimality: 'Kalai-Smorodinsky Opt.',
     max_welfare_optimality: 'Max Welfare Opt.',
-    pareto_optimality: 'Pareto Optimality'
+    pareto_optimality: 'Pareto Optimality',
+    // Additional optimality metrics
+    fairness: 'Fairness',
+    modified_kalai_optimality: 'Modified Kalai Opt.',
+    modified_ks_optimality: 'Modified KS Opt.'
   }
   return names[metric] || metric
 }

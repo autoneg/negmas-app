@@ -739,7 +739,17 @@ class TournamentManager:
         record: dict[str, Any],
         config: TournamentConfig,
     ) -> None:
-        """Update competitor statistics from a negotiation record."""
+        """Update competitor statistics from a negotiation record.
+
+        Collects all available metrics from the record including:
+        - utilities: raw utility values
+        - advantages: utility - partner utility (for 2-party)
+        - welfare: sum of utilities
+        - partner_welfare: partner's utility
+        - time: negotiation time
+        - Optimality metrics: nash, kalai, ks, max_welfare, pareto optimality
+        - fairness: max(nash, kalai, ks optimality)
+        """
         import math
 
         partners = record.get("partners", [])
@@ -749,6 +759,19 @@ class TournamentManager:
         if not partners or not utilities:
             return
 
+        # All metrics we can collect from records
+        # These match the columns in all_scores.csv from negmas tournaments
+        optimality_metrics = [
+            "nash_optimality",
+            "kalai_optimality",
+            "ks_optimality",
+            "max_welfare_optimality",
+            "pareto_optimality",
+            "fairness",
+            "modified_kalai_optimality",
+            "modified_ks_optimality",
+        ]
+
         for i, name in enumerate(partners):
             # Dynamically create stats entry if it doesn't exist
             # (negmas may use different names than we initialized)
@@ -756,9 +779,15 @@ class TournamentManager:
                 state.competitor_stats[name] = {
                     "utilities": [],
                     "advantages": [],
+                    "welfare": [],
+                    "partner_welfare": [],
+                    "time": [],
                     "n_negotiations": 0,
                     "n_agreements": 0,
                 }
+                # Add optimality metric lists
+                for metric in optimality_metrics:
+                    state.competitor_stats[name][metric] = []
 
             stats = state.competitor_stats[name]
             stats["n_negotiations"] += 1
@@ -783,7 +812,7 @@ class TournamentManager:
 
                 stats["utilities"].append(util_value)
 
-                # Calculate advantage if 2-party
+                # Calculate advantage and partner_welfare if 2-party
                 if len(utilities) == 2:
                     other_idx = 1 - i
                     if utilities[other_idx] is not None:
@@ -792,6 +821,38 @@ class TournamentManager:
                         if not (math.isinf(other_util) or math.isnan(other_util)):
                             advantage = util_value - other_util
                             stats["advantages"].append(advantage)
+                            stats["partner_welfare"].append(other_util)
+
+                # Calculate welfare (sum of all utilities)
+                welfare = sum(
+                    float(u)
+                    for u in utilities
+                    if u is not None
+                    and not (math.isinf(float(u)) or math.isnan(float(u)))
+                )
+                if not math.isnan(welfare) and not math.isinf(welfare):
+                    stats["welfare"].append(welfare)
+
+            # Collect time if available
+            time_val = record.get("time") or record.get("execution_time")
+            if time_val is not None:
+                try:
+                    time_float = float(time_val)
+                    if not (math.isnan(time_float) or math.isinf(time_float)):
+                        stats["time"].append(time_float)
+                except (ValueError, TypeError):
+                    pass
+
+            # Collect optimality metrics from record (these are per-negotiation, same for all parties)
+            for metric in optimality_metrics:
+                val = record.get(metric)
+                if val is not None:
+                    try:
+                        val_float = float(val)
+                        if not (math.isnan(val_float) or math.isinf(val_float)):
+                            stats[metric].append(val_float)
+                    except (ValueError, TypeError):
+                        pass
 
     def _build_leaderboard(
         self,
@@ -799,18 +860,33 @@ class TournamentManager:
         metric: str,
         stat: str,
     ) -> list[LeaderboardEntry]:
-        """Build a live leaderboard from current competitor statistics."""
+        """Build a live leaderboard from current competitor statistics.
+
+        Supports all metrics collected in _update_stats_from_record:
+        - utility, advantage, welfare, partner_welfare, time
+        - nash_optimality, kalai_optimality, ks_optimality
+        - max_welfare_optimality, pareto_optimality
+        - fairness, modified_kalai_optimality, modified_ks_optimality
+        """
         import statistics as stats_module
 
         entries: list[LeaderboardEntry] = []
 
         for name, s in stats.items():
+            # Map metric name to stats key
+            # Default to advantages for backward compatibility
+            metric_key = metric
             if metric == "advantage":
-                values = s["advantages"]
+                metric_key = "advantages"
             elif metric == "utility":
-                values = s["utilities"]
-            else:
-                values = s["advantages"]
+                metric_key = "utilities"
+
+            # Get values for the metric (may not exist for all strategies)
+            values = s.get(metric_key, [])
+
+            # Fallback: if the requested metric has no data, use advantages
+            if not values and metric_key not in ["utilities", "advantages"]:
+                values = s.get("advantages", [])
 
             if not values:
                 score = 0.0
@@ -827,7 +903,9 @@ class TournamentManager:
             else:
                 score = stats_module.mean(values)
 
-            mean_utility = stats_module.mean(s["utilities"]) if s["utilities"] else None
+            mean_utility = (
+                stats_module.mean(s["utilities"]) if s.get("utilities") else None
+            )
 
             entries.append(
                 LeaderboardEntry(
@@ -840,7 +918,9 @@ class TournamentManager:
                 )
             )
 
-        entries.sort(key=lambda x: x.score, reverse=True)
+        # Sort by score - descending for most metrics, ascending for time
+        reverse = metric != "time"
+        entries.sort(key=lambda x: x.score, reverse=reverse)
         for i, entry in enumerate(entries):
             entry.rank = i + 1
 
