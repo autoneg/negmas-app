@@ -445,36 +445,67 @@ async def save_tournament_preset(data: dict[str, Any]) -> dict[str, Any]:
     """Save a tournament preset."""
     preset = TournamentPreset(
         name=data["name"],
+        # Scenarios
         scenario_paths=data.get("scenario_paths", []),
+        # Competitors
         competitor_types=data.get("competitor_types", []),
         competitor_configs=data.get("competitor_configs", {}),
+        # Opponents
+        opponent_types=data.get("opponent_types"),
+        opponents_same_as_competitors=data.get("opponents_same_as_competitors", True),
+        # Basic settings
         n_repetitions=data.get("n_repetitions", 1),
         rotate_ufuns=data.get("rotate_ufuns", True),
         self_play=data.get("self_play", True),
         mechanism_type=data.get("mechanism_type", "SAOMechanism"),
+        # Steps/time limits
         n_steps=data.get("n_steps"),
         n_steps_min=data.get("n_steps_min"),
         n_steps_max=data.get("n_steps_max"),
         time_limit=data.get("time_limit"),
         time_limit_min=data.get("time_limit_min"),
         time_limit_max=data.get("time_limit_max"),
+        # Advanced time limits
         step_time_limit=data.get("step_time_limit"),
         negotiator_time_limit=data.get("negotiator_time_limit"),
         hidden_time_limit=data.get("hidden_time_limit"),
+        # Probabilistic ending
         pend=data.get("pend"),
         pend_per_second=data.get("pend_per_second"),
+        # Scoring
         final_score_metric=data.get("final_score_metric", "advantage"),
         final_score_stat=data.get("final_score_stat", "mean"),
+        # Run ordering
         randomize_runs=data.get("randomize_runs", False),
         sort_runs=data.get("sort_runs", True),
+        # Information hiding
         id_reveals_type=data.get("id_reveals_type", True),
         name_reveals_type=data.get("name_reveals_type", True),
         mask_scenario_names=data.get("mask_scenario_names", False),
+        # Self-play options
         only_failures_on_self_play=data.get("only_failures_on_self_play", False),
-        save_stats=data.get("save_stats", True),
+        # Save options
+        save_stats=data.get("save_stats", False),
         save_scenario_figs=data.get("save_scenario_figs", False),
+        recalculate_stats=data.get("recalculate_stats", False),
         save_every=data.get("save_every", 0),
         save_logs=data.get("save_logs", True),
+        save_negotiations_as_folders=data.get("save_negotiations_as_folders", True),
+        # Scenario options
+        normalization=data.get("normalization", "normalize"),
+        ignore_discount=data.get("ignore_discount", False),
+        ignore_reserved=data.get("ignore_reserved", False),
+        pass_opponent_ufun=data.get("pass_opponent_ufun", False),
+        raise_exceptions=data.get("raise_exceptions", False),
+        # Execution & Performance
+        njobs=data.get("njobs", -1),
+        verbosity=data.get("verbosity", 0),
+        monitor_negotiations=data.get("monitor_negotiations", False),
+        progress_sample_rate=data.get("progress_sample_rate", 1),
+        # Storage
+        storage_optimization=data.get("storage_optimization", "balanced"),
+        memory_optimization=data.get("memory_optimization", "balanced"),
+        storage_format=data.get("storage_format", "parquet"),
     )
     await asyncio.to_thread(SettingsService.save_tournament_preset, preset)
     return asdict(preset)
