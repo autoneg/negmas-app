@@ -306,8 +306,8 @@ class OfferEvent:
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `grid_init` | `{competitors, opponents, scenarios, ...}` | Initial grid structure |
-| `cell_start` | `{competitor_idx, opponent_idx, scenario_idx}` | Negotiation started |
-| `cell_update` | `{cell_key, status, utilities, ...}` | Cell status changed |
+| `run_start` | `{competitor_idx, opponent_idx, scenario_idx, ...}` | Negotiation run starting |
+| `run_complete` | `{competitor_idx, opponent_idx, scenario_idx, run_id, ...}` | Negotiation run completed |
 | `leaderboard` | `[{rank, name, score, ...}, ...]` | Updated rankings |
 | `progress` | `{completed, total, percentage}` | Overall progress |
 | `complete` | `{status, duration, ...}` | Tournament finished |
