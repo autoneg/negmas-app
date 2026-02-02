@@ -74,7 +74,7 @@ class TournamentConfigRequest(BaseModel):
     sort_runs: bool = True
 
     # Information hiding
-    id_reveals_type: bool = False
+    id_reveals_type: bool = True
     name_reveals_type: bool = True
     mask_scenario_names: bool = False
 
@@ -85,7 +85,7 @@ class TournamentConfigRequest(BaseModel):
     save_stats: bool = True
     save_scenario_figs: bool = False
     save_every: int = 0
-    save_logs: bool = False  # Save event log as CSV at tournament end
+    save_logs: bool = True  # Save event log as CSV at tournament end
     save_negotiations_as_folders: bool = (
         True  # Save negotiations as folders (CompletedRun format)
     )
@@ -208,8 +208,8 @@ async def stream_tournament(session_id: str):
 
     Events:
     - grid_init: Initial grid structure (competitors, opponents, scenarios)
-    - cell_start: Cell is starting (turn yellow)
-    - cell_complete: Cell is complete (color based on result)
+    - run_start: Negotiation run is starting (turn yellow)
+    - run_complete: Negotiation run is complete (color based on result)
     - leaderboard: Updated leaderboard standings
     - progress: Progress update (completed, total, current_scenario, percent)
     - complete: Tournament finished (includes results)
@@ -266,6 +266,7 @@ async def stream_tournament(session_id: str):
                         cell_data["agreement"] = (
                             list(event.agreement) if event.agreement else None
                         )
+                        cell_data["run_id"] = event.run_id
                         # Include offers if available
                         if event.offers:
                             cell_data["offers"] = [
@@ -280,9 +281,9 @@ async def stream_tournament(session_id: str):
                                 for o in event.offers
                             ]
                     yield {
-                        "event": "cell_start"
+                        "event": "run_start"
                         if event.status.value == "running"
-                        else "cell_complete",
+                        else "run_complete",
                         "data": json.dumps(cell_data),
                     }
                 elif (
@@ -290,9 +291,6 @@ async def stream_tournament(session_id: str):
                     and len(event) > 0
                     and isinstance(event[0], LeaderboardEntry)
                 ):
-                    print(
-                        f"[Tournament SSE] Emitting leaderboard event with {len(event)} entries"
-                    )
                     yield {
                         "event": "leaderboard",
                         "data": json.dumps(
@@ -691,6 +689,41 @@ async def get_saved_tournament_negotiation(tournament_id: str, index: int):
     return negotiation
 
 
+@router.get("/saved/{tournament_id}/negotiation/by-run-id/{run_id}")
+async def get_saved_tournament_negotiation_by_run_id(tournament_id: str, run_id: str):
+    """Get full details of a specific negotiation by its run_id.
+
+    Args:
+        tournament_id: Tournament ID.
+        run_id: The unique run_id of the negotiation (mechanism identifier).
+    """
+    negotiation = await asyncio.to_thread(
+        TournamentStorageService.get_negotiation_by_run_id, tournament_id, run_id
+    )
+    if negotiation is None:
+        raise HTTPException(status_code=404, detail="Negotiation not found")
+    return negotiation
+
+
+@router.get("/saved/{tournament_id}/negotiation/by-run-id/{run_id}/path")
+async def get_negotiation_path_by_run_id(tournament_id: str, run_id: str):
+    """Get the file system path of a negotiation by its run_id.
+
+    Args:
+        tournament_id: Tournament ID.
+        run_id: The unique run_id of the negotiation (mechanism identifier).
+
+    Returns:
+        JSON with the path to the negotiation file/folder.
+    """
+    path = await asyncio.to_thread(
+        TournamentStorageService.get_negotiation_path_by_run_id, tournament_id, run_id
+    )
+    if path is None:
+        raise HTTPException(status_code=404, detail="Negotiation not found")
+    return {"path": str(path)}
+
+
 @router.delete("/saved/{tournament_id}")
 async def delete_saved_tournament(tournament_id: str):
     """Delete a saved tournament from disk."""
@@ -740,7 +773,7 @@ class LogEntry(BaseModel):
     """A single log entry."""
 
     timestamp: int  # Unix timestamp in milliseconds
-    type: str  # Event type: started, completed, failed, agreement, progress, cell_start
+    type: str  # Event type: started, completed, failed, agreement, progress, run_start, run_complete
     message: str  # Log message
 
 
@@ -932,6 +965,7 @@ async def save_scenario_plot(tournament_id: str, request: SaveScenarioPlotReques
         raise HTTPException(status_code=500, detail=f"Failed to save plot: {e}")
 
 
+@router.head("/saved/{tournament_id}/scenario_plot")
 @router.get("/saved/{tournament_id}/scenario_plot")
 async def get_scenario_plot(tournament_id: str):
     """Get the saved scenario opposition plot image.

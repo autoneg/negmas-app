@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import math
+import multiprocessing
 import queue
 import shutil
 import threading
@@ -38,6 +39,37 @@ from ..models.tournament import (
 from .scenario_loader import ScenarioLoader
 from .negotiator_factory import _get_class_for_type
 from .settings_service import SettingsService
+
+
+# Global multiprocessing manager for creating picklable queues and shared state
+# This must be module-level to work with multiprocessing
+_mp_manager: Any = None
+
+
+def _get_mp_manager() -> Any:
+    """Get or create the global multiprocessing manager."""
+    global _mp_manager
+    if _mp_manager is None:
+        _mp_manager = multiprocessing.Manager()
+    return _mp_manager
+
+
+def _create_mp_queue() -> Any:
+    """Create a multiprocessing-compatible queue that can be pickled.
+
+    This uses multiprocessing.Manager().Queue() which, unlike queue.Queue,
+    can be serialized by cloudpickle for use in parallel tournament execution.
+    """
+    return _get_mp_manager().Queue()
+
+
+def _create_mp_dict() -> Any:
+    """Create a multiprocessing-compatible dict that can be pickled.
+
+    This uses multiprocessing.Manager().dict() which, unlike regular dict,
+    can be serialized by cloudpickle and shared across processes.
+    """
+    return _get_mp_manager().dict()
 
 
 def _apply_normalization(
@@ -93,8 +125,9 @@ class TournamentState:
     status: TournamentStatus = TournamentStatus.PENDING
     error: str | None = None
 
-    # Event queue for SSE streaming
-    event_queue: queue.Queue[Any] = field(default_factory=queue.Queue)
+    # Event queue for SSE streaming - uses multiprocessing queue for parallel support
+    # Note: default_factory uses _create_mp_queue which creates a picklable queue
+    event_queue: Any = field(default_factory=_create_mp_queue)
 
     # Statistics per competitor
     competitor_stats: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -112,15 +145,22 @@ class TournamentState:
 # Module-level callback functions for negotiation monitoring
 # These match NegMAS signature: Callable[[str | int, SAOState], None]
 # NegMAS wraps these with _PicklableCallback internally using cloudpickle,
-# so they can be local functions, closures, or lambdas
+# so they must use multiprocessing-safe types (Manager().Queue, Manager().dict)
+# to be picklable across processes.
 
 
 def _make_neg_start_callback(
-    event_queue: queue.Queue,  # type: ignore[type-arg]
-    cancel_flags: dict[str, bool],
+    event_queue: Any,  # multiprocessing.Manager().Queue - picklable
+    cancel_flags: Any,  # multiprocessing.Manager().dict - picklable
     session_id: str,
 ) -> Callable[[str | int, Any], None]:
-    """Create a negotiation start callback."""
+    """Create a negotiation start callback.
+
+    Args:
+        event_queue: MP-safe queue (from Manager().Queue()).
+        cancel_flags: MP-safe dict (from Manager().dict()).
+        session_id: The tournament session ID.
+    """
 
     def callback(run_id: str | int, neg_state: Any) -> None:
         if cancel_flags.get(session_id, False):
@@ -137,20 +177,23 @@ def _make_neg_start_callback(
 
 
 def _make_neg_progress_callback(
-    event_queue: queue.Queue,  # type: ignore[type-arg]
-    cancel_flags: dict[str, bool],
+    event_queue: Any,  # multiprocessing.Manager().Queue - picklable
+    cancel_flags: Any,  # multiprocessing.Manager().dict - picklable
     session_id: str,
     sample_rate: int = 1,
 ) -> Callable[[str | int, Any], None]:
     """Create a negotiation progress callback.
 
     Args:
-        event_queue: Queue to put progress events.
-        cancel_flags: Dict of session_id -> cancelled flag.
+        event_queue: MP-safe queue (from Manager().Queue()).
+        cancel_flags: MP-safe dict (from Manager().dict()).
         session_id: The tournament session ID.
         sample_rate: Emit progress event every N steps (1 = every step).
     """
     # Track last emitted step per run_id to implement sampling
+    # Note: This is a regular dict captured in the closure, but it's okay because
+    # cloudpickle serializes the entire closure state. Each worker process gets
+    # its own copy of last_emitted, which is fine for sampling purposes.
     last_emitted: dict[str, int] = {}
 
     def callback(run_id: str | int, neg_state: Any) -> None:
@@ -182,11 +225,17 @@ def _make_neg_progress_callback(
 
 
 def _make_neg_end_callback(
-    event_queue: queue.Queue,  # type: ignore[type-arg]
-    cancel_flags: dict[str, bool],
+    event_queue: Any,  # multiprocessing.Manager().Queue - picklable
+    cancel_flags: Any,  # multiprocessing.Manager().dict - picklable
     session_id: str,
 ) -> Callable[[str | int, Any], None]:
-    """Create a negotiation end callback."""
+    """Create a negotiation end callback.
+
+    Args:
+        event_queue: MP-safe queue (from Manager().Queue()).
+        cancel_flags: MP-safe dict (from Manager().dict()).
+        session_id: The tournament session ID.
+    """
 
     def callback(run_id: str | int, neg_state: Any) -> None:
         if cancel_flags.get(session_id, False):
@@ -210,7 +259,8 @@ class TournamentManager:
 
     def __init__(self):
         self.sessions: dict[str, TournamentSession] = {}
-        self._cancel_flags: dict[str, bool] = {}
+        # Use MP-safe dict for cancel flags so callbacks can be pickled for parallel execution
+        self._cancel_flags: Any = _create_mp_dict()
         self._tournament_states: dict[str, TournamentState] = {}
         self._background_threads: dict[str, threading.Thread] = {}
         self.scenario_loader = ScenarioLoader()
@@ -521,7 +571,7 @@ class TournamentManager:
             elif scenario_name in state.scenario_names:
                 scenario_idx = state.scenario_names.index(scenario_name)
 
-            # Create cell_start update
+            # Create run_start update
             cell_start = CellUpdate(
                 competitor_idx=comp_idx,
                 opponent_idx=opp_idx,
@@ -532,7 +582,7 @@ class TournamentManager:
             )
 
             state.current_cell = cell_start
-            state.event_queue.put(("cell_start", cell_start))
+            state.event_queue.put(("run_start", cell_start))
 
         def after_construction_callback(info: Any) -> None:
             """Called after mechanism is constructed but before it runs."""
@@ -559,6 +609,7 @@ class TournamentManager:
             n_steps = record.get("last_step", 0)
             broken = record.get("broken", False)
             timedout = record.get("timedout", False)
+            run_id = record.get("run_id")  # Unique ID for loading negotiation data
 
             # Get name lists from config (negmas passes this with correct order)
             run_config = run_config or {}
@@ -619,7 +670,7 @@ class TournamentManager:
             if scenario_idx < len(state.scenario_paths):
                 scenario_path = state.scenario_paths[scenario_idx]
 
-            # Create cell_complete update
+            # Create run_complete update
             cell_complete = CellUpdate(
                 competitor_idx=comp_idx,
                 opponent_idx=opp_idx,
@@ -633,11 +684,12 @@ class TournamentManager:
                 scenario_path=scenario_path,
                 n_steps=n_steps,
                 agreement=tuple(agreement) if agreement else None,
+                run_id=str(run_id) if run_id is not None else None,
             )
 
             state.completed_cells.append(cell_complete)
             state.current_cell = None
-            state.event_queue.put(("cell_complete", cell_complete))
+            state.event_queue.put(("run_complete", cell_complete))
 
             # Update competitor statistics
             self._update_stats_from_record(state, record, config)
@@ -649,9 +701,6 @@ class TournamentManager:
                 config.final_score_stat,
             )
             state.leaderboard = leaderboard
-            print(
-                f"[TournamentManager] Emitting leaderboard with {len(leaderboard)} entries: {[e.name for e in leaderboard]}"
-            )
             state.event_queue.put(("leaderboard", leaderboard))
 
             # Update progress
@@ -1304,7 +1353,7 @@ class TournamentManager:
                 "opponent_params": config.opponent_params,
                 "rotate_ufuns": config.rotate_ufuns,
                 "n_repetitions": config.n_repetitions,
-                "njobs": -1,  # Serial for callbacks to work properly
+                "njobs": config.njobs,  # Use config value; callbacks now use MP-safe types
                 "mechanism_type": mechanism_class,
                 "n_steps": config.n_steps,
                 "time_limit": config.time_limit,
@@ -1328,7 +1377,8 @@ class TournamentManager:
                 # Storage and memory optimization
                 "storage_optimization": config.storage_optimization,
                 "memory_optimization": config.memory_optimization,
-                # Callbacks
+                # Callbacks - now use MP-safe types (Manager().Queue, Manager().dict)
+                # so they can be pickled for parallel execution
                 "before_start_callback": before_cb,
                 "after_construction_callback": after_const_cb,
                 "after_end_callback": after_end_cb,
@@ -1552,7 +1602,8 @@ class TournamentManager:
         | TournamentSession
         | TournamentGridInit
         | CellUpdate
-        | list[LeaderboardEntry],
+        | list[LeaderboardEntry]
+        | dict[str, Any],
         None,
     ]:
         """Stream tournament progress updates.
@@ -1631,9 +1682,9 @@ class TournamentManager:
                     yield event_data
                 elif event_type == "setup_progress":
                     yield event_data
-                elif event_type == "cell_start":
+                elif event_type == "run_start":
                     yield event_data
-                elif event_type == "cell_complete":
+                elif event_type == "run_complete":
                     yield event_data
                 elif event_type == "leaderboard":
                     yield event_data

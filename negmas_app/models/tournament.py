@@ -134,7 +134,7 @@ class TournamentConfig:
     )
 
     # Information hiding
-    id_reveals_type: bool = False  # Whether negotiator ID reveals its type
+    id_reveals_type: bool = True  # Whether negotiator ID reveals its type
     name_reveals_type: bool = True  # Whether negotiator name reveals its type
     mask_scenario_names: bool = False  # Hide scenario names from negotiators
 
@@ -153,7 +153,7 @@ class TournamentConfig:
     capture_offers: bool = (
         True  # Capture offer trace for each negotiation (for viewing)
     )
-    save_logs: bool = False  # Save event log as CSV at tournament end
+    save_logs: bool = True  # Save event log as CSV at tournament end
     save_negotiations_as_folders: bool = True  # Save each negotiation as a folder with full details (CompletedRun format)
 
     # Scenario options
@@ -280,6 +280,7 @@ class CellUpdate:
     scenario_path: str | None = None
     n_steps: int | None = None
     agreement: tuple | None = None
+    run_id: str | None = None  # Unique run ID for loading negotiation data
 
 
 @dataclass
