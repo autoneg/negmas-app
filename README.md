@@ -107,7 +107,7 @@ NegMAS App uses a modern Vue.js frontend with a FastAPI backend:
 │  │   (State)   │  │   (Build)   │                           │
 │  └─────────────┘  └─────────────┘                           │
 └────────────────────────────┬────────────────────────────────┘
-                             │ HTTP/SSE
+                             │ HTTP (polling for negotiations, SSE for tournaments)
 ┌────────────────────────────┴────────────────────────────────┐
 │                    FastAPI (Backend)                        │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │

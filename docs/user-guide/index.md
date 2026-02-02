@@ -4,44 +4,75 @@ Welcome to the NegMAS App User Guide. This section covers how to use the applica
 
 ## Overview
 
-NegMAS App provides four main features:
+NegMAS App provides five main features:
 
 1. **Negotiations** - Run and visualize individual negotiations
 2. **Tournaments** - Compare negotiation strategies in round-robin competitions
 3. **Scenario Explorer** - Browse and analyze negotiation scenarios
 4. **Negotiator Explorer** - Discover and configure negotiation agents
+5. **Configs** - Manage saved configurations and presets
 
 ## Navigation
 
-Use the header navigation to switch between sections:
+The application uses a sidebar for navigation:
 
-- **Negotiations** - Main workspace for running negotiations
-- **Tournaments** - Tournament management and results
-- **Scenarios** - Browse available scenarios
-- **Negotiators** - Explore and configure negotiation agents
-- **Settings** - Configure the application
+| Page | Description |
+|------|-------------|
+| **Negotiations** | Run and view individual negotiations |
+| **Tournaments** | Run round-robin tournaments |
+| **Scenarios** | Browse available scenarios |
+| **Negotiators** | Explore negotiation agents |
+| **Configs** | Manage saved configurations |
 
 ## Sidebar
 
-The left sidebar shows:
+The left sidebar shows quick navigation and provides access to:
 
-- **Quick Actions** - Start new negotiation button
-- **Running** - Currently running negotiations
-- **Completed** - Finished negotiations
+- Current page indicator
+- Settings button (gear icon)
+- Refresh button
 
-Click on any negotiation to view its details and visualizations.
+## Starting Points
+
+### Run a Quick Negotiation
+
+1. Go to **Negotiations**
+2. Click **"+ New"**
+3. Select a scenario and negotiators
+4. Click **Start Negotiation**
+
+### Run a Tournament
+
+1. Go to **Tournaments**
+2. Click **"+ New"**
+3. Select scenarios and competitors
+4. Click **Start Tournament**
+
+### Explore Scenarios
+
+1. Go to **Scenarios**
+2. Browse or search available scenarios
+3. Click any scenario to view details
+4. Click **Use in Negotiation** to start immediately
 
 ## Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
-| `N` | New negotiation |
 | `Escape` | Close modal |
-| `Space` | Pause/resume (in real-time mode) |
+
+## Settings
+
+Click the gear icon in the sidebar to access:
+
+- **Appearance**: Theme and display options
+- **Paths**: Custom scenario and negotiator paths
+- **Cache**: Manage scenario caches
+- **Genius**: Configure Genius Bridge settings
 
 ## Next Steps
 
-- [Running Negotiations](negotiations.md)
-- [Running Tournaments](tournaments.md)
-- [Exploring Scenarios](scenarios.md)
-- [Exploring Negotiators](negotiators.md)
+- [Running Negotiations](negotiations.md) - Detailed negotiation guide
+- [Running Tournaments](tournaments.md) - Tournament setup and analysis
+- [Exploring Scenarios](scenarios.md) - Browse and import scenarios
+- [Exploring Negotiators](negotiators.md) - Configure negotiation agents

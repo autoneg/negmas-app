@@ -1,167 +1,284 @@
 # Running Negotiations
 
-This guide covers how to configure and run negotiations in NegMAS App.
+This guide covers how to configure, run, and analyze negotiations in NegMAS App.
 
 ## Starting a New Negotiation
 
-Click **New Negotiation** in the header or sidebar to open the configuration wizard.
+1. Go to the **Negotiations** page using the sidebar
+2. Click **"+ New"** in the header to open the New Negotiation modal
 
-## Configuration Wizard
+## Configuration Steps
 
-### Step 1: Scenario Selection
+### Step 1: Select a Scenario
 
-Select the negotiation scenario:
+The scenario defines the negotiation domain (issues, possible values, and utility functions).
 
-1. **Search**: Type to search all scenarios
-2. **Filter by Source**: Filter by ANAC year or custom sources
-3. **Click to Select**: Click a scenario card to select it
+1. Browse the list of available scenarios
+2. Use the **search box** to filter by name (e.g., "Amsterdam", "camera")
+3. Use **source filters** to narrow by ANAC year or category
+4. **Click a scenario card** to select it (highlighted with blue border)
+5. Click the **info icon** (ℹ️) to view scenario statistics:
+   - Pareto frontier visualization
+   - Nash, Kalai, and KS bargaining solutions
+   - Opposition vs Outcomes plot
+   - Issue details
 
-**Scenario Details** shows:
-- Number of issues
-- Issue types and values
-- Number of parties required
+**Scenario Options:**
 
-**Utility Function Options**:
-- **Ignore discount factors**: Use stationary utilities
-- **Ignore reserved values**: Set reserved values to -infinity
+- **Ignore discount factors**: Use stationary utilities (ignore time pressure)
+- **Ignore reserved values**: Set reserved values to negative infinity
 
-### Step 2: Negotiators
+### Step 2: Select Negotiators
 
-Assign negotiation agents to each party:
+Assign negotiation agents to each party in the scenario.
 
-#### Preset Agents
-1. Click a slot to select it
-2. Search or browse available negotiators
-3. Click a negotiator to assign it
+1. Each party slot shows a dropdown with available negotiators
+2. **Click a negotiator card** to select it for that slot
+3. Click the **info icon** (ℹ️) to view negotiator details:
+   - Description and strategy overview
+   - Supported mechanisms
+   - Configurable parameters
 
-#### Custom BOA Agents
-Build custom agents using the BOA (Bidding-Opponent modeling-Acceptance) architecture:
-1. Select an **Acceptance Policy**
-2. Select an **Offering Policy**
-3. Optionally add an **Opponent Model**
-4. Click **Apply to Selected Slot**
+**Available Negotiator Types:**
 
-#### Configuring Parameters
-Click the gear icon on any negotiator to configure its parameters:
-- Aspiration parameters
-- Concession rates
-- Strategy-specific options
+| Type | Strategy |
+|------|----------|
+| **AspirationNegotiator** | Starts high, concedes over time based on aspiration function |
+| **NaiveTitForTatNegotiator** | Mimics opponent's concession rate |
+| **BoulwareNegotiator** | Concedes slowly - tough negotiator |
+| **ConcederNegotiator** | Concedes quickly - cooperative negotiator |
+| **LinearTFTNegotiator** | Linear tit-for-tat strategy |
+| **NiceNegotiator** | Always proposes Pareto-optimal offers |
+| **RandomNegotiator** | Makes random valid offers |
+| **Genius Agents** | ANAC competition agents (requires Genius Bridge) |
 
-### Step 3: Parameters
+### Step 3: Configure Parameters
 
-Configure the negotiation mechanism:
+#### Mechanism Settings
 
-#### Mechanism Protocol
-- **SAO**: Stacked Alternating Offers (default)
-- **TAU**: Time-based Acceptance Utility
-- **GB**: General Bargaining
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| **Max Steps** | Maximum number of negotiation rounds | 100 |
+| **Time Limit** | Wall-clock time limit in seconds | None |
 
-#### Deadline Settings
-- **Max Steps**: Maximum number of rounds
-- **Time Limit**: Maximum wall-clock time (optional)
-- **Pend per Offer**: Offer timeout (optional)
+#### Run Mode
 
-#### Information Sharing
-- **Share utility functions**: Give agents access to opponent utilities
+| Mode | Description | Best For |
+|------|-------------|----------|
+| **Real-time** | Watch step-by-step with live visualization | Understanding dynamics |
+| **Batch** | Run instantly to completion | Quick analysis |
 
-### Step 4: Panels
+#### Real-time Options
 
-Configure the visualization panels:
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| **Step Delay** | Milliseconds between steps (animation speed) | 200 |
 
-#### Utility Space View
-- Select which negotiator maps to X-axis
-- Select which negotiator maps to Y-axis
+### Step 4: Start the Negotiation
 
-#### Timeline View
-- Choose X-axis: Step or Time
+1. Choose **Real-time** or **Batch** mode
+2. Click **Start Negotiation**
+3. For batch mode: View results immediately
+4. For real-time mode: Watch the negotiation unfold
 
-### Step 5: Run
+## Negotiation View
 
-Choose how to run the negotiation:
+After starting, you're taken to the single negotiation view with multiple visualization panels.
 
-#### Real-time Mode
-- Watch step-by-step with live updates
-- Adjust **Step Delay** for animation speed
-- Good for understanding negotiation dynamics
+### Panel Layout
 
-#### Batch Mode
-- Run instantly to completion
-- View results immediately
-- Good for quick analysis
+The default layout shows:
 
-#### Options
-- **Show live utility plot**: Enable/disable 2D view
-- **Show offer history**: Enable/disable history panel
-- **Auto-save**: Save results when complete
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Header Bar                          │
+├───────────────┬─────────────────────────────────────────┤
+│               │                                         │
+│  Offer        │           2D Utility Space              │
+│  History      │                                         │
+│               │                                         │
+├───────────────┼─────────────────────────────────────────┤
+│               │                                         │
+│  Info         │           Utility Timeline              │
+│  Panel        │                                         │
+│               │                                         │
+└───────────────┴─────────────────────────────────────────┘
+```
 
-## During a Negotiation
+### 2D Utility Space Panel
 
-### Controls
+Visualizes offers in the utility space for both negotiators.
 
-In real-time mode:
-- **Pause/Resume**: Click the pause button
-- **Step**: Advance one step at a time
-- **Skip to End**: Complete the negotiation instantly
+**Elements:**
 
-### Understanding the Visualizations
+- **Gray dots**: Possible outcomes
+- **Blue line**: Pareto frontier (optimal trade-offs)
+- **Colored markers**: Offers made (color = proposer)
+- **Blue diamond** (◆): Nash bargaining solution
+- **Orange square** (■): Kalai-Smorodinsky solution
+- **Purple diamond** (◇): Max welfare point
+- **Red dashed lines**: Reserved values (fallback utilities)
+- **Star marker** (★): Final agreement (if reached)
 
-#### 2D Utility Space
-- Each point represents an offer
-- Color indicates time (lighter = older)
-- Current offer is highlighted
-- Pareto frontier shown (if available)
+**Interactions:**
 
-#### Utility Timeline
-- Line chart showing utility over time
-- One line per negotiator
-- Hover for exact values
+- Hover over points to see exact values
+- Zoom with scroll wheel
+- Pan by dragging
+- Double-click to reset view
 
-#### Offer History
-- Scrollable table of all offers
-- Click a row to highlight in other panels
-- Color-coded utility values
+### Utility Timeline Panel
 
-#### Negotiation Info
-- Current status (Running/Completed)
-- Progress: Step X / Max Steps
+Shows how utility values evolve over negotiation rounds.
+
+**Elements:**
+
+- One line per negotiator (color-coded)
+- X-axis: Step number
+- Y-axis: Utility value (0-1)
+- Horizontal dashed lines: Reserved values
+
+**Interactions:**
+
+- Hover for exact values at each step
+- Zoom to focus on specific regions
+
+### Offer History Panel
+
+Scrollable table showing all offers made.
+
+| Column | Description |
+|--------|-------------|
+| **Step** | Round number |
+| **Proposer** | Who made the offer |
+| **Offer** | Issue values |
+| **Utilities** | Utility for each negotiator |
+| **Response** | Accept/Reject/End |
+
+**Interactions:**
+
+- Click a row to highlight it in other panels
+- Scroll to navigate long histories
+
+### Info Panel
+
+Shows current negotiation status.
+
+**During Negotiation:**
+
+- Status: Running / Paused
+- Current step / Max steps
 - Elapsed time
-- Negotiator details
+- Negotiator information
 
-### Results
+**After Completion:**
 
-When a negotiation completes:
+- Final status: Agreement / Timeout / Ended
+- Agreement details (if reached)
+- Final utilities
+- Comparison to Nash, Kalai, Max Welfare
 
-#### Agreement Reached
-- **Agreement Details**: Final offer values
-- **Utilities**: Value for each negotiator
-- **Welfare Metrics**: Nash, Kalai-Smorodinsky, etc.
+### Result Panel
 
-#### No Agreement
-- **Failure Reason**: Why the negotiation failed
-- **Best Rejected Offer**: Closest to agreement
-- **Reserved Values**: What each agent got
+Shown after negotiation completes.
+
+**If Agreement Reached:**
+
+- Agreement values for each issue
+- Utility achieved by each negotiator
+- Welfare metrics (sum, product, min)
+- Comparison to optimal solutions
+
+**If No Agreement:**
+
+- Failure reason (timeout, ended, etc.)
+- Reserved values applied
+- Best rejected offer (closest to agreement)
+
+### Additional Panels
+
+Available via the panel selector:
+
+| Panel | Description |
+|-------|-------------|
+| **Histogram** | Distribution of proposed values per issue |
+| **Issue Space 2D** | Scatter plot of offers across two issues |
+
+## Controls During Negotiation
+
+### Real-time Mode Controls
+
+| Control | Action |
+|---------|--------|
+| **Pause** | Pause the negotiation |
+| **Resume** | Continue from paused state |
+| **Step** | Advance exactly one step |
+| **Skip to End** | Complete instantly |
+
+### Panel Controls
+
+| Control | Action |
+|---------|--------|
+| **Expand** (⤢) | View panel in fullscreen |
+| **Collapse** (⤡) | Return to grid layout |
+| **Reset Zoom** | Reset chart to default view |
+
+## Viewing Completed Negotiations
+
+### From Negotiations List
+
+1. Go to **Negotiations** page
+2. Click any row in the completed negotiations table
+3. View full details and visualizations
+
+### Negotiation Details
+
+For completed negotiations, you can see:
+
+- Complete offer history
+- Final agreement or failure reason
+- All visualization panels
+- Export options
 
 ## Managing Negotiations
 
-### Viewing History
+### Deleting Negotiations
 
-Completed negotiations appear in the sidebar. Click to view:
-- Full offer history
-- Final results
-- All visualizations
+1. In the negotiations list, hover over a row
+2. Click the delete icon (🗑️)
+3. Confirm deletion
 
-### Saving Sessions
+### Refreshing Data
 
-Save your negotiation configuration for reuse:
+Click the refresh button in the header to reload the negotiations list.
 
-1. Configure the negotiation
-2. Click **Save** in the wizard header
-3. Enter a name for the preset
-4. Access saved sessions from **Load** dropdown
+## Tips and Best Practices
 
-### Exporting Results
+### Choosing Scenarios
 
-Export negotiation data:
-- **JSON**: Full negotiation data
-- **CSV**: Offer history table
-- **PNG**: Chart screenshots
+- Start with simple scenarios (few issues) to understand dynamics
+- Use ANAC scenarios for realistic domains
+- Check the opposition score to gauge difficulty
+
+### Choosing Negotiators
+
+- Use **AspirationNegotiator** for balanced behavior
+- Use **BoulwareNegotiator** to test against tough opponents
+- Use **ConcederNegotiator** to test against cooperative opponents
+- Mix strategies to see how they interact
+
+### Understanding Results
+
+- **Utility > Reserved Value**: Better than no agreement
+- **Close to Pareto**: Efficient outcome
+- **Close to Nash**: Fair outcome
+- **High Welfare**: Good for both parties
+
+### Debugging Failed Negotiations
+
+If negotiations fail (no agreement):
+
+1. Check if reserved values are too high
+2. Try increasing max steps
+3. Use more cooperative negotiators
+4. Check if scenario has viable agreements (Pareto frontier)

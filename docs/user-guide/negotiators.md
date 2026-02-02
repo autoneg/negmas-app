@@ -4,9 +4,7 @@ The Negotiator Explorer provides a comprehensive interface for discovering, brow
 
 ## Overview
 
-Access the Negotiator Explorer by clicking **Negotiators** in the header navigation. The explorer displays all available negotiation agents from various sources including native NegMAS agents, Genius agents from ANAC competitions, and custom user-defined agents.
-
-![Negotiator Explorer](../assets/negotiator_explorer.png)
+Access the Negotiator Explorer by clicking **Negotiators** in the sidebar. The explorer displays all available negotiation agents from various sources including native NegMAS agents, Genius agents from ANAC competitions, and custom user-defined agents.
 
 ## Interface Layout
 

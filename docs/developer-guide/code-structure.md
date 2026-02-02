@@ -6,24 +6,24 @@ This document provides a detailed overview of the NegMAS App codebase organizati
 
 ```
 negmas-app/
-├── negmas_app/           # Main application package
-│   ├── models/           # Data structures
-│   ├── routers/          # API endpoints
-│   ├── services/         # Business logic
-│   ├── static/           # Static assets
-│   │   ├── css/          # Stylesheets
-│   │   └── js/           # JavaScript modules
-│   ├── templates/        # HTML templates
-│   │   ├── components/   # Reusable components
-│   │   ├── base.html     # Base layout
-│   │   └── index.html    # Main entry point
-│   ├── __init__.py
-│   └── main.py           # FastAPI app
-├── docs/                 # Documentation
-├── scenarios/            # Built-in scenarios
-├── tests/                # Test suite
-├── pyproject.toml        # Project configuration
-└── mkdocs.yml            # Documentation config
+├── negmas_app/              # Python backend package
+│   ├── models/              # Data structures
+│   ├── routers/             # API endpoints
+│   ├── services/            # Business logic
+│   └── templates/           # Legacy Jinja templates
+│
+├── src/frontend/            # Vue.js frontend
+│   ├── src/
+│   │   ├── views/           # Page components
+│   │   ├── components/      # Reusable components
+│   │   └── stores/          # Pinia stores
+│   ├── public/
+│   └── package.json
+│
+├── docs/                    # MkDocs documentation
+├── tests/                   # Test suite
+├── pyproject.toml           # Python project config
+└── mkdocs.yml               # Documentation config
 ```
 
 ## Backend Structure
@@ -72,7 +72,7 @@ FastAPI route handlers organized by feature:
 | Module | Endpoints | Purpose |
 |--------|-----------|---------|
 | `negotiation.py` | `/api/negotiation/*` | Start, stream, manage negotiations |
-| `scenarios.py` | `/api/scenarios/*` | List, load, create scenarios |
+| `scenarios.py` | `/api/scenarios/*` | List, load, import scenarios |
 | `negotiators.py` | `/api/negotiators/*` | List, configure negotiators |
 | `mechanisms.py` | `/api/mechanisms/*` | List mechanism types |
 | `tournament.py` | `/api/tournament/*` | Tournament management |
@@ -91,7 +91,7 @@ router = APIRouter(prefix="/api/negotiation", tags=["negotiation"])
 @router.post("/start")
 async def start_negotiation(config: NegotiationConfig):
     session = await SessionManager.create_session(config)
-    return {"session_id": session.id, "stream_url": f"/api/negotiation/{session.id}/stream"}
+    return {"session_id": session.id}
 
 @router.get("/{session_id}/stream")
 async def stream_negotiation(session_id: str):
@@ -116,9 +116,6 @@ Business logic layer with single-responsibility modules:
 | `outcome_analysis.py` | Calculates Pareto, Nash, etc. |
 | `parameter_inspector.py` | Inspects negotiator parameters |
 | `module_inspector.py` | Discovers negotiator classes |
-| `virtual_negotiator_service.py` | Manages virtual negotiators |
-| `virtual_mechanism_service.py` | Manages virtual mechanisms |
-| `definition_service.py` | Scenario definition management |
 
 **Key Service Patterns:**
 
@@ -145,173 +142,405 @@ class SessionManager:
 
 ## Frontend Structure
 
-### Templates (`negmas_app/templates/`)
+### Vue.js Application (`src/frontend/src/`)
 
-Jinja2 templates organized hierarchically:
-
-```
-templates/
-├── base.html                 # Base layout with head, scripts
-├── index.html                # Main page extending base
-└── components/
-    ├── pages/                # Full-page components
-    │   ├── negotiations_list_page.html
-    │   ├── negotiation_view_page.html
-    │   ├── tournaments_list_page.html
-    │   ├── tournament_view_page.html
-    │   ├── scenarios_page.html
-    │   └── negotiators_page.html
-    ├── panels/               # Visualization panels
-    │   ├── negotiation_info_panel.html
-    │   ├── offer_history_panel.html
-    │   ├── utility_2d_panel.html
-    │   ├── timeline_panel.html
-    │   ├── histogram_panel.html
-    │   ├── result_panel.html
-    │   ├── tournament_grid_panel.html
-    │   ├── tournament_scores_panel.html
-    │   ├── tournament_negotiations_panel.html
-    │   ├── tournament_score_analysis_panel.html
-    │   └── tournament_raw_data_panel.html
-    ├── modals/               # Dialog components
-    │   ├── new_negotiation_modal.html
-    │   ├── new_tournament_modal.html
-    │   ├── negotiator_config_modal.html
-    │   ├── settings_modal.html
-    │   └── ...
-    └── shared/               # Common components
-        ├── header.html
-        ├── sidebar.html
-        └── toast.html
-```
-
-### Template Hierarchy
+The frontend is a Vue 3 single-page application:
 
 ```
-base.html
-├── Includes: header.html, sidebar.html, toast.html
-├── Includes: page components (scenarios_page, negotiators_page, etc.)
-├── Includes: modal components
-└── Block: scripts (filled by index.html)
-
-index.html (extends base.html)
-└── Block: scripts
-    └── Alpine.js application code
+src/frontend/src/
+├── App.vue                      # Root component
+├── main.js                      # Vue app initialization
+├── router.js                    # Vue Router routes
+│
+├── views/                       # Page-level components
+│   ├── NegotiationsListView.vue # /negotiations - list all
+│   ├── SingleNegotiationView.vue# /negotiations/:id - detail
+│   ├── TournamentsListView.vue  # /tournaments - list all
+│   ├── SingleTournamentView.vue # /tournaments/:id - detail
+│   ├── ScenariosView.vue        # /scenarios - explorer
+│   ├── NegotiatorsView.vue      # /negotiators - explorer
+│   └── ConfigsView.vue          # /configs - manager
+│
+├── components/                  # Reusable components
+│   ├── panels/                  # Visualization panels
+│   │   ├── BasePanel.vue        # Panel wrapper
+│   │   ├── Utility2DPanel.vue   # 2D utility scatter plot
+│   │   ├── TimelinePanel.vue    # Utility over time
+│   │   ├── HistogramPanel.vue   # Issue value distribution
+│   │   ├── OfferHistoryPanel.vue# Offer table
+│   │   ├── InfoPanel.vue        # Status display
+│   │   ├── ResultPanel.vue      # Final results
+│   │   ├── IssueSpace2DPanel.vue# Issue scatter plot
+│   │   └── PanelLayout.vue      # Grid layout manager
+│   │
+│   ├── NewNegotiationModal.vue  # Negotiation wizard
+│   ├── NewTournamentModal.vue   # Tournament wizard
+│   ├── TournamentGridPanel.vue  # Competition matrix
+│   ├── TournamentScoresPanel.vue# Leaderboard
+│   ├── TournamentNegotiationsPanel.vue
+│   ├── StatsModal.vue           # Scenario stats
+│   ├── NegotiatorInfoModal.vue  # Negotiator details
+│   ├── SettingsModal.vue        # App settings
+│   └── ...
+│
+└── stores/                      # Pinia state stores
+    └── tournaments.js           # Tournament state
 ```
 
-### Static Assets (`negmas_app/static/`)
+### Views vs Components
 
+| Type | Location | Purpose |
+|------|----------|---------|
+| **Views** | `views/` | Full pages, mapped to routes |
+| **Components** | `components/` | Reusable UI pieces |
+| **Panels** | `components/panels/` | Visualization widgets |
+
+### Single-File Components
+
+Vue components use the single-file format:
+
+```vue
+<template>
+  <!-- HTML template -->
+  <div class="my-component">
+    <h1>{{ title }}</h1>
+    <button @click="handleClick">Click me</button>
+  </div>
+</template>
+
+<script setup>
+// JavaScript logic
+import { ref } from 'vue'
+
+const title = ref('Hello World')
+
+function handleClick() {
+  console.log('Clicked!')
+}
+</script>
+
+<style scoped>
+/* Scoped CSS */
+.my-component {
+  padding: 16px;
+}
+</style>
 ```
-static/
-├── css/
-│   ├── styles.css         # Main stylesheet
-│   └── layout.css         # Panel layout styles
-└── js/
-    ├── panel-registry.js  # Panel registration system
-    ├── layout-manager.js  # Layout state management
-    └── layout-renderer.js # DOM rendering
+
+### Routing
+
+Vue Router maps URLs to view components:
+
+```javascript
+// router.js
+import { createRouter, createWebHistory } from 'vue-router'
+
+const routes = [
+  { path: '/', redirect: '/negotiations' },
+  { 
+    path: '/negotiations', 
+    component: () => import('./views/NegotiationsListView.vue')
+  },
+  { 
+    path: '/negotiations/:id', 
+    component: () => import('./views/SingleNegotiationView.vue')
+  },
+  { 
+    path: '/tournaments', 
+    component: () => import('./views/TournamentsListView.vue')
+  },
+  { 
+    path: '/tournaments/:id', 
+    component: () => import('./views/SingleTournamentView.vue')
+  },
+  { path: '/scenarios', component: () => import('./views/ScenariosView.vue') },
+  { path: '/negotiators', component: () => import('./views/NegotiatorsView.vue') },
+  { path: '/configs', component: () => import('./views/ConfigsView.vue') },
+]
+
+export default createRouter({
+  history: createWebHistory(),
+  routes
+})
+```
+
+### State Management with Pinia
+
+Pinia stores manage shared state:
+
+```javascript
+// stores/tournaments.js
+import { defineStore } from 'pinia'
+
+export const useTournamentsStore = defineStore('tournaments', {
+  state: () => ({
+    tournaments: [],
+    currentTournament: null,
+    loading: false,
+  }),
+  
+  getters: {
+    completedTournaments: (state) => 
+      state.tournaments.filter(t => t.status === 'completed'),
+    
+    runningTournaments: (state) =>
+      state.tournaments.filter(t => t.status === 'running'),
+  },
+  
+  actions: {
+    async fetchTournaments() {
+      this.loading = true
+      const response = await fetch('/api/tournament/list')
+      this.tournaments = await response.json()
+      this.loading = false
+    },
+    
+    async startTournament(config) {
+      const response = await fetch('/api/tournament/start', {
+        method: 'POST',
+        body: JSON.stringify(config)
+      })
+      return await response.json()
+    },
+  }
+})
+```
+
+Using stores in components:
+
+```vue
+<script setup>
+import { useTournamentsStore } from '@/stores/tournaments'
+
+const store = useTournamentsStore()
+
+// Access state
+const tournaments = computed(() => store.tournaments)
+
+// Call actions
+onMounted(() => {
+  store.fetchTournaments()
+})
+</script>
 ```
 
 ## Key Patterns
 
-### Alpine.js Application
+### Polling for Negotiations
 
-The main application state is defined in `index.html`:
+Negotiations use polling for simplicity and reliability:
 
-```javascript
-function app() {
-    return {
-        // State
-        currentPage: 'negotiations',
-        currentNegotiation: null,
-        runningNegotiations: [],
-        completedNegotiations: [],
-        
-        // Computed
-        get filteredScenarios() { ... },
-        
-        // Methods
-        async init() { ... },
-        async startNegotiation() { ... },
-        selectNegotiation(neg) { ... },
-        
-        // ... hundreds more properties and methods
-    }
-}
-```
-
-### SSE Streaming
-
-Real-time updates use Server-Sent Events:
+**Backend (FastAPI):**
 
 ```python
-# Backend (router)
+@router.get("/{session_id}")
+async def get_session(session_id: str):
+    """Get current session state for polling"""
+    session = SessionManager.get_session(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    return session.to_dict()
+```
+
+**Frontend (Vue):**
+
+```javascript
+// In SingleNegotiationView.vue
+let pollInterval = null
+
+function startPolling(sessionId) {
+  pollInterval = setInterval(async () => {
+    const response = await fetch(`/api/negotiation/${sessionId}`)
+    const data = await response.json()
+    
+    offers.value = data.offers
+    status.value = data.status
+    updateCharts(data)
+    
+    if (data.status === 'completed') {
+      clearInterval(pollInterval)
+    }
+  }, 200)
+}
+
+onUnmounted(() => {
+  if (pollInterval) clearInterval(pollInterval)
+})
+```
+
+### SSE Streaming for Tournaments
+
+Tournaments use Server-Sent Events for efficient real-time updates:
+
+**Backend (FastAPI):**
+
+```python
 @router.get("/{session_id}/stream")
 async def stream(session_id: str):
     async def event_generator():
-        async for event in SessionManager.stream_session(session_id):
+        async for event in TournamentManager.stream_session(session_id):
             yield {"event": event.type, "data": json.dumps(event.data)}
     return EventSourceResponse(event_generator())
 ```
 
+**Frontend (Vue - stores/tournaments.js):**
+
 ```javascript
-// Frontend
-const eventSource = new EventSource(`/api/negotiation/${sessionId}/stream`);
-eventSource.addEventListener('offer', (e) => {
-    const offer = JSON.parse(e.data);
-    this.updateOfferHistory(offer);
-    this.updatePlots(offer);
-});
+function startStreaming(sessionId) {
+  eventSource.value = new EventSource(`/api/tournament/${sessionId}/stream`)
+  
+  eventSource.value.addEventListener('cell_update', (e) => {
+    const data = JSON.parse(e.data)
+    updateCellState(data)
+  })
+  
+  eventSource.value.addEventListener('leaderboard', (e) => {
+    leaderboard.value = JSON.parse(e.data)
+  })
+  
+  eventSource.value.addEventListener('complete', (e) => {
+    tournamentComplete.value = JSON.parse(e.data)
+    eventSource.value.close()
+  })
+}
 ```
 
-### Component Inclusion
+### Panel Components
 
-Templates use Jinja2 includes for modularity:
+Visualization panels follow a consistent pattern:
 
-```html
-<!-- base.html -->
-<main class="content-area" x-show="currentPage === 'negotiations'">
-    {% include 'components/pages/negotiations_list_page.html' %}
-    {% include 'components/pages/negotiation_view_page.html' %}
-</main>
+```vue
+<!-- panels/MyPanel.vue -->
+<template>
+  <BasePanel 
+    title="My Panel" 
+    :expanded="expanded"
+    @toggle="expanded = !expanded"
+  >
+    <div ref="chartContainer" class="chart-container"></div>
+  </BasePanel>
+</template>
 
-<!-- negotiations_list_page.html -->
-<div x-show="!currentNegotiation">
-    <!-- List view content -->
-</div>
+<script setup>
+import { ref, watch, onMounted } from 'vue'
+import Plotly from 'plotly.js-dist-min'
+import BasePanel from './BasePanel.vue'
 
-<!-- negotiation_view_page.html -->
-<div x-show="currentNegotiation">
-    {% include 'components/panels/negotiation_info_panel.html' %}
-    {% include 'components/panels/offer_history_panel.html' %}
-    <!-- ... -->
-</div>
+const props = defineProps({
+  data: Array,
+  config: Object
+})
+
+const chartContainer = ref(null)
+const expanded = ref(false)
+
+function updateChart() {
+  if (!chartContainer.value || !props.data) return
+  
+  Plotly.react(chartContainer.value, [{
+    x: props.data.map(d => d.x),
+    y: props.data.map(d => d.y),
+    type: 'scatter'
+  }], {
+    margin: { t: 20, r: 20, b: 40, l: 40 }
+  })
+}
+
+watch(() => props.data, updateChart, { deep: true })
+onMounted(updateChart)
+</script>
+```
+
+### API Calls
+
+Components call the backend via fetch:
+
+```javascript
+async function fetchScenarios() {
+  loading.value = true
+  try {
+    const response = await fetch('/api/scenarios')
+    if (!response.ok) throw new Error('Failed to fetch')
+    scenarios.value = await response.json()
+  } catch (error) {
+    console.error('Error:', error)
+    showError('Failed to load scenarios')
+  } finally {
+    loading.value = false
+  }
+}
 ```
 
 ## Adding New Features
 
 ### Adding a New Panel
 
-1. Create template in `templates/components/panels/`:
+1. **Create component** in `src/frontend/src/components/panels/`:
 
-```html
-<!-- my_panel.html -->
-<div class="panel" data-panel-id="my-panel">
-    <div class="panel-header">
-        <span class="panel-title">My Panel</span>
-    </div>
+```vue
+<!-- MyNewPanel.vue -->
+<template>
+  <BasePanel title="My New Panel">
     <div class="panel-content">
-        <!-- Panel content -->
+      <!-- Your visualization -->
     </div>
-</div>
+  </BasePanel>
+</template>
+
+<script setup>
+import BasePanel from './BasePanel.vue'
+
+const props = defineProps({
+  data: Object
+})
+</script>
 ```
 
-2. Include in the appropriate page component
-3. Add update logic in `index.html` JavaScript
+2. **Import and use** in a view:
+
+```vue
+<script setup>
+import MyNewPanel from '@/components/panels/MyNewPanel.vue'
+</script>
+
+<template>
+  <div class="panel-grid">
+    <MyNewPanel :data="panelData" />
+  </div>
+</template>
+```
+
+### Adding a New View
+
+1. **Create view** in `src/frontend/src/views/`:
+
+```vue
+<!-- MyNewView.vue -->
+<template>
+  <div class="my-view">
+    <h1>My New Page</h1>
+  </div>
+</template>
+
+<script setup>
+import { onMounted } from 'vue'
+</script>
+```
+
+2. **Add route** in `router.js`:
+
+```javascript
+{
+  path: '/my-new-page',
+  component: () => import('./views/MyNewView.vue')
+}
+```
+
+3. **Add navigation** in sidebar (App.vue or navigation component)
 
 ### Adding a New API Endpoint
 
-1. Create or update router in `routers/`:
+1. **Create or update router** in `negmas_app/routers/`:
 
 ```python
 @router.get("/my-endpoint")
@@ -320,11 +549,16 @@ async def my_endpoint():
     return {"data": result}
 ```
 
-2. Register router in `main.py` if new file
+2. **Register router** in `main.py` if new file:
+
+```python
+from .routers import my_router
+app.include_router(my_router.router)
+```
 
 ### Adding a New Service
 
-1. Create service in `services/`:
+1. **Create service** in `negmas_app/services/`:
 
 ```python
 class MyService:
@@ -334,4 +568,49 @@ class MyService:
         return result
 ```
 
-2. Import in router as needed
+2. **Import in router** as needed
+
+## Build and Development
+
+### Frontend Development
+
+```bash
+cd src/frontend
+
+# Install dependencies
+npm install
+
+# Development server with hot reload
+npm run dev
+
+# Production build
+npm run build
+```
+
+### Backend Development
+
+```bash
+# Install dependencies
+uv sync --all-extras --dev
+
+# Install local negmas packages
+for x in negmas negmas-llm negmas-genius-agents negmas-negolog negmas-rl; do
+  uv pip install -e ../$x
+done
+
+# Run development server
+negmas-app start --dev
+```
+
+### Full Application
+
+```bash
+# Start both frontend and backend
+negmas-app start
+
+# Kill running servers
+negmas-app kill
+
+# Restart servers
+negmas-app restart
+```

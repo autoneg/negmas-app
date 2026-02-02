@@ -1,614 +1,487 @@
 # Creating Custom Panels
 
-This guide walks you through creating custom panels for NegMAS App. Custom panels allow you to add new visualizations and data views tailored to your specific needs.
+This guide walks you through creating custom visualization panels for NegMAS App using Vue.js.
 
 ## Overview
 
-A panel is a self-contained UI component that:
+Panels are Vue single-file components that display negotiation data. They:
 
-1. **Registers** with the Panel Registry
-2. **Renders** HTML content based on state
-3. **Initializes** any interactive elements
-4. **Updates** when state changes
-5. **Cleans up** when removed
+1. Accept data via **props**
+2. Render visualizations using **Plotly.js** or other libraries
+3. React to data changes via Vue's **reactivity system**
+4. Support expand/collapse via the **BasePanel** wrapper
 
 ## Quick Start
 
-Here's a minimal panel that displays the current step:
+### 1. Create Panel Component
 
-```javascript
-// my-panel.js
-PanelRegistry.register('my-step-counter', {
-    name: 'Step Counter',
-    description: 'Shows the current negotiation step',
-    icon: 'counter',
-    
-    render(state) {
-        const step = state.currentNegotiation?.step ?? 0;
-        return `
-            <div class="step-counter-panel">
-                <div class="step-value">${step}</div>
-                <div class="step-label">Current Step</div>
-            </div>
-        `;
-    }
-});
-```
+Create a new file in `src/frontend/src/components/panels/`:
 
-Include it in your HTML:
+```vue
+<!-- MyCustomPanel.vue -->
+<template>
+  <BasePanel 
+    title="My Custom Panel"
+    :expanded="expanded"
+    @toggle="expanded = !expanded"
+  >
+    <div class="panel-content">
+      <div v-if="!data" class="empty-state">
+        No data available
+      </div>
+      <div v-else class="my-visualization">
+        <p>Current step: {{ data.step }}</p>
+        <p>Status: {{ data.status }}</p>
+      </div>
+    </div>
+  </BasePanel>
+</template>
 
-```html
-<script src="/static/js/panel-registry.js"></script>
-<script src="/static/js/my-panel.js"></script>
-```
+<script setup>
+import { ref } from 'vue'
+import BasePanel from './BasePanel.vue'
 
-## Panel Definition
+// Props
+const props = defineProps({
+  data: Object,
+  config: Object
+})
 
-### Required Properties
+// Local state
+const expanded = ref(false)
+</script>
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `name` | `string` | Display name for the panel |
-| `render` | `function` | Returns HTML string |
-
-### Optional Properties
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `description` | `string` | `''` | Tooltip description |
-| `icon` | `string` | `'default'` | Icon identifier |
-| `category` | `string` | `'custom'` | For panel picker grouping |
-| `init` | `function` | `null` | Called after first render |
-| `update` | `function` | `null` | Called on state changes |
-| `destroy` | `function` | `null` | Called before removal |
-| `defaultZone` | `string` | `'right'` | Preferred initial zone |
-| `minWidth` | `number` | `200` | Minimum width in pixels |
-| `minHeight` | `number` | `100` | Minimum height in pixels |
-
-## Lifecycle Methods
-
-### `render(state)`
-
-Called to generate the panel's HTML content. Must return a string.
-
-```javascript
-render(state) {
-    const { currentNegotiation } = state;
-    
-    // Handle no data gracefully
-    if (!currentNegotiation) {
-        return `<div class="panel-empty">No negotiation selected</div>`;
-    }
-    
-    // Return HTML string
-    return `
-        <div class="my-panel">
-            <h3>${currentNegotiation.scenario}</h3>
-            <p>Status: ${currentNegotiation.status}</p>
-        </div>
-    `;
+<style scoped>
+.panel-content {
+  padding: 12px;
 }
-```
 
-!!! warning "Pure Rendering"
-    The `render` method should be pure - it only generates HTML based on state.
-    Don't attach event listeners or modify DOM here. Use `init` for that.
-
-### `init(element, state)`
-
-Called once after the panel is first rendered and mounted to the DOM.
-
-```javascript
-init(element, state) {
-    // Find elements
-    const button = element.querySelector('.my-button');
-    
-    // Attach event listeners
-    button?.addEventListener('click', () => {
-        console.log('Button clicked!');
-    });
-    
-    // Initialize libraries (e.g., Plotly)
-    const chartDiv = element.querySelector('.chart');
-    if (chartDiv) {
-        Plotly.newPlot(chartDiv, [], {});
-    }
-    
-    // Store references for later (optional)
-    element._myPanelState = {
-        chart: chartDiv,
-        button: button
-    };
+.empty-state {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 24px;
 }
-```
 
-### `update(element, state)`
-
-Called whenever the application state changes. Use this to efficiently update the panel.
-
-```javascript
-update(element, state) {
-    const { currentNegotiation } = state;
-    if (!currentNegotiation) return;
-    
-    // Update specific elements instead of re-rendering
-    const stepEl = element.querySelector('.step-value');
-    if (stepEl) {
-        stepEl.textContent = currentNegotiation.step;
-    }
-    
-    // Update charts
-    const chart = element._myPanelState?.chart;
-    if (chart && currentNegotiation.offers) {
-        Plotly.react(chart, getChartData(currentNegotiation), {});
-    }
+.my-visualization {
+  /* Your styles */
 }
+</style>
 ```
 
-!!! tip "Performance"
-    For frequently updating data (like real-time negotiations), prefer updating
-    specific DOM elements in `update()` rather than re-rendering the entire panel.
+### 2. Import and Use
 
-### `destroy(element)`
+In your view component (e.g., `SingleNegotiationView.vue`):
 
-Called before the panel is removed. Clean up event listeners, timers, etc.
+```vue
+<script setup>
+import MyCustomPanel from '@/components/panels/MyCustomPanel.vue'
+</script>
 
-```javascript
-destroy(element) {
-    // Clean up Plotly chart
-    const chart = element._myPanelState?.chart;
-    if (chart) {
-        Plotly.purge(chart);
-    }
+<template>
+  <div class="panel-grid">
+    <!-- Other panels -->
+    <MyCustomPanel :data="negotiationData" />
+  </div>
+</template>
+```
+
+## Panel Structure
+
+### BasePanel Wrapper
+
+Always wrap your content in `BasePanel` for consistent styling:
+
+```vue
+<template>
+  <BasePanel 
+    title="Panel Title"
+    :expanded="expanded"
+    @toggle="expanded = !expanded"
+    :loading="loading"
+    :error="error"
+  >
+    <template #header-actions>
+      <!-- Optional custom header buttons -->
+      <button @click="refresh">Refresh</button>
+    </template>
     
-    // Remove event listeners if needed
-    // (Usually not necessary if element is being removed)
-    
-    // Clear stored state
-    delete element._myPanelState;
+    <div class="panel-content">
+      <!-- Your content -->
+    </div>
+  </BasePanel>
+</template>
+```
+
+### BasePanel Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `title` | `string` | Panel title in header |
+| `expanded` | `boolean` | Whether panel is fullscreen |
+| `loading` | `boolean` | Shows loading spinner |
+| `error` | `string` | Shows error message |
+
+### BasePanel Events
+
+| Event | Description |
+|-------|-------------|
+| `@toggle` | Emitted when expand/collapse clicked |
+
+## Creating Chart Panels
+
+Most panels display Plotly.js charts. Here's the pattern:
+
+```vue
+<template>
+  <BasePanel title="My Chart" :expanded="expanded" @toggle="expanded = !expanded">
+    <div ref="chartContainer" class="chart-container"></div>
+  </BasePanel>
+</template>
+
+<script setup>
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import Plotly from 'plotly.js-dist-min'
+import BasePanel from './BasePanel.vue'
+
+const props = defineProps({
+  data: Array,
+  config: Object
+})
+
+const chartContainer = ref(null)
+const expanded = ref(false)
+
+// Chart layout configuration
+const layout = {
+  margin: { t: 30, r: 20, b: 40, l: 50 },
+  xaxis: { title: 'X Axis' },
+  yaxis: { title: 'Y Axis' },
+  showlegend: true
 }
+
+const plotConfig = {
+  responsive: true,
+  displayModeBar: true,
+  modeBarButtonsToRemove: ['lasso2d', 'select2d']
+}
+
+function updateChart() {
+  if (!chartContainer.value || !props.data?.length) return
+  
+  const traces = [{
+    x: props.data.map(d => d.x),
+    y: props.data.map(d => d.y),
+    type: 'scatter',
+    mode: 'markers',
+    name: 'Data Points'
+  }]
+  
+  Plotly.react(chartContainer.value, traces, layout, plotConfig)
+}
+
+// Resize chart when expanded changes
+function handleResize() {
+  if (chartContainer.value) {
+    Plotly.Plots.resize(chartContainer.value)
+  }
+}
+
+// Watch for data changes
+watch(() => props.data, updateChart, { deep: true })
+
+// Watch for expand/collapse
+watch(expanded, async () => {
+  await nextTick()
+  handleResize()
+})
+
+// Initial render
+onMounted(() => {
+  updateChart()
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  if (chartContainer.value) {
+    Plotly.purge(chartContainer.value)
+  }
+})
+</script>
+
+<style scoped>
+.chart-container {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+}
+</style>
 ```
 
-## Complete Example: Welfare Metrics Panel
+## Common Panel Patterns
 
-Here's a complete example of a panel that displays welfare metrics:
+### Handling Empty State
+
+```vue
+<template>
+  <BasePanel title="My Panel">
+    <div v-if="loading" class="loading-state">
+      <div class="spinner"></div>
+      Loading...
+    </div>
+    
+    <div v-else-if="!data" class="empty-state">
+      <div class="empty-icon">📊</div>
+      <p>No data to display</p>
+    </div>
+    
+    <div v-else class="panel-content">
+      <!-- Actual content -->
+    </div>
+  </BasePanel>
+</template>
+```
+
+### Incremental Chart Updates
+
+For real-time data, use `Plotly.extendTraces` instead of full re-renders:
 
 ```javascript
-/**
- * Welfare Metrics Panel
- * Shows social welfare metrics for the current negotiation
- */
-PanelRegistry.register('welfare-metrics', {
-    name: 'Welfare Metrics',
-    description: 'Social welfare analysis of negotiation outcomes',
-    icon: 'chart',
-    category: 'analysis',
-    defaultZone: 'bottomRight',
-    minWidth: 250,
-    minHeight: 150,
-    
-    render(state) {
-        const neg = state.currentNegotiation;
-        
-        if (!neg) {
-            return `
-                <div class="panel-empty">
-                    <svg viewBox="0 0 24 24" width="32" height="32">
-                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                    </svg>
-                    <p>Select a negotiation to view metrics</p>
-                </div>
-            `;
-        }
-        
-        return `
-            <div class="welfare-metrics-panel">
-                <div class="metrics-grid">
-                    <div class="metric">
-                        <span class="metric-label">Nash Product</span>
-                        <span class="metric-value" data-metric="nash">-</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">Social Welfare</span>
-                        <span class="metric-value" data-metric="welfare">-</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">Fairness (Gini)</span>
-                        <span class="metric-value" data-metric="gini">-</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">Pareto Optimal</span>
-                        <span class="metric-value" data-metric="pareto">-</span>
-                    </div>
-                </div>
-                <div class="metrics-chart"></div>
-            </div>
-        `;
-    },
-    
-    init(element, state) {
-        // Initialize the chart
-        const chartDiv = element.querySelector('.metrics-chart');
-        if (chartDiv) {
-            Plotly.newPlot(chartDiv, [], {
-                margin: { t: 20, r: 20, b: 30, l: 40 },
-                height: 150,
-                showlegend: false
-            }, {
-                responsive: true,
-                displayModeBar: false
-            });
-        }
-        
-        // Store reference
-        element._welfareChart = chartDiv;
-        
-        // Initial update
-        this.update(element, state);
-    },
-    
-    update(element, state) {
-        const neg = state.currentNegotiation;
-        if (!neg || !neg.offers || neg.offers.length === 0) return;
-        
-        // Calculate metrics
-        const metrics = this._calculateMetrics(neg);
-        
-        // Update metric displays
-        element.querySelector('[data-metric="nash"]').textContent = 
-            metrics.nash.toFixed(4);
-        element.querySelector('[data-metric="welfare"]').textContent = 
-            metrics.welfare.toFixed(4);
-        element.querySelector('[data-metric="gini"]').textContent = 
-            metrics.gini.toFixed(4);
-        element.querySelector('[data-metric="pareto"]').textContent = 
-            metrics.paretoOptimal ? 'Yes' : 'No';
-        
-        // Update chart
-        const chart = element._welfareChart;
-        if (chart) {
-            const trace = {
-                x: neg.offers.map((_, i) => i),
-                y: neg.offers.map(o => this._calculateWelfare(o.utilities)),
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Welfare',
-                line: { color: 'var(--primary)' }
-            };
-            Plotly.react(chart, [trace], {
-                margin: { t: 20, r: 20, b: 30, l: 40 },
-                height: 150,
-                xaxis: { title: 'Step' },
-                yaxis: { title: 'Welfare' }
-            });
-        }
-    },
-    
-    destroy(element) {
-        if (element._welfareChart) {
-            Plotly.purge(element._welfareChart);
-            delete element._welfareChart;
-        }
-    },
-    
-    // Helper methods (private by convention)
-    _calculateMetrics(neg) {
-        const lastOffer = neg.offers[neg.offers.length - 1];
-        const utilities = lastOffer?.utilities || [];
-        
-        return {
-            nash: utilities.reduce((a, b) => a * b, 1),
-            welfare: this._calculateWelfare(utilities),
-            gini: this._calculateGini(utilities),
-            paretoOptimal: this._checkParetoOptimal(neg, utilities)
-        };
-    },
-    
-    _calculateWelfare(utilities) {
-        return utilities.reduce((a, b) => a + b, 0);
-    },
-    
-    _calculateGini(utilities) {
-        if (utilities.length < 2) return 0;
-        const sorted = [...utilities].sort((a, b) => a - b);
-        const n = sorted.length;
-        let sum = 0;
-        for (let i = 0; i < n; i++) {
-            sum += (2 * (i + 1) - n - 1) * sorted[i];
-        }
-        const mean = sorted.reduce((a, b) => a + b, 0) / n;
-        return sum / (n * n * mean) || 0;
-    },
-    
-    _checkParetoOptimal(neg, utilities) {
-        // Simplified check - would need Pareto frontier for accuracy
-        return neg.pareto_frontier?.some(p => 
-            Math.abs(p[0] - utilities[0]) < 0.01 &&
-            Math.abs(p[1] - utilities[1]) < 0.01
-        ) ?? false;
-    }
-});
+function addDataPoint(point) {
+  if (!chartContainer.value) return
+  
+  Plotly.extendTraces(chartContainer.value, {
+    x: [[point.x]],
+    y: [[point.y]]
+  }, [0])  // Trace index
+}
+
+// Watch for new offers
+watch(() => props.offers?.length, (newLen, oldLen) => {
+  if (newLen > oldLen && props.offers) {
+    const newOffers = props.offers.slice(oldLen)
+    newOffers.forEach(addDataPoint)
+  }
+})
 ```
 
-## Panel Styling
+### Responding to User Interaction
 
-### Using CSS Variables
+```vue
+<script setup>
+const emit = defineEmits(['select', 'highlight'])
 
-Your panel should use CSS variables for consistent theming:
+function handlePointClick(event) {
+  const pointIndex = event.points[0].pointIndex
+  emit('select', props.data[pointIndex])
+}
+
+onMounted(() => {
+  chartContainer.value?.on('plotly_click', handlePointClick)
+})
+</script>
+```
+
+## Data Sources
+
+### Negotiation Data
+
+Available via props from parent views:
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `offers` | `Array` | List of offer events |
+| `negotiators` | `Array` | Negotiator info |
+| `scenario` | `Object` | Scenario details |
+| `status` | `String` | 'running', 'completed', etc. |
+| `stats` | `Object` | Pareto, Nash, etc. |
+
+### Tournament Data
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `gridInit` | `Object` | Grid structure |
+| `cellStates` | `Object` | Cell status map |
+| `leaderboard` | `Array` | Rankings |
+| `negotiations` | `Array` | All negotiations |
+
+## Styling Guidelines
+
+### CSS Variables
+
+Use CSS variables for consistent theming:
 
 ```css
 .my-panel {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: var(--spacing-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
-.my-panel .value {
-    color: var(--primary);
-    font-weight: var(--font-weight-semibold);
-}
-
-.my-panel .muted {
-    color: var(--text-muted);
-    font-size: var(--font-size-sm);
+.highlight {
+  color: var(--accent-color);
 }
 ```
 
-### Available CSS Variables
+### Panel Sizes
+
+Panels should be responsive. Avoid fixed dimensions:
 
 ```css
-/* Colors */
---primary: #3b82f6;
---success: #10b981;
---warning: #f59e0b;
---danger: #ef4444;
-
-/* Backgrounds */
---bg-primary: #ffffff;
---bg-secondary: #f3f4f6;
---bg-tertiary: #e5e7eb;
-
-/* Text */
---text-primary: #111827;
---text-secondary: #4b5563;
---text-muted: #9ca3af;
-
-/* Spacing */
---spacing-xs: 4px;
---spacing-sm: 8px;
---spacing-md: 16px;
---spacing-lg: 24px;
-
-/* Borders */
---border-color: #e5e7eb;
---radius-sm: 4px;
---radius-md: 8px;
-```
-
-### Color-Blind Mode Support
-
-Check for color-blind mode and use appropriate colors:
-
-```javascript
-render(state) {
-    const colorBlind = document.documentElement.classList.contains('color-blind-mode');
-    const colors = colorBlind 
-        ? ['#0072B2', '#E69F00', '#009E73', '#CC79A7']  // Color-blind safe
-        : ['#3b82f6', '#ef4444', '#10b981', '#f59e0b']; // Default
-    
-    // Use colors in your visualization
+.chart-container {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;  /* Reasonable minimum */
 }
 ```
 
-## Working with Plotly
+### Scoped Styles
 
-Many panels use Plotly.js for charts. Here are best practices:
+Always use `<style scoped>` to prevent style leakage:
 
-### Initialization
-
-```javascript
-init(element, state) {
-    const chartDiv = element.querySelector('.chart');
-    
-    Plotly.newPlot(chartDiv, [], {
-        margin: { t: 30, r: 20, b: 40, l: 50 },
-        paper_bgcolor: 'transparent',
-        plot_bgcolor: 'transparent',
-        font: { color: 'var(--text-primary)' },
-        xaxis: { gridcolor: 'var(--border-color)' },
-        yaxis: { gridcolor: 'var(--border-color)' }
-    }, {
-        responsive: true,
-        displayModeBar: false
-    });
+```vue
+<style scoped>
+/* These styles only affect this component */
+.panel-content {
+  padding: 12px;
 }
-```
-
-### Efficient Updates
-
-Use `Plotly.react()` for updates instead of `newPlot()`:
-
-```javascript
-update(element, state) {
-    const chartDiv = element.querySelector('.chart');
-    const data = prepareData(state);
-    
-    // react() efficiently updates existing chart
-    Plotly.react(chartDiv, data, chartDiv.layout);
-}
-```
-
-### Cleanup
-
-Always purge Plotly charts on destroy:
-
-```javascript
-destroy(element) {
-    const chartDiv = element.querySelector('.chart');
-    if (chartDiv) {
-        Plotly.purge(chartDiv);
-    }
-}
-```
-
-## Icons
-
-### Using Built-in Icons
-
-The panel registry includes common icons:
-
-```javascript
-{
-    icon: 'chart',      // Line chart
-    icon: 'bar-chart',  // Bar chart
-    icon: 'list',       // List view
-    icon: 'info',       // Information
-    icon: 'settings',   // Settings gear
-    icon: 'grid',       // Grid layout
-}
-```
-
-### Custom SVG Icons
-
-Add custom icons to `PanelIcons`:
-
-```javascript
-PanelIcons['my-custom-icon'] = `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/>
-        <path d="M12 6v6l4 2"/>
-    </svg>
-`;
-
-// Then use it
-{ icon: 'my-custom-icon' }
+</style>
 ```
 
 ## Best Practices
 
-### 1. Handle Missing Data
+### 1. Performance
 
-Always check for missing or incomplete data:
+- Use `Plotly.react` (not `Plotly.newPlot`) for updates
+- Debounce frequent updates
+- Clean up event listeners in `onUnmounted`
 
-```javascript
-render(state) {
-    const neg = state.currentNegotiation;
-    
-    if (!neg) {
-        return '<div class="panel-empty">No negotiation selected</div>';
-    }
-    
-    if (!neg.offers || neg.offers.length === 0) {
-        return '<div class="panel-empty">Waiting for offers...</div>';
-    }
-    
-    // Normal rendering
+### 2. Accessibility
+
+- Include labels on charts
+- Provide text alternatives for visual data
+- Support keyboard navigation where possible
+
+### 3. Error Handling
+
+```vue
+<script setup>
+const error = ref(null)
+
+async function loadData() {
+  try {
+    error.value = null
+    // ... load data
+  } catch (e) {
+    error.value = e.message
+    console.error('Panel error:', e)
+  }
 }
+</script>
+
+<template>
+  <BasePanel :error="error">
+    <!-- ... -->
+  </BasePanel>
+</template>
 ```
 
-### 2. Minimize Re-renders
+### 4. Testing
 
-Use `update()` for incremental changes:
+Test your panel with:
 
-```javascript
-// Good: Update specific elements
-update(element, state) {
-    element.querySelector('.step').textContent = state.currentNegotiation.step;
-}
+- No data (empty state)
+- Single data point
+- Large datasets
+- Rapid updates
+- Resize events
 
-// Bad: Re-render everything
-update(element, state) {
-    element.innerHTML = this.render(state);  // Avoid this!
-}
-```
+## Example: Custom Statistics Panel
 
-### 3. Clean Up Resources
+Here's a complete example showing negotiation statistics:
 
-Always clean up in `destroy()`:
-
-```javascript
-destroy(element) {
-    // Clear intervals/timeouts
-    clearInterval(element._updateInterval);
+```vue
+<!-- StatsPanel.vue -->
+<template>
+  <BasePanel title="Statistics" :expanded="expanded" @toggle="expanded = !expanded">
+    <div v-if="!stats" class="empty-state">
+      No statistics available
+    </div>
     
-    // Purge charts
-    Plotly.purge(element.querySelector('.chart'));
-    
-    // Remove event listeners on window/document
-    window.removeEventListener('resize', element._resizeHandler);
-    
-    // Clear stored state
-    delete element._myState;
+    <div v-else class="stats-grid">
+      <div class="stat-item">
+        <div class="stat-label">Nash Distance</div>
+        <div class="stat-value">{{ formatNumber(stats.nash_distance) }}</div>
+      </div>
+      
+      <div class="stat-item">
+        <div class="stat-label">Pareto Distance</div>
+        <div class="stat-value">{{ formatNumber(stats.pareto_distance) }}</div>
+      </div>
+      
+      <div class="stat-item">
+        <div class="stat-label">Social Welfare</div>
+        <div class="stat-value">{{ formatNumber(stats.welfare) }}</div>
+      </div>
+      
+      <div class="stat-item">
+        <div class="stat-label">Fairness</div>
+        <div class="stat-value">{{ formatNumber(stats.fairness) }}</div>
+      </div>
+    </div>
+  </BasePanel>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+import BasePanel from './BasePanel.vue'
+
+const props = defineProps({
+  stats: Object
+})
+
+const expanded = ref(false)
+
+function formatNumber(value) {
+  if (value == null) return '—'
+  return value.toFixed(3)
 }
-```
+</script>
 
-### 4. Use Semantic HTML
-
-Structure your panel content semantically:
-
-```html
-<div class="panel-content">
-    <header class="panel-header">
-        <h3>Panel Title</h3>
-    </header>
-    <main class="panel-body">
-        <!-- Content -->
-    </main>
-    <footer class="panel-footer">
-        <!-- Actions -->
-    </footer>
-</div>
-```
-
-### 5. Support Keyboard Navigation
-
-Make interactive elements keyboard accessible:
-
-```javascript
-init(element, state) {
-    const buttons = element.querySelectorAll('button');
-    buttons.forEach(btn => {
-        btn.setAttribute('tabindex', '0');
-        btn.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                btn.click();
-            }
-        });
-    });
+<style scoped>
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  padding: 12px;
 }
-```
 
-## Debugging
-
-### Console Logging
-
-Use namespaced logging:
-
-```javascript
-render(state) {
-    console.log('[MyPanel] Rendering with state:', state);
-    // ...
+.stat-item {
+  text-align: center;
 }
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.empty-state {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 24px;
+}
+</style>
 ```
 
-### Panel Registry Inspection
+## Next Steps
 
-```javascript
-// List all registered panels
-console.log(PanelRegistry.getAll());
-
-// Get specific panel definition
-console.log(PanelRegistry.get('my-panel'));
-```
-
-### Layout State Inspection
-
-```javascript
-// Current layout
-console.log(LayoutManager.getActiveLayout());
-
-// Specific zone
-console.log(LayoutManager.getZone('right'));
-```
+- [Built-in Panels](builtin-panels.md) - See existing panel implementations
+- [Panel API Reference](api-reference.md) - Full API documentation
+- [Layout System](layout-system.md) - How panels are arranged
