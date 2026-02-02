@@ -201,7 +201,17 @@ const selectedScenarioName = ref('')
 
 // Click handlers
 function handleNegotiatorClick(negotiatorName) {
-  selectedNegotiatorType.value = negotiatorName
+  // Try to get the full type name from the type maps
+  // competitor_type_map and opponent_type_map map short names to full type names
+  let fullTypeName = negotiatorName
+  
+  if (props.config?.competitor_type_map && props.config.competitor_type_map[negotiatorName]) {
+    fullTypeName = props.config.competitor_type_map[negotiatorName]
+  } else if (props.config?.opponent_type_map && props.config.opponent_type_map[negotiatorName]) {
+    fullTypeName = props.config.opponent_type_map[negotiatorName]
+  }
+  
+  selectedNegotiatorType.value = fullTypeName
   showNegotiatorModal.value = true
 }
 

@@ -771,6 +771,26 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     }
   }
 
+  async function loadScenariosSummary(tournamentId) {
+    // Load scenarios summary for saved tournaments (for opposition vs n_outcomes plot)
+    try {
+      const response = await fetch(`/api/tournament/saved/${tournamentId}/scenarios_summary`)
+      if (!response.ok) {
+        console.warn(`Failed to load scenarios summary for ${tournamentId}:`, response.statusText)
+        return []
+      }
+      const data = await response.json()
+      if (data.scenarios && data.scenarios.length > 0) {
+        tournamentScenarios.value = data.scenarios
+        return data.scenarios
+      }
+      return []
+    } catch (error) {
+      console.error('Failed to load scenarios summary:', error)
+      return []
+    }
+  }
+
   return {
     sessions,
     currentSession,
@@ -818,5 +838,6 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     updateTournamentTags,
     clearEventLog,
     loadEventLog,
+    loadScenariosSummary,
   }
 })

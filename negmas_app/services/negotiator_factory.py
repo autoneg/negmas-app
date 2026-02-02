@@ -683,6 +683,8 @@ class NegotiatorFactory:
         """Get info for a specific negotiator type.
 
         Handles both exact matches and hash-suffixed versions (e.g., Foo#abc123).
+        Also supports partial name matching for short names like "y2019.agent_gg.AgentGG"
+        which map to full names like "negmas_genius_agents.negotiators.anac.y2019.agent_gg.AgentGG".
         """
         # Try exact match first
         entry = NEGOTIATOR_REGISTRY.get(type_name)
@@ -693,6 +695,29 @@ class NegotiatorFactory:
         for key, entry in NEGOTIATOR_REGISTRY.items():
             if key.startswith(type_name + "#"):
                 return entry.info
+
+        # Try partial match - if type_name is a suffix of a registered key
+        # This handles cases like "y2019.agent_gg.AgentGG" matching
+        # "negmas_genius_agents.negotiators.anac.y2019.agent_gg.AgentGG"
+        for key, entry in NEGOTIATOR_REGISTRY.items():
+            # Check if key ends with the type_name (with a dot before it)
+            if key.endswith("." + type_name) or key.endswith(
+                "." + type_name.split(".")[-1]
+            ):
+                return entry.info
+            # Also check if the short name matches (e.g., "AgentGG" matches "...AgentGG")
+            if type_name.split(".")[-1] == key.split(".")[-1]:
+                # Further verify it's a reasonable match by checking more path segments
+                type_parts = type_name.split(".")
+                key_parts = key.split(".")
+                # Check if all parts of type_name appear at the end of key
+                if len(type_parts) <= len(key_parts):
+                    match = all(
+                        type_parts[-(i + 1)] == key_parts[-(i + 1)]
+                        for i in range(len(type_parts))
+                    )
+                    if match:
+                        return entry.info
 
         return None
 

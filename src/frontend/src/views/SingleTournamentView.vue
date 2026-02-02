@@ -539,6 +539,9 @@ onMounted(async () => {
           
           // Load negotiations list for the panel
           await tournamentsStore.loadTournamentNegotiations(tournamentId)
+          
+          // Load scenarios summary for the opposition vs outcomes plot
+          await tournamentsStore.loadScenariosSummary(tournamentId)
         }
       }
       
@@ -575,6 +578,9 @@ onMounted(async () => {
         
         // Load event log if available
         await tournamentsStore.loadEventLog(tournamentId)
+        
+        // Load scenarios summary for the opposition vs outcomes plot
+        await tournamentsStore.loadScenariosSummary(tournamentId)
         
         loading.value = false
       } else {

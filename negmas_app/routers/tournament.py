@@ -1074,6 +1074,27 @@ async def get_scenario_info(
     return scenario
 
 
+@router.get("/saved/{tournament_id}/scenarios_summary")
+async def get_scenarios_summary(tournament_id: str):
+    """Get summary info for all scenarios in a saved tournament.
+
+    Returns just the metadata needed for the opposition vs n_outcomes plot:
+    scenario name, n_outcomes, opposition (opposition_level).
+
+    Args:
+        tournament_id: Tournament ID.
+
+    Returns:
+        List of scenario summaries with name, n_outcomes, opposition.
+    """
+    summaries = await asyncio.to_thread(
+        TournamentStorageService.get_scenarios_summary, tournament_id
+    )
+    if summaries is None:
+        raise HTTPException(status_code=404, detail="Tournament scenarios not found")
+    return {"scenarios": summaries}
+
+
 @router.get("/saved/{tournament_id}/scenario/{scenario_name}/outcome_space")
 async def get_scenario_outcome_space(tournament_id: str, scenario_name: str):
     """Get outcome space data for a scenario from a saved tournament.

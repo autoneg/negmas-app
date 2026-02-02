@@ -1382,7 +1382,7 @@ class TournamentStorageService:
             scenario_name: Name of the scenario.
 
         Returns:
-            Scenario info including outcome_space, issue_names, stats, etc.
+            Scenario info including outcome_space, issue_names, stats, ufuns, etc.
         """
         path = cls.TOURNAMENTS_DIR / tournament_id
         scenarios_dir = path / "scenarios"
@@ -1404,11 +1404,22 @@ class TournamentStorageService:
             with open(scenario_yaml, "r") as f:
                 scenario_data = yaml.safe_load(f)
 
-            # Load stats if available
-            stats_file = scenario_dir / "stats.json"
+            # Load _info.yml for basic metadata (n_outcomes, n_issues, etc.)
+            info = None
+            info_file = scenario_dir / "_info.yml"
+            if info_file.exists():
+                with open(info_file, "r") as f:
+                    info = yaml.safe_load(f)
+
+            # Load stats from _stats.yaml (negmas format) or stats.json (legacy)
             stats = None
-            if stats_file.exists():
-                with open(stats_file, "r") as f:
+            stats_yaml = scenario_dir / "_stats.yaml"
+            stats_json = scenario_dir / "stats.json"
+            if stats_yaml.exists():
+                with open(stats_yaml, "r") as f:
+                    stats = yaml.safe_load(f)
+            elif stats_json.exists():
+                with open(stats_json, "r") as f:
                     stats = json.load(f)
 
             # Extract issue names - handle both list and dict formats
@@ -1423,13 +1434,28 @@ class TournamentStorageService:
             else:
                 issue_names = []
 
-            return {
+            # Load utility functions
+            ufuns = cls.load_ufuns(tournament_id, scenario_name)
+
+            # Build result with all available data
+            result = {
                 "name": scenario_name,
                 "issues": issues,
                 "issue_names": issue_names,
                 "stats": stats,
                 "raw_data": scenario_data,
+                "ufuns": ufuns,
             }
+
+            # Add info metadata if available
+            if info:
+                result["n_outcomes"] = info.get("n_outcomes")
+                result["n_issues"] = info.get("n_issues")
+                result["n_negotiators"] = info.get("n_negotiators")
+                result["opposition"] = info.get("opposition_level")
+                result["rational_fraction"] = info.get("rational_fraction")
+
+            return result
 
         except Exception as e:
             logger.info(
@@ -1440,6 +1466,9 @@ class TournamentStorageService:
     @classmethod
     def load_ufuns(cls, tournament_id: str, scenario_name: str) -> list[dict] | None:
         """Load utility functions for a scenario from saved tournament.
+
+        Ufun files are named like: 0_Zimbabwe.yml, 1_England.yml
+        Pattern: {index}_{negotiator_name}.yml
 
         Args:
             tournament_id: Tournament ID.
@@ -1455,21 +1484,106 @@ class TournamentStorageService:
             return None
 
         ufuns = []
-        # Load 0_.yml, 1_.yml, etc. for each negotiator
-        for i in range(10):  # Support up to 10 negotiators
-            ufun_file = scenario_dir / f"{i}_.yml"
-            if not ufun_file.exists():
-                break
 
+        # Find ufun files by pattern: files starting with digit and underscore
+        # e.g., 0_Zimbabwe.yml, 1_England.yml
+        ufun_files = []
+        for f in scenario_dir.iterdir():
+            if f.is_file() and f.suffix == ".yml":
+                name = f.stem
+                # Check if starts with digit followed by underscore
+                if name and name[0].isdigit() and "_" in name:
+                    # Extract index from filename
+                    try:
+                        idx = int(name.split("_")[0])
+                        ufun_files.append((idx, f))
+                    except ValueError:
+                        pass
+
+        # Sort by index
+        ufun_files.sort(key=lambda x: x[0])
+
+        for idx, ufun_file in ufun_files:
             try:
                 with open(ufun_file, "r") as f:
                     ufun_data = yaml.safe_load(f)
+                    # Add filename info for reference
+                    ufun_data["_filename"] = ufun_file.name
+                    ufun_data["_index"] = idx
                     ufuns.append(ufun_data)
             except Exception as e:
-                logger.info(f"Error loading ufun {i} for {scenario_name}: {e}")
-                break
+                logger.info(
+                    f"Error loading ufun {ufun_file.name} for {scenario_name}: {e}"
+                )
 
         return ufuns if ufuns else None
+
+    @classmethod
+    def get_scenarios_summary(cls, tournament_id: str) -> list[dict] | None:
+        """Get summary info for all scenarios in a tournament.
+
+        Returns just the metadata needed for the opposition vs n_outcomes plot.
+
+        Args:
+            tournament_id: Tournament ID.
+
+        Returns:
+            List of scenario summaries with name, n_outcomes, opposition.
+        """
+        path = cls.TOURNAMENTS_DIR / tournament_id
+        scenarios_dir = path / "scenarios"
+
+        if not scenarios_dir.exists():
+            return None
+
+        summaries = []
+
+        for scenario_dir in scenarios_dir.iterdir():
+            if not scenario_dir.is_dir():
+                continue
+
+            scenario_name = scenario_dir.name
+
+            # Load _info.yml for metadata
+            info_file = scenario_dir / "_info.yml"
+            if not info_file.exists():
+                # No info file, include scenario with null values
+                summaries.append(
+                    {
+                        "name": scenario_name,
+                        "id": scenario_name,
+                        "n_outcomes": None,
+                        "opposition": None,
+                    }
+                )
+                continue
+
+            try:
+                with open(info_file, "r") as f:
+                    info = yaml.safe_load(f)
+
+                summaries.append(
+                    {
+                        "name": scenario_name,
+                        "id": scenario_name,
+                        "n_outcomes": info.get("n_outcomes"),
+                        "opposition": info.get("opposition_level"),
+                        "n_issues": info.get("n_issues"),
+                        "rational_fraction": info.get("rational_fraction"),
+                    }
+                )
+            except Exception as e:
+                logger.info(f"Error loading _info.yml for {scenario_name}: {e}")
+                summaries.append(
+                    {
+                        "name": scenario_name,
+                        "id": scenario_name,
+                        "n_outcomes": None,
+                        "opposition": None,
+                    }
+                )
+
+        return summaries if summaries else None
 
     @classmethod
     def calculate_utility(cls, ufun_data: dict, offer: tuple | list) -> float | None:

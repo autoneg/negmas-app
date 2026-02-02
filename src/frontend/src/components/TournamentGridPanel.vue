@@ -324,9 +324,18 @@ const selectedScenarioName = ref('')
 
 // Click handlers for negotiator and scenario
 function handleNegotiatorClick(negotiatorName) {
-  // The name shown in the grid is often just the short name, 
-  // but we need the full type_name for the API
-  selectedNegotiatorType.value = negotiatorName
+  // Try to get the full type name from the type maps in the config
+  // competitor_type_map and opponent_type_map map short names to full type names
+  let fullTypeName = negotiatorName
+  const config = tournamentsStore.currentSession?.config
+  
+  if (config?.competitor_type_map && config.competitor_type_map[negotiatorName]) {
+    fullTypeName = config.competitor_type_map[negotiatorName]
+  } else if (config?.opponent_type_map && config.opponent_type_map[negotiatorName]) {
+    fullTypeName = config.opponent_type_map[negotiatorName]
+  }
+  
+  selectedNegotiatorType.value = fullTypeName
   showNegotiatorModal.value = true
 }
 

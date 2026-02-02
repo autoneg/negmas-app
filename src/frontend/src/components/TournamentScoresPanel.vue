@@ -68,7 +68,10 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useTournamentsStore } from '../stores/tournaments'
 import NegotiatorInfoModal from './NegotiatorInfoModal.vue'
+
+const tournamentsStore = useTournamentsStore()
 
 const props = defineProps({
   leaderboard: {
@@ -91,7 +94,17 @@ const selectedNegotiatorType = ref('')
 
 // Click handler
 function handleNegotiatorClick(negotiatorName) {
-  selectedNegotiatorType.value = negotiatorName
+  // Try to get the full type name from the type maps in the config
+  let fullTypeName = negotiatorName
+  const config = tournamentsStore.currentSession?.config
+  
+  if (config?.competitor_type_map && config.competitor_type_map[negotiatorName]) {
+    fullTypeName = config.competitor_type_map[negotiatorName]
+  } else if (config?.opponent_type_map && config.opponent_type_map[negotiatorName]) {
+    fullTypeName = config.opponent_type_map[negotiatorName]
+  }
+  
+  selectedNegotiatorType.value = fullTypeName
   showNegotiatorModal.value = true
 }
 

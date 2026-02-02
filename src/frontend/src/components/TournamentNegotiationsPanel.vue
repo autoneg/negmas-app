@@ -97,8 +97,8 @@
               </div>
             </div>
             <div class="neg-row-bottom">
-              <span v-if="neg.run_id" class="run-id" :title="'Run ID: ' + neg.run_id">
-                {{ neg.run_id.substring(0, 8) }}...
+              <span v-if="neg.run_id != null" class="run-id" :title="'Run ID: ' + neg.run_id">
+                {{ formatRunId(neg.run_id) }}
               </span>
               <span v-if="neg.scenario_path || neg.scenario" class="scenario" :title="neg.scenario_path || neg.scenario">
                 {{ neg.scenario_path || neg.scenario }}
@@ -394,6 +394,17 @@ function formatUtilitiesShort(utils) {
     return Object.values(utils).map(u => u?.toFixed(2) ?? '?').join(', ')
   }
   return String(utils)
+}
+
+function formatRunId(runId) {
+  // Handle run_id which may be a string, number (including negative), or null/undefined
+  if (runId == null) return ''
+  const str = String(runId)
+  // For numeric run_ids (like -1544328854951236011), show first 8 chars
+  if (str.length > 10) {
+    return str.substring(0, 10) + '...'
+  }
+  return str
 }
 
 function getModalScenario() {
