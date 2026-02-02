@@ -18,7 +18,7 @@
           <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
       </button>
-      <button class="panel-btn" title="Zoom (show all)" @click.stop="$emit('zoom')">
+      <button v-if="!showAll" class="panel-btn" title="Zoom (show all)" @click.stop="$emit('zoom')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="15 3 21 3 21 9"/>
           <polyline points="9 21 3 21 3 15"/>
@@ -27,6 +27,7 @@
         </svg>
       </button>
       <button 
+        v-if="!showAll"
         class="panel-btn panel-collapse-btn" 
         title="Toggle panel" 
         @click="collapsed = !collapsed"
@@ -45,9 +46,9 @@
           <span class="text-muted">Waiting for offers...</span>
         </div>
         
-        <!-- Show message if truncated -->
+        <!-- Show message if truncated (only when not showing all) -->
         <div 
-          v-show="offers && offers.length > 10" 
+          v-show="!showAll && offers && offers.length > 10" 
           style="padding: 4px 8px; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 4px; font-size: 10px; color: var(--text-secondary);"
         >
           Showing last 10 of {{ offers?.length }} offers.
@@ -111,6 +112,11 @@ const props = defineProps({
   negotiation: {
     type: Object,
     default: () => null
+  },
+  // When true, show all offers (used in zoom modal)
+  showAll: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -127,9 +133,10 @@ const collapsed = ref(false)
 // Ref to offer log for auto-scrolling
 const offerLog = ref(null)
 
-// Display only last 10 offers for performance
+// Display only last 10 offers for performance (unless showAll is true)
 const displayOffers = computed(() => {
   if (!offers.value || offers.value.length === 0) return []
+  if (props.showAll) return offers.value
   return offers.value.slice(-10)
 })
 

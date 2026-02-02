@@ -433,6 +433,43 @@ class TournamentManager:
         with open(config_file, "w") as f:
             json.dump(config_dict, f, indent=2)
 
+    def _cleanup_redundant_csvs(self, path: Path) -> list[str]:
+        """Remove redundant CSV files when parquet equivalents exist.
+
+        When storage_format="parquet", negmas may still create CSV files alongside
+        the parquet files. This method removes those redundant CSVs to save space.
+
+        Args:
+            path: Path to tournament directory.
+
+        Returns:
+            List of removed file paths.
+        """
+        removed: list[str] = []
+        path = Path(path)
+
+        if not path.exists():
+            return removed
+
+        # Files that may have redundant CSV/parquet pairs
+        base_names = ["all_scores", "details"]
+
+        for base_name in base_names:
+            parquet_file = path / f"{base_name}.parquet"
+            csv_file = path / f"{base_name}.csv"
+            csv_gz_file = path / f"{base_name}.csv.gz"
+
+            # Only remove CSV if parquet exists
+            if parquet_file.exists():
+                if csv_file.exists():
+                    csv_file.unlink()
+                    removed.append(str(csv_file))
+                if csv_gz_file.exists():
+                    csv_gz_file.unlink()
+                    removed.append(str(csv_gz_file))
+
+        return removed
+
     def _get_mechanism_class(self, mechanism_type: str) -> type[SAOMechanism]:
         """Get mechanism class by name."""
         mechanism_map = {
@@ -1126,6 +1163,14 @@ class TournamentManager:
                     results_path=str(results.path) if results.path else None,
                 )
 
+                # Clean up redundant CSV files if parquet equivalents exist
+                if config.save_path and config.storage_format == "parquet":
+                    removed = self._cleanup_redundant_csvs(Path(config.save_path))
+                    if removed:
+                        print(
+                            f"[TournamentManager] Cleaned up {len(removed)} redundant CSV files"
+                        )
+
                 state.status = TournamentStatus.COMPLETED
                 session.status = TournamentStatus.COMPLETED
                 session.end_time = datetime.now()
@@ -1555,6 +1600,14 @@ class TournamentManager:
                 results_path=str(results.path) if results.path else None,
             )
 
+            # Clean up redundant CSV files if parquet equivalents exist
+            if config.save_path and config.storage_format == "parquet":
+                removed = self._cleanup_redundant_csvs(Path(config.save_path))
+                if removed:
+                    print(
+                        f"[TournamentManager] Cleaned up {len(removed)} redundant CSV files"
+                    )
+
             state.status = TournamentStatus.COMPLETED
             session.status = TournamentStatus.COMPLETED
             session.end_time = datetime.now()
@@ -1870,6 +1923,14 @@ class TournamentManager:
                 ),
                 results_path=str(results.path) if results.path else None,
             )
+
+            # Clean up redundant CSV files if parquet equivalents exist
+            if config.save_path and config.storage_format == "parquet":
+                removed = self._cleanup_redundant_csvs(Path(config.save_path))
+                if removed:
+                    print(
+                        f"[TournamentManager] Cleaned up {len(removed)} redundant CSV files"
+                    )
 
             session.status = TournamentStatus.COMPLETED
             session.end_time = datetime.now()

@@ -553,13 +553,18 @@ async function loadScenarioInfo() {
       if (isTournamentScenario.value) {
         scenarioInfo.value = {
           name: data.name || props.scenarioName,
-          n_issues: data.issue_names?.length || 0,
-          n_outcomes: data.raw_data?.n_outcomes,
+          n_issues: data.n_issues || data.issue_names?.length || 0,
+          n_outcomes: data.n_outcomes,
+          n_negotiators: data.n_negotiators || 2,
           issue_names: data.issue_names || [],
           issues: data.issues || [],
+          opposition: data.opposition,
+          rational_fraction: data.rational_fraction,
+          has_stats: !!data.stats,
+          has_info: !!(data.n_outcomes || data.opposition),
           stats: data.stats,
           outcome_space_data: data.outcome_space_data,
-          ...data
+          ufuns: data.ufuns,
         }
         // Also set stats if available in the response
         if (data.stats) {
@@ -603,8 +608,14 @@ async function loadScenarioStats() {
 
 // Load ufun details from backend (includes ufun names, types, string representations)
 async function loadUfunDetails() {
-  // For tournament scenarios, we don't have a separate ufuns endpoint yet - skip
-  if (isTournamentScenario.value) return
+  // For tournament scenarios, ufuns come with the scenario info
+  if (isTournamentScenario.value) {
+    // Ufuns are already loaded with scenario info
+    if (scenarioInfo.value?.ufuns) {
+      ufunDetails.value = scenarioInfo.value.ufuns
+    }
+    return
+  }
   if (!scenarioId.value) return
   
   loadingUfuns.value = true
@@ -658,6 +669,43 @@ function togglePanel(panel) {
 
 // Use scenario stats if available, otherwise fall back to outcome_space_data
 const stats = computed(() => {
+  // For tournament scenarios, stats are inside scenarioInfo
+  if (isTournamentScenario.value && scenarioInfo.value?.stats) {
+    const tournamentStats = scenarioInfo.value.stats
+    return {
+      total_outcomes: scenarioInfo.value.n_outcomes,
+      sampled: false,
+      sample_size: null,
+      reserved_values: null,
+      nash_point: tournamentStats.nash_outcomes?.[0] ? {
+        outcome: tournamentStats.nash_outcomes[0],
+        utilities: tournamentStats.nash_utils[0],
+        welfare: tournamentStats.nash_utils[0].reduce((a, b) => a + b, 0)
+      } : null,
+      kalai_point: tournamentStats.kalai_outcomes?.[0] ? {
+        outcome: tournamentStats.kalai_outcomes[0],
+        utilities: tournamentStats.kalai_utils[0],
+        welfare: tournamentStats.kalai_utils[0].reduce((a, b) => a + b, 0)
+      } : null,
+      kalai_smorodinsky_point: tournamentStats.ks_outcomes?.[0] ? {
+        outcome: tournamentStats.ks_outcomes[0],
+        utilities: tournamentStats.ks_utils[0],
+        welfare: tournamentStats.ks_utils[0].reduce((a, b) => a + b, 0)
+      } : null,
+      max_welfare_point: tournamentStats.max_welfare_outcomes?.[0] ? {
+        outcome: tournamentStats.max_welfare_outcomes[0],
+        utilities: tournamentStats.max_welfare_utils[0],
+        welfare: tournamentStats.max_welfare_utils[0].reduce((a, b) => a + b, 0)
+      } : null,
+      pareto_utilities: tournamentStats.pareto_utils,
+      rational_fraction: tournamentStats.rational_fraction,
+      opposition: tournamentStats.opposition,
+      utility_ranges: tournamentStats.utility_ranges,
+      n_pareto_outcomes: tournamentStats.pareto_outcomes?.length,
+      has_stats: true
+    }
+  }
+  
   // If we have full scenario stats, use them
   if (scenarioStats.value?.has_stats) {
     return {

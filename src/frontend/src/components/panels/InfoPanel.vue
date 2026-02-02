@@ -154,11 +154,13 @@
         <span 
           v-for="(name, idx) in (negotiation?.negotiator_names || [])" 
           :key="idx"
-          class="badge badge-xs" 
+          class="badge badge-xs negotiator-badge" 
           :style="{ 
             background: negotiation?.negotiator_colors?.[idx] || 'var(--primary)', 
             color: 'white' 
           }"
+          :title="'Click for info: ' + (negotiation?.negotiator_types?.[idx] || name)"
+          @click="handleNegotiatorClick(idx)"
         >
           {{ name }}
         </span>
@@ -177,7 +179,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['start', 'togglePause', 'stop', 'showStats'])
+const emit = defineEmits(['start', 'togglePause', 'stop', 'showStats', 'showNegotiatorInfo'])
 
 // Collapse state
 const collapsed = ref(false)
@@ -324,6 +326,19 @@ async function openNegotiationFolder() {
     // TODO: Show error toast notification
   }
 }
+
+// Handle negotiator badge click - emit event with negotiator type
+function handleNegotiatorClick(index) {
+  const typeName = props.negotiation?.negotiator_types?.[index]
+  const name = props.negotiation?.negotiator_names?.[index]
+  
+  if (typeName) {
+    emit('showNegotiatorInfo', { typeName, name, index })
+  } else if (name) {
+    // Fallback: use name if no type available
+    emit('showNegotiatorInfo', { typeName: name, name, index })
+  }
+}
 </script>
 
 <style scoped>
@@ -363,5 +378,15 @@ async function openNegotiationFolder() {
 .summary-value.success {
   color: var(--success-color);
   font-weight: 600;
+}
+
+.negotiator-badge {
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.negotiator-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 </style>

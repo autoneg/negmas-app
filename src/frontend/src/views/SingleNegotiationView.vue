@@ -61,6 +61,7 @@
             @togglePause="handleTogglePause"
             @stop="handleCancel"
             @showStats="handleShowStats"
+            @showNegotiatorInfo="handleShowNegotiatorInfo"
           />
           
           <OfferHistoryPanel 
@@ -121,12 +122,23 @@
             v-if="zoomPanelComponent && negotiation"
             :negotiation="negotiation"
             :adjustable="true"
+            :showAll="true"
             :initial-x-axis="zoomPanelType === 'utility2d' ? 0 : 'step'"
             :initial-y-axis="1"
             :initial-simplified="false"
             style="width: 100%; height: 100%;"
           />
         </ZoomModal>
+      </Teleport>
+
+      <!-- Negotiator Info Modal -->
+      <Teleport to="body">
+        <NegotiatorInfoModal
+          v-if="showNegotiatorModal"
+          :show="showNegotiatorModal"
+          :typeName="selectedNegotiatorType"
+          @close="showNegotiatorModal = false"
+        />
       </Teleport>
     </div>
   </div>
@@ -138,6 +150,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useNegotiationsStore } from '../stores/negotiations'
 import StatsModal from '../components/StatsModal.vue'
 import ZoomModal from '../components/ZoomModal.vue'
+import NegotiatorInfoModal from '../components/NegotiatorInfoModal.vue'
 import PanelLayout from '../components/panels/PanelLayout.vue'
 import InfoPanel from '../components/panels/InfoPanel.vue'
 import OfferHistoryPanel from '../components/panels/OfferHistoryPanel.vue'
@@ -162,6 +175,8 @@ const zoomPanelComponent = shallowRef(null)
 const panelLayoutRef = ref(null)
 const fromTournament = ref(false)
 const tournamentId = ref(null)  // Store tournament ID for back navigation
+const showNegotiatorModal = ref(false)
+const selectedNegotiatorType = ref('')
 
 // Polling interval
 let pollInterval = null
@@ -480,6 +495,15 @@ async function handleTogglePause() {
  */
 function handleShowStats() {
   showStatsModal.value = true
+}
+
+/**
+ * Handle show negotiator info
+ */
+function handleShowNegotiatorInfo({ typeName }) {
+  if (!typeName) return
+  selectedNegotiatorType.value = typeName
+  showNegotiatorModal.value = true
 }
 
 /**
