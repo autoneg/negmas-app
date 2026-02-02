@@ -1116,8 +1116,8 @@ const settings = ref({
   hiddenTimeLimit: null,
   pend: 0,
   pendPerSecond: 0,
-  idRevealsType: false,
-  nameRevealsType: false,
+  idRevealsType: true,
+  nameRevealsType: true,
   maskScenarioNames: false,
   randomizeRuns: false,
   sortRuns: false,
@@ -1126,7 +1126,7 @@ const settings = ref({
   saveScenarioFigs: false,
   recalculateStats: false,
   saveEvery: 0,
-  saveLogs: false,
+  saveLogs: true,
   saveNegotiationsAsFolders: true,
   passOpponentUfun: false,
   raiseExceptions: false,
@@ -1344,7 +1344,7 @@ const loadTournamentPreset = async (preset) => {
     )
   }
   
-  // Load settings
+  // Load basic settings
   settings.value.nRepetitions = preset.n_repetitions || 1
   settings.value.mechanismType = preset.mechanism_type || 'SAOMechanism'
   settings.value.rotateUfuns = preset.rotate_ufuns ?? true
@@ -1354,6 +1354,71 @@ const loadTournamentPreset = async (preset) => {
   settings.value.normalization = preset.normalization || 'normalize'
   settings.value.ignoreDiscount = preset.ignore_discount ?? false
   settings.value.ignoreReserved = preset.ignore_reserved ?? false
+  
+  // Load steps/time settings
+  if (preset.n_steps_min != null && preset.n_steps_max != null) {
+    settings.value.nStepsRangeEnabled = true
+    settings.value.nStepsMin = preset.n_steps_min
+    settings.value.nStepsMax = preset.n_steps_max
+    settings.value.nSteps = 100
+  } else {
+    settings.value.nStepsRangeEnabled = false
+    settings.value.nSteps = preset.n_steps ?? 100
+  }
+  
+  if (preset.time_limit_min != null && preset.time_limit_max != null) {
+    settings.value.timeLimitRangeEnabled = true
+    settings.value.timeLimitMin = preset.time_limit_min
+    settings.value.timeLimitMax = preset.time_limit_max
+    settings.value.timeLimit = 0
+  } else {
+    settings.value.timeLimitRangeEnabled = false
+    settings.value.timeLimit = preset.time_limit ?? 0
+  }
+  
+  // Load advanced time limits
+  settings.value.stepTimeLimit = preset.step_time_limit ?? null
+  settings.value.negotiatorTimeLimit = preset.negotiator_time_limit ?? null
+  settings.value.hiddenTimeLimit = preset.hidden_time_limit ?? null
+  
+  // Load probabilistic ending
+  settings.value.pend = preset.pend ?? 0
+  settings.value.pendPerSecond = preset.pend_per_second ?? 0
+  
+  // Load run ordering
+  settings.value.randomizeRuns = preset.randomize_runs ?? false
+  settings.value.sortRuns = preset.sort_runs ?? false
+  
+  // Load information hiding
+  settings.value.idRevealsType = preset.id_reveals_type ?? true
+  settings.value.nameRevealsType = preset.name_reveals_type ?? true
+  settings.value.maskScenarioNames = preset.mask_scenario_names ?? false
+  
+  // Load self-play options
+  settings.value.onlyFailuresOnSelfPlay = preset.only_failures_on_self_play ?? false
+  
+  // Load save options
+  settings.value.saveStats = preset.save_stats ?? false
+  settings.value.saveScenarioFigs = preset.save_scenario_figs ?? false
+  settings.value.recalculateStats = preset.recalculate_stats ?? false
+  settings.value.saveEvery = preset.save_every ?? 0
+  settings.value.saveLogs = preset.save_logs ?? true
+  settings.value.saveNegotiationsAsFolders = preset.save_negotiations_as_folders ?? true
+  
+  // Load scenario options
+  settings.value.passOpponentUfun = preset.pass_opponent_ufun ?? false
+  settings.value.raiseExceptions = preset.raise_exceptions ?? false
+  
+  // Load execution & performance settings
+  settings.value.njobs = preset.njobs ?? -1
+  settings.value.verbosity = preset.verbosity ?? 0
+  settings.value.monitorNegotiations = preset.monitor_negotiations ?? false
+  settings.value.progressSampleRate = preset.progress_sample_rate ?? 1
+  
+  // Load storage settings
+  settings.value.storageOptimization = preset.storage_optimization || 'balanced'
+  settings.value.memoryOptimization = preset.memory_optimization || 'balanced'
+  settings.value.storageFormat = preset.storage_format || 'parquet'
   
   // Add to recent tournaments
   const recentEntry = {
@@ -1383,22 +1448,8 @@ const addToRecentTournaments = (tournament) => {
 const saveTournamentPreset = async () => {
   if (!savePresetName.value.trim()) return
   
-  const preset = {
-    name: savePresetName.value.trim(),
-    scenario_paths: selectedScenarios.value.map(s => s.path),
-    competitor_types: selectedCompetitors.value.map(c => c.type_name),
-    opponent_types: opponentsSameAsCompetitors.value ? null : selectedOpponents.value.map(o => o.type_name),
-    opponents_same_as_competitors: opponentsSameAsCompetitors.value,
-    n_repetitions: settings.value.nRepetitions,
-    mechanism_type: settings.value.mechanismType,
-    rotate_ufuns: settings.value.rotateUfuns,
-    self_play: settings.value.selfPlay,
-    final_score_metric: settings.value.finalScoreMetric,
-    final_score_stat: settings.value.finalScoreStat,
-    normalization: settings.value.normalization,
-    ignore_discount: settings.value.ignoreDiscount,
-    ignore_reserved: settings.value.ignoreReserved,
-  }
+  // Use buildTournamentPreset to get all fields
+  const preset = buildTournamentPreset(savePresetName.value.trim())
   
   try {
     await tournamentsStore.saveTournamentPreset(preset)
@@ -1548,6 +1599,11 @@ function buildTournamentPreset(name) {
     normalization: settings.value.normalization,
     ignore_discount: settings.value.ignoreDiscount,
     ignore_reserved: settings.value.ignoreReserved,
+    // Execution & Performance
+    njobs: settings.value.njobs,
+    verbosity: settings.value.verbosity,
+    monitor_negotiations: settings.value.monitorNegotiations,
+    progress_sample_rate: settings.value.progressSampleRate,
   }
 }
 

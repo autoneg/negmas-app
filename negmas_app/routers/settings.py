@@ -467,13 +467,14 @@ async def save_tournament_preset(data: dict[str, Any]) -> dict[str, Any]:
         final_score_stat=data.get("final_score_stat", "mean"),
         randomize_runs=data.get("randomize_runs", False),
         sort_runs=data.get("sort_runs", True),
-        id_reveals_type=data.get("id_reveals_type", False),
+        id_reveals_type=data.get("id_reveals_type", True),
         name_reveals_type=data.get("name_reveals_type", True),
         mask_scenario_names=data.get("mask_scenario_names", False),
         only_failures_on_self_play=data.get("only_failures_on_self_play", False),
         save_stats=data.get("save_stats", True),
         save_scenario_figs=data.get("save_scenario_figs", False),
         save_every=data.get("save_every", 0),
+        save_logs=data.get("save_logs", True),
     )
     await asyncio.to_thread(SettingsService.save_tournament_preset, preset)
     return asdict(preset)

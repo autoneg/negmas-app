@@ -473,17 +473,33 @@ class TournamentPreset:
     randomize_runs: bool = False
     sort_runs: bool = True
     # Information hiding
-    id_reveals_type: bool = False
+    id_reveals_type: bool = True
     name_reveals_type: bool = True
     mask_scenario_names: bool = False
     # Self-play options
     only_failures_on_self_play: bool = False
     # Save options
-    save_stats: bool = True
-    save_scenario_figs: bool = True
-    save_every: int = 1
+    save_stats: bool = False
+    save_scenario_figs: bool = False
+    recalculate_stats: bool = False
+    save_every: int = 0
+    save_logs: bool = True  # Save event log as CSV at tournament end
+    save_negotiations_as_folders: bool = True  # Save each negotiation as folder
     # Scenario options
-    normalize: bool = True  # Normalize utility functions
+    normalization: str = "normalize"  # Normalization mode
+    ignore_discount: bool = False
+    ignore_reserved: bool = False
+    pass_opponent_ufun: bool = False
+    raise_exceptions: bool = False
+    # Execution & Performance
+    njobs: int = -1  # -1 = serial, 0 = all cores
+    verbosity: int = 0
+    monitor_negotiations: bool = False
+    progress_sample_rate: int = 1
+    # Storage
+    storage_optimization: str = "balanced"
+    memory_optimization: str = "balanced"
+    storage_format: str = "parquet"
     # Metadata
     created_at: str = ""  # ISO timestamp
     last_used_at: str = ""  # ISO timestamp
