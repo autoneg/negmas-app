@@ -356,10 +356,34 @@ class TournamentStorageService:
                 except Exception:
                     pass
 
-            # Fast negotiation count: count files in details/
+            # Fast negotiation count from various sources
             n_negotiations = 0
+
+            # Priority 1: Count folders in negotiations/ directory
+            negotiations_dir = path / "negotiations"
+            if negotiations_dir.exists() and negotiations_dir.is_dir():
+                try:
+                    n_negotiations = sum(
+                        1
+                        for p in negotiations_dir.iterdir()
+                        if p.is_dir() or p.suffix in {".json", ".gz", ".yaml"}
+                    )
+                except Exception:
+                    pass
+
+            # Priority 2: Read row count from details.parquet (fast metadata read)
+            if n_negotiations == 0 and (path / "details.parquet").exists():
+                try:
+                    import pyarrow.parquet as pq
+
+                    parquet_file = pq.ParquetFile(path / "details.parquet")
+                    n_negotiations = parquet_file.metadata.num_rows
+                except Exception:
+                    pass
+
+            # Priority 3: Count files in details/ directory (legacy format)
             details_dir = path / "details"
-            if details_dir.exists() and details_dir.is_dir():
+            if n_negotiations == 0 and details_dir.exists() and details_dir.is_dir():
                 try:
                     n_negotiations = sum(
                         1
@@ -368,23 +392,27 @@ class TournamentStorageService:
                     )
                 except Exception:
                     pass
-            elif (path / "details.csv").exists() or (path / "details.csv.gz").exists():
-                # Fallback: read line count from CSV (faster than loading DataFrame)
-                try:
+
+            # Priority 4: Read line count from CSV (slower fallback)
+            if n_negotiations == 0:
+                details_file = None
+                if (path / "details.csv").exists():
                     details_file = path / "details.csv"
-                    if not details_file.exists():
-                        details_file = path / "details.csv.gz"
+                elif (path / "details.csv.gz").exists():
+                    details_file = path / "details.csv.gz"
 
-                    if details_file.suffix == ".gz":
-                        import gzip
+                if details_file:
+                    try:
+                        if details_file.suffix == ".gz":
+                            import gzip
 
-                        with gzip.open(details_file, "rt") as f:
-                            n_negotiations = sum(1 for _ in f) - 1  # -1 for header
-                    else:
-                        with open(details_file, "r") as f:
-                            n_negotiations = sum(1 for _ in f) - 1  # -1 for header
-                except Exception:
-                    pass
+                            with gzip.open(details_file, "rt") as f:
+                                n_negotiations = sum(1 for _ in f) - 1  # -1 for header
+                        else:
+                            with open(details_file, "r") as f:
+                                n_negotiations = sum(1 for _ in f) - 1  # -1 for header
+                    except Exception:
+                        pass
 
             # Estimate agreements (skip for now to keep it fast)
             n_agreements = 0
