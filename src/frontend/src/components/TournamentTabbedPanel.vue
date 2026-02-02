@@ -497,6 +497,8 @@ function exportScoresToCSV() {
 }
 
 // Scenarios plot functions
+const isLoadingScenariosData = ref(false)
+
 async function renderScenariosPlot() {
   if (!scenariosPlotDiv.value || props.scenarios.length === 0) return
   
@@ -508,6 +510,40 @@ async function renderScenariosPlot() {
     text: isDark ? '#e0e0e0' : '#333333',
     grid: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
     marker: isDark ? '#4fc3f7' : '#1976d2',
+  }
+  
+  // Find scenarios missing data and fetch quick-info for them
+  const scenariosMissingData = props.scenarios.filter(s => {
+    const nOutcomes = s.n_outcomes ?? s.stats?.n_outcomes
+    const opposition = s.opposition ?? s.stats?.opposition
+    return nOutcomes == null || opposition == null || isNaN(nOutcomes) || isNaN(opposition)
+  })
+  
+  if (scenariosMissingData.length > 0 && !isLoadingScenariosData.value) {
+    // Show loading message
+    scenariosPlotDiv.value.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading scenario data... (${scenariosMissingData.length} scenarios)</div>`
+    
+    isLoadingScenariosData.value = true
+    try {
+      // Fetch quick-info for all scenarios missing data in parallel
+      const fetchPromises = scenariosMissingData.map(async (scenario) => {
+        try {
+          const response = await fetch(`/api/scenarios/${scenario.id}/quick-info`)
+          if (response.ok) {
+            const data = await response.json()
+            // Update the scenario object with the fetched data
+            scenario.n_outcomes = data.n_outcomes ?? scenario.n_outcomes
+            scenario.opposition = data.opposition ?? scenario.opposition
+            scenario.rational_fraction = data.rational_fraction ?? scenario.rational_fraction
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch quick-info for ${scenario.name}:`, error)
+        }
+      })
+      await Promise.all(fetchPromises)
+    } finally {
+      isLoadingScenariosData.value = false
+    }
   }
   
   // Extract data from scenarios

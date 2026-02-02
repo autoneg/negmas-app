@@ -113,7 +113,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
       })
     })
     
-    eventSource.value.addEventListener('cell_start', (event) => {
+    eventSource.value.addEventListener('run_start', (event) => {
       const data = JSON.parse(event.data)
       // Create cell key using names from gridInit
       if (gridInit.value) {
@@ -126,7 +126,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         eventLog.value.push({
           id: eventLog.value.length,
           timestamp: Date.now(),
-          type: 'cell_start',
+          type: 'run_start',
           message: `${competitor} vs ${opponent} on ${scenario} - started`
         })
         
@@ -157,7 +157,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
       }
     })
     
-    eventSource.value.addEventListener('cell_complete', (event) => {
+    eventSource.value.addEventListener('run_complete', (event) => {
       const data = JSON.parse(event.data)
       
       // Create cell key using names from gridInit
@@ -292,7 +292,8 @@ export const useTournamentsStore = defineStore('tournaments', () => {
           offers: data.offers || [],
           error: data.error || null,
           repetition: data.repetition,
-          rotated: data.rotated
+          rotated: data.rotated,
+          run_id: data.run_id || null  // Unique ID for loading negotiation data from disk
         }
         
         if (existingIndex >= 0) {

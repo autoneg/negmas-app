@@ -97,6 +97,9 @@
               </div>
             </div>
             <div class="neg-row-bottom">
+              <span v-if="neg.run_id" class="run-id" :title="'Run ID: ' + neg.run_id">
+                {{ neg.run_id.substring(0, 8) }}...
+              </span>
               <span v-if="neg.scenario_path || neg.scenario" class="scenario" :title="neg.scenario_path || neg.scenario">
                 {{ neg.scenario_path || neg.scenario }}
               </span>
@@ -104,6 +107,16 @@
                 {{ formatUtilitiesShort(neg.utilities) }}
               </span>
               <span v-if="neg.n_steps" class="step">{{ neg.n_steps }}s</span>
+              <button 
+                v-if="neg.run_id"
+                class="btn-icon-xs"
+                @click.stop="openNegotiationFolder(neg)"
+                title="Open negotiation folder"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -421,8 +434,15 @@ async function handleClick(neg, isRunning) {
           issue_names: neg.issue_names
         }
       } else {
-        // Need to load from server
-        const response = await fetch(`/api/tournament/saved/${props.tournamentId}/negotiation/${neg.index}`)
+        // Need to load from server - prefer run_id if available
+        let response
+        if (neg.run_id) {
+          // Use run_id endpoint (more reliable)
+          response = await fetch(`/api/tournament/saved/${props.tournamentId}/negotiation/by-run-id/${neg.run_id}`)
+        } else {
+          // Fallback to index-based endpoint (for backwards compatibility)
+          response = await fetch(`/api/tournament/saved/${props.tournamentId}/negotiation/${neg.index}`)
+        }
         if (!response.ok) {
           throw new Error(`Failed to load negotiation: ${response.statusText}`)
         }
@@ -460,16 +480,48 @@ function closeModal() {
 function openFullView() {
   // Save the negotiation data before closing the modal
   const neg = selectedNegotiation.value
-  const index = neg?.index ?? 0
   
   closeModal()
   
   // Navigate to SingleNegotiationView with tournament context
+  // Prefer run_id over index for more reliable loading
   if (neg) {
+    const identifier = neg.run_id 
+      ? `tournament:${props.tournamentId}:run:${neg.run_id}`
+      : `tournament:${props.tournamentId}:${neg.index ?? 0}`
     router.push({
       name: 'SingleNegotiation',
-      params: { id: `tournament:${props.tournamentId}:${index}` }
+      params: { id: identifier }
     })
+  }
+}
+
+async function openNegotiationFolder(neg) {
+  if (!neg.run_id) {
+    console.warn('No run_id available for this negotiation')
+    return
+  }
+  
+  try {
+    // First get the path from the API
+    const pathResponse = await fetch(`/api/tournament/saved/${props.tournamentId}/negotiation/by-run-id/${neg.run_id}/path`)
+    if (!pathResponse.ok) {
+      throw new Error('Failed to get negotiation path')
+    }
+    const { path } = await pathResponse.json()
+    
+    // Then open it in the system viewer
+    const openResponse = await fetch('/api/system/open-path', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path })
+    })
+    if (!openResponse.ok) {
+      throw new Error('Failed to open folder')
+    }
+  } catch (error) {
+    console.error('Failed to open negotiation folder:', error)
+    alert('Failed to open negotiation folder: ' + error.message)
   }
 }
 
@@ -705,6 +757,7 @@ function updateChart() {
 
 .panel-body {
   flex: 1;
+  min-height: 0; /* Required for flex children to shrink below content size */
   overflow-y: auto;
   padding: 6px;
 }
@@ -888,6 +941,35 @@ function updateChart() {
   white-space: nowrap;
   flex: 1;
   min-width: 0;
+}
+
+.run-id {
+  font-family: monospace;
+  font-size: 9px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  padding: 1px 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.btn-icon-xs {
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-icon-xs:hover {
+  background: var(--bg-tertiary);
+  color: var(--primary-color);
 }
 
 .utilities {
