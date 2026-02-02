@@ -7,18 +7,18 @@ This document describes the architecture of NegMAS App.
 NegMAS App is a web application built with:
 
 - **Backend**: FastAPI (Python)
-- **Frontend**: Jinja2 + Alpine.js + HTMX
-- **Real-time**: Server-Sent Events (SSE)
+- **Frontend**: Vue.js 3 with Pinia state management
+- **Real-time**: Server-Sent Events (SSE) for tournaments, polling for negotiations
 - **Visualization**: Plotly.js
 
 ```
-┌─────────────┐     HTTP/SSE     ┌─────────────┐
-│   Browser   │ <--------------> │   FastAPI   │
-│             │                  │   Server    │
-│  Alpine.js  │                  │             │
-│    HTMX     │                  │   NegMAS    │
-│  Plotly.js  │                  │   Library   │
-└─────────────┘                  └─────────────┘
+┌─────────────────┐     HTTP/SSE     ┌─────────────────┐
+│     Browser     │ <--------------> │    FastAPI      │
+│                 │                  │    Server       │
+│     Vue 3       │                  │                 │
+│     Pinia       │                  │     NegMAS      │
+│   Plotly.js     │                  │    Library      │
+└─────────────────┘                  └─────────────────┘
 ```
 
 ## Backend Architecture
@@ -47,10 +47,11 @@ NegMAS App is a web application built with:
 
 Handle HTTP requests and responses:
 
-- `negotiation.py` - Start/stop negotiations, SSE streaming
+- `negotiation.py` - Start/stop negotiations, streaming
 - `scenarios.py` - List/load scenarios
 - `negotiators.py` - List negotiator types
 - `settings.py` - Application settings
+- `tournament.py` - Tournament management
 
 #### Services (`negmas_app/services/`)
 
@@ -60,6 +61,7 @@ Business logic layer:
 - `scenario_loader.py` - Load and parse scenarios
 - `negotiator_factory.py` - Create negotiator instances
 - `mechanism_factory.py` - Create mechanism instances
+- `tournament_manager.py` - Run tournament competitions
 
 #### Models (`negmas_app/models/`)
 
@@ -68,6 +70,7 @@ Data structures (dataclasses):
 - `session.py` - NegotiationSession, OfferEvent
 - `negotiator.py` - NegotiatorConfig
 - `scenario.py` - ScenarioInfo
+- `tournament.py` - TournamentSession, TournamentConfig
 
 ## Frontend Architecture
 
@@ -75,39 +78,45 @@ Data structures (dataclasses):
 
 | Technology | Purpose |
 |------------|---------|
-| **Jinja2** | Server-side template rendering |
-| **Alpine.js** | Reactive state management |
-| **HTMX** | Server interactions |
+| **Vue 3** | Component-based reactive UI |
+| **Pinia** | Centralized state management |
+| **Vue Router** | Client-side navigation |
 | **Plotly.js** | Interactive charts |
-| **SSE** | Real-time updates |
+| **Vite** | Build tool and dev server |
 
 ### State Management
 
-Alpine.js manages client-side state:
+Pinia stores manage client-side state:
 
 ```javascript
-function app() {
-    return {
-        // Reactive state
-        currentNegotiation: null,
-        runningNegotiations: [],
-        
-        // Methods
-        async startNegotiation() { ... },
-        selectNegotiation(neg) { ... }
-    }
-}
+// stores/tournaments.js
+export const useTournamentsStore = defineStore('tournaments', () => {
+  // Reactive state
+  const currentTournament = ref(null)
+  const runningTournaments = ref([])
+  
+  // Actions
+  async function startTournament(config) { ... }
+  function connectToStream(sessionId) { ... }
+  
+  return { currentTournament, runningTournaments, startTournament, connectToStream }
+})
 ```
 
-### Panel System
+### Component Structure
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  PanelRegistry  │────>│  LayoutManager  │────>│ LayoutRenderer  │
-│                 │     │                 │     │                 │
-│ Panel defs      │     │ State           │     │ DOM rendering   │
-│ Lifecycle       │     │ Persistence     │     │ Interactions    │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
+src/frontend/src/
+├── views/                    # Page components
+│   ├── NegotiationsListView.vue
+│   ├── SingleNegotiationView.vue
+│   ├── TournamentsListView.vue
+│   └── SingleTournamentView.vue
+├── components/               # Reusable components
+│   ├── panels/               # Visualization panels
+│   └── ...                   # Modals, controls
+└── stores/                   # Pinia stores
+    └── tournaments.js
 ```
 
 ## Data Flow
@@ -127,24 +136,21 @@ function app() {
    │
 6. Router returns negotiation ID
    │
-7. Browser connects to SSE endpoint
+7. Browser starts polling GET /api/negotiation/{id}
    │
-8. Service streams OfferEvents via SSE
-   │
-9. Browser updates UI in real-time
+8. Browser updates UI in real-time
 ```
 
-### SSE Event Format
+### Tournament SSE Event Format
 
 ```json
 {
-    "event": "offer",
+    "event": "cell_update",
     "data": {
-        "step": 5,
-        "negotiator": "Agent1",
-        "offer": {"price": 100, "quantity": 50},
+        "cell_key": "Agent1_vs_Agent2_scenario1",
+        "status": "completed",
         "utilities": [0.75, 0.62],
-        "response": "reject"
+        "agreement": true
     }
 }
 ```
@@ -152,37 +158,26 @@ function app() {
 ## File Organization
 
 ```
-negmas_app/
-├── __init__.py
-├── main.py              # FastAPI app entry point
+negmas-app/
+├── negmas_app/              # Python backend
+│   ├── __init__.py
+│   ├── main.py              # FastAPI app entry point
+│   ├── models/              # Data structures
+│   ├── routers/             # HTTP endpoints
+│   └── services/            # Business logic
 │
-├── models/              # Data structures
-│   ├── session.py       # NegotiationSession
-│   ├── negotiator.py    # NegotiatorConfig
-│   └── scenario.py      # ScenarioInfo
+├── src/frontend/            # Vue.js frontend
+│   ├── src/
+│   │   ├── App.vue          # Root component
+│   │   ├── main.js          # Vue initialization
+│   │   ├── router.js        # Route definitions
+│   │   ├── views/           # Page components
+│   │   ├── components/      # Reusable components
+│   │   └── stores/          # Pinia stores
+│   ├── package.json
+│   └── vite.config.js
 │
-├── routers/             # HTTP endpoints
-│   ├── negotiation.py   # /api/negotiation/*
-│   ├── scenarios.py     # /api/scenarios/*
-│   └── negotiators.py   # /api/negotiators/*
-│
-├── services/            # Business logic
-│   ├── session_manager.py
-│   ├── scenario_loader.py
-│   └── negotiator_factory.py
-│
-├── static/
-│   ├── css/
-│   │   ├── styles.css   # Main styles
-│   │   └── layout.css   # Panel layout styles
-│   └── js/
-│       ├── panel-registry.js
-│       ├── layout-manager.js
-│       └── layout-renderer.js
-│
-└── templates/
-    ├── base.html        # Base template
-    └── index.html       # Main page
+└── docs/                    # Documentation
 ```
 
 ## Key Design Decisions
@@ -194,23 +189,31 @@ negmas_app/
 - Type hints and validation
 - Modern Python features
 
-### Why Alpine.js + HTMX?
+### Why Vue.js?
 
-- Minimal JavaScript bundle size
-- Server-rendered HTML (good SEO, fast initial load)
-- Progressive enhancement
-- Simple mental model
+- Component-based architecture
+- Reactive data binding
+- Rich ecosystem (Router, Pinia)
+- Excellent developer experience
+- Modern build tooling (Vite)
 
-### Why SSE over WebSockets?
+### Why SSE for Tournaments?
 
-- Simpler protocol (HTTP-based)
+- Efficient for many concurrent updates
+- Simpler than WebSockets
 - Automatic reconnection
-- Server-to-client only (which is our use case)
-- Better browser support
+- Server-to-client only (fits use case)
 
-### Why Panel System?
+### Why Polling for Negotiations?
 
-- Flexible workspace customization
-- Plugin architecture for extensions
-- Familiar VS Code-style interface
-- Persistent user preferences
+- Simpler implementation
+- More reliable for single sessions
+- Easier debugging
+- No connection management needed
+
+### Why Plotly.js?
+
+- Interactive charts (zoom, pan, hover)
+- Publication-ready export
+- Same API as Python plotly
+- 2D/3D support

@@ -53,6 +53,7 @@ plugins:
             docstring_style: google
             show_source: true
             show_root_heading: true
+  - mkdocs-click
 
 markdown_extensions:
   - abbr
@@ -117,6 +118,9 @@ nav:
     - Running Tournaments: user-guide/tournaments.md
     - Scenario Explorer: user-guide/scenarios.md
     - Negotiator Explorer: user-guide/negotiators.md
+  - CLI Reference:
+    - Overview: cli/index.md
+    - Commands: cli/commands.md
   - Developer Guide:
     - Overview: developer-guide/index.md
     - Architecture: developer-guide/architecture.md

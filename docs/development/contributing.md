@@ -155,10 +155,11 @@ Open a pull request on GitHub with:
 - **services/**: Business logic, no HTTP concerns
 - **routers/**: HTTP handlers, minimal logic
 
-### Frontend (JavaScript)
+### Frontend (Vue.js)
 
-- **Alpine.js**: Reactive state management
-- **HTMX**: Server interactions
+- **Vue 3**: Component-based reactive UI
+- **Pinia**: Centralized state management
+- **Vue Router**: Client-side routing
 - **Plotly.js**: Charts and visualizations
 
 ## Questions?

@@ -7,27 +7,27 @@ Welcome to the NegMAS App Developer Guide. This section covers the architecture,
 NegMAS App is built as a modern web application with:
 
 - **Backend**: FastAPI (Python) serving REST APIs and SSE streams
-- **Frontend**: Server-rendered HTML with Jinja2, enhanced with Alpine.js
-- **Real-time**: Server-Sent Events (SSE) for live negotiation updates
+- **Frontend**: Vue.js 3 single-page application with Pinia state management
+- **Real-time**: Server-Sent Events (SSE) for tournament updates, polling for negotiations
 - **Visualization**: Plotly.js for interactive charts
 
 ## Architecture Principles
 
-### Server-Rendered First
+### Single-Page Application
 
-Unlike typical SPAs, NegMAS App uses server-rendered HTML as the foundation:
+NegMAS App uses a Vue.js SPA architecture:
 
-1. Jinja2 templates render the initial HTML
-2. Alpine.js adds reactivity for state management
-3. HTMX handles server interactions
-4. SSE provides real-time updates
+1. Vue Router handles client-side navigation
+2. Pinia stores manage global state
+3. Components render reactive UI
+4. REST APIs provide data, SSE streams real-time updates
 
 This approach offers:
 
-- Fast initial page loads
-- Better SEO (if needed)
-- Progressive enhancement
-- Simpler mental model
+- Rich interactive experience
+- Efficient state management
+- Component reusability
+- Modern development workflow
 
 ### Layered Backend
 
@@ -47,17 +47,16 @@ The backend follows a clean layered architecture:
 
 ### Component-Based Frontend
 
-Templates are organized as reusable components:
+Vue single-file components are organized by feature:
 
 ```
-templates/
-├── base.html           # Base layout
-├── index.html          # Main entry with scripts
-└── components/
-    ├── pages/          # Full page templates
-    ├── panels/         # Visualization panels
-    ├── modals/         # Dialog components
-    └── shared/         # Common components
+src/frontend/src/
+├── views/               # Page-level components (routes)
+├── components/          # Reusable components
+│   ├── panels/          # Visualization panels
+│   └── ...              # Modals, controls, etc.
+├── stores/              # Pinia state stores
+└── router.js            # Route definitions
 ```
 
 ## Documentation Sections
@@ -77,14 +76,6 @@ Detailed project organization:
 - Directory structure
 - Module responsibilities
 - Key classes and functions
-
-### [Template System](templates.md)
-
-Frontend architecture:
-
-- Template hierarchy
-- Component patterns
-- Alpine.js integration
 
 ### [API Reference](api.md)
 
@@ -115,6 +106,9 @@ for x in negmas negmas-llm negmas-genius-agents negmas-negolog negmas-rl; do
     uv pip install -e ../$x
 done
 
+# Install frontend dependencies
+cd src/frontend && npm install && cd ../..
+
 # Start the server
 negmas-app run
 
@@ -132,28 +126,29 @@ pytest tests/ -v
 | `negmas_app/models/` | Data structures (dataclasses) |
 | `negmas_app/routers/` | FastAPI route handlers |
 | `negmas_app/services/` | Business logic |
-| `negmas_app/templates/` | Jinja2 HTML templates |
-| `negmas_app/static/` | CSS and JavaScript |
+| `src/frontend/src/views/` | Vue page components |
+| `src/frontend/src/components/` | Reusable Vue components |
+| `src/frontend/src/stores/` | Pinia state stores |
 
 ### Important Files
 
 | File | Purpose |
 |------|---------|
-| `main.py` | FastAPI application entry point |
-| `base.html` | Base HTML template |
-| `index.html` | Main page with Alpine.js app |
-| `styles.css` | Main stylesheet |
-| `layout.css` | Panel layout styles |
+| `negmas_app/main.py` | FastAPI application entry point |
+| `src/frontend/src/App.vue` | Root Vue component |
+| `src/frontend/src/router.js` | Vue Router configuration |
+| `src/frontend/src/main.js` | Vue app initialization |
 
 ## Technology Stack
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
 | Web Framework | FastAPI | REST API, SSE, async support |
-| Templates | Jinja2 | Server-side HTML rendering |
-| Reactivity | Alpine.js | Client-side state management |
-| Server Interaction | HTMX | HTML-over-the-wire |
+| Frontend | Vue 3 | Component-based reactive UI |
+| State Management | Pinia | Centralized state stores |
+| Routing | Vue Router | Client-side navigation |
+| Build Tool | Vite | Fast development and bundling |
 | Visualization | Plotly.js | Interactive charts |
 | Data Tables | Tabulator | Rich data grids |
-| Real-time | SSE | Server-to-client streaming |
+| Real-time | SSE / Polling | Server-to-client updates |
 | Styling | CSS Variables | Theming support |

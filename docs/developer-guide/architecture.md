@@ -362,7 +362,7 @@ Vue.js was chosen for the frontend rewrite:
 **Trade-offs:**
 
 - Requires build step (Vite handles this efficiently)
-- Larger bundle than Alpine.js (~100KB vs ~15KB)
+- Larger bundle size (~100KB)
 - More complex than server-rendered HTML
 
 ### Why Pinia?
