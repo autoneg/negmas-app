@@ -188,6 +188,7 @@
               :leaderboard="leaderboard"
               :config="tournamentConfig"
               :status="currentSession.status"
+              :tournamentId="tournamentId"
             />
           </div>
         </div>
@@ -535,6 +536,9 @@ onMounted(async () => {
               config: savedData.config
             }
           }
+          
+          // Load negotiations list for the panel
+          await tournamentsStore.loadTournamentNegotiations(tournamentId)
         }
       }
       
@@ -565,6 +569,9 @@ onMounted(async () => {
         gridInit.value = savedData.gridInit
         cellStates.value = savedData.cellStates || {}
         leaderboard.value = savedData.leaderboard || []
+        
+        // Load negotiations list for the panel
+        await tournamentsStore.loadTournamentNegotiations(tournamentId)
         
         // Load event log if available
         await tournamentsStore.loadEventLog(tournamentId)

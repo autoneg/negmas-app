@@ -410,6 +410,16 @@ const props = defineProps({
   negotiation: {
     type: Object,
     default: null
+  },
+  // Optional: for tournament scenarios, provide tournamentId and scenarioName
+  // instead of using negotiation.scenario_path
+  tournamentId: {
+    type: String,
+    default: null
+  },
+  scenarioName: {
+    type: String,
+    default: null
   }
 })
 
@@ -447,10 +457,17 @@ const objectDetailTitle = ref('')
 const objectDetailType = ref('')
 const objectDetailUrl = ref('')
 
-// Compute scenario ID from path
+// Compute scenario ID from path (for regular scenarios)
 const scenarioId = computed(() => {
+  // If tournament scenario, we don't use scenarioId - we use tournamentId + scenarioName directly
+  if (props.tournamentId && props.scenarioName) return null
   if (!props.negotiation?.scenario_path) return null
   return btoa(props.negotiation.scenario_path)
+})
+
+// Check if this is a tournament scenario
+const isTournamentScenario = computed(() => {
+  return !!(props.tournamentId && props.scenarioName)
 })
 
 // Combined loading state
@@ -466,7 +483,8 @@ function resetData() {
 
 // Load all data
 async function loadAllData() {
-  if (!scenarioId.value) return
+  // Need either scenarioId (regular) or tournamentId+scenarioName (tournament)
+  if (!scenarioId.value && !isTournamentScenario.value) return
   
   loadError.value = null
   
@@ -477,16 +495,20 @@ async function loadAllData() {
     loadUfunDetails()
   ])
   
-  // Mark as loaded for this path
-  loadedScenarioPath.value = props.negotiation?.scenario_path
+  // Mark as loaded for this path/scenario
+  loadedScenarioPath.value = isTournamentScenario.value 
+    ? `tournament:${props.tournamentId}:${props.scenarioName}`
+    : props.negotiation?.scenario_path
 }
 
 // Load scenario data when modal opens or scenario changes
 watch(() => props.show, async (show) => {
-  if (show && scenarioId.value) {
-    // Check if we need to reload (different scenario or no data)
-    const currentPath = props.negotiation?.scenario_path
-    if (loadedScenarioPath.value !== currentPath || !scenarioInfo.value) {
+  if (show) {
+    const currentKey = isTournamentScenario.value 
+      ? `tournament:${props.tournamentId}:${props.scenarioName}`
+      : props.negotiation?.scenario_path
+    
+    if (currentKey && (loadedScenarioPath.value !== currentKey || !scenarioInfo.value)) {
       resetData()
       await loadAllData()
     }
@@ -495,21 +517,57 @@ watch(() => props.show, async (show) => {
 
 // Also watch for scenario path changes while modal is open
 watch(() => props.negotiation?.scenario_path, async (newPath, oldPath) => {
-  if (props.show && newPath && newPath !== oldPath) {
+  if (props.show && newPath && newPath !== oldPath && !isTournamentScenario.value) {
     resetData()
     await loadAllData()
   }
 })
 
-// Load scenario info (from /info endpoint)
+// Watch for tournament scenario changes
+watch([() => props.tournamentId, () => props.scenarioName], async ([newTournamentId, newScenarioName], [oldTournamentId, oldScenarioName]) => {
+  if (props.show && isTournamentScenario.value && (newTournamentId !== oldTournamentId || newScenarioName !== oldScenarioName)) {
+    resetData()
+    await loadAllData()
+  }
+})
+
+// Load scenario info (from /info endpoint or tournament API)
 async function loadScenarioInfo() {
-  if (!scenarioId.value) return
+  // Need either scenarioId or tournament params
+  if (!scenarioId.value && !isTournamentScenario.value) return
   
   loadingInfo.value = true
   try {
-    const response = await fetch(`/api/scenarios/${scenarioId.value}/info`)
+    let response
+    if (isTournamentScenario.value) {
+      // Use tournament-specific API
+      response = await fetch(`/api/tournament/saved/${props.tournamentId}/scenario/${props.scenarioName}`)
+    } else {
+      // Use regular scenario API
+      response = await fetch(`/api/scenarios/${scenarioId.value}/info`)
+    }
+    
     if (response.ok) {
-      scenarioInfo.value = await response.json()
+      const data = await response.json()
+      // Tournament API returns different structure - normalize it
+      if (isTournamentScenario.value) {
+        scenarioInfo.value = {
+          name: data.name || props.scenarioName,
+          n_issues: data.issue_names?.length || 0,
+          n_outcomes: data.raw_data?.n_outcomes,
+          issue_names: data.issue_names || [],
+          issues: data.issues || [],
+          stats: data.stats,
+          outcome_space_data: data.outcome_space_data,
+          ...data
+        }
+        // Also set stats if available in the response
+        if (data.stats) {
+          scenarioStats.value = data.stats
+        }
+      } else {
+        scenarioInfo.value = data
+      }
     } else {
       const errorText = await response.text()
       console.error('[StatsModal] Failed to load scenario info:', response.status, errorText)
@@ -525,6 +583,8 @@ async function loadScenarioInfo() {
 
 // Load scenario stats from backend
 async function loadScenarioStats() {
+  // For tournament scenarios, stats are loaded with info - skip separate call
+  if (isTournamentScenario.value) return
   if (!scenarioId.value) return
   
   loadingStats.value = true
@@ -543,6 +603,8 @@ async function loadScenarioStats() {
 
 // Load ufun details from backend (includes ufun names, types, string representations)
 async function loadUfunDetails() {
+  // For tournament scenarios, we don't have a separate ufuns endpoint yet - skip
+  if (isTournamentScenario.value) return
   if (!scenarioId.value) return
   
   loadingUfuns.value = true
@@ -563,6 +625,8 @@ async function loadUfunDetails() {
 
 // Calculate scenario stats (user action)
 async function calculateStats() {
+  // Not supported for tournament scenarios yet
+  if (isTournamentScenario.value) return
   if (!scenarioId.value) return
   
   if (!confirm('This will calculate scenario statistics. For large outcome spaces, this may take some time. Continue?')) {

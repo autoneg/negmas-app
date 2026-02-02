@@ -41,7 +41,11 @@
               <span v-else class="rank-number">{{ entry.rank }}</span>
             </div>
             <div class="leaderboard-info">
-              <div class="leaderboard-name">{{ entry.competitor || entry.name }}</div>
+              <div 
+                class="leaderboard-name clickable-name"
+                @click.stop="handleNegotiatorClick(entry.competitor || entry.name)"
+                title="Click for negotiator info"
+              >{{ entry.competitor || entry.name }}</div>
               <div class="leaderboard-stats">
                 <span v-if="!isCompleted">
                   {{ entry.n_negotiations || 0 }} games | {{ entry.n_agreements || 0 }} agr
@@ -101,7 +105,9 @@
                 <span 
                   v-for="(competitor, idx) in config.competitors" 
                   :key="idx"
-                  class="config-badge"
+                  class="config-badge clickable-badge"
+                  @click="handleNegotiatorClick(competitor.type_name || competitor.name)"
+                  title="Click for negotiator info"
                 >
                   {{ competitor.name || competitor.type_name }}
                 </span>
@@ -117,7 +123,9 @@
                 <span 
                   v-for="(scenario, idx) in config.scenarios" 
                   :key="idx"
-                  class="config-badge config-badge-neutral"
+                  class="config-badge config-badge-neutral clickable-badge"
+                  @click="handleScenarioClick(scenario.path || scenario)"
+                  title="Click for scenario stats"
                 >
                   {{ scenario.name || scenario.path?.split('/').pop() }}
                 </span>
@@ -184,11 +192,28 @@
         </div>
       </div>
     </div>
+    
+    <!-- Negotiator Info Modal -->
+    <NegotiatorInfoModal
+      :show="showNegotiatorModal"
+      :typeName="selectedNegotiatorType"
+      @close="showNegotiatorModal = false"
+    />
+    
+    <!-- Scenario Stats Modal (for tournament scenarios) -->
+    <StatsModal
+      :show="showScenarioStatsModal"
+      :tournamentId="tournamentId"
+      :scenarioName="selectedScenarioName"
+      @close="showScenarioStatsModal = false"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
+import NegotiatorInfoModal from './NegotiatorInfoModal.vue'
+import StatsModal from './StatsModal.vue'
 
 const props = defineProps({
   leaderboard: {
@@ -202,12 +227,37 @@ const props = defineProps({
   status: {
     type: String,
     default: 'running'
+  },
+  tournamentId: {
+    type: String,
+    default: null
   }
 })
 
 const activeTab = ref('leaderboard')
 
 const isCompleted = computed(() => props.status === 'completed')
+
+// Modal state for negotiator info
+const showNegotiatorModal = ref(false)
+const selectedNegotiatorType = ref('')
+
+// Modal state for scenario stats
+const showScenarioStatsModal = ref(false)
+const selectedScenarioName = ref('')
+
+// Click handlers
+function handleNegotiatorClick(negotiatorName) {
+  selectedNegotiatorType.value = negotiatorName
+  showNegotiatorModal.value = true
+}
+
+function handleScenarioClick(scenarioPath) {
+  // Extract just the scenario folder name from the path
+  const scenarioName = scenarioPath?.split('/').pop() || scenarioPath
+  selectedScenarioName.value = scenarioName
+  showScenarioStatsModal.value = true
+}
 
 /**
  * Format the score for display, handling null/undefined/NaN/Infinity cases.
@@ -541,6 +591,28 @@ function formatStatistic(stat) {
 .config-badge-neutral {
   background: var(--bg-secondary);
   color: var(--text-secondary);
+}
+
+/* Clickable elements */
+.clickable-name {
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.clickable-name:hover {
+  color: var(--primary-color);
+  text-decoration: underline;
+}
+
+.clickable-badge {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.clickable-badge:hover {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
 }
 
 .btn-icon-sm {

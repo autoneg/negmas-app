@@ -38,7 +38,11 @@
             <span v-else>{{ entry.rank }}</span>
           </div>
           <div class="leaderboard-info">
-            <div class="leaderboard-name">{{ entry.competitor || entry.name }}</div>
+            <div 
+              class="leaderboard-name clickable-name"
+              @click.stop="handleNegotiatorClick(entry.competitor || entry.name)"
+              title="Click for negotiator info"
+            >{{ entry.competitor || entry.name }}</div>
             <div class="leaderboard-stats">
               <span v-if="!isCompleted">
                 {{ entry.n_negotiations || 0 }} games • {{ entry.n_agreements || 0 }} agr
@@ -52,11 +56,19 @@
         </div>
       </div>
     </div>
+    
+    <!-- Negotiator Info Modal -->
+    <NegotiatorInfoModal
+      :show="showNegotiatorModal"
+      :typeName="selectedNegotiatorType"
+      @close="showNegotiatorModal = false"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
+import NegotiatorInfoModal from './NegotiatorInfoModal.vue'
 
 const props = defineProps({
   leaderboard: {
@@ -72,6 +84,16 @@ const props = defineProps({
 const isCollapsed = ref(false)
 
 const isCompleted = computed(() => props.status === 'completed')
+
+// Modal state for negotiator info
+const showNegotiatorModal = ref(false)
+const selectedNegotiatorType = ref('')
+
+// Click handler
+function handleNegotiatorClick(negotiatorName) {
+  selectedNegotiatorType.value = negotiatorName
+  showNegotiatorModal.value = true
+}
 
 /**
  * Format the score for display, handling null/undefined/NaN/Infinity cases.
@@ -202,6 +224,16 @@ function formatScore(entry) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.leaderboard-name.clickable-name {
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.leaderboard-name.clickable-name:hover {
+  color: var(--primary-color);
+  text-decoration: underline;
 }
 
 .leaderboard-stats {

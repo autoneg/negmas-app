@@ -69,7 +69,18 @@
           :class="{ active: currentTab === idx }"
           @click="currentTab = idx"
         >
-          {{ scenario.split('/').pop().slice(0, 15) }}
+          <span class="scenario-tab-name">{{ scenario.split('/').pop().slice(0, 15) }}</span>
+          <span 
+            class="scenario-info-btn" 
+            @click.stop="handleScenarioClick(scenario, $event)"
+            title="View scenario statistics"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+          </span>
         </button>
       </div>
       
@@ -91,15 +102,20 @@
           <div
             v-for="(opponent, j) in opponents"
             :key="'sh-' + j"
-            class="tournament-grid-header-cell column-header"
-            :title="opponent"
+            class="tournament-grid-header-cell column-header clickable-header"
+            :title="'Click for info: ' + opponent"
+            @click="handleNegotiatorClick(opponent)"
           >
             <span class="header-name">{{ opponent.slice(0, 12) }}</span>
           </div>
           
           <!-- Data Rows -->
           <template v-for="(competitor, i) in competitors" :key="'sr-' + i">
-            <div class="tournament-grid-row-header" :title="competitor">
+            <div 
+              class="tournament-grid-row-header clickable-header" 
+              :title="'Click for info: ' + competitor"
+              @click="handleNegotiatorClick(competitor)"
+            >
               <span class="row-header-name">{{ competitor.slice(0, 12) }}</span>
             </div>
             <div
@@ -145,15 +161,20 @@
           <div
             v-for="(opponent, j) in opponents"
             :key="'h-' + j"
-            class="tournament-grid-header-cell column-header"
-            :title="opponent"
+            class="tournament-grid-header-cell column-header clickable-header"
+            :title="'Click for info: ' + opponent"
+            @click="handleNegotiatorClick(opponent)"
           >
             <span class="header-name">{{ opponent.slice(0, 12) }}</span>
           </div>
           
           <!-- Data Rows -->
           <template v-for="(competitor, i) in competitors" :key="'r-' + i">
-            <div class="tournament-grid-row-header" :title="competitor">
+            <div 
+              class="tournament-grid-row-header clickable-header" 
+              :title="'Click for info: ' + competitor"
+              @click="handleNegotiatorClick(competitor)"
+            >
               <span class="row-header-name">{{ competitor.slice(0, 12) }}</span>
             </div>
             <div
@@ -239,6 +260,21 @@
         </div>
       </div>
     </div>
+    
+    <!-- Negotiator Info Modal -->
+    <NegotiatorInfoModal
+      :show="showNegotiatorModal"
+      :typeName="selectedNegotiatorType"
+      @close="showNegotiatorModal = false"
+    />
+    
+    <!-- Scenario Stats Modal -->
+    <StatsModal
+      :show="showScenarioStatsModal"
+      :tournamentId="tournamentId"
+      :scenarioName="selectedScenarioName"
+      @close="showScenarioStatsModal = false"
+    />
   </div>
 </template>
 
@@ -246,6 +282,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useTournamentsStore } from '../stores/tournaments'
 import { useRouter } from 'vue-router'
+import NegotiatorInfoModal from './NegotiatorInfoModal.vue'
+import StatsModal from './StatsModal.vue'
 
 const props = defineProps({
   gridInit: {
@@ -275,6 +313,32 @@ const router = useRouter()
 const isCollapsed = ref(false)
 const currentTab = ref('summary')
 const showExportMenu = ref(false)
+
+// Modal state for negotiator info
+const showNegotiatorModal = ref(false)
+const selectedNegotiatorType = ref('')
+
+// Modal state for scenario stats
+const showScenarioStatsModal = ref(false)
+const selectedScenarioName = ref('')
+
+// Click handlers for negotiator and scenario
+function handleNegotiatorClick(negotiatorName) {
+  // The name shown in the grid is often just the short name, 
+  // but we need the full type_name for the API
+  selectedNegotiatorType.value = negotiatorName
+  showNegotiatorModal.value = true
+}
+
+function handleScenarioClick(scenarioPath, event) {
+  // Prevent the tab switch from happening
+  if (event) event.stopPropagation()
+  // Extract just the scenario folder name from the path
+  // The path might be full path or just the folder name
+  const scenarioName = scenarioPath.split('/').pop() || scenarioPath
+  selectedScenarioName.value = scenarioName
+  showScenarioStatsModal.value = true
+}
 
 // Close export menu when clicking outside
 if (typeof document !== 'undefined') {
@@ -1262,5 +1326,41 @@ function shouldShowMetrics(i, j) {
     opacity: 0.9;
     box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
   }
+}
+
+/* Clickable header styles for negotiator names */
+.clickable-header {
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.clickable-header:hover {
+  background: var(--bg-hover);
+  color: var(--primary-color);
+}
+
+/* Scenario info button in tabs */
+.scenario-tab-name {
+  margin-right: 4px;
+}
+
+.scenario-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 3px;
+  opacity: 0.6;
+  transition: opacity 0.2s, background 0.2s;
+  cursor: pointer;
+}
+
+.scenario-info-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.tournament-scenario-tab.active .scenario-info-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 </style>
