@@ -197,26 +197,46 @@
             
             <!-- Panels container -->
             <div class="panels-row">
-              <!-- Offer History Panel -->
+              <!-- Offer History Panel (abbreviated) -->
               <div class="panel offer-history-panel">
                 <div class="inner-panel-header">
                   <span>Offer History</span>
-                  <span class="badge-sm">{{ negotiationData.offers?.length || 0 }}</span>
+                  <span class="badge-sm">{{ negotiationData.offers?.length || 0 }} offers</span>
                 </div>
                 <div class="panel-content">
                   <div v-if="!negotiationData.offers || negotiationData.offers.length === 0" class="empty-state-sm">
                     <p>No offers recorded</p>
                   </div>
                   <div v-else class="offers-list">
+                    <!-- First few offers -->
                     <div 
-                      v-for="(offer, idx) in negotiationData.offers" 
-                      :key="idx"
+                      v-for="(offer, idx) in firstOffers" 
+                      :key="'first-' + idx"
                       class="offer-item"
-                      :class="{ 'is-agreement': idx === negotiationData.offers.length - 1 && selectedNegotiation?.end_reason === 'agreement' }"
                     >
-                      <span class="offer-step">{{ offer.step ?? idx }}</span>
-                      <span class="offer-proposer" :class="getProposerClass(offer, idx)">
-                        {{ getProposerName(offer, idx) }}
+                      <span class="offer-step">{{ offer.step ?? offer.originalIdx }}</span>
+                      <span class="offer-proposer" :class="getProposerClass(offer, offer.originalIdx)">
+                        {{ getProposerName(offer, offer.originalIdx) }}
+                      </span>
+                      <span class="offer-value monospace">{{ formatOffer(offer) }}</span>
+                      <span v-if="offer.utilities" class="offer-utils">
+                        {{ formatOfferUtilities(offer.utilities) }}
+                      </span>
+                    </div>
+                    <!-- Ellipsis separator if there are hidden offers -->
+                    <div v-if="hasHiddenOffers" class="offer-ellipsis">
+                      <span>... {{ hiddenOffersCount }} more offers ...</span>
+                    </div>
+                    <!-- Last few offers -->
+                    <div 
+                      v-for="(offer, idx) in lastOffers" 
+                      :key="'last-' + idx"
+                      class="offer-item"
+                      :class="{ 'is-agreement': idx === lastOffers.length - 1 && selectedNegotiation?.end_reason === 'agreement' }"
+                    >
+                      <span class="offer-step">{{ offer.step ?? offer.originalIdx }}</span>
+                      <span class="offer-proposer" :class="getProposerClass(offer, offer.originalIdx)">
+                        {{ getProposerName(offer, offer.originalIdx) }}
                       </span>
                       <span class="offer-value monospace">{{ formatOffer(offer) }}</span>
                       <span v-if="offer.utilities" class="offer-utils">
@@ -227,13 +247,44 @@
                 </div>
               </div>
               
-              <!-- Utility Chart (if 2D) -->
-              <div v-if="canShowChart" class="panel utility-chart-panel">
+              <!-- Outcome Stats Panel -->
+              <div v-if="negotiationData.agreement_stats" class="panel stats-panel">
                 <div class="inner-panel-header">
-                  <span>Utility Space</span>
+                  <span>Outcome Quality</span>
                 </div>
-                <div class="panel-content chart-container">
-                  <canvas ref="chartCanvas"></canvas>
+                <div class="panel-content">
+                  <div class="stats-grid">
+                    <div class="stat-item">
+                      <span class="stat-label">Pareto Optimality</span>
+                      <span class="stat-value" :class="getOptimalityClass(negotiationData.agreement_stats.pareto_optimality)">
+                        {{ formatOptimality(negotiationData.agreement_stats.pareto_optimality) }}
+                      </span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">Nash Optimality</span>
+                      <span class="stat-value" :class="getOptimalityClass(negotiationData.agreement_stats.nash_optimality)">
+                        {{ formatOptimality(negotiationData.agreement_stats.nash_optimality) }}
+                      </span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">Kalai Optimality</span>
+                      <span class="stat-value" :class="getOptimalityClass(negotiationData.agreement_stats.kalai_optimality)">
+                        {{ formatOptimality(negotiationData.agreement_stats.kalai_optimality) }}
+                      </span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">Max Welfare</span>
+                      <span class="stat-value" :class="getOptimalityClass(negotiationData.agreement_stats.max_welfare_optimality)">
+                        {{ formatOptimality(negotiationData.agreement_stats.max_welfare_optimality) }}
+                      </span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">KS Optimality</span>
+                      <span class="stat-value" :class="getOptimalityClass(negotiationData.agreement_stats.ks_optimality)">
+                        {{ formatOptimality(negotiationData.agreement_stats.ks_optimality) }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -338,6 +389,37 @@ const filteredNegotiations = computed(() => {
 // Total count
 const totalCount = computed(() => {
   return runningList.value.length + (props.liveNegotiations?.length || 0)
+})
+
+// Abbreviated offer lists for modal (first 3 and last 3)
+const OFFERS_TO_SHOW = 3
+
+const firstOffers = computed(() => {
+  const offers = negotiationData.value?.offers || []
+  if (offers.length <= OFFERS_TO_SHOW * 2) {
+    // Show all if 6 or fewer
+    return offers.map((o, i) => ({ ...o, originalIdx: i }))
+  }
+  return offers.slice(0, OFFERS_TO_SHOW).map((o, i) => ({ ...o, originalIdx: i }))
+})
+
+const lastOffers = computed(() => {
+  const offers = negotiationData.value?.offers || []
+  if (offers.length <= OFFERS_TO_SHOW * 2) {
+    return [] // All shown in firstOffers
+  }
+  const startIdx = offers.length - OFFERS_TO_SHOW
+  return offers.slice(startIdx).map((o, i) => ({ ...o, originalIdx: startIdx + i }))
+})
+
+const hasHiddenOffers = computed(() => {
+  const offers = negotiationData.value?.offers || []
+  return offers.length > OFFERS_TO_SHOW * 2
+})
+
+const hiddenOffersCount = computed(() => {
+  const offers = negotiationData.value?.offers || []
+  return Math.max(0, offers.length - OFFERS_TO_SHOW * 2)
 })
 
 // Can show 2D chart
@@ -466,7 +548,8 @@ async function handleClick(neg, isRunning) {
           agreement: data.agreement,
           utilities: data.final_utilities || data.utilities,
           issue_names: data.issue_names,
-          outcome_space_data: data.outcome_space_data
+          outcome_space_data: data.outcome_space_data,
+          agreement_stats: data.agreement_stats
         }
       }
     }
@@ -600,6 +683,19 @@ function getProposerClass(offer, idx) {
     proposerIdx = idx % 2
   }
   return `proposer-${proposerIdx}`
+}
+
+function formatOptimality(value) {
+  if (value === null || value === undefined) return 'N/A'
+  return (value * 100).toFixed(1) + '%'
+}
+
+function getOptimalityClass(value) {
+  if (value === null || value === undefined) return ''
+  if (value >= 0.95) return 'optimality-excellent'
+  if (value >= 0.8) return 'optimality-good'
+  if (value >= 0.5) return 'optimality-fair'
+  return 'optimality-poor'
 }
 
 function updateChart() {
@@ -1335,5 +1431,64 @@ function updateChart() {
 
 .btn-secondary {
   background: var(--bg-secondary);
+}
+
+/* Offer ellipsis separator */
+.offer-ellipsis {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-style: italic;
+}
+
+/* Stats panel styles */
+.stats-panel {
+  min-width: 200px;
+  max-width: 280px;
+}
+
+.stats-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  background: var(--bg-primary);
+  border-radius: 4px;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.optimality-excellent {
+  color: var(--success-color, #10b981);
+}
+
+.optimality-good {
+  color: #22c55e;
+}
+
+.optimality-fair {
+  color: var(--warning-color, #f59e0b);
+}
+
+.optimality-poor {
+  color: var(--error-color, #ef4444);
 }
 </style>

@@ -1349,8 +1349,34 @@ class TournamentStorageService:
 
             # Extract scenario and partners from loaded metadata
             metadata = trace_data.get("metadata", {})
+            config = trace_data.get("config", {})
             scenario_name = metadata.get("scenario_name")
             partners = metadata.get("partner_names", [])
+
+            # Extract negotiator info from config for frontend
+            negotiator_ids = config.get("negotiator_ids", [])
+            negotiator_names = config.get("negotiator_names", [])
+            negotiator_types = config.get("negotiator_types", [])
+
+            # Build negotiators array for frontend (needed for name-to-index mapping)
+            negotiators = []
+            for i, neg_id in enumerate(negotiator_ids):
+                negotiators.append(
+                    {
+                        "id": neg_id,
+                        "name": neg_id,  # Use full ID for matching (e.g., "Atlas3@0")
+                        "short_type": negotiator_types[i]
+                        if i < len(negotiator_types)
+                        else None,
+                        "type": negotiator_types[i]
+                        if i < len(negotiator_types)
+                        else None,
+                    }
+                )
+
+            # Extract n_steps and current_step from config
+            n_steps = config.get("n_steps") or config.get("shared_n_steps")
+            current_step = config.get("final_step", 0)
 
             # Load scenario info for issue_names
             issue_names = []
@@ -1372,36 +1398,48 @@ class TournamentStorageService:
                     cls.TOURNAMENTS_DIR / tournament_id / "scenarios" / scenario_name
                 )
 
-            # Get history and calculate utilities if not present
+            # Get history and extract/calculate utilities
             history = trace_data.get("trace", [])
-            if history and scenario_name:
-                ufuns = cls.load_ufuns(tournament_id, scenario_name)
-                if ufuns:
-                    for row in history:
-                        # Skip if utilities already present and non-empty
-                        if row.get("utilities") and len(row["utilities"]) > 0:
-                            continue
+            if history:
+                for row in history:
+                    # First try to extract utilities from negotiator ID columns
+                    # The history often has columns like "Atlas3@0": 0.95, "Atlas3Agent@1": 0.32
+                    extracted_utils = []
+                    for neg_id in negotiator_ids:
+                        if neg_id in row and isinstance(row[neg_id], (int, float)):
+                            extracted_utils.append(float(row[neg_id]))
 
-                        # Get offer - could be tuple, list, or string representation
-                        offer_val = row.get("offer") or row.get("current_offer")
-                        if not offer_val:
-                            continue
+                    if len(extracted_utils) == len(negotiator_ids):
+                        # Successfully extracted utilities from columns
+                        row["utilities"] = extracted_utils
+                    elif not row.get("utilities") or all(
+                        u == 0.0 for u in row.get("utilities", [])
+                    ):
+                        # No utilities in columns and no valid utilities field
+                        # Try to calculate from ufuns
+                        if scenario_name:
+                            ufuns = cls.load_ufuns(tournament_id, scenario_name)
+                            if ufuns:
+                                offer_val = row.get("offer") or row.get("current_offer")
+                                if offer_val:
+                                    if isinstance(offer_val, str):
+                                        try:
+                                            offer_tuple = ast.literal_eval(offer_val)
+                                        except (ValueError, SyntaxError):
+                                            offer_tuple = None
+                                    else:
+                                        offer_tuple = offer_val
 
-                        # Parse offer if it's a string
-                        if isinstance(offer_val, str):
-                            try:
-                                offer_tuple = ast.literal_eval(offer_val)
-                            except (ValueError, SyntaxError):
-                                continue
-                        else:
-                            offer_tuple = offer_val
-
-                        # Calculate utility for each negotiator using their ufun
-                        utils = []
-                        for ufun in ufuns:
-                            util = cls.calculate_utility(ufun, offer_tuple)
-                            utils.append(util if util is not None else 0.0)
-                        row["utilities"] = utils
+                                    if offer_tuple:
+                                        utils = []
+                                        for ufun in ufuns:
+                                            util = cls.calculate_utility(
+                                                ufun, offer_tuple
+                                            )
+                                            utils.append(
+                                                util if util is not None else 0.0
+                                            )
+                                        row["utilities"] = utils
 
             # Build the complete negotiation object
             negotiation = {
@@ -1411,13 +1449,17 @@ class TournamentStorageService:
                 "scenario_path": scenario_path,  # For StatsModal
                 "tournament_id": tournament_id,  # For tournament-specific API calls
                 "partners": partners,
+                "negotiators": negotiators,  # Full negotiator info for frontend
+                "negotiator_types": negotiator_types,  # For display
                 "issue_names": issue_names,
+                "n_steps": n_steps,  # Total steps allowed
+                "current_step": current_step,  # Final step reached
                 "history": history,  # Use modified history with utilities
                 "agreement": trace_data.get("agreement"),
                 "outcome_space_data": outcome_space_data,
                 "source": "tournament",
                 "metadata": metadata,
-                "config": trace_data.get("config"),
+                "config": config,
                 "scenario_info": scenario_info,  # Include full scenario info with stats
             }
 

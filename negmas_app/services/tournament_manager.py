@@ -1398,16 +1398,7 @@ class TournamentManager:
 
             # Normal tournament flow (not continuing)
             # Emit initial setup progress
-            state.event_queue.put(
-                (
-                    "setup_progress",
-                    {
-                        "message": "Loading scenarios...",
-                        "current": 0,
-                        "total": 4,
-                    },
-                )
-            )
+            state.emit_setup_progress("Loading scenarios...", 0, 4)
 
             # Load scenarios
             scenarios: list[Scenario] = []  # type: ignore[type-arg]
@@ -1418,15 +1409,8 @@ class TournamentManager:
             for idx, path in enumerate(config.scenario_paths):
                 # Emit progress for each scenario
                 if idx % 10 == 0 or idx == n_scenario_paths - 1:
-                    state.event_queue.put(
-                        (
-                            "setup_progress",
-                            {
-                                "message": f"Loading scenario {idx + 1}/{n_scenario_paths}...",
-                                "current": 0,
-                                "total": 4,
-                            },
-                        )
+                    state.emit_setup_progress(
+                        f"Loading scenario {idx + 1}/{n_scenario_paths}...", 0, 4
                     )
                 scenario = self.scenario_loader.load_scenario(
                     path, load_stats=False, load_info=False

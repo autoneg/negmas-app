@@ -365,6 +365,36 @@ async function loadTournamentNegotiation(sessionId) {
     // Convert agreement array to dict if needed
     const agreement = arrayToDict(fullData.agreement)
     
+    // Determine end_reason from config or agreement
+    let endReason = null
+    const config = fullData.config || {}
+    if (fullData.agreement) {
+      endReason = 'agreement'
+    } else if (config.timedout) {
+      endReason = 'timeout'
+    } else if (config.broken || config.has_error) {
+      endReason = 'error'
+    } else {
+      endReason = 'no_agreement'  // Completed but no agreement
+    }
+    
+    // Get final utilities from the last offer if agreement exists
+    const history = fullData.history || []
+    let finalUtilities = fullData.final_utilities || fullData.utilities || []
+    if ((!finalUtilities || finalUtilities.length === 0) && history.length > 0) {
+      // Get from the last offer's utilities
+      finalUtilities = history[history.length - 1]?.utilities || []
+    }
+    
+    // Get optimality stats from agreement_stats if available
+    const optimalityStats = fullData.agreement_stats || fullData.optimality_stats || {
+      pareto_optimality: fullData.pareto_optimality,
+      nash_optimality: fullData.nash_optimality,
+      kalai_optimality: fullData.kalai_optimality,
+      ks_optimality: fullData.ks_optimality,
+      max_welfare_optimality: fullData.max_welfare_optimality,
+    }
+    
     // Create name-to-index mapping for proposer lookup
     const nameToIdx = {}
     fullData.negotiators?.forEach((n, i) => {
@@ -397,19 +427,15 @@ async function loadTournamentNegotiation(sessionId) {
       negotiator_colors: getNegotiatorColors(negotiatorNames.length),
       issue_names: issueNames,
       n_steps: fullData.n_steps,
+      current_step: fullData.current_step || history.length,
       status: 'completed',
+      end_reason: endReason,
       agreement: agreement,
-      final_utilities: fullData.final_utilities || fullData.utilities || [],
-      optimality_stats: fullData.optimality_stats || {
-        pareto_optimality: fullData.pareto_optimality,
-        nash_optimality: fullData.nash_optimality,
-        kalai_optimality: fullData.kalai_optimality,
-        ks_optimality: fullData.ks_optimality,
-        max_welfare_optimality: fullData.max_welfare_optimality,
-      },
+      final_utilities: finalUtilities,
+      optimality_stats: optimalityStats,
       outcome_space_data: fullData.outcome_space_data,
       scenario_info: fullData.scenario_info,  // Include full scenario info
-      offers: (fullData.history || []).map((item, idx) => {
+      offers: history.map((item, idx) => {
         // Convert offer array to dict using issue_names
         const rawOffer = item.offer || item.current_offer
         const offer = arrayToDict(rawOffer)
