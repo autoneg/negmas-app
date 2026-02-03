@@ -26,7 +26,7 @@
             Back
           </button>
           <div style="flex: 1;">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
               <div>
                 <h2>{{ currentSession.name || `Tournament ${currentSession.id.slice(0, 12)}` }}</h2>
                 <div v-if="gridInit" class="tournament-info">
@@ -37,15 +37,39 @@
                   <span>{{ gridInit.total_negotiations || 0 }} negotiations</span>
                 </div>
               </div>
-              <!-- Progress bar in header -->
+              <!-- Stats in the middle -->
+              <div v-if="gridInit" class="header-stats">
+                <span class="header-stat">
+                  <span class="header-stat-value">{{ tournamentStats.completionRate }}%</span>
+                  <span class="header-stat-label">Done</span>
+                </span>
+                <span class="header-stat">
+                  <span class="header-stat-value">{{ tournamentStats.successRate }}%</span>
+                  <span class="header-stat-label">Success</span>
+                </span>
+                <span class="header-stat">
+                  <span class="header-stat-value">{{ tournamentStats.agreementRate }}%</span>
+                  <span class="header-stat-label">Agreed</span>
+                </span>
+                <span class="header-stat">
+                  <span class="header-stat-value">{{ tournamentStats.timeoutRate }}%</span>
+                  <span class="header-stat-label">Timeout</span>
+                </span>
+                <span v-if="tournamentStats.errors > 0" class="header-stat error">
+                  <span class="header-stat-value">{{ tournamentStats.errorRate }}%</span>
+                  <span class="header-stat-label">Errors</span>
+                </span>
+                <span v-if="streamingSession" class="header-live">
+                  <span class="header-live-dot"></span>
+                  LIVE
+                </span>
+              </div>
+              <!-- Progress bar on the right -->
               <div v-if="gridInit" class="header-progress">
-                <div class="header-progress-text">
-                  <span class="progress-percentage">{{ tournamentStats.completionRate }}%</span>
-                  <span class="progress-count">{{ tournamentStats.completed }}/{{ gridInit.total_negotiations || 0 }}</span>
-                </div>
                 <div class="header-progress-bar">
                   <div class="header-progress-fill" :style="{ width: tournamentStats.completionRate + '%' }"></div>
                 </div>
+                <span class="header-progress-count">{{ tournamentStats.completed }}/{{ gridInit.total_negotiations || 0 }}</span>
               </div>
             </div>
           </div>
@@ -125,45 +149,14 @@
         </div>
       </div>
       
-      <!-- Stats Bar (comprehensive statistics) -->
-      <div v-if="currentSession.status === 'running' || currentSession.status === 'completed'" class="stats-bar">
-        <!-- Setup Progress (shown during initialization phase) -->
-        <div v-if="setupProgress && setupProgress.current < setupProgress.total" class="setup-progress">
-          <div class="setup-progress-header">
-            <div class="spinner-sm"></div>
-            <span class="setup-message">{{ setupProgress.message || 'Initializing tournament...' }}</span>
-          </div>
-          <div v-if="setupProgress.total > 0" class="setup-progress-bar">
-            <div class="setup-progress-fill" :style="{ width: ((setupProgress.current / setupProgress.total) * 100) + '%' }"></div>
-          </div>
+      <!-- Setup Progress Bar (only shown during initialization) -->
+      <div v-if="setupProgress && setupProgress.current < setupProgress.total" class="setup-progress-bar-container">
+        <div class="setup-progress-header">
+          <div class="spinner-sm"></div>
+          <span class="setup-message">{{ setupProgress.message || 'Initializing tournament...' }}</span>
         </div>
-        
-        <!-- Comprehensive Stats (always shown when available) -->
-        <div v-if="gridInit" class="stats-inline">
-          <span class="stat-inline">
-            <span class="stat-label">Completion:</span>
-            <span class="stat-value">{{ tournamentStats.completionRate }}%</span>
-          </span>
-          <span class="stat-inline">
-            <span class="stat-label">Success:</span>
-            <span class="stat-value">{{ tournamentStats.successRate }}%</span>
-          </span>
-          <span class="stat-inline">
-            <span class="stat-label">Agreement:</span>
-            <span class="stat-value">{{ tournamentStats.agreementRate }}%</span>
-          </span>
-          <span class="stat-inline">
-            <span class="stat-label">Timeout:</span>
-            <span class="stat-value">{{ tournamentStats.timeoutRate }}%</span>
-          </span>
-          <span class="stat-inline" v-if="tournamentStats.errors > 0">
-            <span class="stat-label">Errors:</span>
-            <span class="stat-value error-value">{{ tournamentStats.errorRate }}%</span>
-          </span>
-          <span v-if="streamingSession" class="stat-inline live-indicator">
-            <span class="status-dot"></span>
-            LIVE
-          </span>
+        <div v-if="setupProgress.total > 0" class="setup-progress-bar">
+          <div class="setup-progress-fill" :style="{ width: ((setupProgress.current / setupProgress.total) * 100) + '%' }"></div>
         </div>
       </div>
       
@@ -776,49 +769,50 @@ async function handleLoadTrace(tournamentId, negIndex) {
   gap: 8px;
 }
 
-.stats-bar {
-  padding: 8px 16px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  margin-bottom: 12px;
-}
-
-.stats-inline {
+/* Integrated header stats - horizontal row in middle */
+.header-stats {
   display: flex;
   align-items: center;
   gap: 16px;
-  flex-wrap: wrap;
-  font-size: 13px;
-  margin-bottom: 8px;
+  flex: 1;
+  justify-content: center;
 }
 
-.stat-inline {
+.header-stat {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
 }
 
-.stat-label {
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.stat-value {
-  color: var(--text-primary);
+.header-stat-value {
+  font-size: 14px;
   font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
 }
 
-.live-indicator {
-  color: rgb(239, 68, 68);
-  font-weight: 700;
-  font-size: 11px;
+.header-stat-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.header-stat.error .header-stat-value {
+  color: var(--error-color, rgb(239, 68, 68));
+}
+
+.header-live {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgb(239, 68, 68);
 }
 
-.status-dot {
+.header-live-dot {
   width: 8px;
   height: 8px;
   background: rgb(239, 68, 68);
@@ -831,21 +825,41 @@ async function handleLoadTrace(tournamentId, negIndex) {
   50% { opacity: 0.5; }
 }
 
-.progress-bar-inline {
-  width: 100%;
-  height: 4px;
+.header-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.header-progress-bar {
+  width: 100px;
+  height: 6px;
   background: var(--bg-tertiary);
-  border-radius: 2px;
+  border-radius: 3px;
   overflow: hidden;
 }
 
-.progress-fill {
+.header-progress-fill {
   height: 100%;
   background: var(--primary-color);
   transition: width 0.3s ease;
 }
 
-.setup-progress {
+.header-progress-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 60px;
+  text-align: right;
+}
+
+/* Setup progress bar (shown during initialization) */
+.setup-progress-bar-container {
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  margin-bottom: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -899,8 +913,9 @@ async function handleLoadTrace(tournamentId, negIndex) {
 .panels-top-row {
   display: flex;
   gap: 12px;
-  flex: 1; /* Take equal space */
+  flex: 0 0 auto; /* Don't grow, shrink to content */
   min-height: 200px; /* Minimum usable height */
+  max-height: 40vh; /* Cap at 40% of viewport height */
 }
 
 .panel-grid-wrapper {
@@ -921,8 +936,10 @@ async function handleLoadTrace(tournamentId, negIndex) {
 .panels-bottom-row {
   display: flex;
   gap: 12px;
-  flex: 1; /* Take equal space */
-  min-height: 200px; /* Minimum usable height */
+  flex: 1 1 auto; /* Grow to fill remaining space */
+  min-height: 300px; /* Minimum usable height */
+  overflow: hidden;
+  align-items: stretch; /* Ensure children stretch to full height */
 }
 
 .panel-event-log-wrapper {
@@ -930,6 +947,8 @@ async function handleLoadTrace(tournamentId, negIndex) {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .panel-negotiations-wrapper {
@@ -937,6 +956,14 @@ async function handleLoadTrace(tournamentId, negIndex) {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.panel-negotiations-wrapper > * {
+  flex: 1;
+  min-height: 0;
 }
 
 @media (max-width: 1200px) {

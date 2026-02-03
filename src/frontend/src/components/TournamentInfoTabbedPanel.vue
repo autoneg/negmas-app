@@ -28,6 +28,10 @@
         </div>
         
         <div v-else class="leaderboard-list">
+          <!-- Score indicator showing metric and statistic used for ranking -->
+          <div v-if="finalScoreInfo.metric || finalScoreInfo.statistic" class="score-indicator">
+            Scored by: {{ formatMetric(finalScoreInfo.metric) }} ({{ formatStatistic(finalScoreInfo.statistic) }})
+          </div>
           <div
             v-for="entry in leaderboard"
             :key="entry.competitor || entry.name"
@@ -181,11 +185,11 @@
             <div class="config-items">
               <div class="config-item">
                 <span class="config-label">Metric:</span>
-                <span class="config-value">{{ formatMetric(config.final_score?.metric) }}</span>
+                <span class="config-value">{{ formatMetric(finalScoreInfo.metric) }}</span>
               </div>
               <div class="config-item">
                 <span class="config-label">Statistic:</span>
-                <span class="config-value">{{ formatStatistic(config.final_score?.statistic) }}</span>
+                <span class="config-value">{{ formatStatistic(finalScoreInfo.statistic) }}</span>
               </div>
             </div>
           </div>
@@ -253,6 +257,23 @@ const activeTab = ref('leaderboard')
 const showFullConfig = ref(false)
 
 const isCompleted = computed(() => props.status === 'completed')
+
+// Computed property to extract final score metric and statistic
+// Handles both array format ['metric', 'statistic'] and object format {metric, statistic}
+const finalScoreInfo = computed(() => {
+  const fs = props.config?.final_score
+  if (!fs) return { metric: null, statistic: null }
+  
+  if (Array.isArray(fs)) {
+    // Array format from negmas config.yaml: ['opp_anl2026', 'mean']
+    return { metric: fs[0] || null, statistic: fs[1] || null }
+  } else if (typeof fs === 'object') {
+    // Object format: {metric: 'opp_anl2026', statistic: 'mean'}
+    return { metric: fs.metric || null, statistic: fs.statistic || null }
+  }
+  
+  return { metric: null, statistic: null }
+})
 
 // Modal state for negotiator info
 const showNegotiatorModal = ref(false)
@@ -440,6 +461,17 @@ function formatStatistic(stat) {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.score-indicator {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 4px 8px;
+  margin-bottom: 4px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
 }
 
 .leaderboard-entry {
