@@ -4076,10 +4076,10 @@ body {
     flex: 0 0 auto;
 }
 
-/* Negotiations panel (bottom) */
+/* Negotiations panel (bottom) - now uses flex to fill available space */
 .tournament-negotiations-panel {
-    flex-shrink: 0;
-    max-height: 250px;
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     background: var(--bg-secondary);
@@ -4088,13 +4088,10 @@ body {
     overflow: hidden;
 }
 
-.tournament-negotiations-panel.collapsed {
-    max-height: none;
-}
-
 .tournament-negotiations-panel .negotiations-list {
     overflow: auto;
-    max-height: 200px;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 /* Legacy header styles (keep for compatibility) */

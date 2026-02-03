@@ -936,17 +936,29 @@ async function handleLoadTrace(tournamentId, negIndex) {
 .panels-bottom-row {
   display: flex;
   gap: 12px;
-  flex: 1 1 0; /* Use 0 basis to allow proper flex distribution */
-  min-height: 300px; /* Minimum usable height */
+  flex: 1 1 auto;
+  min-height: 300px;
   overflow: hidden;
 }
 
 .panel-event-log-wrapper,
 .panel-negotiations-wrapper {
-  flex: 1 1 50%;
+  flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Force both panels to fill their wrappers */
+/* Use :deep() to pierce scoped CSS into child components */
+.panel-event-log-wrapper > :deep(*),
+.panel-negotiations-wrapper > :deep(*) {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
 }
 
 @media (max-width: 1200px) {
