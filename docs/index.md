@@ -4,6 +4,8 @@
 
 NegMAS App is a modern web-based GUI for the [NegMAS](https://github.com/yasserfarouk/negmas) automated negotiation library. It provides an intuitive interface for running, visualizing, and analyzing automated negotiations using Vue.js and FastAPI.
 
+![NegMAS App - Negotiation View](assets/negotiation.png)
+
 !!! info "AI-Assisted Development"
     This project was designed by humans but primarily implemented by AI (Claude Opus 4 and [OpenCode](https://opencode.ai)). The architecture, features, and design decisions were made by the maintainers, while the bulk of the code was generated through AI-assisted development.
 

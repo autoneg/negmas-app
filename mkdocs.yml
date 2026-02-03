@@ -118,6 +118,7 @@ nav:
     - Running Tournaments: user-guide/tournaments.md
     - Scenario Explorer: user-guide/scenarios.md
     - Negotiator Explorer: user-guide/negotiators.md
+    - Configuration Manager: user-guide/configs.md
   - CLI Reference:
     - Overview: cli/index.md
     - Commands: cli/commands.md

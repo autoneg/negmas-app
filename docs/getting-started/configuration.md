@@ -2,6 +2,8 @@
 
 NegMAS App can be configured through settings files and the web interface.
 
+![Settings Dialog](../assets/settings.png)
+
 ## Settings Files
 
 Settings are stored in YAML format. The app looks for settings in:

@@ -76,3 +76,4 @@ Click the gear icon in the sidebar to access:
 - [Running Tournaments](tournaments.md) - Tournament setup and analysis
 - [Exploring Scenarios](scenarios.md) - Browse and import scenarios
 - [Exploring Negotiators](negotiators.md) - Configure negotiation agents
+- [Managing Configs](configs.md) - Save and reuse configurations

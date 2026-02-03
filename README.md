@@ -6,6 +6,8 @@ A modern web GUI for [NegMAS](https://github.com/yasserfarouk/negmas) - the Nego
 
 **Run automated negotiations visually, analyze results in real-time, and explore negotiation scenarios with a modern Vue.js interface.**
 
+![Negotiation View](docs/assets/negotiation.png)
+
 ## Features
 
 ### Real-time Negotiation Visualization
@@ -19,6 +21,8 @@ A modern web GUI for [NegMAS](https://github.com/yasserfarouk/negmas) - the Nego
 - **Zoom Modal**: Fullscreen view for any panel
 
 ### Tournament System
+
+![Tournament View](docs/assets/tournament.png)
 
 - **Competition Grid**: Real-time progress grid showing all matchups
   - Summary tab with aggregated agreement percentages

@@ -2,6 +2,8 @@
 
 The Scenario Explorer allows you to browse, analyze, and import negotiation scenarios.
 
+![Scenario Explorer](../assets/scenario_explorer.png)
+
 ## Accessing the Explorer
 
 Click **Scenarios** in the sidebar navigation.
@@ -29,6 +31,8 @@ Each scenario card shows:
 
 Click any scenario to view detailed information:
 
+![Scenario Details](../assets/scenario.png)
+
 - **Issue definitions**: Names, types, and value ranges
 - **Utility function info**: Type and characteristics
 - **Statistics**: Pareto frontier, Nash point, etc. (if cached)
@@ -36,6 +40,8 @@ Click any scenario to view detailed information:
 ## Viewing Statistics
 
 Click the **stats icon** (📊) on a scenario to open the Statistics Modal:
+
+![Scenario Statistics Modal](../assets/scenario_info_modal.png)
 
 ### Statistics Display
 

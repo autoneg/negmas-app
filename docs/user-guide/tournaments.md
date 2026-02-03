@@ -2,6 +2,8 @@
 
 Tournaments allow you to compare negotiation strategies by running round-robin competitions across multiple scenarios.
 
+![Tournament View](../assets/tournament.png)
+
 ## Overview
 
 A tournament runs all combinations of:

@@ -2,6 +2,8 @@
 
 This guide covers how to configure, run, and analyze negotiations in NegMAS App.
 
+![Negotiation View](../assets/negotiation.png)
+
 ## Starting a New Negotiation
 
 1. Go to the **Negotiations** page using the sidebar
