@@ -373,21 +373,14 @@ async function loadTournamentNegotiation(sessionId) {
     
     // Helper to find proposer index from negotiator name
     const getProposerIndex = (item) => {
-      // First check for direct proposer/current_proposer fields
-      if (item.proposer !== undefined && item.proposer !== null) return item.proposer
-      if (item.current_proposer !== undefined && item.current_proposer !== null) return item.current_proposer
-      if (item.proposer_index !== undefined && item.proposer_index !== null) return item.proposer_index
+      // First check for direct proposer_index field (must be a number)
+      if (typeof item.proposer_index === 'number') return item.proposer_index
+      if (typeof item.current_proposer === 'number') return item.current_proposer
       
-      // Fall back to negotiator name lookup
-      const proposer = item.negotiator
-      if (proposer) {
+      // Fall back to negotiator name - look up in nameToIdx by exact match
+      const proposer = item.negotiator || item.proposer
+      if (proposer && typeof proposer === 'string') {
         if (nameToIdx[proposer] !== undefined) return nameToIdx[proposer]
-        // Try partial match
-        for (const [name, idx] of Object.entries(nameToIdx)) {
-          if (proposer.includes(name) || name.includes(proposer)) {
-            return idx
-          }
-        }
       }
       return 0
     }

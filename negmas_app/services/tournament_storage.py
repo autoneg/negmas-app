@@ -2302,11 +2302,15 @@ class TournamentStorageService:
         # Load the negotiation trace from negotiations folder
         _trace = []
         history = []  # History in UI format
+        trace_config = None  # Config from the trace data
 
         if run_id:
             trace_data = cls.get_negotiation_trace(tournament_id, str(run_id))
             if trace_data and trace_data.get("trace"):
                 raw_trace = trace_data["trace"]
+                trace_config = trace_data.get(
+                    "config"
+                )  # Get config with negotiator_ids
 
                 # Convert trace to history format for UI
                 for row in raw_trace:
@@ -2349,9 +2353,18 @@ class TournamentStorageService:
                     )
 
         # Parse partners/negotiator info
+        # Prefer negotiator_ids from trace config as these match history entries exactly
         partners = neg_data.get("partners", [])
+        negotiator_ids = []  # IDs that match history negotiator field
         negotiator_names = []
         negotiator_types = []
+
+        # First try to get negotiator_ids from trace config (most reliable)
+        if trace_config:
+            negotiator_ids = trace_config.get("negotiator_ids", [])
+            # negotiator_types from config are short types
+            if not negotiator_types:
+                negotiator_types = trace_config.get("negotiator_types", [])
 
         if raw_data.get("negotiator_names"):
             names_val = raw_data["negotiator_names"]
@@ -2363,7 +2376,7 @@ class TournamentStorageService:
             elif isinstance(names_val, (list, tuple)):
                 negotiator_names = list(names_val)
 
-        if raw_data.get("negotiator_types"):
+        if not negotiator_types and raw_data.get("negotiator_types"):
             types_val = raw_data["negotiator_types"]
             if isinstance(types_val, str):
                 try:
@@ -2431,7 +2444,10 @@ class TournamentStorageService:
             else len(history),
             "negotiators": [
                 {
-                    "name": negotiator_names[i]
+                    # Use negotiator_ids from config as 'name' - these match history entries
+                    "name": negotiator_ids[i]
+                    if i < len(negotiator_ids)
+                    else negotiator_names[i]
                     if i < len(negotiator_names)
                     else partners[i]
                     if i < len(partners)
@@ -2441,9 +2457,15 @@ class TournamentStorageService:
                     else partners[i]
                     if i < len(partners)
                     else "Unknown",
-                    "short_type": partners[i] if i < len(partners) else "Unknown",
+                    "short_type": negotiator_types[i]
+                    if i < len(negotiator_types)
+                    else partners[i]
+                    if i < len(partners)
+                    else "Unknown",
                 }
-                for i in range(max(len(partners), len(negotiator_names), 2))
+                for i in range(
+                    max(len(negotiator_ids), len(partners), len(negotiator_names), 2)
+                )
             ],
             "issue_names": issue_names,
             "outcome_space_data": outcome_space_data,

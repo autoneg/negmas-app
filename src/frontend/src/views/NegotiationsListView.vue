@@ -1149,21 +1149,11 @@ async function loadPreviewData(neg) {
             const rawOffer = item.offer
             const offer = arrayToDict(rawOffer)
             
-            // Find proposer index from negotiator name
+            // Find proposer index from negotiator name - exact match only
             let proposerIndex = 0
             const proposer = item.negotiator
-            if (proposer) {
-              if (nameToIdx[proposer] !== undefined) {
-                proposerIndex = nameToIdx[proposer]
-              } else {
-                // Try partial match
-                for (const [name, i] of Object.entries(nameToIdx)) {
-                  if (proposer.includes(name) || name.includes(proposer)) {
-                    proposerIndex = i
-                    break
-                  }
-                }
-              }
+            if (proposer && nameToIdx[proposer] !== undefined) {
+              proposerIndex = nameToIdx[proposer]
             }
             
             return {
