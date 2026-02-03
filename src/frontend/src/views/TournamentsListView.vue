@@ -305,14 +305,14 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(entry, idx) in previewData.leaderboard.slice(0, 10)" :key="entry.competitor">
+                <tr v-for="(entry, idx) in previewData.leaderboard.slice(0, 10)" :key="entry.name || entry.competitor || idx">
                   <td class="rank-cell">
                     <span v-if="idx === 0">🥇</span>
                     <span v-else-if="idx === 1">🥈</span>
                     <span v-else-if="idx === 2">🥉</span>
                     <span v-else>{{ idx + 1 }}</span>
                   </td>
-                  <td>{{ entry.competitor }}</td>
+                  <td>{{ entry.name || entry.competitor || 'Unknown' }}</td>
                   <td>{{ entry.score?.toFixed(2) || 'N/A' }}</td>
                 </tr>
               </tbody>
@@ -320,28 +320,48 @@
           </div>
           
           <!-- Config Preview -->
-          <div v-else-if="selectedPreview === 'config' && previewData?.gridInit" class="preview-config">
+          <div v-else-if="selectedPreview === 'config'" class="preview-config">
             <h3 style="padding: 12px 16px; margin: 0; border-bottom: 1px solid var(--border-color);">Configuration</h3>
-            <div style="padding: 16px;">
-              <div class="config-item">
-                <span class="config-label">Competitors:</span>
-                <span>{{ previewData.gridInit.competitors.length }}</span>
+            <div class="config-preview-content">
+              <!-- Summary section -->
+              <div v-if="previewData?.gridInit" class="config-summary">
+                <div class="config-item">
+                  <span class="config-label">Competitors:</span>
+                  <span>{{ previewData.gridInit.competitors?.length || 0 }}</span>
+                </div>
+                <div class="config-item">
+                  <span class="config-label">Scenarios:</span>
+                  <span>{{ previewData.gridInit.scenarios?.length || 0 }}</span>
+                </div>
+                <div class="config-item">
+                  <span class="config-label">Total Negotiations:</span>
+                  <span>{{ previewData.gridInit.total_negotiations || 0 }}</span>
+                </div>
+                <div class="config-item">
+                  <span class="config-label">Repetitions:</span>
+                  <span>{{ previewData.gridInit.n_repetitions || 1 }}</span>
+                </div>
               </div>
-              <div class="config-item">
-                <span class="config-label">Scenarios:</span>
-                <span>{{ previewData.gridInit.scenarios.length }}</span>
+              
+              <!-- Full config tree -->
+              <div v-if="previewData?.config" class="config-tree-section">
+                <h4 style="margin: 0 0 8px 0; font-size: 12px; color: var(--text-secondary);">Full Configuration</h4>
+                <div class="config-tree-container">
+                  <TreeView :data="previewData.config" :default-expand-depth="1" />
+                </div>
               </div>
-              <div class="config-item">
-                <span class="config-label">Total Negotiations:</span>
-                <span>{{ previewData.gridInit.total_negotiations }}</span>
-              </div>
-              <div class="config-item">
-                <span class="config-label">Repetitions:</span>
-                <span>{{ previewData.gridInit.n_repetitions }}</span>
-              </div>
-              <div class="config-item">
-                <span class="config-label">Rotate Ufuns:</span>
-                <span>{{ previewData.gridInit.rotate_ufuns ? 'Yes' : 'No' }}</span>
+              
+              <!-- Competitors list if no full config -->
+              <div v-else-if="previewData?.gridInit?.competitors" class="config-details-section">
+                <h4 style="margin: 0 0 8px 0; font-size: 12px; color: var(--text-secondary);">Competitors</h4>
+                <div class="config-list">
+                  <div v-for="comp in previewData.gridInit.competitors.slice(0, 10)" :key="comp" class="config-list-item">
+                    {{ comp }}
+                  </div>
+                  <div v-if="previewData.gridInit.competitors.length > 10" class="config-list-more">
+                    +{{ previewData.gridInit.competitors.length - 10 }} more
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -419,6 +439,7 @@ import { useRouter } from 'vue-router'
 import { useTournamentsStore } from '../stores/tournaments'
 import { storeToRefs } from 'pinia'
 import NewTournamentModal from '../components/NewTournamentModal.vue'
+import TreeView from '../components/TreeView.vue'
 
 const router = useRouter()
 const tournamentsStore = useTournamentsStore()
@@ -633,7 +654,9 @@ async function loadPreviewData(tourn) {
       name: fullData.name,
       gridInit: fullData.gridInit,
       cellStates: fullData.cellStates || {},
-      leaderboard: fullData.leaderboard || []
+      leaderboard: fullData.leaderboard || [],
+      config: fullData.config || null,
+      scores: fullData.scores || [],
     }
   } catch (error) {
     console.error('Failed to load preview data:', error)
@@ -700,24 +723,65 @@ function getTournamentStats(tourn) {
 
 function getCellClass(competitor, scenario) {
   if (!previewData.value?.cellStates) return 'pending'
-  const key = `${competitor}::${scenario}`
-  const state = previewData.value.cellStates[key]
-  if (!state) return 'pending'
-  return state.status || 'pending'
+  
+  // Backend uses format: competitor::opponent::scenario
+  // For the grid preview, we show competitor vs scenarios (aggregated across opponents)
+  // Try to find any matching cell for this competitor+scenario combination
+  const cellStates = previewData.value.cellStates
+  for (const key of Object.keys(cellStates)) {
+    const parts = key.split('::')
+    // Handle both formats: "comp::scenario" and "comp::opponent::scenario"
+    if (parts.length === 3 && parts[0] === competitor && parts[2] === scenario) {
+      const state = cellStates[key]
+      return state.status === 'complete' ? 'completed' : (state.status || 'pending')
+    } else if (parts.length === 2 && parts[0] === competitor && parts[1] === scenario) {
+      const state = cellStates[key]
+      return state.status === 'complete' ? 'completed' : (state.status || 'pending')
+    }
+  }
+  return 'pending'
 }
 
 function getCellContent(competitor, scenario) {
   if (!previewData.value?.cellStates) return '⋯'
-  const key = `${competitor}::${scenario}`
-  const state = previewData.value.cellStates[key]
-  if (!state) return '⋯'
   
-  if (state.status === 'running') return '⟳'
-  if (state.status === 'pending') return '⋯'
-  if (state.status === 'failed') return '✗'
+  // Backend uses format: competitor::opponent::scenario
+  // For the grid preview, aggregate across opponents
+  const cellStates = previewData.value.cellStates
+  let totalAgreements = 0
+  let totalCount = 0
+  let foundAny = false
   
-  if (state.utility !== undefined) {
-    return state.utility.toFixed(2)
+  for (const key of Object.keys(cellStates)) {
+    const parts = key.split('::')
+    let matches = false
+    
+    // Handle both formats: "comp::scenario" and "comp::opponent::scenario"
+    if (parts.length === 3 && parts[0] === competitor && parts[2] === scenario) {
+      matches = true
+    } else if (parts.length === 2 && parts[0] === competitor && parts[1] === scenario) {
+      matches = true
+    }
+    
+    if (matches) {
+      foundAny = true
+      const state = cellStates[key]
+      
+      if (state.status === 'running') return '⟳'
+      if (state.status === 'error' || state.status === 'failed') return '✗'
+      
+      // Aggregate counts
+      totalCount += state.total || 1
+      totalAgreements += state.agreements || (state.has_agreement ? 1 : 0)
+    }
+  }
+  
+  if (!foundAny) return '⋯'
+  
+  // Show agreement rate as percentage
+  if (totalCount > 0) {
+    const rate = Math.round((totalAgreements / totalCount) * 100)
+    return `${rate}%`
   }
   
   return '✓'
@@ -905,6 +969,11 @@ async function stopTournament(tourn) {
   border-right: 1px solid var(--border-color);
   transition: width 0.3s ease;
   overflow: auto;
+}
+
+/* When preview is visible, don't let flex override explicit width */
+.content-area.with-preview .table-container {
+  flex: none;
 }
 
 /* Running Tournaments Section */
@@ -1361,16 +1430,72 @@ async function stopTournament(tourn) {
   font-weight: 600;
 }
 
+.config-preview-content {
+  padding: 16px;
+  overflow: auto;
+  max-height: calc(100vh - 200px);
+}
+
+.config-summary {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
 .config-item {
   display: flex;
   justify-content: space-between;
-  padding: 10px 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--border-color);
+}
+
+.config-item:last-child {
+  border-bottom: none;
 }
 
 .config-label {
   font-weight: 600;
   color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.config-tree-section {
+  margin-top: 16px;
+}
+
+.config-tree-container {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  max-height: 400px;
+  overflow: auto;
+}
+
+.config-details-section {
+  margin-top: 16px;
+}
+
+.config-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.config-list-item {
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.config-list-more {
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-style: italic;
 }
 
 .form-select {
