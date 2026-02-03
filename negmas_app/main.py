@@ -316,10 +316,10 @@ def run(
     log_level: Annotated[
         str,
         typer.Option(help="Backend log level (debug, info, warning, error, critical)"),
-    ] = "info",
+    ] = "error",
     dev: Annotated[
         bool, typer.Option("--dev", help="Enable development mode with auto-reload")
-    ] = True,
+    ] = False,
 ) -> None:
     """Run the NegMAS App (both backend and frontend servers).
 
@@ -569,10 +569,10 @@ def start(
     log_level: Annotated[
         str,
         typer.Option(help="Backend log level (debug, info, warning, error, critical)"),
-    ] = "info",
+    ] = "error",
     dev: Annotated[
         bool, typer.Option("--dev", help="Enable development mode with auto-reload")
-    ] = True,
+    ] = False,
 ) -> None:
     """Start the NegMAS App (synonym for 'run').
 
@@ -592,10 +592,10 @@ def restart(
     log_level: Annotated[
         str,
         typer.Option(help="Backend log level (debug, info, warning, error, critical)"),
-    ] = "info",
+    ] = "error",
     dev: Annotated[
         bool, typer.Option("--dev", help="Enable development mode with auto-reload")
-    ] = True,
+    ] = False,
     force: Annotated[
         bool,
         typer.Option("--force", "-f", help="Kill without checking if it's negmas-app"),
