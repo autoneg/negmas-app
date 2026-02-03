@@ -791,6 +791,152 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     }
   }
 
+  // Import a tournament from disk
+  async function importTournament(sourcePath, options = {}) {
+    try {
+      const response = await fetch('/api/tournament/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source_path: sourcePath,
+          name: options.name || null,
+          delete_original: options.deleteOriginal || false,
+          on_collision: options.onCollision || 'rename',
+        }),
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || 'Import failed')
+      }
+      
+      const data = await response.json()
+      
+      // Refresh the saved tournaments list
+      await loadSavedTournaments()
+      
+      return data
+    } catch (error) {
+      console.error('Failed to import tournament:', error)
+      throw error
+    }
+  }
+
+  // Validate a path for import
+  async function validateImportPath(path) {
+    try {
+      const response = await fetch('/api/tournament/validate_path', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      })
+      
+      if (!response.ok) {
+        return { valid: false, error: 'Validation request failed' }
+      }
+      
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to validate path:', error)
+      return { valid: false, error: error.message }
+    }
+  }
+
+  // Preview combining tournaments
+  async function previewCombineTournaments(tournamentIds, options = {}) {
+    try {
+      const response = await fetch('/api/tournament/combine/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tournament_ids: tournamentIds,
+          input_paths: options.inputPaths || null,
+          recursive: options.recursive !== false,
+        }),
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || 'Preview failed')
+      }
+      
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to preview combine:', error)
+      throw error
+    }
+  }
+
+  // Combine tournaments
+  async function combineTournaments(tournamentIds, options = {}) {
+    try {
+      const response = await fetch('/api/tournament/combine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tournament_ids: tournamentIds,
+          input_paths: options.inputPaths || null,
+          output_name: options.outputName || null,
+          recursive: options.recursive !== false,
+          metadata: options.metadata || null,
+        }),
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || 'Combine failed')
+      }
+      
+      const data = await response.json()
+      
+      // Refresh the saved tournaments list
+      await loadSavedTournaments()
+      
+      return data
+    } catch (error) {
+      console.error('Failed to combine tournaments:', error)
+      throw error
+    }
+  }
+
+  // Get storage statistics
+  async function getStorageStats() {
+    try {
+      const response = await fetch('/api/tournament/storage/stats')
+      if (!response.ok) {
+        throw new Error('Failed to get storage stats')
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to get storage stats:', error)
+      throw error
+    }
+  }
+
+  // Cleanup storage
+  async function cleanupStorage(options = {}) {
+    try {
+      const response = await fetch('/api/tournament/storage/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tournament_id: options.tournamentId || null,
+          remove_redundant_csvs: options.removeRedundantCsvs !== false,
+          remove_config_json: options.removeConfigJson || false,
+        }),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Cleanup failed')
+      }
+      
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to cleanup storage:', error)
+      throw error
+    }
+  }
+
   return {
     sessions,
     currentSession,
@@ -839,5 +985,12 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     clearEventLog,
     loadEventLog,
     loadScenariosSummary,
+    // Import/Combine/Storage
+    importTournament,
+    validateImportPath,
+    previewCombineTournaments,
+    combineTournaments,
+    getStorageStats,
+    cleanupStorage,
   }
 })

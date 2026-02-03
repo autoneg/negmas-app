@@ -189,6 +189,20 @@
               </div>
             </div>
           </div>
+          
+          <!-- Full Configuration (collapsible tree view) -->
+          <div class="config-section">
+            <h4 
+              class="config-section-title collapsible" 
+              @click="showFullConfig = !showFullConfig"
+            >
+              <span class="collapse-toggle">{{ showFullConfig ? '▼' : '▶' }}</span>
+              Full Configuration
+            </h4>
+            <div v-if="showFullConfig" class="config-tree-wrapper">
+              <TreeView :data="config" :default-expand-depth="1" />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -214,6 +228,7 @@
 import { ref, computed } from 'vue'
 import NegotiatorInfoModal from './NegotiatorInfoModal.vue'
 import StatsModal from './StatsModal.vue'
+import TreeView from './TreeView.vue'
 
 const props = defineProps({
   leaderboard: {
@@ -235,6 +250,7 @@ const props = defineProps({
 })
 
 const activeTab = ref('leaderboard')
+const showFullConfig = ref(false)
 
 const isCompleted = computed(() => props.status === 'completed')
 
@@ -641,5 +657,35 @@ function formatStatistic(stat) {
 .btn-icon-sm:hover {
   background: var(--bg-tertiary);
   color: var(--text-primary);
+}
+
+/* Collapsible section styles */
+.config-section-title.collapsible {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+.config-section-title.collapsible:hover {
+  color: var(--text-primary);
+}
+
+.collapse-toggle {
+  font-size: 10px;
+  color: var(--text-secondary);
+  width: 12px;
+}
+
+.config-tree-wrapper {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  max-height: 300px;
+  overflow: auto;
 }
 </style>

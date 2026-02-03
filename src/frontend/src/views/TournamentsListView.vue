@@ -7,6 +7,17 @@
         <button class="btn btn-primary" @click="showNewTournamentModal = true">
           + New Tournament
         </button>
+        <button class="btn btn-secondary" @click="showImportModal = true" title="Import tournament from disk">
+          📥 Import
+        </button>
+        <button 
+          class="btn btn-secondary" 
+          @click="openCombineModal"
+          :disabled="selectedForCombine.length < 2"
+          :title="selectedForCombine.length < 2 ? 'Select 2+ tournaments to combine' : 'Combine selected tournaments'"
+        >
+          🔗 Combine ({{ selectedForCombine.length }})
+        </button>
       </div>
       <div class="header-right">
         <!-- Preview Selector -->
@@ -129,6 +140,15 @@
             <table class="tournaments-table">
               <thead>
                 <tr>
+                  <th style="width: 40px;" class="checkbox-header">
+                    <input 
+                      type="checkbox" 
+                      :checked="allVisibleSelected"
+                      :indeterminate="someVisibleSelected && !allVisibleSelected"
+                      @change="toggleSelectAll"
+                      title="Select all for combining"
+                    >
+                  </th>
                   <th style="width: 160px;" @click="sortBy('date')">
                     Date
                     <span v-if="sortColumn === 'date'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
@@ -159,9 +179,16 @@
                   v-for="tourn in filteredAndSortedTournaments" 
                   :key="tourn.id"
                   @click="selectTournament(tourn)"
-                  :class="{ 'selected': selectedTournament?.id === tourn.id }"
+                  :class="{ 'selected': selectedTournament?.id === tourn.id, 'selected-for-combine': isSelectedForCombine(tourn.id) }"
                   class="clickable-row"
                 >
+                  <td class="checkbox-cell" @click.stop>
+                    <input 
+                      type="checkbox" 
+                      :checked="isSelectedForCombine(tourn.id)"
+                      @change="toggleSelectForCombine(tourn.id)"
+                    >
+                  </td>
                   <td class="date-cell">{{ formatDate(tourn.timestamp || tourn.created_at) }}</td>
                   <td class="name-cell">{{ tourn.name || tourn.id?.slice(0, 12) || 'Unknown' }}</td>
                   <td class="count-cell">{{ tourn.n_competitors || 0 }}</td>
@@ -430,6 +457,185 @@
         </div>
       </div>
     </Teleport>
+    
+    <!-- Import Tournament Modal -->
+    <Teleport to="body">
+      <div v-if="showImportModal" class="modal-overlay active" @click.self="closeImportModal">
+        <div class="modal" style="max-width: 550px;">
+          <div class="modal-header">
+            <h3>Import Tournament</h3>
+            <button class="modal-close" @click="closeImportModal">×</button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted" style="margin-bottom: 16px;">
+              Import a tournament from a directory on disk into the app's storage.
+            </p>
+            
+            <div class="form-group">
+              <label class="form-label">Source Path *</label>
+              <input 
+                type="text" 
+                v-model="importPath" 
+                @input="validateImportPathDebounced"
+                placeholder="/path/to/tournament/directory"
+                class="form-input"
+              >
+              <div v-if="importValidation" class="validation-status" :class="importValidation.valid ? 'valid' : 'invalid'">
+                <span v-if="importValidation.valid">
+                  ✓ Valid tournament directory
+                  <span v-if="importValidation.n_negotiations">({{ importValidation.n_negotiations }} negotiations)</span>
+                </span>
+                <span v-else>✗ {{ importValidation.error || 'Invalid path' }}</span>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Name (optional)</label>
+              <input 
+                type="text" 
+                v-model="importName" 
+                placeholder="Leave empty to use original name or generate one"
+                class="form-input"
+              >
+            </div>
+            
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="importDeleteOriginal">
+                <span>Delete original after import</span>
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="closeImportModal">Cancel</button>
+            <button 
+              class="btn btn-primary" 
+              @click="performImport"
+              :disabled="!importPath.trim() || importLoading || (importValidation && !importValidation.valid)"
+            >
+              <span v-if="importLoading">Importing...</span>
+              <span v-else>Import</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+    
+    <!-- Combine Tournaments Modal -->
+    <Teleport to="body">
+      <div v-if="showCombineModal" class="modal-overlay active" @click.self="closeCombineModal">
+        <div class="modal" style="max-width: 700px;">
+          <div class="modal-header">
+            <h3>Combine Tournaments</h3>
+            <button class="modal-close" @click="closeCombineModal">×</button>
+          </div>
+          <div class="modal-body">
+            <!-- Loading State -->
+            <div v-if="combineLoading && !combinePreview" class="combine-loading">
+              <p>Loading preview...</p>
+            </div>
+            
+            <!-- Error State -->
+            <div v-else-if="combinePreview?.error" class="combine-error">
+              <p class="error-message">{{ combinePreview.error }}</p>
+            </div>
+            
+            <!-- Preview -->
+            <div v-else-if="combinePreview" class="combine-preview">
+              <!-- Summary -->
+              <div class="preview-section">
+                <h4>Summary</h4>
+                <div class="preview-stats">
+                  <div class="stat-item">
+                    <span class="stat-label">Source Tournaments:</span>
+                    <span class="stat-value">{{ combinePreview.n_source_tournaments }}</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="stat-label">Total Scenarios:</span>
+                    <span class="stat-value">{{ combinePreview.n_scenarios }}</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="stat-label">Existing Negotiations:</span>
+                    <span class="stat-value">{{ combinePreview.n_existing_negotiations }}</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="stat-label">Expected Negotiations:</span>
+                    <span class="stat-value">{{ combinePreview.n_expected_negotiations }}</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="stat-label">Completion:</span>
+                    <span class="stat-value" :class="combinePreview.is_complete ? 'complete' : 'incomplete'">
+                      {{ combinePreview.completion_rate?.toFixed(1) }}%
+                      <span v-if="combinePreview.is_complete">(Complete)</span>
+                      <span v-else>(Incomplete)</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Competitors -->
+              <div class="preview-section">
+                <h4>Competitors ({{ combinePreview.competitors?.length || 0 }})</h4>
+                <div class="preview-list">
+                  <div v-for="comp in (combinePreview.competitors || []).slice(0, 10)" :key="comp.full_type" class="preview-list-item">
+                    <span class="item-name">{{ comp.short_name }}</span>
+                    <span class="item-detail">{{ comp.source_tournaments?.length || 0 }} tournaments</span>
+                  </div>
+                  <div v-if="(combinePreview.competitors || []).length > 10" class="preview-list-more">
+                    +{{ combinePreview.competitors.length - 10 }} more
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Warnings -->
+              <div v-if="combinePreview.completeness_warnings?.length > 0" class="preview-section warnings">
+                <h4>Warnings ({{ combinePreview.completeness_warnings.length }})</h4>
+                <div class="warnings-list">
+                  <div v-for="(warning, idx) in combinePreview.completeness_warnings.slice(0, 5)" :key="idx" class="warning-item">
+                    ⚠️ {{ warning }}
+                  </div>
+                  <div v-if="combinePreview.completeness_warnings.length > 5" class="warnings-more">
+                    +{{ combinePreview.completeness_warnings.length - 5 }} more warnings
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Type Conflicts -->
+              <div v-if="combinePreview.type_conflicts?.length > 0" class="preview-section errors">
+                <h4>Type Conflicts ({{ combinePreview.type_conflicts.length }})</h4>
+                <div class="errors-list">
+                  <div v-for="conflict in combinePreview.type_conflicts.slice(0, 5)" :key="conflict.short_name" class="error-item">
+                    ❌ "{{ conflict.short_name }}" has multiple types: {{ conflict.full_types?.join(', ') }}
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Name Input -->
+              <div class="form-group" style="margin-top: 16px;">
+                <label class="form-label">Combined Tournament Name (optional)</label>
+                <input 
+                  type="text" 
+                  v-model="combineName" 
+                  placeholder="Leave empty to generate automatically"
+                  class="form-input"
+                >
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="closeCombineModal">Cancel</button>
+            <button 
+              class="btn btn-primary" 
+              @click="performCombine"
+              :disabled="combineLoading || !combinePreview || combinePreview.error || combinePreview.type_conflicts?.length > 0"
+            >
+              <span v-if="combineLoading">Combining...</span>
+              <span v-else>Combine</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -468,6 +674,23 @@ const tagEditorTournament = ref(null)
 const tagEditorTags = ref([])
 const newTagInput = ref('')
 
+// Selection for combine
+const selectedForCombine = ref([])
+
+// Import modal state
+const showImportModal = ref(false)
+const importPath = ref('')
+const importName = ref('')
+const importDeleteOriginal = ref(false)
+const importValidation = ref(null)
+const importLoading = ref(false)
+
+// Combine modal state
+const showCombineModal = ref(false)
+const combinePreview = ref(null)
+const combineName = ref('')
+const combineLoading = ref(false)
+
 // Running tournaments come from sessions only
 const runningTournaments = computed(() => {
   return sessions.value
@@ -496,6 +719,17 @@ const completedTournaments = computed(() => {
 // For backward compatibility - combine all tournaments
 const allTournaments = computed(() => {
   return [...runningTournaments.value, ...completedTournaments.value]
+})
+
+// Computed properties for select-all checkbox
+const allVisibleSelected = computed(() => {
+  if (filteredAndSortedTournaments.value.length === 0) return false
+  return filteredAndSortedTournaments.value.every(t => selectedForCombine.value.includes(t.id))
+})
+
+const someVisibleSelected = computed(() => {
+  if (filteredAndSortedTournaments.value.length === 0) return false
+  return filteredAndSortedTournaments.value.some(t => selectedForCombine.value.includes(t.id))
 })
 
 // Helper to calculate progress percentage
@@ -847,6 +1081,139 @@ async function saveTagsFromEditor() {
   }
 }
 
+// Selection for combine
+function isSelectedForCombine(id) {
+  return selectedForCombine.value.includes(id)
+}
+
+function toggleSelectForCombine(id) {
+  const index = selectedForCombine.value.indexOf(id)
+  if (index === -1) {
+    selectedForCombine.value.push(id)
+  } else {
+    selectedForCombine.value.splice(index, 1)
+  }
+}
+
+function toggleSelectAll() {
+  if (allVisibleSelected.value) {
+    // Deselect all visible
+    const visibleIds = new Set(filteredAndSortedTournaments.value.map(t => t.id))
+    selectedForCombine.value = selectedForCombine.value.filter(id => !visibleIds.has(id))
+  } else {
+    // Select all visible
+    const visibleIds = filteredAndSortedTournaments.value.map(t => t.id)
+    const currentSet = new Set(selectedForCombine.value)
+    visibleIds.forEach(id => currentSet.add(id))
+    selectedForCombine.value = Array.from(currentSet)
+  }
+}
+
+// Import functions
+async function validateImportPathDebounced() {
+  if (!importPath.value.trim()) {
+    importValidation.value = null
+    return
+  }
+  
+  importLoading.value = true
+  try {
+    importValidation.value = await tournamentsStore.validateImportPath(importPath.value.trim())
+  } finally {
+    importLoading.value = false
+  }
+}
+
+async function performImport() {
+  if (!importPath.value.trim()) return
+  
+  importLoading.value = true
+  try {
+    const result = await tournamentsStore.importTournament(importPath.value.trim(), {
+      name: importName.value.trim() || null,
+      deleteOriginal: importDeleteOriginal.value,
+    })
+    
+    // Success - close modal and show notification
+    showImportModal.value = false
+    importPath.value = ''
+    importName.value = ''
+    importDeleteOriginal.value = false
+    importValidation.value = null
+    
+    alert(`Successfully imported tournament: ${result.output_id}`)
+  } catch (error) {
+    alert(`Import failed: ${error.message}`)
+  } finally {
+    importLoading.value = false
+  }
+}
+
+function closeImportModal() {
+  showImportModal.value = false
+  importPath.value = ''
+  importName.value = ''
+  importDeleteOriginal.value = false
+  importValidation.value = null
+}
+
+// Combine functions
+async function openCombineModal() {
+  if (selectedForCombine.value.length < 2) return
+  
+  showCombineModal.value = true
+  combineLoading.value = true
+  combinePreview.value = null
+  combineName.value = ''
+  
+  try {
+    combinePreview.value = await tournamentsStore.previewCombineTournaments(selectedForCombine.value)
+  } catch (error) {
+    combinePreview.value = { error: error.message }
+  } finally {
+    combineLoading.value = false
+  }
+}
+
+async function performCombine() {
+  if (!combinePreview.value || combinePreview.value.error) return
+  
+  // Warn if incomplete
+  if (!combinePreview.value.is_complete) {
+    const proceed = confirm(
+      `Warning: The combined tournament will be incomplete (${combinePreview.value.completion_rate?.toFixed(1)}% complete).\n\n` +
+      `${combinePreview.value.completeness_warnings?.slice(0, 3).join('\n') || ''}\n\n` +
+      `Do you want to continue?`
+    )
+    if (!proceed) return
+  }
+  
+  combineLoading.value = true
+  try {
+    const result = await tournamentsStore.combineTournaments(selectedForCombine.value, {
+      outputName: combineName.value.trim() || null,
+    })
+    
+    // Success - close modal and clear selection
+    showCombineModal.value = false
+    selectedForCombine.value = []
+    combinePreview.value = null
+    combineName.value = ''
+    
+    alert(`Successfully combined tournaments into: ${result.output_id}`)
+  } catch (error) {
+    alert(`Combine failed: ${error.message}`)
+  } finally {
+    combineLoading.value = false
+  }
+}
+
+function closeCombineModal() {
+  showCombineModal.value = false
+  combinePreview.value = null
+  combineName.value = ''
+}
+
 function onTournamentStart(data) {
   showNewTournamentModal.value = false
   
@@ -956,6 +1323,7 @@ async function stopTournament(tourn) {
 
 .content-area {
   display: flex;
+  flex-direction: row;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -966,7 +1334,7 @@ async function stopTournament(tourn) {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  border-right: 1px solid var(--border-color);
+  min-width: 0;
   transition: width 0.3s ease;
   overflow: auto;
 }
@@ -974,6 +1342,7 @@ async function stopTournament(tourn) {
 /* When preview is visible, don't let flex override explicit width */
 .content-area.with-preview .table-container {
   flex: none;
+  overflow: hidden;
 }
 
 /* Running Tournaments Section */
@@ -1117,12 +1486,14 @@ async function stopTournament(tourn) {
   flex: 1;
   overflow: auto;
   position: relative;
+  min-width: 0;
 }
 
 .tournaments-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+  table-layout: fixed;
 }
 
 .tournaments-table thead {
@@ -1323,10 +1694,13 @@ async function stopTournament(tourn) {
 
 .preview-container {
   width: 33.33%;
+  min-width: 0;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg-secondary);
   overflow: hidden;
+  border-left: 1px solid var(--border-color);
 }
 
 .preview-empty,
@@ -1511,5 +1885,327 @@ async function stopTournament(tourn) {
 .form-select:focus {
   outline: none;
   border-color: var(--primary-color);
+}
+
+/* Checkbox cells for combine selection */
+.checkbox-header,
+.checkbox-cell {
+  text-align: center;
+  width: 40px;
+}
+
+.checkbox-header input,
+.checkbox-cell input {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+.selected-for-combine {
+  background: rgba(59, 130, 246, 0.08) !important;
+}
+
+.selected-for-combine:hover {
+  background: rgba(59, 130, 246, 0.15) !important;
+}
+
+/* Form styles for modals */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.checkbox-label input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.validation-status {
+  margin-top: 6px;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+
+.validation-status.valid {
+  background: rgba(16, 185, 129, 0.1);
+  color: rgb(16, 185, 129);
+}
+
+.validation-status.invalid {
+  background: rgba(239, 68, 68, 0.1);
+  color: rgb(239, 68, 68);
+}
+
+/* Combine preview styles */
+.combine-loading,
+.combine-error {
+  padding: 24px;
+  text-align: center;
+}
+
+.error-message {
+  color: rgb(239, 68, 68);
+}
+
+.combine-preview {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.preview-section {
+  margin-bottom: 20px;
+}
+
+.preview-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.preview-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.stat-label {
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  font-weight: 500;
+}
+
+.stat-value.complete {
+  color: rgb(16, 185, 129);
+}
+
+.stat-value.incomplete {
+  color: rgb(245, 158, 11);
+}
+
+.preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.preview-list-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.item-name {
+  font-weight: 500;
+  font-family: monospace;
+}
+
+.item-detail {
+  color: var(--text-secondary);
+}
+
+.preview-list-more {
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.preview-section.warnings {
+  padding: 12px;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 6px;
+}
+
+.preview-section.warnings h4 {
+  color: rgb(245, 158, 11);
+}
+
+.warnings-list,
+.errors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.warning-item,
+.error-item {
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+.warnings-more {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.preview-section.errors {
+  padding: 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 6px;
+}
+
+.preview-section.errors h4 {
+  color: rgb(239, 68, 68);
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  border: none;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-secondary {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.badge-primary {
+  background: var(--primary-color);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
 }
 </style>
