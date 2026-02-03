@@ -411,8 +411,23 @@ def run(
         backend_proc = subprocess.Popen(backend_args, cwd=project_root)
         processes.append(backend_proc)
 
-        # Give backend a moment to start
-        time.sleep(1)
+        # Wait for backend to be ready (up to 30 seconds)
+        import urllib.request
+        import urllib.error
+
+        typer.echo("Waiting for backend to be ready...")
+        backend_url = f"http://{host}:{backend_port}/api/settings"
+        max_attempts = 30
+        for attempt in range(max_attempts):
+            try:
+                urllib.request.urlopen(backend_url, timeout=1)
+                typer.echo("Backend is ready!")
+                break
+            except (urllib.error.URLError, TimeoutError):
+                if attempt < max_attempts - 1:
+                    time.sleep(1)
+                else:
+                    typer.echo("Warning: Backend may not be fully ready", err=True)
 
         # Start frontend server
         typer.echo("Starting frontend server...")
