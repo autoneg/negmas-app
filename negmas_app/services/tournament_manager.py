@@ -129,6 +129,12 @@ class TournamentState:
     # Note: default_factory uses _create_mp_queue which creates a picklable queue
     event_queue: Any = field(default_factory=_create_mp_queue)
 
+    # Setup progress for polling (message, current step, total steps)
+    setup_progress: dict[str, Any] | None = None
+
+    # Live/running negotiations for polling - MP-safe dict for parallel execution
+    live_negotiations: Any = field(default_factory=_create_mp_dict)
+
     # Statistics per competitor
     competitor_stats: dict[str, dict[str, Any]] = field(default_factory=dict)
 
@@ -141,6 +147,20 @@ class TournamentState:
     competitor_names: list[str] = field(default_factory=list)
     opponent_names: list[str] = field(default_factory=list)
 
+    def emit_setup_progress(self, message: str, current: int, total: int) -> None:
+        """Emit a setup progress event (for both SSE and polling)."""
+        data = {"message": message, "current": current, "total": total}
+        self.setup_progress = data
+        self.event_queue.put(("setup_progress", data))
+
+    def emit_live_negotiation(self, run_id: str, data: dict[str, Any]) -> None:
+        """Update live negotiation data (for polling)."""
+        self.live_negotiations[run_id] = data
+
+    def remove_live_negotiation(self, run_id: str) -> None:
+        """Remove a completed negotiation from live negotiations."""
+        self.live_negotiations.pop(run_id, None)
+
 
 # Module-level callback functions for negotiation monitoring
 # These match NegMAS signature: Callable[[str | int, SAOState], None]
@@ -152,6 +172,7 @@ class TournamentState:
 def _make_neg_start_callback(
     event_queue: Any,  # multiprocessing.Manager().Queue - picklable
     cancel_flags: Any,  # multiprocessing.Manager().dict - picklable
+    live_negotiations: Any,  # multiprocessing.Manager().dict - for polling
     session_id: str,
 ) -> Callable[[str | int, Any], None]:
     """Create a negotiation start callback.
@@ -159,19 +180,24 @@ def _make_neg_start_callback(
     Args:
         event_queue: MP-safe queue (from Manager().Queue()).
         cancel_flags: MP-safe dict (from Manager().dict()).
+        live_negotiations: MP-safe dict for live negotiation state (for polling).
         session_id: The tournament session ID.
     """
 
     def callback(run_id: str | int, neg_state: Any) -> None:
         if cancel_flags.get(session_id, False):
             return
+        run_key = str(run_id)
         data = {
-            "run_id": str(run_id),
+            "run_id": run_key,
             "n_negotiators": neg_state.n_negotiators,
             "step": neg_state.step,
             "relative_time": neg_state.relative_time,
+            "status": "running",
         }
         event_queue.put(("neg_start", data))
+        # Store for polling
+        live_negotiations[run_key] = data
 
     return callback
 
@@ -179,6 +205,7 @@ def _make_neg_start_callback(
 def _make_neg_progress_callback(
     event_queue: Any,  # multiprocessing.Manager().Queue - picklable
     cancel_flags: Any,  # multiprocessing.Manager().dict - picklable
+    live_negotiations: Any,  # multiprocessing.Manager().dict - for polling
     session_id: str,
     sample_rate: int = 1,
 ) -> Callable[[str | int, Any], None]:
@@ -187,6 +214,7 @@ def _make_neg_progress_callback(
     Args:
         event_queue: MP-safe queue (from Manager().Queue()).
         cancel_flags: MP-safe dict (from Manager().dict()).
+        live_negotiations: MP-safe dict for live negotiation state (for polling).
         session_id: The tournament session ID.
         sample_rate: Emit progress event every N steps (1 = every step).
     """
@@ -218,8 +246,14 @@ def _make_neg_progress_callback(
             if neg_state.current_offer
             else None,
             "current_proposer": neg_state.current_proposer,
+            "status": "running",
         }
         event_queue.put(("neg_progress", data))
+        # Update for polling
+        if run_key in live_negotiations:
+            existing = dict(live_negotiations[run_key])
+            existing.update(data)
+            live_negotiations[run_key] = existing
 
     return callback
 
@@ -227,6 +261,7 @@ def _make_neg_progress_callback(
 def _make_neg_end_callback(
     event_queue: Any,  # multiprocessing.Manager().Queue - picklable
     cancel_flags: Any,  # multiprocessing.Manager().dict - picklable
+    live_negotiations: Any,  # multiprocessing.Manager().dict - for polling
     session_id: str,
 ) -> Callable[[str | int, Any], None]:
     """Create a negotiation end callback.
@@ -234,22 +269,27 @@ def _make_neg_end_callback(
     Args:
         event_queue: MP-safe queue (from Manager().Queue()).
         cancel_flags: MP-safe dict (from Manager().dict()).
+        live_negotiations: MP-safe dict for live negotiation state (for polling).
         session_id: The tournament session ID.
     """
 
     def callback(run_id: str | int, neg_state: Any) -> None:
         if cancel_flags.get(session_id, False):
             return
+        run_key = str(run_id)
         data = {
-            "run_id": str(run_id),
+            "run_id": run_key,
             "step": neg_state.step,
             "relative_time": neg_state.relative_time,
             "agreement": list(neg_state.agreement) if neg_state.agreement else None,
             "timedout": neg_state.timedout,
             "broken": neg_state.broken,
             "has_error": neg_state.has_error,
+            "status": "completed",
         }
         event_queue.put(("neg_end", data))
+        # Remove from live negotiations (it's done)
+        live_negotiations.pop(run_key, None)
 
     return callback
 
@@ -554,16 +594,23 @@ class TournamentManager:
 
         if config.monitor_negotiations:
             neg_start_callback = _make_neg_start_callback(
-                state.event_queue, self._cancel_flags, session_id
+                state.event_queue,
+                self._cancel_flags,
+                state.live_negotiations,
+                session_id,
             )
             neg_progress_callback = _make_neg_progress_callback(
                 state.event_queue,
                 self._cancel_flags,
+                state.live_negotiations,
                 session_id,
                 sample_rate=config.progress_sample_rate,
             )
             neg_end_callback = _make_neg_end_callback(
-                state.event_queue, self._cancel_flags, session_id
+                state.event_queue,
+                self._cancel_flags,
+                state.live_negotiations,
+                session_id,
             )
 
         def before_start_callback(info: Any) -> None:
@@ -830,17 +877,8 @@ class TournamentManager:
                     )
                     state.event_queue.put(("grid_init", state.grid_init))
 
-            # Emit a setup_progress event
-            state.event_queue.put(
-                (
-                    "setup_progress",
-                    {
-                        "message": message,
-                        "current": current,
-                        "total": total,
-                    },
-                )
-            )
+            # Emit a setup_progress event (for both SSE and polling)
+            state.emit_setup_progress(message, current, total)
 
         return (
             before_start_callback,
@@ -1070,16 +1108,7 @@ class TournamentManager:
 
             if is_continue:
                 # Use continue_cartesian_tournament for existing tournaments
-                state.event_queue.put(
-                    (
-                        "setup_progress",
-                        {
-                            "message": "Loading existing tournament...",
-                            "current": 1,
-                            "total": 3,
-                        },
-                    )
-                )
+                state.emit_setup_progress("Loading existing tournament...", 1, 3)
 
                 # Load existing tournament config to get names and settings
                 config_file = Path(config.save_path) / "config.yaml"
@@ -1259,16 +1288,7 @@ class TournamentManager:
                     neg_end_callback,
                 ) = self._create_callbacks(session_id, config)
 
-                state.event_queue.put(
-                    (
-                        "setup_progress",
-                        {
-                            "message": "Continuing tournament...",
-                            "current": 2,
-                            "total": 3,
-                        },
-                    )
-                )
+                state.emit_setup_progress("Continuing tournament...", 2, 3)
 
                 # Run continue_cartesian_tournament
                 if not config.save_path:

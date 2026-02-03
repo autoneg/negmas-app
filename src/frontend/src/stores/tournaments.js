@@ -223,6 +223,27 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         progress.value = state.progress
       }
       
+      // Update setup progress (for event log during setup phase)
+      if (state.setup_progress) {
+        const sp = state.setup_progress
+        // Only add to event log if message changed
+        if (!setupProgress.value || setupProgress.value.message !== sp.message) {
+          eventLog.value.push({
+            id: eventLog.value.length,
+            timestamp: Date.now(),
+            type: 'setup',
+            message: sp.message
+          })
+        }
+        setupProgress.value = sp
+      }
+      
+      // Update live negotiations
+      if (state.live_negotiations) {
+        // Convert to array format expected by the UI
+        liveNegotiations.value = Object.values(state.live_negotiations)
+      }
+      
       // Update current session status
       if (currentSession.value && currentSession.value.id === sessionId) {
         currentSession.value = {

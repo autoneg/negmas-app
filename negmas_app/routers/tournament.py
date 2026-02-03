@@ -632,6 +632,15 @@ async def get_tournament_state(session_id: str):
             "percent": state.progress.percent,
         }
 
+    # Add setup progress (for polling during setup phase)
+    if state and state.setup_progress:
+        response["setup_progress"] = state.setup_progress
+
+    # Add live negotiations (for polling during tournament run)
+    if state and state.live_negotiations:
+        # Convert MP dict to regular dict for JSON serialization
+        response["live_negotiations"] = dict(state.live_negotiations)
+
     # Add results if completed
     if session.status.value == "completed" and session.results:
         response["results"] = {
