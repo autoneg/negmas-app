@@ -1553,6 +1553,75 @@ async def combine_tournaments(request: CombineTournamentsRequest):
     }
 
 
+class PreviewCombineRequest(BaseModel):
+    """Request model for previewing tournament combination."""
+
+    tournament_ids: list[str] | None = None
+    input_paths: list[str] | None = None
+    recursive: bool = True
+
+
+@router.post("/combine/preview")
+async def preview_combine_tournaments(request: PreviewCombineRequest):
+    """Preview what combining tournaments will produce before actually doing it.
+
+    Returns a detailed analysis including:
+    - Combined competitor types (full and short names)
+    - Combined opponent types (if explicit)
+    - Combined scenarios
+    - Expected vs existing negotiations
+    - Completion status and warnings
+
+    Use this before /combine to verify the combination will produce valid results.
+
+    Args:
+        request: PreviewCombineRequest with tournament_ids or input_paths
+
+    Returns:
+        CombinePreview with detailed analysis of the combination.
+    """
+    if not request.tournament_ids and not request.input_paths:
+        raise HTTPException(
+            status_code=400,
+            detail="Must provide either tournament_ids or input_paths",
+        )
+
+    from dataclasses import asdict
+
+    preview = await asyncio.to_thread(
+        TournamentStorageService.preview_combine_tournaments,
+        tournament_ids=request.tournament_ids,
+        input_paths=request.input_paths,
+        recursive=request.recursive,
+    )
+
+    if not preview.valid:
+        raise HTTPException(status_code=400, detail=preview.error or "Preview failed")
+
+    # Convert dataclass to dict, handling nested dataclasses
+    result = asdict(preview)
+
+    # Convert CompetitorInfo objects to dicts
+    result["competitors"] = [
+        {
+            "full_type": c.full_type,
+            "short_name": c.short_name,
+            "source_tournaments": c.source_tournaments,
+        }
+        for c in preview.competitors
+    ]
+    result["opponents"] = [
+        {
+            "full_type": o.full_type,
+            "short_name": o.short_name,
+            "source_tournaments": o.source_tournaments,
+        }
+        for o in preview.opponents
+    ]
+
+    return result
+
+
 class FindTournamentsRequest(BaseModel):
     """Request model for finding tournaments in paths."""
 

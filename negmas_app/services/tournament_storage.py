@@ -53,6 +53,51 @@ class CombineResult:
 
 
 @dataclass
+class CompetitorInfo:
+    """Info about a competitor type."""
+
+    full_type: str  # Full Python path e.g. "negmas_genius_agents.Atlas3"
+    short_name: str  # Short name e.g. "Atlas3"
+    source_tournaments: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CombinePreview:
+    """Preview of what a combined tournament will look like."""
+
+    valid: bool
+    error: str | None = None
+
+    # Source tournaments
+    n_source_tournaments: int = 0
+    source_tournaments: list[dict] = field(default_factory=list)
+
+    # Competitors
+    competitors: list[CompetitorInfo] = field(default_factory=list)
+    n_competitors: int = 0
+
+    # Opponents (if explicit)
+    opponents: list[CompetitorInfo] = field(default_factory=list)
+    n_opponents: int = 0
+
+    # Scenarios
+    scenarios: list[str] = field(default_factory=list)
+    n_scenarios: int = 0
+
+    # Negotiations
+    n_existing_negotiations: int = 0
+    n_expected_negotiations: int = 0
+    completion_rate: float = 0.0
+
+    # Completeness check
+    is_complete: bool = False
+    completeness_warnings: list[str] = field(default_factory=list)
+
+    # Type mapping conflicts (different full types with same short name)
+    type_conflicts: list[dict] = field(default_factory=list)
+
+
+@dataclass
 class SavedTournamentSummary:
     """Summary info for a saved tournament."""
 
@@ -2873,6 +2918,326 @@ class TournamentStorageService:
                 logger.warning(f"Failed to update config.json during import: {e}")
 
         return paths_remapped
+
+    @classmethod
+    def preview_combine_tournaments(
+        cls,
+        tournament_ids: list[str] | None = None,
+        input_paths: list[str] | None = None,
+        recursive: bool = True,
+    ) -> CombinePreview:
+        """Generate a preview of what combining tournaments will produce.
+
+        This analyzes the tournaments to be combined and returns:
+        - Combined competitor/opponent types with full and short names
+        - Combined scenarios
+        - Expected vs existing negotiations
+        - Warnings about completeness issues (type name conflicts)
+
+        Args:
+            tournament_ids: List of tournament IDs from saved tournaments
+            input_paths: List of filesystem paths to search for tournaments
+            recursive: If True, recursively search input_paths for tournaments
+
+        Returns:
+            CombinePreview with analysis of the combination.
+        """
+        try:
+            # Collect tournament paths
+            paths_to_combine: list[Path] = []
+
+            # Mode 1: Combine by tournament IDs
+            if tournament_ids:
+                for tid in tournament_ids:
+                    tpath = cls.TOURNAMENTS_DIR / tid
+                    if tpath.exists() and cls._check_tournament_files_exist(tpath):
+                        paths_to_combine.append(tpath)
+
+            # Mode 2: Combine by filesystem paths
+            if input_paths:
+                for input_path in input_paths:
+                    p = Path(input_path)
+                    if not p.exists():
+                        continue
+                    if p.is_file():
+                        continue
+                    if cls._check_tournament_files_exist(p):
+                        paths_to_combine.append(p)
+                    elif recursive:
+                        for child in p.rglob("*"):
+                            if child.is_dir() and cls._check_tournament_files_exist(
+                                child
+                            ):
+                                paths_to_combine.append(child)
+
+            if not paths_to_combine:
+                return CombinePreview(
+                    valid=False,
+                    error="No valid tournament directories found",
+                )
+
+            # Remove duplicates
+            seen: set[str] = set()
+            unique_paths: list[Path] = []
+            for p in paths_to_combine:
+                ps = str(p.absolute())
+                if ps not in seen:
+                    seen.add(ps)
+                    unique_paths.append(p)
+
+            # Analyze each tournament
+            source_tournaments: list[dict] = []
+            all_competitors: dict[str, CompetitorInfo] = {}  # short_name -> info
+            all_opponents: dict[str, CompetitorInfo] = {}
+            all_scenarios: set[str] = set()
+            total_negotiations = 0
+            type_map_full_to_short: dict[str, str] = {}  # full_type -> short_name
+            type_conflicts: list[dict] = []
+            n_repetitions_set: set[int] = set()
+            self_play_set: set[bool] = set()
+            rotate_ufuns_set: set[bool] = set()
+
+            for path in unique_paths:
+                tournament_info: dict[str, Any] = {
+                    "id": path.name,
+                    "path": str(path),
+                }
+
+                # Load config.yaml (negmas) or config.json (our app)
+                config: dict[str, Any] = {}
+                config_yaml = path / "config.yaml"
+                config_json = path / "config.json"
+
+                if config_yaml.exists():
+                    try:
+                        with open(config_yaml) as f:
+                            config = yaml.safe_load(f) or {}
+                    except Exception:
+                        pass
+
+                if config_json.exists() and not config:
+                    try:
+                        with open(config_json) as f:
+                            config = json.load(f)
+                    except Exception:
+                        pass
+
+                # Extract competitor info
+                competitor_types = config.get(
+                    "competitors", config.get("competitor_types", [])
+                )
+                competitor_names = config.get("competitor_names", [])
+                competitor_type_map = config.get("competitor_type_map", {})
+
+                # Build short name mapping
+                for i, full_type in enumerate(competitor_types):
+                    short_name = (
+                        competitor_names[i]
+                        if i < len(competitor_names)
+                        else full_type.split(".")[-1]
+                    )
+
+                    # Check for conflicts
+                    if full_type in type_map_full_to_short:
+                        existing_short = type_map_full_to_short[full_type]
+                        if existing_short != short_name:
+                            type_conflicts.append(
+                                {
+                                    "full_type": full_type,
+                                    "short_names": [existing_short, short_name],
+                                    "source": path.name,
+                                }
+                            )
+                    else:
+                        type_map_full_to_short[full_type] = short_name
+
+                    # Check for same short name with different full type
+                    if short_name in all_competitors:
+                        existing_full = all_competitors[short_name].full_type
+                        if existing_full != full_type:
+                            type_conflicts.append(
+                                {
+                                    "short_name": short_name,
+                                    "full_types": [existing_full, full_type],
+                                    "source": path.name,
+                                }
+                            )
+                    else:
+                        all_competitors[short_name] = CompetitorInfo(
+                            full_type=full_type,
+                            short_name=short_name,
+                            source_tournaments=[path.name],
+                        )
+
+                    # Track which tournaments this competitor appears in
+                    if short_name in all_competitors:
+                        if (
+                            path.name
+                            not in all_competitors[short_name].source_tournaments
+                        ):
+                            all_competitors[short_name].source_tournaments.append(
+                                path.name
+                            )
+
+                # Extract opponent info (if explicit opponents)
+                opponent_types = config.get(
+                    "opponents", config.get("opponent_types", [])
+                )
+                opponent_names = config.get("opponent_names", [])
+
+                if opponent_types:
+                    for i, full_type in enumerate(opponent_types):
+                        short_name = (
+                            opponent_names[i]
+                            if i < len(opponent_names)
+                            else full_type.split(".")[-1]
+                        )
+
+                        if short_name not in all_opponents:
+                            all_opponents[short_name] = CompetitorInfo(
+                                full_type=full_type,
+                                short_name=short_name,
+                                source_tournaments=[path.name],
+                            )
+                        elif (
+                            path.name
+                            not in all_opponents[short_name].source_tournaments
+                        ):
+                            all_opponents[short_name].source_tournaments.append(
+                                path.name
+                            )
+
+                # Extract scenarios
+                n_scenarios = config.get("n_scenarios", 0)
+                tournament_info["n_scenarios"] = n_scenarios
+
+                # Try to get scenario names from scenarios folder
+                scenarios_dir = path / "scenarios"
+                if scenarios_dir.exists():
+                    for s in scenarios_dir.iterdir():
+                        if s.is_dir():
+                            all_scenarios.add(s.name)
+
+                # Extract tournament settings
+                n_reps = config.get("n_repetitions", 1)
+                n_repetitions_set.add(n_reps)
+                self_play = config.get("self_play", True)
+                self_play_set.add(self_play)
+                rotate = config.get("rotate_ufuns", True)
+                rotate_ufuns_set.add(rotate)
+
+                # Load negotiation count from details
+                try:
+                    results = cls._load_results(path)
+                    if results and results.details is not None:
+                        n_negs = len(results.details)
+                        total_negotiations += n_negs
+                        tournament_info["n_negotiations"] = n_negs
+                except Exception:
+                    pass
+
+                tournament_info["n_competitors"] = len(competitor_types)
+                tournament_info["n_opponents"] = (
+                    len(opponent_types) if opponent_types else 0
+                )
+                source_tournaments.append(tournament_info)
+
+            # Calculate expected negotiations for combined tournament
+            n_competitors = len(all_competitors)
+            n_opponents = len(all_opponents) if all_opponents else 0
+            n_scenarios = len(all_scenarios)
+
+            # Get common n_repetitions (use max if different)
+            n_repetitions = max(n_repetitions_set) if n_repetitions_set else 1
+            self_play = all(self_play_set) if self_play_set else True
+            rotate_ufuns = all(rotate_ufuns_set) if rotate_ufuns_set else True
+
+            # Calculate expected negotiations
+            if n_opponents > 0:
+                # Explicit opponents mode
+                n_pairs = n_competitors * n_opponents
+            else:
+                # Self-play mode
+                if self_play:
+                    n_pairs = n_competitors * n_competitors
+                else:
+                    n_pairs = n_competitors * (n_competitors - 1)
+
+            multiplier = 2 if rotate_ufuns else 1
+            n_expected = n_pairs * n_scenarios * n_repetitions * multiplier
+
+            # Build completeness warnings
+            warnings: list[str] = []
+
+            if len(n_repetitions_set) > 1:
+                warnings.append(
+                    f"Tournaments have different n_repetitions values: {sorted(n_repetitions_set)}"
+                )
+
+            if len(self_play_set) > 1:
+                warnings.append("Tournaments have different self_play settings")
+
+            if len(rotate_ufuns_set) > 1:
+                warnings.append("Tournaments have different rotate_ufuns settings")
+
+            if type_conflicts:
+                for conflict in type_conflicts:
+                    if "short_name" in conflict:
+                        warnings.append(
+                            f"Type conflict: '{conflict['short_name']}' maps to multiple types: {conflict['full_types']}"
+                        )
+                    elif "full_type" in conflict:
+                        warnings.append(
+                            f"Name conflict: '{conflict['full_type']}' has different short names: {conflict['short_names']}"
+                        )
+
+            # Check if some competitors are missing from some tournaments
+            for short_name, info in all_competitors.items():
+                if len(info.source_tournaments) < len(unique_paths):
+                    missing_from = [
+                        p.name
+                        for p in unique_paths
+                        if p.name not in info.source_tournaments
+                    ]
+                    warnings.append(
+                        f"Competitor '{short_name}' missing from tournaments: {missing_from}"
+                    )
+
+            completion_rate = (
+                (total_negotiations / n_expected * 100) if n_expected > 0 else 0.0
+            )
+            is_complete = (
+                total_negotiations >= n_expected
+                and len(type_conflicts) == 0
+                and len(warnings) == 0
+            )
+
+            return CombinePreview(
+                valid=True,
+                n_source_tournaments=len(unique_paths),
+                source_tournaments=source_tournaments,
+                competitors=list(all_competitors.values()),
+                n_competitors=n_competitors,
+                opponents=list(all_opponents.values()),
+                n_opponents=n_opponents,
+                scenarios=sorted(all_scenarios),
+                n_scenarios=n_scenarios,
+                n_existing_negotiations=total_negotiations,
+                n_expected_negotiations=n_expected,
+                completion_rate=completion_rate,
+                is_complete=is_complete,
+                completeness_warnings=warnings,
+                type_conflicts=type_conflicts,
+            )
+
+        except Exception as e:
+            import traceback
+
+            traceback.print_exc()
+            return CombinePreview(
+                valid=False,
+                error=f"Failed to preview combine: {e}",
+            )
 
     @classmethod
     def combine_tournaments(
