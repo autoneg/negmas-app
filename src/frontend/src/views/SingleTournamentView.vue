@@ -936,34 +936,17 @@ async function handleLoadTrace(tournamentId, negIndex) {
 .panels-bottom-row {
   display: flex;
   gap: 12px;
-  flex: 1 1 auto; /* Grow to fill remaining space */
+  flex: 1 1 0; /* Use 0 basis to allow proper flex distribution */
   min-height: 300px; /* Minimum usable height */
   overflow: hidden;
-  align-items: stretch; /* Ensure children stretch to full height */
 }
 
-.panel-event-log-wrapper {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
+.panel-event-log-wrapper,
 .panel-negotiations-wrapper {
-  flex: 1;
+  flex: 1 1 50%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.panel-negotiations-wrapper > * {
-  flex: 1;
-  min-height: 0;
 }
 
 @media (max-width: 1200px) {
