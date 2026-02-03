@@ -128,11 +128,11 @@
           <div class="config-items">
             <div class="config-item">
               <span class="config-label">Metric:</span>
-              <span class="config-value">{{ formatMetric(config.final_score?.metric) }}</span>
+              <span class="config-value">{{ formatMetric(finalScoreMetric) }}</span>
             </div>
             <div class="config-item">
               <span class="config-label">Statistic:</span>
-              <span class="config-value">{{ formatStatistic(config.final_score?.statistic) }}</span>
+              <span class="config-value">{{ formatStatistic(finalScoreStat) }}</span>
             </div>
           </div>
         </div>
@@ -218,7 +218,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import NegotiatorInfoModal from './NegotiatorInfoModal.vue'
 import StatsModal from './StatsModal.vue'
 
@@ -231,6 +231,50 @@ const props = defineProps({
     type: String,
     default: null
   }
+})
+
+// Computed: extract final score metric from various config formats
+const finalScoreMetric = computed(() => {
+  if (!props.config) return 'advantage'
+  
+  // Format 1: config.json style - final_score_metric
+  if (props.config.final_score_metric) {
+    return props.config.final_score_metric
+  }
+  
+  // Format 2: config.yaml style - final_score as array [metric, stat]
+  if (Array.isArray(props.config.final_score)) {
+    return props.config.final_score[0] || 'advantage'
+  }
+  
+  // Format 3: final_score as object with metric property
+  if (props.config.final_score?.metric) {
+    return props.config.final_score.metric
+  }
+  
+  return 'advantage'
+})
+
+// Computed: extract final score statistic from various config formats
+const finalScoreStat = computed(() => {
+  if (!props.config) return 'mean'
+  
+  // Format 1: config.json style - final_score_stat
+  if (props.config.final_score_stat) {
+    return props.config.final_score_stat
+  }
+  
+  // Format 2: config.yaml style - final_score as array [metric, stat]
+  if (Array.isArray(props.config.final_score)) {
+    return props.config.final_score[1] || 'mean'
+  }
+  
+  // Format 3: final_score as object with statistic property
+  if (props.config.final_score?.statistic) {
+    return props.config.final_score.statistic
+  }
+  
+  return 'mean'
 })
 
 // Modal state for negotiator info

@@ -150,6 +150,10 @@ class TournamentState:
     competitor_names: list[str] = field(default_factory=list)
     opponent_names: list[str] = field(default_factory=list)
 
+    # Tournament configuration (stored for display during running tournaments)
+    # This mirrors what negmas writes to config.yaml
+    config: dict[str, Any] = field(default_factory=dict)
+
     def emit_setup_progress(self, message: str, current: int, total: int) -> None:
         """Emit a setup progress event (for both SSE and polling)."""
         data = {"message": message, "current": current, "total": total}
@@ -481,49 +485,6 @@ class TournamentManager:
         """List all tournament sessions."""
         return list(self.sessions.values())
 
-    def _save_tournament_config(self, config: TournamentConfig, path: Path) -> None:
-        """Save tournament configuration to the tournament directory."""
-        path = Path(path)
-        path.mkdir(exist_ok=True, parents=True)
-
-        config_dict = {
-            "competitor_types": config.competitor_types,
-            "scenario_paths": config.scenario_paths,
-            "opponent_types": config.opponent_types,
-            "competitor_params": config.competitor_params,
-            "opponent_params": config.opponent_params,
-            "n_repetitions": config.n_repetitions,
-            "rotate_ufuns": config.rotate_ufuns,
-            "self_play": config.self_play,
-            "mechanism_type": config.mechanism_type,
-            "n_steps": config.n_steps,
-            "time_limit": config.time_limit,
-            "step_time_limit": config.step_time_limit,
-            "negotiator_time_limit": config.negotiator_time_limit,
-            "hidden_time_limit": config.hidden_time_limit,
-            "pend": config.pend,
-            "pend_per_second": config.pend_per_second,
-            "final_score_metric": config.final_score_metric,
-            "final_score_stat": config.final_score_stat,
-            "randomize_runs": config.randomize_runs,
-            "sort_runs": config.sort_runs,
-            "id_reveals_type": config.id_reveals_type,
-            "name_reveals_type": config.name_reveals_type,
-            "mask_scenario_names": config.mask_scenario_names,
-            "only_failures_on_self_play": config.only_failures_on_self_play,
-            "save_stats": config.save_stats,
-            "save_scenario_figs": config.save_scenario_figs,
-            "save_every": config.save_every,
-            "capture_offers": config.capture_offers,
-            "normalization": config.normalization,
-            "njobs": config.njobs,
-            "verbosity": config.verbosity,
-        }
-
-        config_file = path / "config.json"
-        with open(config_file, "w") as f:
-            json.dump(config_dict, f, indent=2)
-
     def _cleanup_redundant_csvs(self, path: Path) -> list[str]:
         """Remove redundant CSV files when parquet equivalents exist.
 
@@ -579,6 +540,74 @@ class TournamentManager:
             pass
 
         return SAOMechanism
+
+    def _build_config_for_display(
+        self,
+        config: TournamentConfig,
+        scenario_names: list[str],
+        competitor_names: list[str],
+        opponent_names: list[str],
+    ) -> dict[str, Any]:
+        """Build a JSON-serializable config dict for display during running tournament.
+
+        This mirrors the structure negmas writes to config.yaml so the frontend
+        can display consistent information for both running and completed tournaments.
+        """
+        return {
+            # Names (these get updated with actual names from negmas later)
+            "competitor_names": competitor_names,
+            "opponent_names": opponent_names,
+            "scenario_names": scenario_names,
+            # Full type paths
+            "competitors": config.competitor_types,
+            "opponents": config.opponent_types,
+            # Tournament structure
+            "n_repetitions": config.n_repetitions,
+            "n_scenarios": len(scenario_names),
+            "rotate_ufuns": config.rotate_ufuns,
+            "self_play": config.self_play,
+            "randomize_runs": config.randomize_runs,
+            "sort_runs": config.sort_runs,
+            # Mechanism settings
+            "mechanism_type": config.mechanism_type,
+            "n_steps": config.n_steps,
+            "time_limit": config.time_limit,
+            "step_time_limit": config.step_time_limit,
+            "negotiator_time_limit": config.negotiator_time_limit,
+            "hidden_time_limit": config.hidden_time_limit,
+            "pend": config.pend,
+            "pend_per_second": config.pend_per_second,
+            # Scoring
+            "final_score": [config.final_score_metric, config.final_score_stat],
+            # Information revelation
+            "id_reveals_type": config.id_reveals_type,
+            "name_reveals_type": config.name_reveals_type,
+            "mask_scenario_names": config.mask_scenario_names,
+            "only_failures_on_self_play": config.only_failures_on_self_play,
+            # Storage
+            "path": config.save_path,
+            "path_exists": config.path_exists,
+            "storage_format": config.storage_format,
+            "storage_optimization": config.storage_optimization,
+            "memory_optimization": config.memory_optimization,
+            "save_stats": config.save_stats,
+            "save_scenario_figs": config.save_scenario_figs,
+            "save_every": config.save_every,
+            "save_negotiations_as_folders": config.save_negotiations_as_folders,
+            # Scenario handling
+            "ignore_discount": config.ignore_discount,
+            "ignore_reserved": config.ignore_reserved,
+            # Execution
+            "njobs": config.njobs,
+            "verbosity": config.verbosity,
+            "raise_exceptions": config.raise_exceptions,
+            # Opponent modeling
+            "opponent_modeling_metrics": config.opponent_modeling_metrics,
+            "distribute_opponent_modeling_scores": config.distribute_opponent_modeling_scores,
+            # Params (if any)
+            "competitor_params": config.competitor_params,
+            "opponent_params": config.opponent_params,
+        }
 
     def _create_callbacks(
         self, session_id: str, config: TournamentConfig
@@ -1695,10 +1724,6 @@ class TournamentManager:
             perf_settings = SettingsService.load_performance()
             tournament_kwargs["image_format"] = perf_settings.plot_image_format
 
-            # Save config before starting
-            if config.save_path:
-                self._save_tournament_config(config, Path(config.save_path))
-
             # Add opponents if specified
             if opponents is not None:
                 tournament_kwargs["opponents"] = opponents
@@ -1716,6 +1741,15 @@ class TournamentManager:
                 tournament_kwargs["pend"] = config.pend
             if config.pend_per_second is not None:
                 tournament_kwargs["pend_per_second"] = config.pend_per_second
+
+            # Store config in state for display during running tournament
+            # This mirrors the structure negmas writes to config.yaml
+            state.config = self._build_config_for_display(
+                config,
+                scenario_names,
+                placeholder_competitor_names,
+                state.opponent_names,
+            )
 
             # Update status
             state.status = TournamentStatus.RUNNING
@@ -1753,6 +1787,11 @@ class TournamentManager:
                 elif not config.opponent_types:
                     # When no explicit opponents, opponents = competitors
                     state.opponent_names = actual_competitor_names
+
+                # Update state.config with actual names from negmas
+                if state.config:
+                    state.config["competitor_names"] = state.competitor_names
+                    state.config["opponent_names"] = state.opponent_names
 
                 # Emit updated grid_init with actual names
                 updated_grid_init = TournamentGridInit(
@@ -2107,9 +2146,6 @@ class TournamentManager:
                 "verbosity": config.verbosity,
                 "path": Path(config.save_path) if config.save_path else None,
             }
-
-            if config.save_path:
-                self._save_tournament_config(config, Path(config.save_path))
 
             if opponents is not None:
                 tournament_kwargs["opponents"] = opponents

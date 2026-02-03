@@ -17,6 +17,7 @@ import yaml
 
 from negmas.mechanisms import CompletedRun
 from negmas.tournaments.neg import SimpleTournamentResults
+from negmas.tournaments.neg import combine_tournaments as negmas_combine_tournaments
 
 logger = logging.getLogger(__name__)
 
@@ -638,8 +639,8 @@ class TournamentStorageService:
             "leaderboard": leaderboard,
         }
 
-        # Also load config if available (merged json + yaml)
-        config = cls._get_merged_config(path)
+        # Also load config if available
+        config = cls._load_config_yaml(path)
         if config:
             result["config"] = config
 
@@ -648,30 +649,12 @@ class TournamentStorageService:
 
     @classmethod
     def _load_config_from_path(cls, path: Path) -> dict | None:
-        """Load tournament config from a path (yaml or json).
+        """Load tournament config from a path (yaml only).
 
-        Note: This method loads only one file (yaml preferred).
-        Use _get_merged_config() for the full merged config.
+        This method loads config.yaml which is the authoritative source
+        for tournament configuration.
         """
-        # Try YAML first
-        yaml_file = path / "config.yaml"
-        if yaml_file.exists():
-            try:
-                with open(yaml_file) as f:
-                    return yaml.safe_load(f)
-            except Exception:
-                pass
-
-        # Try JSON
-        json_file = path / "config.json"
-        if json_file.exists():
-            try:
-                with open(json_file) as f:
-                    return json.load(f)
-            except Exception:
-                pass
-
-        return None
+        return cls._load_config_yaml(path)
 
     @classmethod
     def _load_scores(cls, path: Path) -> list[dict]:
@@ -2034,79 +2017,38 @@ class TournamentStorageService:
 
     @classmethod
     def get_tournament_config(cls, tournament_id: str) -> dict | None:
-        """Get full tournament configuration (config.json merged with config.yaml).
-
-        Loads config.json as base, then overrides/expands with config.yaml.
-        This provides the complete configuration with all parameters.
+        """Get tournament configuration from config.yaml.
 
         Args:
             tournament_id: Tournament ID.
 
         Returns:
-            Merged config dict or None if not found.
+            Config dict or None if not found.
         """
         tournament_path = cls.TOURNAMENTS_DIR / tournament_id
-        return cls._get_merged_config(tournament_path)
+        return cls._load_config_yaml(tournament_path)
 
     @classmethod
-    def _get_merged_config(cls, tournament_path: Path) -> dict | None:
-        """Get merged configuration from a tournament path.
+    def _load_config_yaml(cls, tournament_path: Path) -> dict | None:
+        """Load configuration from config.yaml.
 
-        Merges config.json (base) with config.yaml (overrides/additions).
+        This is the authoritative source for tournament configuration,
+        written by negmas during tournament execution.
 
         Args:
             tournament_path: Path to tournament directory.
 
         Returns:
-            Merged config dict or None if neither file exists.
+            Config dict or None if not found.
         """
-        config: dict[str, Any] = {}
-
-        # Load config.json as base (contains app-specific settings)
-        json_path = tournament_path / "config.json"
-        if json_path.exists():
-            try:
-                with open(json_path, "r") as f:
-                    config = json.load(f)
-            except Exception as e:
-                logger.info(f"Error loading config.json from {tournament_path}: {e}")
-
-        # Load config.yaml and merge (contains negmas tournament parameters)
         yaml_path = tournament_path / "config.yaml"
         if yaml_path.exists():
             try:
                 with open(yaml_path, "r") as f:
-                    yaml_config = yaml.safe_load(f)
-                    if yaml_config:
-                        # Deep merge yaml into json config
-                        config = cls._deep_merge(config, yaml_config)
+                    return yaml.safe_load(f)
             except Exception as e:
                 logger.info(f"Error loading config.yaml from {tournament_path}: {e}")
-
-        return config if config else None
-
-    @classmethod
-    def _deep_merge(cls, base: dict, override: dict) -> dict:
-        """Deep merge two dictionaries, with override taking precedence.
-
-        Args:
-            base: Base dictionary.
-            override: Dictionary with values that override base.
-
-        Returns:
-            Merged dictionary.
-        """
-        result = base.copy()
-        for key, value in override.items():
-            if (
-                key in result
-                and isinstance(result[key], dict)
-                and isinstance(value, dict)
-            ):
-                result[key] = cls._deep_merge(result[key], value)
-            else:
-                result[key] = value
-        return result
+        return None
 
     @classmethod
     def get_scores_csv(cls, tournament_id: str) -> list[dict] | None:
@@ -2270,7 +2212,7 @@ class TournamentStorageService:
             return {}
 
         files = {
-            "config": (path / "config.json").exists(),
+            "config": (path / "config.yaml").exists(),
             "scores": (path / "scores.csv").exists(),  # Always CSV (small file)
             "type_scores": (path / "type_scores.csv").exists(),  # Always CSV
             "all_scores": cls._file_exists_any_format(path, "all_scores"),
@@ -3128,7 +3070,7 @@ class TournamentStorageService:
     ) -> int:
         """Remap internal paths in tournament config files.
 
-        This updates any absolute paths in config.json to point to the new location.
+        This updates any absolute paths in config.yaml to point to the new location.
 
         Args:
             tournament_path: Path to the tournament folder
@@ -3140,63 +3082,94 @@ class TournamentStorageService:
         """
         paths_remapped = 0
 
-        # Update config.json
+        # Update config.yaml (primary) or config.json (legacy fallback)
+        config_yaml = tournament_path / "config.yaml"
         config_json = tournament_path / "config.json"
-        if config_json.exists():
-            try:
-                with open(config_json) as f:
+
+        # Prefer config.yaml, fall back to config.json for old tournaments
+        if config_yaml.exists():
+            config_path = config_yaml
+            is_yaml = True
+        elif config_json.exists():
+            config_path = config_json
+            is_yaml = False
+        else:
+            return paths_remapped
+
+        try:
+            with open(config_path) as f:
+                if is_yaml:
+                    config = yaml.safe_load(f)
+                else:
                     config = json.load(f)
 
-                modified = False
+            if config is None:
+                config = {}
 
-                # Remap scenario_paths
-                if "scenario_paths" in config and isinstance(
-                    config["scenario_paths"], list
-                ):
-                    new_scenario_paths = []
-                    for sp in config["scenario_paths"]:
-                        sp_path = Path(sp)
-                        # Check if it's under the old base
-                        try:
-                            rel = sp_path.relative_to(old_base)
-                            new_sp = str(new_base / rel)
-                            new_scenario_paths.append(new_sp)
-                            paths_remapped += 1
-                            modified = True
-                        except ValueError:
-                            # Not under old_base, keep as-is but note it
-                            new_scenario_paths.append(sp)
-                    config["scenario_paths"] = new_scenario_paths
+            modified = False
 
-                # Remap combined_from if it exists
-                if "combined_from" in config and isinstance(
-                    config["combined_from"], list
-                ):
-                    new_combined_from = []
-                    for cf in config["combined_from"]:
-                        cf_path = Path(cf)
-                        try:
-                            rel = cf_path.relative_to(old_base)
-                            new_cf = str(new_base / rel)
-                            new_combined_from.append(new_cf)
-                            paths_remapped += 1
-                            modified = True
-                        except ValueError:
-                            new_combined_from.append(cf)
-                    config["combined_from"] = new_combined_from
+            # Remap scenario_paths
+            if "scenario_paths" in config and isinstance(
+                config["scenario_paths"], list
+            ):
+                new_scenario_paths = []
+                for sp in config["scenario_paths"]:
+                    sp_path = Path(sp)
+                    # Check if it's under the old base
+                    try:
+                        rel = sp_path.relative_to(old_base)
+                        new_sp = str(new_base / rel)
+                        new_scenario_paths.append(new_sp)
+                        paths_remapped += 1
+                        modified = True
+                    except ValueError:
+                        # Not under old_base, keep as-is but note it
+                        new_scenario_paths.append(sp)
+                config["scenario_paths"] = new_scenario_paths
 
-                # Add import metadata
-                config["imported"] = True
-                config["imported_at"] = datetime.now().isoformat()
-                config["original_path"] = str(old_base)
-                modified = True
+            # Remap path field (negmas uses this in config.yaml)
+            if "path" in config and isinstance(config["path"], str):
+                try:
+                    path_val = Path(config["path"])
+                    rel = path_val.relative_to(old_base)
+                    config["path"] = str(new_base / rel)
+                    paths_remapped += 1
+                    modified = True
+                except ValueError:
+                    pass  # Not under old_base, keep as-is
 
-                if modified:
-                    with open(config_json, "w") as f:
-                        json.dump(config, f, indent=2)
+            # Remap combined_from if it exists
+            if "combined_from" in config and isinstance(config["combined_from"], list):
+                new_combined_from = []
+                for cf in config["combined_from"]:
+                    cf_path = Path(cf)
+                    try:
+                        rel = cf_path.relative_to(old_base)
+                        new_cf = str(new_base / rel)
+                        new_combined_from.append(new_cf)
+                        paths_remapped += 1
+                        modified = True
+                    except ValueError:
+                        new_combined_from.append(cf)
+                config["combined_from"] = new_combined_from
 
-            except Exception as e:
-                logger.warning(f"Failed to update config.json during import: {e}")
+            # Add import metadata
+            config["imported"] = True
+            config["imported_at"] = datetime.now().isoformat()
+            config["original_path"] = str(old_base)
+            modified = True
+
+            if modified:
+                # Always write to config.yaml (converting json to yaml if needed)
+                with open(config_yaml, "w") as f:
+                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+                # If we converted from json, remove the old config.json
+                if not is_yaml and config_json.exists():
+                    config_json.unlink()
+
+        except Exception as e:
+            logger.warning(f"Failed to update config during import: {e}")
 
         return paths_remapped
 
@@ -3529,6 +3502,7 @@ class TournamentStorageService:
         output_path: str | None = None,
         recursive: bool = True,
         metadata: dict[str, Any] | None = None,
+        copy: bool = False,
     ) -> CombineResult:
         """Combine multiple tournaments into a single result.
 
@@ -3542,7 +3516,9 @@ class TournamentStorageService:
             output_name: Name for the combined tournament (used as folder name)
             output_path: Custom output path (if None, saves to tournaments dir)
             recursive: If True, recursively search input_paths for tournaments
-            metadata: Additional metadata to save in config.json
+            metadata: Additional metadata to save in config.yaml
+            copy: If True, copy scenarios and runs from source tournaments so the
+                combined tournament can be displayed like a normal tournament
 
         Returns:
             CombineResult with success status, output location, and statistics.
@@ -3593,24 +3569,6 @@ class TournamentStorageService:
                     seen.add(ps)
                     unique_paths.append(p)
 
-            # Use negmas SimpleTournamentResults.combine()
-            combined_results, loaded_paths = SimpleTournamentResults.combine(
-                unique_paths,
-                recursive=False,  # We already did the recursion
-                recalc_details=False,
-                recalc_scores=False,
-                must_have_details=True,
-                verbosity=0,
-                add_tournament_column=True,
-                complete_only=True,
-            )
-
-            if combined_results is None or len(loaded_paths) == 0:
-                return CombineResult(
-                    success=False,
-                    error="Failed to combine tournaments - no valid results found",
-                )
-
             # Generate output path
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             if output_name:
@@ -3627,9 +3585,28 @@ class TournamentStorageService:
             else:
                 final_output_path = cls.TOURNAMENTS_DIR / output_id
 
-            # Save combined results using negmas' save method
-            # This handles storage_format and storage_optimization correctly
-            combined_results.save(final_output_path, exist_ok=True)
+            # Use negmas combine_tournaments function which handles copy
+            combined_results = negmas_combine_tournaments(
+                unique_paths,
+                dst=final_output_path,
+                recursive=False,  # We already did the recursion
+                recalc_details=False,
+                recalc_scores=False,
+                must_have_details=True,
+                verbosity=0,
+                add_tournament_column=True,
+                complete_only=True,
+                copy=copy,
+            )
+
+            if combined_results is None:
+                return CombineResult(
+                    success=False,
+                    error="Failed to combine tournaments - no valid results found",
+                )
+
+            # Get loaded paths from the combined results
+            loaded_paths = unique_paths  # All paths we attempted to combine
 
             # Compute statistics from the combined results
             details_df = combined_results.details
@@ -3680,8 +3657,8 @@ class TournamentStorageService:
             if metadata:
                 config["metadata"] = metadata
 
-            with open(final_output_path / "config.json", "w") as f:
-                json.dump(config, f, indent=2)
+            with open(final_output_path / "config.yaml", "w") as f:
+                yaml.dump(config, f, default_flow_style=False)
 
             # Save detailed metadata.yaml with source tournament information
             source_tournaments_info = []

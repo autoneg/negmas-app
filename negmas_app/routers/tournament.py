@@ -656,6 +656,10 @@ async def get_tournament_state(session_id: str):
     if state and state.completed_negotiations:
         response["completed_negotiations"] = state.completed_negotiations
 
+    # Add tournament config (for display during running tournament)
+    if state and state.config:
+        response["config"] = state.config
+
     # Add results if completed
     if session.status.value == "completed" and session.results:
         response["results"] = {
@@ -1622,17 +1626,16 @@ async def get_tournament_files(tournament_id: str):
 
 @router.get("/saved/{tournament_id}/config")
 async def get_tournament_config(tournament_id: str):
-    """Get full tournament configuration (merged config.json + config.yaml).
+    """Get tournament configuration from config.yaml.
 
-    Returns the complete tournament configuration by merging config.json
-    (app-specific settings) with config.yaml (negmas tournament parameters).
-    The yaml values override/extend json values.
+    Returns the tournament configuration from config.yaml, which is written
+    by negmas during tournament execution and contains all tournament parameters.
 
     Args:
         tournament_id: Tournament ID.
 
     Returns:
-        Full merged config dict from the tournament.
+        Config dict from the tournament's config.yaml.
     """
     config = await asyncio.to_thread(
         TournamentStorageService.get_tournament_config, tournament_id
@@ -1821,6 +1824,9 @@ class CombineTournamentsRequest(BaseModel):
     output_path: str | None = None  # Custom output path (optional)
     recursive: bool = True  # Recursively search paths
     metadata: dict | None = None  # Additional metadata
+    copy_data: bool = (
+        False  # Copy scenarios/runs so combined tournament can be displayed
+    )
 
 
 @router.post("/combine")
@@ -1851,6 +1857,7 @@ async def combine_tournaments(request: CombineTournamentsRequest):
         output_path=request.output_path,
         recursive=request.recursive,
         metadata=request.metadata,
+        copy=request.copy_data,
     )
 
     if not result.success:
