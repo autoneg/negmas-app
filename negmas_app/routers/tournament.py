@@ -699,8 +699,9 @@ async def list_sessions():
 
     Returns sessions grouped by status.
     """
+    manager = get_manager()
     sessions = []
-    for session in get_manager().list_sessions():
+    for session in manager.list_sessions():
         config_data = None
         if session.config is not None:
             config_data = {
@@ -710,6 +711,7 @@ async def list_sessions():
                 "mechanism_type": session.config.mechanism_type,
             }
 
+        # Get progress from session or from tournament state (for running tournaments)
         progress_data = None
         if session.progress is not None:
             progress_data = {
@@ -717,6 +719,22 @@ async def list_sessions():
                 "total": session.progress.total,
                 "percent": session.progress.percent,
             }
+        else:
+            # Check tournament state for running tournaments
+            state = manager.get_tournament_state(session.id)
+            if state and state.progress:
+                progress_data = {
+                    "completed": state.progress.completed,
+                    "total": state.progress.total,
+                    "percent": state.progress.percent,
+                }
+            elif state and state.grid_init:
+                # Grid init exists but no progress yet - show 0/total
+                progress_data = {
+                    "completed": 0,
+                    "total": state.grid_init.total_negotiations,
+                    "percent": 0,
+                }
 
         sessions.append(
             {
