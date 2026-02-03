@@ -1114,7 +1114,77 @@ async function loadPreviewData(neg) {
       if (neg.tournament_id && neg.index !== undefined) {
         const response = await fetch(`/api/tournament/saved/${neg.tournament_id}/negotiation/${neg.index}`)
         if (response.ok) {
-          fullData = await response.json()
+          const tournamentData = await response.json()
+          
+          // Transform tournament data to common format
+          const issueNames = tournamentData.issue_names || []
+          
+          // Helper to convert array to dict using issue_names
+          const arrayToDict = (arr) => {
+            if (!arr || !Array.isArray(arr) || issueNames.length === 0) {
+              return arr  // Return as-is if not an array or no issue names
+            }
+            const dict = {}
+            issueNames.forEach((name, i) => {
+              if (i < arr.length) {
+                dict[name] = arr[i]
+              }
+            })
+            return dict
+          }
+          
+          // Extract negotiator names from negotiators array
+          const negotiatorNames = (tournamentData.negotiators || []).map(n => n.short_type || n.name || 'Unknown')
+          const negotiatorColors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, negotiatorNames.length)
+          
+          // Create name-to-index mapping for proposer lookup
+          const nameToIdx = {}
+          tournamentData.negotiators?.forEach((n, i) => {
+            nameToIdx[n.name] = i
+            nameToIdx[n.short_type] = i
+          })
+          
+          // Transform history to offers format
+          const offers = (tournamentData.history || []).map((item, idx) => {
+            const rawOffer = item.offer
+            const offer = arrayToDict(rawOffer)
+            
+            // Find proposer index from negotiator name
+            let proposerIndex = 0
+            const proposer = item.negotiator
+            if (proposer) {
+              if (nameToIdx[proposer] !== undefined) {
+                proposerIndex = nameToIdx[proposer]
+              } else {
+                // Try partial match
+                for (const [name, i] of Object.entries(nameToIdx)) {
+                  if (proposer.includes(name) || name.includes(proposer)) {
+                    proposerIndex = i
+                    break
+                  }
+                }
+              }
+            }
+            
+            return {
+              step: item.step ?? idx,
+              offer: offer,
+              proposer: proposer,
+              proposer_index: proposerIndex,
+              relative_time: item.relative_time || 0,
+              utilities: item.utilities || [],
+            }
+          })
+          
+          fullData = {
+            ...tournamentData,
+            scenario_name: tournamentData.scenario,
+            negotiator_names: negotiatorNames,
+            negotiator_colors: negotiatorColors,
+            issue_names: issueNames,
+            offers: offers,
+            agreement: arrayToDict(tournamentData.agreement),
+          }
         } else {
           console.error('Failed to load tournament negotiation:', response.status)
           previewData.value = null

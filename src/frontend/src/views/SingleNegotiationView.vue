@@ -361,6 +361,34 @@ async function loadTournamentNegotiation(sessionId) {
     
     // Convert agreement array to dict if needed
     const agreement = arrayToDict(fullData.agreement)
+    
+    // Create name-to-index mapping for proposer lookup
+    const nameToIdx = {}
+    fullData.negotiators?.forEach((n, i) => {
+      nameToIdx[n.name] = i
+      if (n.short_type) nameToIdx[n.short_type] = i
+    })
+    
+    // Helper to find proposer index from negotiator name
+    const getProposerIndex = (item) => {
+      // First check for direct proposer/current_proposer fields
+      if (item.proposer !== undefined && item.proposer !== null) return item.proposer
+      if (item.current_proposer !== undefined && item.current_proposer !== null) return item.current_proposer
+      if (item.proposer_index !== undefined && item.proposer_index !== null) return item.proposer_index
+      
+      // Fall back to negotiator name lookup
+      const proposer = item.negotiator
+      if (proposer) {
+        if (nameToIdx[proposer] !== undefined) return nameToIdx[proposer]
+        // Try partial match
+        for (const [name, idx] of Object.entries(nameToIdx)) {
+          if (proposer.includes(name) || name.includes(proposer)) {
+            return idx
+          }
+        }
+      }
+      return 0
+    }
 
     // Map to negotiation format
     negotiation.value = {
@@ -393,7 +421,8 @@ async function loadTournamentNegotiation(sessionId) {
         return {
           step: item.step ?? idx,
           offer: offer,
-          proposer_index: item.proposer ?? item.current_proposer ?? (item.negotiator ? 0 : 0),
+          proposer: item.negotiator,
+          proposer_index: getProposerIndex(item),
           relative_time: item.relative_time || 0,
           utilities: item.utilities || [],
         }
