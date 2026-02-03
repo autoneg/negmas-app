@@ -1131,7 +1131,11 @@ async function handleLoadTrace(tournamentId, negIndex) {
 }
 
 .error-value {
-  color: var(--color-error);
+  background: rgb(239, 68, 68);
+  color: white;
   font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 11px;
 }
 </style>

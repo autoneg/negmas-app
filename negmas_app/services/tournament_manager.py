@@ -1048,26 +1048,183 @@ class TournamentManager:
                     )
                 )
 
+                # Load existing tournament config to get names and settings
+                config_file = Path(config.save_path) / "config.yaml"
+                if config_file.exists():
+                    import yaml
+
+                    with open(config_file, "r") as f:
+                        saved_config = yaml.safe_load(f)
+
+                    # Extract competitor/opponent names from saved config
+                    competitor_names = saved_config.get("competitor_names", [])
+                    opponent_names = saved_config.get("opponent_names", [])
+
+                    # Get scenario names from scenarios directory
+                    scenarios_dir = Path(config.save_path) / "scenarios"
+                    scenario_names = []
+                    scenario_paths = []
+                    if scenarios_dir.exists():
+                        for scenario_dir in sorted(scenarios_dir.iterdir()):
+                            if scenario_dir.is_dir():
+                                scenario_names.append(scenario_dir.name)
+                                scenario_paths.append(str(scenario_dir))
+
+                    # Initialize state with loaded names
+                    state.competitor_names = (
+                        competitor_names if competitor_names else ["Competitor"]
+                    )
+                    state.opponent_names = (
+                        opponent_names
+                        if opponent_names
+                        else competitor_names
+                        if competitor_names
+                        else ["Opponent"]
+                    )
+                    state.scenario_names = scenario_names
+                    state.scenario_paths = scenario_paths
+
+                    # Calculate total negotiations
+                    n_competitors = len(state.competitor_names)
+                    n_opponents = len(state.opponent_names)
+                    n_scenarios = len(scenario_names)
+                    n_repetitions = saved_config.get("n_repetitions", 1)
+                    rotate_ufuns = saved_config.get("rotate_ufuns", True)
+                    rotation_factor = 2 if rotate_ufuns else 1
+                    total_negotiations = (
+                        n_competitors
+                        * n_opponents
+                        * n_scenarios
+                        * n_repetitions
+                        * rotation_factor
+                    )
+
+                    # Update config with loaded settings for callbacks
+                    config.monitor_negotiations = saved_config.get(
+                        "monitor_negotiations", True
+                    )
+                    config.progress_sample_rate = saved_config.get(
+                        "progress_sample_rate", 5
+                    )
+                    config.final_score_metric = saved_config.get(
+                        "final_score_metric", "advantage"
+                    )
+                    # Load njobs from saved config (default to -1 for serial)
+                    config.njobs = saved_config.get("njobs", -1)
+                    config.final_score_stat = saved_config.get(
+                        "final_score_stat", "mean"
+                    )
+
+                    # Emit grid_init so frontend can display the grid
+                    state.grid_init = TournamentGridInit(
+                        competitors=state.competitor_names,
+                        opponents=state.opponent_names,
+                        scenarios=scenario_names,
+                        n_repetitions=n_repetitions,
+                        rotate_ufuns=rotate_ufuns,
+                        total_negotiations=total_negotiations,
+                        storage_path=config.save_path,
+                    )
+                    state.event_queue.put(("grid_init", state.grid_init))
+
+                    # Load existing completed negotiations from results folder
+                    # to initialize the grid with already-completed cells
+                    from .tournament_storage import TournamentStorageService
+
+                    existing_negotiations = (
+                        TournamentStorageService._load_negotiations_summary(
+                            Path(config.save_path)
+                        )
+                    )
+                    n_already_completed = len(existing_negotiations)
+
+                    if n_already_completed > 0:
+                        # Build cell states from existing negotiations
+                        _, cell_states_dict = (
+                            TournamentStorageService._build_grid_structures(
+                                Path(config.save_path), existing_negotiations
+                            )
+                        )
+
+                        # Emit cell states for each completed cell
+                        for cell_id, cell_data in cell_states_dict.items():
+                            # Parse cell_id to get indices
+                            parts = cell_id.split("::")
+                            if len(parts) >= 3:
+                                competitor, opponent, scenario = (
+                                    parts[0],
+                                    parts[1],
+                                    parts[2],
+                                )
+
+                                # Find indices
+                                comp_idx = (
+                                    state.competitor_names.index(competitor)
+                                    if competitor in state.competitor_names
+                                    else 0
+                                )
+                                opp_idx = (
+                                    state.opponent_names.index(opponent)
+                                    if opponent in state.opponent_names
+                                    else 0
+                                )
+                                scenario_idx = (
+                                    scenario_names.index(scenario)
+                                    if scenario in scenario_names
+                                    else 0
+                                )
+
+                                # Determine end reason from cell data
+                                if cell_data.get("errors", 0) > 0:
+                                    end_reason = NegotiationEndReason.BROKEN
+                                elif cell_data.get("agreements", 0) > 0:
+                                    end_reason = NegotiationEndReason.AGREEMENT
+                                elif cell_data.get("timeouts", 0) > 0:
+                                    end_reason = NegotiationEndReason.TIMEOUT
+                                else:
+                                    end_reason = NegotiationEndReason.TIMEOUT
+
+                                # Create cell update for completed cell
+                                cell_update = CellUpdate(
+                                    competitor_idx=comp_idx,
+                                    opponent_idx=opp_idx,
+                                    scenario_idx=scenario_idx,
+                                    repetition=0,
+                                    rotated=False,
+                                    status=CellStatus.COMPLETE,
+                                    end_reason=end_reason,
+                                    utilities=cell_data.get("utilities"),
+                                )
+                                state.completed_cells.append(cell_update)
+                                state.event_queue.put(("run_complete", cell_update))
+
+                    # Initialize progress with already-completed count
+                    state.progress = TournamentProgress(
+                        completed=n_already_completed,
+                        total=total_negotiations,
+                        current_scenario=None,
+                        current_partners=None,
+                        percent=(n_already_completed / total_negotiations * 100)
+                        if total_negotiations > 0
+                        else 0,
+                    )
+                    state.event_queue.put(("progress", state.progress))
+
                 # Update status
                 state.status = TournamentStatus.RUNNING
                 session.status = TournamentStatus.RUNNING
                 session.start_time = datetime.now()
 
-                # Create simple callbacks for continue mode (no detailed cell updates available)
-                def simple_progress_callback(
-                    message: str,
-                    current: int,
-                    total: int,
-                    config_dict: dict[str, Any] | None = None,
-                ) -> None:
-                    if self._cancel_flags.get(session_id, False):
-                        return
-                    state.event_queue.put(
-                        (
-                            "setup_progress",
-                            {"message": message, "current": current, "total": total},
-                        )
-                    )
+                # Create callbacks using the same factory method as regular tournaments
+                (
+                    before_start_callback,
+                    after_construction_callback,
+                    after_end_callback,
+                    progress_callback,
+                    neg_start_callback,
+                    neg_progress_callback,
+                    neg_end_callback,
+                ) = self._create_callbacks(session_id, config)
 
                 state.event_queue.put(
                     (
@@ -1098,7 +1255,14 @@ class TournamentManager:
                     results = continue_cartesian_tournament(
                         path=Path(config.save_path),
                         verbosity=config.verbosity,
-                        njobs=-1,  # Serial for web app
+                        njobs=config.njobs,  # Use config value (loaded from saved config)
+                        before_start_callback=before_start_callback,
+                        progress_callback=progress_callback,
+                        neg_start_callback=neg_start_callback,
+                        after_construction_callback=after_construction_callback,
+                        neg_progress_callback=neg_progress_callback,
+                        neg_end_callback=neg_end_callback,
+                        after_end_callback=after_end_callback,
                     )
 
                 if results is None:

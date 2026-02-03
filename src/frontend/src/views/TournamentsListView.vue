@@ -63,7 +63,7 @@
             <table class="running-tournaments-table">
               <thead>
                 <tr>
-                  <th style="width: 180px;">Name/ID</th>
+                  <th style="width: 140px; max-width: 140px;">Name/ID</th>
                   <th style="width: 100px;">Competitors</th>
                   <th style="width: 100px;">Scenarios</th>
                   <th style="width: 150px;">Progress</th>
@@ -153,7 +153,7 @@
                     Date
                     <span v-if="sortColumn === 'date'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
                   </th>
-                  <th @click="sortBy('name')">
+                  <th style="width: 140px; max-width: 140px;" @click="sortBy('name')">
                     Name/ID
                     <span v-if="sortColumn === 'name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
                   </th>
@@ -1412,6 +1412,10 @@ async function stopTournament(tourn) {
 
 .tournament-name {
   font-weight: 500;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .session-id {
@@ -1419,6 +1423,13 @@ async function stopTournament(tourn) {
   color: var(--text-muted);
   font-family: monospace;
   margin-top: 2px;
+}
+
+.name-cell {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .progress-cell {
@@ -1579,9 +1590,13 @@ async function stopTournament(tourn) {
 }
 
 .stat-error {
-  color: var(--error-color, #ef4444);
+  background: rgb(239, 68, 68);
+  color: white;
   font-size: 10px;
-  margin-left: 2px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 4px;
 }
 
 .text-muted {

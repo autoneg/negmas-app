@@ -296,11 +296,16 @@ class TournamentStorageService:
 
     @classmethod
     def _check_tournament_files_exist(cls, path: Path) -> bool:
-        """Check if a directory contains tournament result files.
+        """Check if a directory contains tournament files.
 
-        Checks for scores.csv (always present) or any format of details/all_scores.
+        Checks for config.yaml (incomplete/continuable tournaments),
+        scores.csv (complete), or any format of details/all_scores.
         """
-        # scores.csv is always present (small file, always CSV)
+        # config.yaml indicates a tournament that can be continued
+        if (path / "config.yaml").exists():
+            return True
+
+        # scores.csv is present for completed tournaments
         if (path / "scores.csv").exists():
             return True
 

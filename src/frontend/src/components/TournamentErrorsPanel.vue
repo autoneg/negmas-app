@@ -118,10 +118,10 @@ function formatTime(timestamp) {
 }
 
 .error-badge {
-  background: var(--color-error);
+  background: rgb(239, 68, 68);
   color: white;
   font-size: 11px;
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: 10px;
   font-weight: 600;
 }
