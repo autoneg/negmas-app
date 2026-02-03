@@ -36,7 +36,7 @@ jobs:
 
       - name: Setup negmas-app (extract scenarios)
         run: |
-          uv run negmas-app setup
+          uv run negmas-app setup --skip-genius
 
       - name: Run tests
         run: |
@@ -70,7 +70,7 @@ jobs:
 
       - name: Setup negmas-app (extract scenarios)
         run: |
-          uv run negmas-app setup
+          uv run negmas-app setup --skip-genius
 
       - name: Run type checker
         run: uv run pyright negmas_app/

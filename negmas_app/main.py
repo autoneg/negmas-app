@@ -648,6 +648,13 @@ def setup(
             help="Skip copying cache files (_info.yaml, _stats.yaml, _plot.webp)",
         ),
     ] = False,
+    skip_genius: Annotated[
+        bool,
+        typer.Option(
+            "--skip-genius",
+            help="Skip Genius Bridge setup prompt (useful for CI/non-interactive environments)",
+        ),
+    ] = False,
 ) -> None:
     """Set up NegMAS App by extracting bundled scenarios to ~/negmas/app/scenarios/.
 
@@ -665,6 +672,7 @@ def setup(
         negmas-app setup                  # Extract scenarios with cache files
         negmas-app setup --skip-cache     # Extract scenarios without cache files
         negmas-app setup --force          # Overwrite all existing files
+        negmas-app setup --skip-genius    # Skip Genius Bridge prompt (for CI)
     """
     from rich.console import Console
     from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -756,40 +764,43 @@ def setup(
 
     console.print()
 
-    # Check for Genius Bridge and offer to set it up
-    genius_jar = Path.home() / "negmas" / "files" / "geniusbridge.jar"
-    if not genius_jar.exists():
-        console.print(
-            "[yellow]⚠ Genius Bridge not found[/yellow] - Required for running Genius/ANAC agents"
-        )
-        console.print(f"   Expected location: {genius_jar}")
-        console.print()
-
-        if Confirm.ask("Would you like to download Genius Bridge now?", default=True):
-            console.print()
-            console.print("[bold]Running Genius Setup...[/bold]")
-            console.print()
-
-            # Run negmas genius-setup
-            result = subprocess.run(
-                [sys.executable, "-m", "negmas", "genius-setup"],
-                capture_output=False,
-            )
-
-            if result.returncode == 0:
-                console.print()
-                console.print("[green]✓[/green] Genius Bridge setup complete!")
-            else:
-                console.print()
-                console.print(
-                    "[yellow]⚠[/yellow] Genius Bridge setup failed. You can run it manually later:"
-                )
-                console.print("   [bold]negmas genius-setup[/bold]")
-        else:
+    # Check for Genius Bridge and offer to set it up (unless --skip-genius)
+    if not skip_genius:
+        genius_jar = Path.home() / "negmas" / "files" / "geniusbridge.jar"
+        if not genius_jar.exists():
             console.print(
-                "[dim]You can set up Genius Bridge later with: negmas genius-setup[/dim]"
+                "[yellow]⚠ Genius Bridge not found[/yellow] - Required for running Genius/ANAC agents"
             )
-        console.print()
+            console.print(f"   Expected location: {genius_jar}")
+            console.print()
+
+            if Confirm.ask(
+                "Would you like to download Genius Bridge now?", default=True
+            ):
+                console.print()
+                console.print("[bold]Running Genius Setup...[/bold]")
+                console.print()
+
+                # Run negmas genius-setup
+                result = subprocess.run(
+                    [sys.executable, "-m", "negmas", "genius-setup"],
+                    capture_output=False,
+                )
+
+                if result.returncode == 0:
+                    console.print()
+                    console.print("[green]✓[/green] Genius Bridge setup complete!")
+                else:
+                    console.print()
+                    console.print(
+                        "[yellow]⚠[/yellow] Genius Bridge setup failed. You can run it manually later:"
+                    )
+                    console.print("   [bold]negmas genius-setup[/bold]")
+            else:
+                console.print(
+                    "[dim]You can set up Genius Bridge later with: negmas genius-setup[/dim]"
+                )
+            console.print()
 
     console.print("Start the app with: [bold]negmas-app run[/bold]")
     console.print()
