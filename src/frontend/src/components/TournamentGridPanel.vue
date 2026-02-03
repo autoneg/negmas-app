@@ -275,6 +275,90 @@
       :scenarioName="selectedScenarioName"
       @close="showScenarioStatsModal = false"
     />
+    
+    <!-- Cell Negotiations Modal -->
+    <Teleport to="body">
+      <div v-if="showCellModal" class="cell-modal-overlay" @click.self="closeCellModal">
+        <div class="cell-modal">
+          <div class="cell-modal-header">
+            <h3>
+              {{ selectedCell.competitor }} vs {{ selectedCell.opponent }}
+              <span v-if="selectedCell.scenario" class="cell-modal-scenario">
+                on {{ selectedCell.scenario.split('/').pop() }}
+              </span>
+            </h3>
+            <button class="close-btn" @click="closeCellModal" title="Close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          
+          <div class="cell-modal-body">
+            <div v-if="cellNegotiations.length === 0" class="empty-state">
+              <p>No negotiations found for this cell</p>
+              <p class="hint">Negotiations will appear here as they complete</p>
+            </div>
+            
+            <div v-else class="negotiations-list">
+              <div 
+                v-for="neg in cellNegotiations" 
+                :key="neg.run_id || neg.index"
+                class="negotiation-item"
+                :class="getNegotiationClass(neg)"
+              >
+                <div class="neg-info">
+                  <span class="neg-id" :title="neg.run_id">
+                    #{{ (neg.run_id || neg.index || '').toString().slice(-6) }}
+                  </span>
+                  <span class="neg-partners">
+                    {{ (neg.partners || []).join(' vs ') }}
+                  </span>
+                  <span class="neg-scenario">
+                    {{ (neg.scenario || neg.scenario_path || '').split('/').pop() }}
+                  </span>
+                </div>
+                
+                <div class="neg-result">
+                  <span 
+                    class="neg-badge"
+                    :class="getEndReasonClass(neg)"
+                  >
+                    {{ getEndReasonText(neg) }}
+                  </span>
+                  <span v-if="neg.utilities" class="neg-utilities">
+                    {{ formatUtilities(neg.utilities) }}
+                  </span>
+                </div>
+                
+                <button 
+                  class="btn-view"
+                  @click="viewFullNegotiation(neg)"
+                  title="View full negotiation"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                  View
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="cell-modal-footer">
+            <span class="negotiations-count">
+              {{ cellNegotiations.length }} negotiation{{ cellNegotiations.length !== 1 ? 's' : '' }}
+            </span>
+            <button class="btn btn-secondary" @click="viewAllCellNegotiations">
+              View All in List
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -562,7 +646,7 @@ function isCellRunning(i, j, scenarioKey) {
   }
 }
 
-// Navigate to negotiations filtered by cell
+// Navigate to negotiations filtered by cell - now opens modal instead
 function navigateToCellNegotiations(i, j, scenarioKey) {
   if (i === j && !props.selfPlay) return // Can't click self-play cells
   if (!props.tournamentId) return // Need tournament ID
@@ -570,24 +654,95 @@ function navigateToCellNegotiations(i, j, scenarioKey) {
   const competitor = competitors.value[i]
   const opponent = opponents.value[j]
   
-  // Build query params for filtering
+  // Set selected cell for modal
+  selectedCell.value = {
+    competitor,
+    opponent,
+    scenario: scenarioKey !== 'summary' ? scenarios.value[scenarioKey] : null
+  }
+  
+  // Open the modal
+  showCellModal.value = true
+}
+
+// Close the cell modal
+function closeCellModal() {
+  showCellModal.value = false
+  selectedCell.value = { competitor: null, opponent: null, scenario: null }
+}
+
+// Navigate to full negotiations list view for the cell
+function viewAllCellNegotiations() {
+  if (!props.tournamentId || !selectedCell.value.competitor) return
+  
   const query = {
-    competitor: competitor,
-    opponent: opponent
+    competitor: selectedCell.value.competitor,
+    opponent: selectedCell.value.opponent
   }
   
-  // Add scenario filter if not summary
-  if (scenarioKey !== 'summary') {
-    const scenario = scenarios.value[scenarioKey]
-    query.scenario = scenario
+  if (selectedCell.value.scenario) {
+    query.scenario = selectedCell.value.scenario
   }
   
-  // Navigate to tournament negotiations list with filters
+  closeCellModal()
+  
   router.push({
     name: 'TournamentNegotiationsList',
     params: { tournamentId: props.tournamentId },
     query
   })
+}
+
+// View a single negotiation in full view
+function viewFullNegotiation(neg) {
+  closeCellModal()
+  router.push({
+    name: 'TournamentNegotiation',
+    params: { 
+      tournamentId: props.tournamentId,
+      runId: neg.run_id || neg.index
+    }
+  })
+}
+
+// Helper functions for negotiation display
+function getNegotiationClass(neg) {
+  if (neg.has_error || neg.end_reason === 'error' || neg.end_reason === 'broken') {
+    return 'neg-error'
+  }
+  if (neg.has_agreement || neg.end_reason === 'agreement') {
+    return 'neg-agreement'
+  }
+  if (neg.end_reason === 'timeout') {
+    return 'neg-timeout'
+  }
+  return ''
+}
+
+function getEndReasonClass(neg) {
+  if (neg.has_error || neg.end_reason === 'error' || neg.end_reason === 'broken') {
+    return 'badge-error'
+  }
+  if (neg.has_agreement || neg.end_reason === 'agreement') {
+    return 'badge-success'
+  }
+  if (neg.end_reason === 'timeout') {
+    return 'badge-warning'
+  }
+  return 'badge-neutral'
+}
+
+function getEndReasonText(neg) {
+  if (neg.has_error || neg.end_reason === 'error') return 'Error'
+  if (neg.end_reason === 'broken') return 'Broken'
+  if (neg.has_agreement || neg.end_reason === 'agreement') return 'Agreement'
+  if (neg.end_reason === 'timeout') return 'Timeout'
+  return 'Complete'
+}
+
+function formatUtilities(utilities) {
+  if (!utilities || !Array.isArray(utilities)) return ''
+  return utilities.map(u => (u * 100).toFixed(0) + '%').join(' / ')
 }
 
 const competitors = computed(() => props.gridInit?.competitors || [])
@@ -1414,5 +1569,246 @@ function shouldShowMetrics(i, j) {
 
 .tournament-scenario-tab.active .scenario-info-btn:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* Cell Negotiations Modal */
+.cell-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.cell-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.cell-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.cell-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cell-modal-scenario {
+  font-weight: 400;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.cell-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 32px;
+  color: var(--text-secondary);
+}
+
+.empty-state .hint {
+  font-size: 12px;
+  margin-top: 8px;
+  opacity: 0.7;
+}
+
+.negotiations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.negotiation-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.negotiation-item:hover {
+  border-color: var(--primary-color);
+  background: var(--bg-hover);
+}
+
+.negotiation-item.neg-agreement {
+  border-left: 3px solid var(--success-color, #10b981);
+}
+
+.negotiation-item.neg-timeout {
+  border-left: 3px solid var(--warning-color, #f59e0b);
+}
+
+.negotiation-item.neg-error {
+  border-left: 3px solid var(--error-color, #ef4444);
+}
+
+.neg-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.neg-id {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.neg-partners {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.neg-scenario {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.neg-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.neg-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-success {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success-color, #10b981);
+}
+
+.badge-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning-color, #f59e0b);
+}
+
+.badge-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--error-color, #ef4444);
+}
+
+.badge-neutral {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.neg-utilities {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: monospace;
+}
+
+.btn-view {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-view:hover {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.cell-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  border-radius: 0 0 12px 12px;
+}
+
+.negotiations-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-secondary {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: var(--primary-color);
 }
 </style>
