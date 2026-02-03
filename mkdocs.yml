@@ -53,7 +53,6 @@ plugins:
             docstring_style: google
             show_source: true
             show_root_heading: true
-  - mkdocs-click
 
 markdown_extensions:
   - abbr
@@ -62,6 +61,7 @@ markdown_extensions:
   - def_list
   - footnotes
   - md_in_html
+  - mkdocs-click
   - tables
   - toc:
       permalink: true
