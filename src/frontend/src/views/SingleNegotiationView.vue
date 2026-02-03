@@ -105,6 +105,8 @@
           v-if="showStatsModal"
           :show="showStatsModal"
           :negotiation="negotiation"
+          :tournamentId="negotiation?.tournament_id"
+          :scenarioName="negotiation?.scenario_name"
           @close="showStatsModal = false"
         />
       </Teleport>
