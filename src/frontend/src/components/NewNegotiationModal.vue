@@ -1978,11 +1978,20 @@ function buildSessionPreset(name) {
     mechanism_type: mechanismType.value,
     mechanism_params: sanitizedMechanismParams,
     share_ufuns: shareUfuns.value,
+    // Scenario options
+    ignore_discount: options.value.ignoreDiscount,
+    ignore_reserved: options.value.ignoreReserved,
+    normalize: options.value.normalize,
+    save_scenario: options.value.saveScenario,
+    // Display options
     mode: runMode.value,
     step_delay: stepDelay.value,
     show_plot: displayOptions.value.showPlot,
     show_offers: displayOptions.value.showOffers,
-    panels: panels.value
+    auto_save: autoSave.value,
+    panels: panels.value,
+    // Save options
+    save_options: saveOptions.value
   }
 }
 
@@ -2109,15 +2118,27 @@ function loadFullSession(session) {
     Object.assign(mechanismParams.value, session.mechanism_params)
   }
   
+  // Set scenario options
+  options.value.ignoreDiscount = session.ignore_discount ?? false
+  options.value.ignoreReserved = session.ignore_reserved ?? false
+  options.value.normalize = session.normalize ?? false
+  options.value.saveScenario = session.save_scenario ?? false
+  
   // Set display options
   runMode.value = session.mode || 'realtime'
   stepDelay.value = session.step_delay ?? 100
   displayOptions.value.showPlot = session.show_plot ?? true
   displayOptions.value.showOffers = session.show_offers ?? true
+  autoSave.value = session.auto_save ?? false
   
   // Set panels
   if (session.panels) {
     Object.assign(panels.value, session.panels)
+  }
+  
+  // Set save options
+  if (session.save_options) {
+    Object.assign(saveOptions.value, session.save_options)
   }
   
   // Jump to display tab

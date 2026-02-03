@@ -69,6 +69,11 @@ class TournamentConfigRequest(BaseModel):
     final_score_metric: str = "advantage"
     final_score_stat: str = "mean"
 
+    # Opponent modeling metrics (e.g., ["kendall", "kendall_optimality", "ndcg", "euclidean"])
+    opponent_modeling_metrics: list[str] | None = None
+    # Distribute opponent modeling scores across negotiators
+    distribute_opponent_modeling_scores: bool = False
+
     # Run ordering
     randomize_runs: bool = False
     sort_runs: bool = True
@@ -167,6 +172,9 @@ async def start_tournament(request: TournamentConfigRequest):
         pend_per_second=_to_range_float(request.pend_per_second),
         final_score_metric=request.final_score_metric,
         final_score_stat=request.final_score_stat,
+        opponent_modeling_metrics=tuple(request.opponent_modeling_metrics)
+        if request.opponent_modeling_metrics
+        else None,
         randomize_runs=request.randomize_runs,
         sort_runs=request.sort_runs,
         id_reveals_type=request.id_reveals_type,
@@ -230,6 +238,9 @@ async def start_tournament_background(request: TournamentConfigRequest):
         pend_per_second=_to_range_float(request.pend_per_second),
         final_score_metric=request.final_score_metric,
         final_score_stat=request.final_score_stat,
+        opponent_modeling_metrics=tuple(request.opponent_modeling_metrics)
+        if request.opponent_modeling_metrics
+        else None,
         randomize_runs=request.randomize_runs,
         sort_runs=request.sort_runs,
         id_reveals_type=request.id_reveals_type,
@@ -640,6 +651,10 @@ async def get_tournament_state(session_id: str):
     if state and state.live_negotiations:
         # Convert MP dict to regular dict for JSON serialization
         response["live_negotiations"] = dict(state.live_negotiations)
+
+    # Add completed negotiations list (for Negotiations panel during running tournament)
+    if state and state.completed_negotiations:
+        response["completed_negotiations"] = state.completed_negotiations
 
     # Add results if completed
     if session.status.value == "completed" and session.results:
@@ -1607,13 +1622,17 @@ async def get_tournament_files(tournament_id: str):
 
 @router.get("/saved/{tournament_id}/config")
 async def get_tournament_config(tournament_id: str):
-    """Get tournament configuration from config.json.
+    """Get full tournament configuration (merged config.json + config.yaml).
+
+    Returns the complete tournament configuration by merging config.json
+    (app-specific settings) with config.yaml (negmas tournament parameters).
+    The yaml values override/extend json values.
 
     Args:
         tournament_id: Tournament ID.
 
     Returns:
-        Config dict from the tournament.
+        Full merged config dict from the tournament.
     """
     config = await asyncio.to_thread(
         TournamentStorageService.get_tournament_config, tournament_id

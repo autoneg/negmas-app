@@ -407,13 +407,21 @@ class FullSessionPreset:
     mechanism_params: dict[str, Any] = field(default_factory=dict)
     # Information sharing
     share_ufuns: bool = False
+    # Scenario options
+    ignore_discount: bool = False
+    ignore_reserved: bool = False
+    normalize: bool = False
+    save_scenario: bool = False  # Save modified scenario with negotiation
     # Display
     mode: str = "realtime"
     step_delay: int = 100
     show_plot: bool = True
     show_offers: bool = True
+    auto_save: bool = False  # Auto-save negotiation when finished
     # Panels
     panels: dict[str, Any] = field(default_factory=dict)
+    # Save options (when auto_save is True)
+    save_options: dict[str, Any] = field(default_factory=dict)
     # Metadata
     created_at: str = ""  # ISO timestamp
     last_used_at: str = ""  # ISO timestamp
@@ -491,6 +499,13 @@ class TournamentPreset:
     ignore_reserved: bool = False
     pass_opponent_ufun: bool = False
     raise_exceptions: bool = False
+    # Opponent modeling metrics
+    opponent_modeling_metrics: list[str] | None = None
+    # Distribute opponent modeling scores across negotiators
+    distribute_opponent_modeling_scores: bool = False
+    # Custom aggregated metrics
+    raw_aggregated_metrics: list[dict[str, Any]] | None = None
+    stats_aggregated_metrics: list[dict[str, Any]] | None = None
     # Execution & Performance
     njobs: int = -1  # -1 = serial, 0 = all cores
     verbosity: int = 0
@@ -500,6 +515,10 @@ class TournamentPreset:
     storage_optimization: str = "balanced"
     memory_optimization: str = "balanced"
     storage_format: str = "parquet"
+    # Additional execution options
+    external_timeout: float | None = None  # External process timeout in seconds
+    plot_fraction: float = 0.0  # Fraction of negotiations to plot
+    rotate_private_infos: bool = True  # Rotate private info between negotiators
     # Metadata
     created_at: str = ""  # ISO timestamp
     last_used_at: str = ""  # ISO timestamp

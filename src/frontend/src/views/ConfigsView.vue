@@ -188,161 +188,169 @@
           </div>
         </div>
         
-        <!-- Tags Editor -->
-        <div class="details-section">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h4 style="margin: 0;">Tags</h4>
-            <button v-if="!showTagInput" class="btn btn-ghost btn-sm" @click="showTagInput = true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              Add Tag
-            </button>
-          </div>
-          <div class="tags-editor">
-            <div class="tags-list" v-if="(selectedConfig.tags || []).length > 0">
-              <span v-for="(tag, idx) in selectedConfig.tags" :key="idx" class="tag">
-                {{ tag }}
-                <button class="tag-remove" @click="removeTag(idx)">×</button>
-              </span>
+        <!-- Two-column layout: Details + TreeView -->
+        <div class="details-content-wrapper">
+          <!-- Left: Formatted Details -->
+          <div class="details-formatted">
+            <!-- Tags Editor -->
+            <div class="details-section">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="margin: 0;">Tags</h4>
+                <button v-if="!showTagInput" class="btn btn-ghost btn-sm" @click="showTagInput = true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  Add Tag
+                </button>
+              </div>
+              <div class="tags-editor">
+                <div class="tags-list" v-if="(selectedConfig.tags || []).length > 0">
+                  <span v-for="(tag, idx) in selectedConfig.tags" :key="idx" class="tag">
+                    {{ tag }}
+                    <button class="tag-remove" @click="removeTag(idx)">×</button>
+                  </span>
+                </div>
+                <div v-else class="empty-tags">No tags</div>
+                <div v-if="showTagInput" class="tag-input-group">
+                  <input 
+                    v-model="newTag" 
+                    type="text" 
+                    placeholder="Add tag..." 
+                    class="input-text"
+                    @keyup.enter="addTag"
+                    @keyup.esc="showTagInput = false"
+                    ref="tagInput"
+                  />
+                  <button class="btn btn-sm btn-primary" @click="addTag">Add</button>
+                  <button class="btn btn-sm btn-ghost" @click="showTagInput = false; newTag = ''">Cancel</button>
+                </div>
+              </div>
             </div>
-            <div v-else class="empty-tags">No tags</div>
-            <div v-if="showTagInput" class="tag-input-group">
-              <input 
-                v-model="newTag" 
-                type="text" 
-                placeholder="Add tag..." 
-                class="input-text"
-                @keyup.enter="addTag"
-                @keyup.esc="showTagInput = false"
-                ref="tagInput"
-              />
-              <button class="btn btn-sm btn-primary" @click="addTag">Add</button>
-              <button class="btn btn-sm btn-ghost" @click="showTagInput = false; newTag = ''">Cancel</button>
+            
+            <!-- Config Details - Negotiations -->
+            <div v-if="currentTab === 'negotiations'" class="details-section">
+              <h4>Configuration</h4>
+              
+              <div class="detail-row">
+                <span class="detail-label">Scenario:</span>
+                <span class="detail-value">{{ selectedConfig.scenario_name || 'N/A' }}</span>
+              </div>
+              
+              <div class="detail-row">
+                <span class="detail-label">Scenario Path:</span>
+                <span class="detail-value">{{ selectedConfig.scenario_path || 'N/A' }}</span>
+              </div>
+              
+              <div class="detail-row">
+                <span class="detail-label">Negotiators:</span>
+                <span class="detail-value">{{ selectedConfig.negotiators?.length || 0 }}</span>
+              </div>
+              
+              <div v-if="selectedConfig.negotiators && selectedConfig.negotiators.length > 0" class="detail-subsection">
+                <div v-for="(neg, idx) in selectedConfig.negotiators" :key="idx" class="negotiator-item">
+                  <div class="negotiator-name">{{ neg.name }}</div>
+                  <div class="negotiator-type">{{ neg.type_name }}</div>
+                </div>
+              </div>
+              
+              <div class="detail-row">
+                <span class="detail-label">Mechanism:</span>
+                <span class="detail-value">{{ selectedConfig.mechanism_type || 'SAOMechanism' }}</span>
+              </div>
+              
+              <div v-if="selectedConfig.mechanism_params" class="detail-subsection">
+                <h5>Mechanism Parameters</h5>
+                <div class="params-grid">
+                  <template v-for="(value, key) in selectedConfig.mechanism_params" :key="key">
+                    <span class="param-label">{{ key }}:</span>
+                    <span class="param-value">{{ value !== null ? value : 'null' }}</span>
+                  </template>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Config Details - Tournaments -->
+            <div v-else class="details-section">
+              <h4>Tournament Configuration</h4>
+              
+              <div class="detail-row">
+                <span class="detail-label">Scenarios:</span>
+                <span class="detail-value">{{ selectedConfig.scenario_paths?.length || 0 }}</span>
+              </div>
+              
+              <div v-if="selectedConfig.scenario_paths && selectedConfig.scenario_paths.length > 0" class="detail-subsection">
+                <div v-for="(path, idx) in selectedConfig.scenario_paths.slice(0, 5)" :key="idx" class="scenario-item">
+                  {{ path.split('/').pop() }}
+                </div>
+                <div v-if="selectedConfig.scenario_paths.length > 5" class="more-items">
+                  +{{ selectedConfig.scenario_paths.length - 5 }} more...
+                </div>
+              </div>
+              
+              <div class="detail-row">
+                <span class="detail-label">Competitors:</span>
+                <span class="detail-value">{{ selectedConfig.competitor_types?.length || 0 }}</span>
+              </div>
+              
+              <div v-if="selectedConfig.competitor_types && selectedConfig.competitor_types.length > 0" class="detail-subsection">
+                <div v-for="(type, idx) in selectedConfig.competitor_types" :key="idx" class="competitor-item">
+                  {{ type }}
+                </div>
+              </div>
+              
+              <div class="detail-row">
+                <span class="detail-label">Opponents:</span>
+                <span class="detail-value">
+                  {{ selectedConfig.opponents_same_as_competitors ? 'Same as competitors' : (selectedConfig.opponent_types?.length || 0) + ' types' }}
+                </span>
+              </div>
+              
+              <div class="detail-row">
+                <span class="detail-label">Repetitions:</span>
+                <span class="detail-value">{{ selectedConfig.n_repetitions || 1 }}</span>
+              </div>
+              
+              <div class="detail-row">
+                <span class="detail-label">Mechanism:</span>
+                <span class="detail-value">{{ selectedConfig.mechanism_type || 'SAOMechanism' }}</span>
+              </div>
+              
+              <div class="detail-row">
+                <span class="detail-label">Steps:</span>
+                <span class="detail-value">
+                  {{ selectedConfig.n_steps_min && selectedConfig.n_steps_max 
+                    ? `${selectedConfig.n_steps_min}-${selectedConfig.n_steps_max}` 
+                    : (selectedConfig.n_steps || 100) }}
+                </span>
+              </div>
+              
+              <div class="detail-row">
+                <span class="detail-label">Self-Play:</span>
+                <span class="detail-value">{{ selectedConfig.self_play ? 'Yes' : 'No' }}</span>
+              </div>
+              
+              <div class="detail-row">
+                <span class="detail-label">Rotate Ufuns:</span>
+                <span class="detail-value">{{ selectedConfig.rotate_ufuns ? 'Yes' : 'No' }}</span>
+              </div>
+              
+              <div class="detail-row">
+                <span class="detail-label">Score Metric:</span>
+                <span class="detail-value">{{ selectedConfig.final_score_metric || 'advantage' }} ({{ selectedConfig.final_score_stat || 'mean' }})</span>
+              </div>
             </div>
           </div>
-        </div>
-        
-        <!-- Config Details - Negotiations -->
-        <div v-if="currentTab === 'negotiations'" class="details-section">
-          <h4>Configuration</h4>
           
-          <div class="detail-row">
-            <span class="detail-label">Scenario:</span>
-            <span class="detail-value">{{ selectedConfig.scenario_name || 'N/A' }}</span>
-          </div>
-          
-          <div class="detail-row">
-            <span class="detail-label">Scenario Path:</span>
-            <span class="detail-value">{{ selectedConfig.scenario_path || 'N/A' }}</span>
-          </div>
-          
-          <div class="detail-row">
-            <span class="detail-label">Negotiators:</span>
-            <span class="detail-value">{{ selectedConfig.negotiators?.length || 0 }}</span>
-          </div>
-          
-          <div v-if="selectedConfig.negotiators && selectedConfig.negotiators.length > 0" class="detail-subsection">
-            <div v-for="(neg, idx) in selectedConfig.negotiators" :key="idx" class="negotiator-item">
-              <div class="negotiator-name">{{ neg.name }}</div>
-              <div class="negotiator-type">{{ neg.type_name }}</div>
+          <!-- Right: TreeView -->
+          <div class="details-tree">
+            <div class="tree-header">
+              <h4>Full Configuration</h4>
+            </div>
+            <div class="tree-content">
+              <TreeView :data="selectedConfig" :default-expand-depth="1" />
             </div>
           </div>
-          
-          <div class="detail-row">
-            <span class="detail-label">Mechanism:</span>
-            <span class="detail-value">{{ selectedConfig.mechanism_type || 'SAOMechanism' }}</span>
-          </div>
-          
-          <div v-if="selectedConfig.mechanism_params" class="detail-subsection">
-            <h5>Mechanism Parameters</h5>
-            <div class="params-grid">
-              <template v-for="(value, key) in selectedConfig.mechanism_params" :key="key">
-                <span class="param-label">{{ key }}:</span>
-                <span class="param-value">{{ value !== null ? value : 'null' }}</span>
-              </template>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Config Details - Tournaments -->
-        <div v-else class="details-section">
-          <h4>Tournament Configuration</h4>
-          
-          <div class="detail-row">
-            <span class="detail-label">Scenarios:</span>
-            <span class="detail-value">{{ selectedConfig.scenario_paths?.length || 0 }}</span>
-          </div>
-          
-          <div v-if="selectedConfig.scenario_paths && selectedConfig.scenario_paths.length > 0" class="detail-subsection">
-            <div v-for="(path, idx) in selectedConfig.scenario_paths.slice(0, 5)" :key="idx" class="scenario-item">
-              {{ path.split('/').pop() }}
-            </div>
-            <div v-if="selectedConfig.scenario_paths.length > 5" class="more-items">
-              +{{ selectedConfig.scenario_paths.length - 5 }} more...
-            </div>
-          </div>
-          
-          <div class="detail-row">
-            <span class="detail-label">Competitors:</span>
-            <span class="detail-value">{{ selectedConfig.competitor_types?.length || 0 }}</span>
-          </div>
-          
-          <div v-if="selectedConfig.competitor_types && selectedConfig.competitor_types.length > 0" class="detail-subsection">
-            <div v-for="(type, idx) in selectedConfig.competitor_types" :key="idx" class="competitor-item">
-              {{ type }}
-            </div>
-          </div>
-          
-          <div class="detail-row">
-            <span class="detail-label">Opponents:</span>
-            <span class="detail-value">
-              {{ selectedConfig.opponents_same_as_competitors ? 'Same as competitors' : (selectedConfig.opponent_types?.length || 0) + ' types' }}
-            </span>
-          </div>
-          
-          <div class="detail-row">
-            <span class="detail-label">Repetitions:</span>
-            <span class="detail-value">{{ selectedConfig.n_repetitions || 1 }}</span>
-          </div>
-          
-          <div class="detail-row">
-            <span class="detail-label">Mechanism:</span>
-            <span class="detail-value">{{ selectedConfig.mechanism_type || 'SAOMechanism' }}</span>
-          </div>
-          
-          <div class="detail-row">
-            <span class="detail-label">Steps:</span>
-            <span class="detail-value">
-              {{ selectedConfig.n_steps_min && selectedConfig.n_steps_max 
-                ? `${selectedConfig.n_steps_min}-${selectedConfig.n_steps_max}` 
-                : (selectedConfig.n_steps || 100) }}
-            </span>
-          </div>
-          
-          <div class="detail-row">
-            <span class="detail-label">Self-Play:</span>
-            <span class="detail-value">{{ selectedConfig.self_play ? 'Yes' : 'No' }}</span>
-          </div>
-          
-          <div class="detail-row">
-            <span class="detail-label">Rotate Ufuns:</span>
-            <span class="detail-value">{{ selectedConfig.rotate_ufuns ? 'Yes' : 'No' }}</span>
-          </div>
-          
-          <div class="detail-row">
-            <span class="detail-label">Score Metric:</span>
-            <span class="detail-value">{{ selectedConfig.final_score_metric || 'advantage' }} ({{ selectedConfig.final_score_stat || 'mean' }})</span>
-          </div>
-        </div>
-        
-        <!-- Raw JSON (collapsible) -->
-        <div class="details-section">
-          <button class="btn btn-ghost btn-sm" @click="showJson = !showJson">
-            {{ showJson ? 'Hide' : 'Show' }} JSON
-          </button>
-          <pre v-if="showJson" class="json-view">{{ JSON.stringify(selectedConfig, null, 2) }}</pre>
         </div>
       </div>
     </div>
@@ -393,6 +401,7 @@ import { useRouter } from 'vue-router'
 import { useNegotiationsStore } from '../stores/negotiations'
 import { useTournamentsStore } from '../stores/tournaments'
 import NewNegotiationModal from '../components/NewNegotiationModal.vue'
+import TreeView from '../components/TreeView.vue'
 
 const router = useRouter()
 const negotiationsStore = useNegotiationsStore()
@@ -406,7 +415,6 @@ const loading = ref(false)
 const selectedConfig = ref(null)
 const newTag = ref('')
 const showTagInput = ref(false)
-const showJson = ref(false)
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showStartModal = ref(false)
@@ -495,7 +503,6 @@ async function loadData() {
 
 function selectConfig(config) {
   selectedConfig.value = config
-  showJson.value = false
 }
 
 function createNew() {
@@ -1091,5 +1098,60 @@ watch(currentTab, () => {
   color: var(--text-secondary);
   font-size: 12px;
   font-style: italic;
+}
+
+/* Two-column layout for details + tree view */
+.details-content-wrapper {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+  min-height: 0;
+}
+
+.details-formatted {
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.details-tree {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.tree-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.tree-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tree-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* Make config-details a flex column to fill available space */
+.config-details {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.details-header {
+  flex-shrink: 0;
 }
 </style>

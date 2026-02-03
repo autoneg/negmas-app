@@ -137,6 +137,48 @@
           </div>
         </div>
         
+        <!-- Opponent Modeling Metrics -->
+        <div v-if="config.opponent_modeling_metrics?.length > 0" class="config-section">
+          <h4 class="config-section-title">Opponent Modeling Metrics</h4>
+          <div class="config-items">
+            <div class="metric-list">
+              <span 
+                v-for="metric in config.opponent_modeling_metrics" 
+                :key="metric"
+                class="badge badge-sm"
+              >
+                {{ formatOpponentModelingMetric(metric) }}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Custom Raw Aggregated Metrics -->
+        <div v-if="config.raw_aggregated_metrics && Object.keys(config.raw_aggregated_metrics).length > 0" class="config-section">
+          <h4 class="config-section-title">Custom Raw Aggregated Metrics</h4>
+          <div class="config-items">
+            <div v-for="(weights, name) in config.raw_aggregated_metrics" :key="name" class="custom-metric-item">
+              <span class="config-label">{{ name }}:</span>
+              <span class="config-value metric-formula">
+                {{ formatWeights(weights) }}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Custom Stats Aggregated Metrics -->
+        <div v-if="config.stats_aggregated_metrics && Object.keys(config.stats_aggregated_metrics).length > 0" class="config-section">
+          <h4 class="config-section-title">Custom Stats Aggregated Metrics</h4>
+          <div class="config-items">
+            <div v-for="(weights, name) in config.stats_aggregated_metrics" :key="name" class="custom-metric-item">
+              <span class="config-label">{{ name }}:</span>
+              <span class="config-value metric-formula">
+                {{ formatStatsWeights(weights) }}
+              </span>
+            </div>
+          </div>
+        </div>
+        
         <!-- Scenario Options -->
         <div v-if="hasScenarioOptions(config)" class="config-section">
           <h4 class="config-section-title">Scenario Options</h4>
@@ -246,9 +288,16 @@ function formatMetric(metric) {
     'advantage': 'Advantage',
     'utility': 'Utility',
     'welfare': 'Welfare',
+    'partner_welfare': 'Partner Welfare',
     'nash_optimality': 'Nash Optimality',
     'kalai_optimality': 'Kalai Optimality',
-    'pareto_optimality': 'Pareto Optimality'
+    'ks_optimality': 'KS Optimality',
+    'max_welfare_optimality': 'Max Welfare Optimality',
+    'pareto_optimality': 'Pareto Optimality',
+    'fairness': 'Fairness',
+    'time': 'Time',
+    'rounds': 'Rounds',
+    'steps': 'Steps'
   }
   return mapping[metric] || metric
 }
@@ -260,9 +309,44 @@ function formatStatistic(stat) {
     'median': 'Median',
     'sum': 'Sum',
     'min': 'Minimum',
-    'max': 'Maximum'
+    'max': 'Maximum',
+    'std': 'Std Dev'
   }
   return mapping[stat] || stat
+}
+
+function formatOpponentModelingMetric(metric) {
+  const mapping = {
+    'kendall': 'Kendall',
+    'kendall_optimality': 'Kendall Optimality',
+    'ndcg': 'NDCG',
+    'euclidean': 'Euclidean'
+  }
+  return mapping[metric] || metric
+}
+
+function formatWeights(weights) {
+  if (!weights || typeof weights !== 'object') return ''
+  const parts = []
+  for (const [metric, weight] of Object.entries(weights)) {
+    if (weight && weight !== 0) {
+      parts.push(`${weight}×${metric}`)
+    }
+  }
+  return parts.join(' + ') || 'No weights'
+}
+
+function formatStatsWeights(weights) {
+  if (!weights || typeof weights !== 'object') return ''
+  const parts = []
+  for (const [key, weight] of Object.entries(weights)) {
+    if (weight && weight !== 0) {
+      // Key format is "metric::stat"
+      const [metric, stat] = key.split('::')
+      parts.push(`${weight}×${metric}(${stat})`)
+    }
+  }
+  return parts.join(' + ') || 'No weights'
 }
 
 function hasScenarioOptions(config) {
@@ -410,5 +494,28 @@ function hasScenarioOptions(config) {
   background: var(--bg-hover);
   border-color: var(--primary-color);
   transform: translateY(-1px);
+}
+
+.metric-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.custom-metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.metric-formula {
+  font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  word-break: break-word;
 }
 </style>

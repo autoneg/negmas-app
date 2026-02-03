@@ -127,6 +127,12 @@ class TournamentConfig:
     final_score_metric: str = "advantage"
     final_score_stat: str = "mean"
 
+    # Opponent modeling metrics (e.g., ["kendall", "kendall_optimality", "ndcg", "euclidean"])
+    # These evaluate how well competitors model their opponents' utility functions
+    opponent_modeling_metrics: tuple[str, ...] | None = None
+    # Distribute opponent modeling scores across all negotiators in a session
+    distribute_opponent_modeling_scores: bool = False
+
     # Run ordering
     randomize_runs: bool = False  # Randomize order of negotiations
     sort_runs: bool = (

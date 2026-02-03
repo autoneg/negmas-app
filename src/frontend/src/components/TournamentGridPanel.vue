@@ -313,7 +313,7 @@
                     #{{ (neg.run_id || neg.index || '').toString().slice(-6) }}
                   </span>
                   <span class="neg-partners">
-                    {{ (neg.partners || []).join(' vs ') }}
+                    {{ neg.competitor || neg.partners?.[0] || 'Unknown' }} vs {{ neg.opponent || neg.partners?.[1] || 'Unknown' }}
                   </span>
                   <span class="neg-scenario">
                     {{ (neg.scenario || neg.scenario_path || '').split('/').pop() }}
@@ -696,47 +696,53 @@ function viewAllCellNegotiations() {
 // View a single negotiation in full view
 function viewFullNegotiation(neg) {
   closeCellModal()
+  
+  // Navigate to SingleNegotiationView with tournament negotiation ID format
+  // Format: tournament:{tournamentId}:run:{runId}
+  const runId = neg.run_id || neg.index
+  const negotiationId = `tournament:${props.tournamentId}:run:${runId}`
+  
   router.push({
-    name: 'TournamentNegotiation',
-    params: { 
-      tournamentId: props.tournamentId,
-      runId: neg.run_id || neg.index
-    }
+    name: 'SingleNegotiation',
+    params: { id: negotiationId }
   })
 }
 
 // Helper functions for negotiation display
 function getNegotiationClass(neg) {
-  if (neg.has_error || neg.end_reason === 'error' || neg.end_reason === 'broken') {
+  const reason = neg.result || neg.end_reason || ''
+  if (neg.has_error || reason === 'error' || reason === 'broken') {
     return 'neg-error'
   }
-  if (neg.has_agreement || neg.end_reason === 'agreement') {
+  if (neg.has_agreement || reason === 'agreement') {
     return 'neg-agreement'
   }
-  if (neg.end_reason === 'timeout') {
+  if (reason === 'timeout') {
     return 'neg-timeout'
   }
   return ''
 }
 
 function getEndReasonClass(neg) {
-  if (neg.has_error || neg.end_reason === 'error' || neg.end_reason === 'broken') {
+  const reason = neg.result || neg.end_reason || ''
+  if (neg.has_error || reason === 'error' || reason === 'broken') {
     return 'badge-error'
   }
-  if (neg.has_agreement || neg.end_reason === 'agreement') {
+  if (neg.has_agreement || reason === 'agreement') {
     return 'badge-success'
   }
-  if (neg.end_reason === 'timeout') {
+  if (reason === 'timeout') {
     return 'badge-warning'
   }
   return 'badge-neutral'
 }
 
 function getEndReasonText(neg) {
-  if (neg.has_error || neg.end_reason === 'error') return 'Error'
-  if (neg.end_reason === 'broken') return 'Broken'
-  if (neg.has_agreement || neg.end_reason === 'agreement') return 'Agreement'
-  if (neg.end_reason === 'timeout') return 'Timeout'
+  const reason = neg.result || neg.end_reason || ''
+  if (neg.has_error || reason === 'error') return 'Error'
+  if (reason === 'broken') return 'Broken'
+  if (neg.has_agreement || reason === 'agreement') return 'Agreement'
+  if (reason === 'timeout') return 'Timeout'
   return 'Complete'
 }
 
@@ -757,18 +763,24 @@ const cellNegotiations = computed(() => {
   const { competitor, opponent, scenario } = selectedCell.value
   
   return (props.liveNegotiations || []).filter(neg => {
-    // Check if partners match the competitor/opponent
-    const partners = neg.partners || []
+    // Handle both old format (partners array) and new format (competitor/opponent fields)
+    const negCompetitor = neg.competitor || neg.partners?.[0] || ''
+    const negOpponent = neg.opponent || neg.partners?.[1] || ''
     
-    // Partners can be in any order, check both combinations
-    // Also try matching by prefix (e.g., "Atlas3" matches "Atlas3@0")
-    const matchesPartners = partners.some(p => 
-      p === competitor || p.startsWith(competitor + '@') || p.startsWith(competitor + '-')
-    ) && partners.some(p => 
-      p === opponent || p.startsWith(opponent + '@') || p.startsWith(opponent + '-')
-    )
+    // Match by exact name or by prefix (e.g., "Atlas3" matches "Atlas3@0")
+    const matchesCompetitor = negCompetitor === competitor || 
+      negCompetitor.startsWith(competitor + '@') || 
+      negCompetitor.startsWith(competitor + '-') ||
+      competitor.startsWith(negCompetitor + '@') ||
+      competitor.startsWith(negCompetitor + '-')
     
-    if (!matchesPartners) return false
+    const matchesOpponent = negOpponent === opponent || 
+      negOpponent.startsWith(opponent + '@') || 
+      negOpponent.startsWith(opponent + '-') ||
+      opponent.startsWith(negOpponent + '@') ||
+      opponent.startsWith(negOpponent + '-')
+    
+    if (!matchesCompetitor || !matchesOpponent) return false
     
     // If scenario filter is set (from scenario tab), apply it
     if (scenario) {

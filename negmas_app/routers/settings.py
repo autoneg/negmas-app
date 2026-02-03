@@ -374,11 +374,20 @@ async def save_session_preset(data: dict[str, Any]) -> dict[str, Any]:
         mechanism_type=data.get("mechanism_type", "SAOMechanism"),
         mechanism_params=data.get("mechanism_params", {}),
         share_ufuns=data.get("share_ufuns", False),
+        # Scenario options
+        ignore_discount=data.get("ignore_discount", False),
+        ignore_reserved=data.get("ignore_reserved", False),
+        normalize=data.get("normalize", False),
+        save_scenario=data.get("save_scenario", False),
+        # Display
         mode=data.get("mode", "realtime"),
         step_delay=data.get("step_delay", 100),
         show_plot=data.get("show_plot", True),
         show_offers=data.get("show_offers", True),
+        auto_save=data.get("auto_save", False),
         panels=data.get("panels", {}),
+        # Save options
+        save_options=data.get("save_options", {}),
     )
     await asyncio.to_thread(SettingsService.save_session_preset, preset)
     return asdict(preset)
@@ -413,11 +422,20 @@ async def add_recent_session(data: dict[str, Any]) -> dict[str, Any]:
         mechanism_type=data.get("mechanism_type", "SAOMechanism"),
         mechanism_params=data.get("mechanism_params", {}),
         share_ufuns=data.get("share_ufuns", False),
+        # Scenario options
+        ignore_discount=data.get("ignore_discount", False),
+        ignore_reserved=data.get("ignore_reserved", False),
+        normalize=data.get("normalize", False),
+        save_scenario=data.get("save_scenario", False),
+        # Display
         mode=data.get("mode", "realtime"),
         step_delay=data.get("step_delay", 100),
         show_plot=data.get("show_plot", True),
         show_offers=data.get("show_offers", True),
+        auto_save=data.get("auto_save", False),
         panels=data.get("panels", {}),
+        # Save options
+        save_options=data.get("save_options", {}),
     )
     await asyncio.to_thread(SettingsService.add_recent_session, session)
     return {"success": True}
@@ -497,6 +515,14 @@ async def save_tournament_preset(data: dict[str, Any]) -> dict[str, Any]:
         ignore_reserved=data.get("ignore_reserved", False),
         pass_opponent_ufun=data.get("pass_opponent_ufun", False),
         raise_exceptions=data.get("raise_exceptions", False),
+        # Opponent modeling metrics
+        opponent_modeling_metrics=data.get("opponent_modeling_metrics"),
+        distribute_opponent_modeling_scores=data.get(
+            "distribute_opponent_modeling_scores", False
+        ),
+        # Custom aggregated metrics
+        raw_aggregated_metrics=data.get("raw_aggregated_metrics"),
+        stats_aggregated_metrics=data.get("stats_aggregated_metrics"),
         # Execution & Performance
         njobs=data.get("njobs", -1),
         verbosity=data.get("verbosity", 0),
@@ -506,6 +532,10 @@ async def save_tournament_preset(data: dict[str, Any]) -> dict[str, Any]:
         storage_optimization=data.get("storage_optimization", "balanced"),
         memory_optimization=data.get("memory_optimization", "balanced"),
         storage_format=data.get("storage_format", "parquet"),
+        # Additional execution options
+        external_timeout=data.get("external_timeout"),
+        plot_fraction=data.get("plot_fraction", 0.0),
+        rotate_private_infos=data.get("rotate_private_infos", True),
     )
     await asyncio.to_thread(SettingsService.save_tournament_preset, preset)
     return asdict(preset)

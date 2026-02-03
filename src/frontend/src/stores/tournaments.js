@@ -151,9 +151,16 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         return
       }
       
-      // Update grid init
-      if (state.grid_init && !gridInit.value) {
-        gridInit.value = state.grid_init
+      // Update grid init - always update when names change from placeholders
+      if (state.grid_init) {
+        // Check if we have placeholder names that need updating
+        const hasPlaceholders = gridInit.value?.competitors?.some(c => c.startsWith('Competitor '))
+        const hasRealNames = state.grid_init.competitors?.some(c => !c.startsWith('Competitor '))
+        
+        // Update if: no gridInit yet, OR placeholder names being replaced with real names
+        if (!gridInit.value || (hasPlaceholders && hasRealNames)) {
+          gridInit.value = state.grid_init
+        }
       }
       
       // Update cell states
@@ -238,10 +245,15 @@ export const useTournamentsStore = defineStore('tournaments', () => {
         setupProgress.value = sp
       }
       
-      // Update live negotiations
+      // Update live negotiations (currently running)
       if (state.live_negotiations) {
         // Convert to array format expected by the UI
-        liveNegotiations.value = Object.values(state.live_negotiations)
+        runningNegotiations.value = state.live_negotiations
+      }
+      
+      // Update completed negotiations list
+      if (state.completed_negotiations) {
+        liveNegotiations.value = state.completed_negotiations
       }
       
       // Update current session status

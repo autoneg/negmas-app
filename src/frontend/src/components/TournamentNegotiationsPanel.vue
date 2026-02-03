@@ -73,7 +73,7 @@
         <!-- Completed negotiations -->
         <div 
           v-for="neg in filteredNegotiations" 
-          :key="'completed-' + neg.index"
+          :key="'completed-' + (neg.run_id || neg.index)"
           class="negotiation-item"
           :class="getStatusClass(neg)"
           @click="handleClick(neg, false)"
@@ -84,16 +84,16 @@
           <div class="neg-info">
             <div class="neg-row-top">
               <div class="neg-partners">
-                <span class="competitor" :title="neg.partners?.[0]">{{ neg.partners?.[0] || 'Unknown' }}</span>
+                <span class="competitor" :title="neg.competitor || neg.partners?.[0]">{{ neg.competitor || neg.partners?.[0] || 'Unknown' }}</span>
                 <span class="vs">vs</span>
-                <span class="opponent" :title="neg.partners?.[1]">{{ neg.partners?.[1] || 'Unknown' }}</span>
+                <span class="opponent" :title="neg.opponent || neg.partners?.[1]">{{ neg.opponent || neg.partners?.[1] || 'Unknown' }}</span>
               </div>
               <div class="neg-result-inline">
-                <span v-if="neg.end_reason === 'agreement'" class="result-text agreement">Agreement</span>
-                <span v-else-if="neg.end_reason === 'timeout'" class="result-text timeout">Timeout</span>
-                <span v-else-if="neg.end_reason === 'ended'" class="result-text ended">Ended</span>
-                <span v-else-if="neg.end_reason === 'cancelled'" class="result-text cancelled">Cancelled</span>
-                <span v-else-if="neg.end_reason === 'error' || neg.end_reason === 'broken'" class="result-text error">Error</span>
+                <span v-if="getEndReason(neg) === 'agreement'" class="result-text agreement">Agreement</span>
+                <span v-else-if="getEndReason(neg) === 'timeout'" class="result-text timeout">Timeout</span>
+                <span v-else-if="getEndReason(neg) === 'ended'" class="result-text ended">Ended</span>
+                <span v-else-if="getEndReason(neg) === 'cancelled'" class="result-text cancelled">Cancelled</span>
+                <span v-else-if="getEndReason(neg) === 'error' || getEndReason(neg) === 'broken'" class="result-text error">Error</span>
               </div>
             </div>
             <div class="neg-row-bottom">
@@ -373,13 +373,19 @@ const filteredNegotiations = computed(() => {
   if (filter.value === 'running') {
     return [] // Running shown separately
   } else if (filter.value === 'completed') {
-    negs = negs.filter(n => n.end_reason && n.end_reason !== 'error' && n.end_reason !== 'broken')
+    negs = negs.filter(n => {
+      const reason = getEndReason(n)
+      return reason && reason !== 'error' && reason !== 'broken'
+    })
   } else if (filter.value === 'agreement') {
-    negs = negs.filter(n => n.end_reason === 'agreement' || n.has_agreement)
+    negs = negs.filter(n => getEndReason(n) === 'agreement' || n.has_agreement)
   } else if (filter.value === 'timeout') {
-    negs = negs.filter(n => n.end_reason === 'timeout')
+    negs = negs.filter(n => getEndReason(n) === 'timeout')
   } else if (filter.value === 'error') {
-    negs = negs.filter(n => n.end_reason === 'error' || n.end_reason === 'broken' || n.has_error)
+    negs = negs.filter(n => {
+      const reason = getEndReason(n)
+      return reason === 'error' || reason === 'broken' || n.has_error
+    })
   }
   
   // Return in reverse order (newest first)
@@ -450,11 +456,19 @@ onUnmounted(() => {
   }
 })
 
+// Helper to get end reason from negotiation (handles both old and new format)
+function getEndReason(neg) {
+  if (!neg) return ''
+  // New format uses 'result', old format uses 'end_reason'
+  return neg.result || neg.end_reason || ''
+}
+
 function getStatusClass(neg) {
   if (!neg) return ''
-  if (neg.end_reason === 'agreement' || neg.has_agreement) return 'agreement'
-  if (neg.end_reason === 'timeout') return 'timeout'
-  if (neg.end_reason === 'error' || neg.end_reason === 'broken' || neg.has_error) return 'error'
+  const reason = getEndReason(neg)
+  if (reason === 'agreement' || neg.has_agreement) return 'agreement'
+  if (reason === 'timeout') return 'timeout'
+  if (reason === 'error' || reason === 'broken' || neg.has_error) return 'error'
   return 'completed'
 }
 

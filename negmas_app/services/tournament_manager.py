@@ -135,6 +135,9 @@ class TournamentState:
     # Live/running negotiations for polling - MP-safe dict for parallel execution
     live_negotiations: Any = field(default_factory=_create_mp_dict)
 
+    # Completed negotiations with details (for polling - shows in Negotiations panel)
+    completed_negotiations: list[dict[str, Any]] = field(default_factory=list)
+
     # Statistics per competitor
     competitor_stats: dict[str, dict[str, Any]] = field(default_factory=dict)
 
@@ -822,6 +825,26 @@ class TournamentManager:
             state.completed_cells.append(cell_complete)
             state.current_cell = None
             state.event_queue.put(("run_complete", cell_complete))
+
+            # Track completed negotiation with details for the Negotiations panel
+            competitor_name = partners[0] if len(partners) >= 1 else "Unknown"
+            opponent_name = partners[1] if len(partners) >= 2 else "Unknown"
+            completed_neg = {
+                "run_id": str(run_id)
+                if run_id is not None
+                else str(len(state.completed_negotiations)),
+                "competitor": competitor_name,
+                "opponent": opponent_name,
+                "scenario": base_scenario_name,
+                "result": end_reason.value,
+                "agreement": list(agreement) if agreement else None,
+                "utilities": list(utilities) if utilities else None,
+                "n_steps": n_steps,
+                "has_error": has_error,
+                "error_details": error_details,
+                "rotated": rotated,
+            }
+            state.completed_negotiations.append(completed_neg)
 
             # Update competitor statistics
             self._update_stats_from_record(state, record, config)
@@ -1653,6 +1676,16 @@ class TournamentManager:
             if config.storage_format is not None:
                 tournament_kwargs["storage_format"] = config.storage_format
 
+            # Add opponent modeling metrics if specified
+            if config.opponent_modeling_metrics:
+                tournament_kwargs["opponent_modeling_metrics"] = (
+                    config.opponent_modeling_metrics
+                )
+
+            # Add distribute_opponent_modeling_scores option
+            if config.distribute_opponent_modeling_scores:
+                tournament_kwargs["distribute_opponent_modeling_scores"] = True
+
             # Add save_negotiations_as_folders option
             tournament_kwargs["save_negotiations_as_folders"] = (
                 config.save_negotiations_as_folders
@@ -2080,6 +2113,16 @@ class TournamentManager:
 
             if opponents is not None:
                 tournament_kwargs["opponents"] = opponents
+
+            # Add opponent modeling metrics if specified
+            if config.opponent_modeling_metrics:
+                tournament_kwargs["opponent_modeling_metrics"] = (
+                    config.opponent_modeling_metrics
+                )
+
+            # Add distribute_opponent_modeling_scores option
+            if config.distribute_opponent_modeling_scores:
+                tournament_kwargs["distribute_opponent_modeling_scores"] = True
 
             if config.step_time_limit is not None:
                 tournament_kwargs["step_time_limit"] = config.step_time_limit

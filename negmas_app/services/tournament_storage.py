@@ -638,8 +638,8 @@ class TournamentStorageService:
             "leaderboard": leaderboard,
         }
 
-        # Also load config if available
-        config = cls._load_config_from_path(path)
+        # Also load config if available (merged json + yaml)
+        config = cls._get_merged_config(path)
         if config:
             result["config"] = config
 
@@ -648,7 +648,11 @@ class TournamentStorageService:
 
     @classmethod
     def _load_config_from_path(cls, path: Path) -> dict | None:
-        """Load tournament config from a path (yaml or json)."""
+        """Load tournament config from a path (yaml or json).
+
+        Note: This method loads only one file (yaml preferred).
+        Use _get_merged_config() for the full merged config.
+        """
         # Try YAML first
         yaml_file = path / "config.yaml"
         if yaml_file.exists():
@@ -2030,24 +2034,79 @@ class TournamentStorageService:
 
     @classmethod
     def get_tournament_config(cls, tournament_id: str) -> dict | None:
-        """Get tournament configuration from config.json.
+        """Get full tournament configuration (config.json merged with config.yaml).
+
+        Loads config.json as base, then overrides/expands with config.yaml.
+        This provides the complete configuration with all parameters.
 
         Args:
             tournament_id: Tournament ID.
 
         Returns:
-            Config dict or None if not found.
+            Merged config dict or None if not found.
         """
-        path = cls.TOURNAMENTS_DIR / tournament_id / "config.json"
-        if not path.exists():
-            return None
+        tournament_path = cls.TOURNAMENTS_DIR / tournament_id
+        return cls._get_merged_config(tournament_path)
 
-        try:
-            with open(path, "r") as f:
-                return json.load(f)
-        except Exception as e:
-            logger.info(f"Error loading config for {tournament_id}: {e}")
-            return None
+    @classmethod
+    def _get_merged_config(cls, tournament_path: Path) -> dict | None:
+        """Get merged configuration from a tournament path.
+
+        Merges config.json (base) with config.yaml (overrides/additions).
+
+        Args:
+            tournament_path: Path to tournament directory.
+
+        Returns:
+            Merged config dict or None if neither file exists.
+        """
+        config: dict[str, Any] = {}
+
+        # Load config.json as base (contains app-specific settings)
+        json_path = tournament_path / "config.json"
+        if json_path.exists():
+            try:
+                with open(json_path, "r") as f:
+                    config = json.load(f)
+            except Exception as e:
+                logger.info(f"Error loading config.json from {tournament_path}: {e}")
+
+        # Load config.yaml and merge (contains negmas tournament parameters)
+        yaml_path = tournament_path / "config.yaml"
+        if yaml_path.exists():
+            try:
+                with open(yaml_path, "r") as f:
+                    yaml_config = yaml.safe_load(f)
+                    if yaml_config:
+                        # Deep merge yaml into json config
+                        config = cls._deep_merge(config, yaml_config)
+            except Exception as e:
+                logger.info(f"Error loading config.yaml from {tournament_path}: {e}")
+
+        return config if config else None
+
+    @classmethod
+    def _deep_merge(cls, base: dict, override: dict) -> dict:
+        """Deep merge two dictionaries, with override taking precedence.
+
+        Args:
+            base: Base dictionary.
+            override: Dictionary with values that override base.
+
+        Returns:
+            Merged dictionary.
+        """
+        result = base.copy()
+        for key, value in override.items():
+            if (
+                key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)
+            ):
+                result[key] = cls._deep_merge(result[key], value)
+            else:
+                result[key] = value
+        return result
 
     @classmethod
     def get_scores_csv(cls, tournament_id: str) -> list[dict] | None:
@@ -2326,9 +2385,9 @@ class TournamentStorageService:
         if not scores_data:
             return None
 
-        # Numeric metrics that can be aggregated
+        # Base numeric metrics that can be aggregated
         # These match the columns available in all_scores.csv from negmas tournaments
-        numeric_metrics = [
+        base_numeric_metrics = [
             "utility",
             "reserved_value",
             "advantage",
@@ -2346,6 +2405,27 @@ class TournamentStorageService:
             "modified_kalai_optimality",
             "modified_ks_optimality",
         ]
+
+        # Opponent modeling metrics (prefixed with opp_)
+        # These are dynamically added when opponent_modeling_metrics is configured
+        opponent_modeling_metrics = [
+            "opp_kendall",
+            "opp_kendall_optimality",
+            "opp_ndcg",
+            "opp_euclidean",
+            "opp_anl2026",
+        ]
+
+        # Combine all known metrics
+        numeric_metrics = base_numeric_metrics + opponent_modeling_metrics
+
+        # Also detect any additional opp_ columns from the data itself
+        # This handles future metrics without code changes
+        if scores_data:
+            first_row = scores_data[0]
+            for col in first_row.keys():
+                if col.startswith("opp_") and col not in numeric_metrics:
+                    numeric_metrics.append(col)
 
         if metric not in numeric_metrics:
             return {"error": f"Invalid metric: {metric}. Valid: {numeric_metrics}"}

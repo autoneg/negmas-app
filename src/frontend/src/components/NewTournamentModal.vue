@@ -538,27 +538,6 @@
                     <option value="SAOMechanism">SAO Mechanism</option>
                   </select>
                 </div>
-                
-                <div class="form-group">
-                  <label class="form-label">Score Metric</label>
-                  <select v-model="settings.finalScoreMetric" class="form-select">
-                    <option value="advantage">Advantage</option>
-                    <option value="utility">Utility</option>
-                    <option value="welfare">Welfare</option>
-                    <option value="partner_welfare">Partner Welfare</option>
-                  </select>
-                </div>
-                
-                <div class="form-group">
-                  <label class="form-label">Score Statistic</label>
-                  <select v-model="settings.finalScoreStat" class="form-select">
-                    <option value="mean">Mean</option>
-                    <option value="median">Median</option>
-                    <option value="min">Min</option>
-                    <option value="max">Max</option>
-                    <option value="std">Std Dev</option>
-                  </select>
-                </div>
               </div>
               
               <div class="form-group">
@@ -635,6 +614,15 @@
                       />
                       <span>{{ metric.label }}</span>
                     </label>
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label class="form-checkbox">
+                      <input type="checkbox" v-model="settings.distributeOpponentModelingScores" />
+                      <span>Distribute Opponent Modeling Scores</span>
+                    </label>
+                    <div class="form-hint">
+                      When enabled, opponent modeling scores are distributed across all negotiators in the negotiation (not just the one being evaluated)
+                    </div>
                   </div>
                   
                   <h4>Final Score Configuration</h4>
@@ -725,7 +713,7 @@
                       </button>
                     </div>
                     <div class="stats-weight-grid">
-                      <div v-for="base in baseRawMetrics.slice(0, 6)" :key="base.value" class="stat-metric-group">
+                      <div v-for="base in baseRawMetrics" :key="base.value" class="stat-metric-group">
                         <div class="stat-metric-label">{{ base.label }}</div>
                         <div class="stat-inputs">
                           <div v-for="stat in ['mean', 'std', 'min', 'max']" :key="stat" class="stat-input-pair">
@@ -1252,9 +1240,10 @@ const settings = ref({
   ignoreDiscount: false,
   ignoreReserved: false,
   // Metrics settings
-  opponentModelingMetrics: [],  // Selected opponent modeling metrics
+  opponentModelingMetrics: ['anl2026'],  // Selected opponent modeling metrics (anl2026 checked by default)
   rawAggregatedMetrics: [],  // Custom weighted sums of raw metrics: [{name, weights: {metric: weight}}]
   statsAggregatedMetrics: [],  // Custom weighted sums of stats: [{name, weights: {"metric::stat": weight}}]
+  distributeOpponentModelingScores: false,  // Distribute opponent modeling scores across negotiators
   // Advanced settings
   stepTimeLimit: null,
   negotiatorTimeLimit: null,
@@ -1297,6 +1286,7 @@ const availableOpponentModelingMetrics = [
   { value: 'kendall_optimality', label: 'Kendall Optimality', description: 'How optimal the Kendall correlation is' },
   { value: 'ndcg', label: 'NDCG', description: 'Normalized Discounted Cumulative Gain' },
   { value: 'euclidean', label: 'Euclidean', description: 'Euclidean distance (inverted, 1=perfect)' },
+  { value: 'anl2026', label: 'ANL 2026', description: 'ANL 2026 opponent modeling score (default)' },
 ]
 
 // Available optimality metrics (these come from scenario stats)
@@ -1310,8 +1300,8 @@ const availableOptimalityMetrics = [
   { value: 'max_welfare_optimality', label: 'Max Welfare Optimality', description: 'Distance to max welfare point' },
 ]
 
-// Base metrics available for aggregation
-const baseRawMetrics = [
+// Static base metrics available for aggregation
+const staticBaseRawMetrics = [
   { value: 'advantage', label: 'Advantage', description: 'Utility minus partner utility' },
   { value: 'utility', label: 'Utility', description: 'Agent utility value' },
   { value: 'partner_welfare', label: 'Partner Welfare', description: 'Partner utility value' },
@@ -1323,6 +1313,25 @@ const baseRawMetrics = [
   { value: 'ks_optimality', label: 'KS Optimality', description: 'Distance to Kalai-Smorodinsky point' },
   { value: 'fairness', label: 'Fairness', description: 'max(nash, kalai, ks optimality)' },
 ]
+
+// Computed: base metrics including selected opponent modeling metrics
+const baseRawMetrics = computed(() => {
+  const metrics = [...staticBaseRawMetrics]
+  
+  // Add selected opponent modeling metrics with opp_ prefix
+  for (const metric of settings.value.opponentModelingMetrics) {
+    const found = availableOpponentModelingMetrics.find(m => m.value === metric)
+    if (found) {
+      metrics.push({ 
+        value: `opp_${metric}`, 
+        label: `Opp: ${found.label}`, 
+        description: found.description 
+      })
+    }
+  }
+  
+  return metrics
+})
 
 // Available statistics for aggregation
 const availableStats = ['mean', 'std', 'min', 'max', '25%', '50%', '75%', 'count']
@@ -1604,6 +1613,10 @@ const loadTournamentPreset = async (preset) => {
   settings.value.selfPlay = preset.self_play ?? true
   settings.value.finalScoreMetric = preset.final_score_metric || 'advantage'
   settings.value.finalScoreStat = preset.final_score_stat || 'mean'
+  settings.value.opponentModelingMetrics = preset.opponent_modeling_metrics || []
+  settings.value.distributeOpponentModelingScores = preset.distribute_opponent_modeling_scores ?? false
+  settings.value.rawAggregatedMetrics = preset.raw_aggregated_metrics || []
+  settings.value.statsAggregatedMetrics = preset.stats_aggregated_metrics || []
   settings.value.normalization = preset.normalization || 'normalize'
   settings.value.ignoreDiscount = preset.ignore_discount ?? false
   settings.value.ignoreReserved = preset.ignore_reserved ?? false
@@ -1667,6 +1680,13 @@ const loadTournamentPreset = async (preset) => {
   settings.value.verbosity = preset.verbosity ?? 0
   settings.value.monitorNegotiations = preset.monitor_negotiations ?? false
   settings.value.progressSampleRate = preset.progress_sample_rate ?? 1
+  
+  // Load plotting settings
+  settings.value.plotFraction = preset.plot_fraction ?? 0.0
+  
+  // Load advanced negotiator options
+  settings.value.rotatePrivateInfos = preset.rotate_private_infos ?? true
+  settings.value.externalTimeout = preset.external_timeout ?? null
   
   // Load storage settings
   settings.value.storageOptimization = preset.storage_optimization || 'balanced'
@@ -1761,6 +1781,10 @@ const loadPreset = async () => {
   settings.value.selfPlay = preset.self_play ?? true
   settings.value.finalScoreMetric = preset.final_score_metric || 'advantage'
   settings.value.finalScoreStat = preset.final_score_stat || 'mean'
+  settings.value.opponentModelingMetrics = preset.opponent_modeling_metrics || []
+  settings.value.distributeOpponentModelingScores = preset.distribute_opponent_modeling_scores ?? false
+  settings.value.rawAggregatedMetrics = preset.raw_aggregated_metrics || []
+  settings.value.statsAggregatedMetrics = preset.stats_aggregated_metrics || []
   settings.value.normalization = preset.normalization || 'normalize'
   settings.value.ignoreDiscount = preset.ignore_discount ?? false
   settings.value.ignoreReserved = preset.ignore_reserved ?? false
@@ -1802,6 +1826,17 @@ const loadPreset = async () => {
   settings.value.saveNegotiationsAsFolders = preset.save_negotiations_as_folders ?? true
   settings.value.passOpponentUfun = preset.pass_opponent_ufun ?? false
   settings.value.raiseExceptions = preset.raise_exceptions ?? false
+  // Execution & Performance
+  settings.value.njobs = preset.njobs ?? -1
+  settings.value.externalTimeout = preset.external_timeout ?? null
+  settings.value.verbosity = preset.verbosity ?? 0
+  settings.value.monitorNegotiations = preset.monitor_negotiations ?? false
+  settings.value.progressSampleRate = preset.progress_sample_rate ?? 1
+  // Plotting
+  settings.value.plotFraction = preset.plot_fraction ?? 0.0
+  // Advanced negotiator options
+  settings.value.rotatePrivateInfos = preset.rotate_private_infos ?? true
+  // Storage
   settings.value.storageOptimization = preset.storage_optimization || 'balanced'
   settings.value.memoryOptimization = preset.memory_optimization || 'balanced'
   settings.value.storageFormat = preset.storage_format || ''
@@ -1832,31 +1867,47 @@ function buildTournamentPreset(name) {
     pend_per_second: settings.value.pendPerSecond,
     final_score_metric: settings.value.finalScoreMetric,
     final_score_stat: settings.value.finalScoreStat,
-    randomize_runs: settings.value.randomizeRuns,
-    sort_runs: settings.value.sortRuns,
+    opponent_modeling_metrics: settings.value.opponentModelingMetrics.length > 0 
+      ? settings.value.opponentModelingMetrics : null,
+    distribute_opponent_modeling_scores: settings.value.distributeOpponentModelingScores,
+    raw_aggregated_metrics: settings.value.rawAggregatedMetrics.length > 0
+      ? settings.value.rawAggregatedMetrics : null,
+    stats_aggregated_metrics: settings.value.statsAggregatedMetrics.length > 0
+      ? settings.value.statsAggregatedMetrics : null,
+    normalization: settings.value.normalization,
+    ignore_discount: settings.value.ignoreDiscount,
+    ignore_reserved: settings.value.ignoreReserved,
+    // Advanced settings
     id_reveals_type: settings.value.idRevealsType,
     name_reveals_type: settings.value.nameRevealsType,
     mask_scenario_names: settings.value.maskScenarioNames,
+    randomize_runs: settings.value.randomizeRuns,
+    sort_runs: settings.value.sortRuns,
     only_failures_on_self_play: settings.value.onlyFailuresOnSelfPlay,
+    // Save options
     save_stats: settings.value.saveStats,
     save_scenario_figs: settings.value.saveScenarioFigs,
     recalculate_stats: settings.value.recalculateStats,
     save_every: settings.value.saveEvery,
     save_logs: settings.value.saveLogs,
     save_negotiations_as_folders: settings.value.saveNegotiationsAsFolders,
+    // Scenario options
     pass_opponent_ufun: settings.value.passOpponentUfun,
     raise_exceptions: settings.value.raiseExceptions,
-    storage_optimization: settings.value.storageOptimization,
-    memory_optimization: settings.value.memoryOptimization,
-    storage_format: settings.value.storageFormat,
-    normalization: settings.value.normalization,
-    ignore_discount: settings.value.ignoreDiscount,
-    ignore_reserved: settings.value.ignoreReserved,
     // Execution & Performance
     njobs: settings.value.njobs,
+    external_timeout: settings.value.externalTimeout,
     verbosity: settings.value.verbosity,
     monitor_negotiations: settings.value.monitorNegotiations,
     progress_sample_rate: settings.value.progressSampleRate,
+    // Plotting
+    plot_fraction: settings.value.plotFraction,
+    // Advanced negotiator options
+    rotate_private_infos: settings.value.rotatePrivateInfos,
+    // Storage
+    storage_optimization: settings.value.storageOptimization,
+    memory_optimization: settings.value.memoryOptimization,
+    storage_format: settings.value.storageFormat,
   }
 }
 
@@ -1921,6 +1972,9 @@ const startTournament = async () => {
       time_limit: settings.value.timeLimitRangeEnabled ? [settings.value.timeLimitMin, settings.value.timeLimitMax] : (settings.value.timeLimit || null),
       final_score_metric: settings.value.finalScoreMetric,
       final_score_stat: settings.value.finalScoreStat,
+      opponent_modeling_metrics: settings.value.opponentModelingMetrics.length > 0 
+        ? settings.value.opponentModelingMetrics : null,
+      distribute_opponent_modeling_scores: settings.value.distributeOpponentModelingScores,
       normalization: settings.value.normalization,
       ignore_discount: settings.value.ignoreDiscount,
       ignore_reserved: settings.value.ignoreReserved,
@@ -2003,6 +2057,9 @@ const startTournamentBackground = async () => {
       time_limit: settings.value.timeLimitRangeEnabled ? [settings.value.timeLimitMin, settings.value.timeLimitMax] : (settings.value.timeLimit || null),
       final_score_metric: settings.value.finalScoreMetric,
       final_score_stat: settings.value.finalScoreStat,
+      opponent_modeling_metrics: settings.value.opponentModelingMetrics.length > 0 
+        ? settings.value.opponentModelingMetrics : null,
+      distribute_opponent_modeling_scores: settings.value.distributeOpponentModelingScores,
       normalization: settings.value.normalization,
       ignore_discount: settings.value.ignoreDiscount,
       ignore_reserved: settings.value.ignoreReserved,
