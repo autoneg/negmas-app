@@ -706,11 +706,14 @@ function convertTournamentCompletedNegotiation(neg) {
   }
   
   // Create a special ID format for tournament negotiations that includes tournament context
-  // Format: tournament:{tournament_id}:{index}
+  // Prefer run_id for unique identification: tournament:{tournament_id}:run:{run_id}
+  // Fallback to index: tournament:{tournament_id}:{index}
   const tournamentId = tournamentSession.value?.id || route.params.tournamentId
-  const negotiationId = tournamentId && neg.index !== undefined 
-    ? `tournament:${tournamentId}:${neg.index}` 
-    : (neg.id || `neg_${neg.index}`)
+  const negotiationId = tournamentId && neg.run_id
+    ? `tournament:${tournamentId}:run:${neg.run_id}`
+    : (tournamentId && neg.index !== undefined)
+      ? `tournament:${tournamentId}:${neg.index}` 
+      : (neg.id || `neg_${neg.index}`)
   
   return {
     id: negotiationId,
@@ -726,6 +729,7 @@ function convertTournamentCompletedNegotiation(neg) {
     timestamp: neg.timestamp || Date.now(),
     source: 'tournament',
     index: neg.index,
+    run_id: neg.run_id, // Unique negotiation identifier
     tournament_id: tournamentId, // Keep this for reference
   }
 }

@@ -871,9 +871,13 @@ class TournamentStorageService:
                         timestamp = val
                         break
 
+                # Get run_id for unique identification
+                run_id = row.get("run_id")
+
                 negotiations.append(
                     {
                         "index": idx,
+                        "run_id": run_id,  # Include run_id at top level for easy access
                         "scenario": scenario,
                         "partners": partners,
                         "has_agreement": has_agreement,
