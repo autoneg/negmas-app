@@ -612,6 +612,147 @@
                 <div class="form-hint">Ignore reserved/disagreement values in utility functions</div>
               </div>
               
+              <!-- Metrics Section (Collapsible) -->
+              <details class="metrics-settings">
+                <summary>Metrics & Scoring</summary>
+                
+                <div class="metrics-section">
+                  <h4>Opponent Modeling Metrics</h4>
+                  <div class="form-hint" style="margin-bottom: 8px;">
+                    Evaluate how well competitors model their opponents' utility functions
+                  </div>
+                  <div class="checkbox-group">
+                    <label 
+                      v-for="metric in availableOpponentModelingMetrics" 
+                      :key="metric.value" 
+                      class="form-checkbox-inline"
+                      :title="metric.description"
+                    >
+                      <input 
+                        type="checkbox" 
+                        :value="metric.value"
+                        v-model="settings.opponentModelingMetrics"
+                      />
+                      <span>{{ metric.label }}</span>
+                    </label>
+                  </div>
+                  
+                  <h4>Final Score Configuration</h4>
+                  <div class="settings-grid">
+                    <div class="form-group">
+                      <label class="form-label">Score Metric</label>
+                      <select v-model="settings.finalScoreMetric" class="form-select">
+                        <option v-for="m in availableFinalScoreMetrics" :key="m.value" :value="m.value">
+                          {{ m.label }}
+                        </option>
+                      </select>
+                      <div class="form-hint">Primary metric for ranking competitors</div>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label class="form-label">Score Statistic</label>
+                      <select v-model="settings.finalScoreStat" class="form-select">
+                        <option value="mean">Mean</option>
+                        <option value="median">Median</option>
+                        <option value="min">Min</option>
+                        <option value="max">Max</option>
+                        <option value="std">Std Dev</option>
+                      </select>
+                      <div class="form-hint">Aggregation across negotiations</div>
+                    </div>
+                  </div>
+                  
+                  <h4>Custom Raw Aggregated Metrics</h4>
+                  <div class="form-hint" style="margin-bottom: 8px;">
+                    Define custom metrics as weighted sums of per-negotiation raw metrics
+                  </div>
+                  
+                  <div v-for="(metric, idx) in settings.rawAggregatedMetrics" :key="'raw-' + idx" class="custom-metric-card">
+                    <div class="custom-metric-header">
+                      <input 
+                        v-model="metric.name" 
+                        type="text" 
+                        class="form-input metric-name-input" 
+                        placeholder="Metric name..."
+                      />
+                      <button class="btn-remove" @click="removeRawAggregatedMetric(idx)" title="Remove">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="weight-grid">
+                      <div v-for="base in baseRawMetrics" :key="base.value" class="weight-input-group">
+                        <label class="weight-label" :title="base.description">{{ base.label }}</label>
+                        <input 
+                          type="number" 
+                          step="0.1" 
+                          :value="metric.weights[base.value] || 0"
+                          @input="metric.weights[base.value] = parseFloat($event.target.value) || 0"
+                          class="form-input weight-input"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <button class="btn btn-sm btn-secondary add-metric-btn" @click="addRawAggregatedMetric">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add Raw Metric
+                  </button>
+                  
+                  <h4>Custom Stats Aggregated Metrics</h4>
+                  <div class="form-hint" style="margin-bottom: 8px;">
+                    Define custom metrics as weighted combinations of statistics across all negotiations
+                  </div>
+                  
+                  <div v-for="(metric, idx) in settings.statsAggregatedMetrics" :key="'stats-' + idx" class="custom-metric-card">
+                    <div class="custom-metric-header">
+                      <input 
+                        v-model="metric.name" 
+                        type="text" 
+                        class="form-input metric-name-input" 
+                        placeholder="Metric name..."
+                      />
+                      <button class="btn-remove" @click="removeStatsAggregatedMetric(idx)" title="Remove">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="stats-weight-grid">
+                      <div v-for="base in baseRawMetrics.slice(0, 6)" :key="base.value" class="stat-metric-group">
+                        <div class="stat-metric-label">{{ base.label }}</div>
+                        <div class="stat-inputs">
+                          <div v-for="stat in ['mean', 'std', 'min', 'max']" :key="stat" class="stat-input-pair">
+                            <label class="stat-label">{{ stat }}</label>
+                            <input 
+                              type="number" 
+                              step="0.1" 
+                              :value="metric.weights[base.value + '::' + stat] || 0"
+                              @input="metric.weights[base.value + '::' + stat] = parseFloat($event.target.value) || 0"
+                              class="form-input stat-weight-input"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <button class="btn btn-sm btn-secondary add-metric-btn" @click="addStatsAggregatedMetric">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add Stats Metric
+                  </button>
+                </div>
+              </details>
+              
               <!-- Advanced Settings (Collapsible) -->
               <details class="advanced-settings">
                 <summary>Advanced Settings</summary>
@@ -1110,6 +1251,10 @@ const settings = ref({
   normalization: 'normalize',
   ignoreDiscount: false,
   ignoreReserved: false,
+  // Metrics settings
+  opponentModelingMetrics: [],  // Selected opponent modeling metrics
+  rawAggregatedMetrics: [],  // Custom weighted sums of raw metrics: [{name, weights: {metric: weight}}]
+  statsAggregatedMetrics: [],  // Custom weighted sums of stats: [{name, weights: {"metric::stat": weight}}]
   // Advanced settings
   stepTimeLimit: null,
   negotiatorTimeLimit: null,
@@ -1145,6 +1290,114 @@ const settings = ref({
   memoryOptimization: 'balanced',
   storageFormat: 'parquet',
 })
+
+// Available opponent modeling metrics from negmas
+const availableOpponentModelingMetrics = [
+  { value: 'kendall', label: 'Kendall', description: 'Kendall correlation between estimated and actual ufun' },
+  { value: 'kendall_optimality', label: 'Kendall Optimality', description: 'How optimal the Kendall correlation is' },
+  { value: 'ndcg', label: 'NDCG', description: 'Normalized Discounted Cumulative Gain' },
+  { value: 'euclidean', label: 'Euclidean', description: 'Euclidean distance (inverted, 1=perfect)' },
+]
+
+// Available optimality metrics (these come from scenario stats)
+const availableOptimalityMetrics = [
+  { value: 'ordinal_optimality', label: 'Ordinal Optimality', description: 'Distance to Pareto front in ordinal terms' },
+  { value: 'cardinal_optimality', label: 'Cardinal Optimality', description: 'Distance to Pareto front in cardinal terms' },
+  { value: 'utility_optimality', label: 'Utility Optimality', description: 'Optimality based on utility values' },
+  { value: 'pareto_optimality', label: 'Pareto Optimality', description: 'Distance to nearest Pareto point' },
+  { value: 'nash_optimality', label: 'Nash Optimality', description: 'Distance to Nash bargaining solution' },
+  { value: 'kalai_optimality', label: 'Kalai Optimality', description: 'Distance to Kalai-Smorodinsky point' },
+  { value: 'max_welfare_optimality', label: 'Max Welfare Optimality', description: 'Distance to max welfare point' },
+]
+
+// Base metrics available for aggregation
+const baseRawMetrics = [
+  { value: 'advantage', label: 'Advantage', description: 'Utility minus partner utility' },
+  { value: 'utility', label: 'Utility', description: 'Agent utility value' },
+  { value: 'partner_welfare', label: 'Partner Welfare', description: 'Partner utility value' },
+  { value: 'welfare', label: 'Welfare', description: 'Sum of all utilities' },
+  { value: 'nash_optimality', label: 'Nash Optimality', description: 'Distance to Nash point' },
+  { value: 'kalai_optimality', label: 'Kalai Optimality', description: 'Distance to Kalai point' },
+  { value: 'pareto_optimality', label: 'Pareto Optimality', description: 'Distance to Pareto front' },
+  { value: 'max_welfare_optimality', label: 'Max Welfare Optimality', description: 'Distance to max welfare' },
+  { value: 'ks_optimality', label: 'KS Optimality', description: 'Distance to Kalai-Smorodinsky point' },
+  { value: 'fairness', label: 'Fairness', description: 'max(nash, kalai, ks optimality)' },
+]
+
+// Available statistics for aggregation
+const availableStats = ['mean', 'std', 'min', 'max', '25%', '50%', '75%', 'count']
+
+// Computed: all available metrics for final score (including custom aggregated ones)
+const availableFinalScoreMetrics = computed(() => {
+  // All raw metrics available from negmas cartesian_tournament
+  const base = [
+    { value: 'advantage', label: 'Advantage' },
+    { value: 'utility', label: 'Utility' },
+    { value: 'partner_welfare', label: 'Partner Welfare' },
+    { value: 'welfare', label: 'Welfare' },
+    { value: 'nash_optimality', label: 'Nash Optimality' },
+    { value: 'kalai_optimality', label: 'Kalai Optimality' },
+    { value: 'pareto_optimality', label: 'Pareto Optimality' },
+    { value: 'max_welfare_optimality', label: 'Max Welfare Optimality' },
+    { value: 'ks_optimality', label: 'KS Optimality' },
+    { value: 'fairness', label: 'Fairness' },
+    { value: 'time', label: 'Time' },
+    { value: 'rounds', label: 'Rounds' },
+    { value: 'steps', label: 'Steps' },
+    { value: 'has_error', label: 'Has Error' },
+    { value: 'agreement', label: 'Agreement' },
+    { value: 'ordinal_optimality', label: 'Ordinal Optimality' },
+    { value: 'cardinal_optimality', label: 'Cardinal Optimality' },
+    { value: 'utility_optimality', label: 'Utility Optimality' },
+  ]
+  
+  // Add opponent modeling metrics if selected
+  for (const metric of settings.value.opponentModelingMetrics) {
+    const found = availableOpponentModelingMetrics.find(m => m.value === metric)
+    if (found) {
+      base.push({ value: `opp_${metric}`, label: `Opp: ${found.label}` })
+    }
+  }
+  
+  // Add custom raw aggregated metrics
+  for (const custom of settings.value.rawAggregatedMetrics) {
+    if (custom.name) {
+      base.push({ value: custom.name, label: `Custom: ${custom.name}` })
+    }
+  }
+  
+  // Add custom stats aggregated metrics
+  for (const custom of settings.value.statsAggregatedMetrics) {
+    if (custom.name) {
+      base.push({ value: custom.name, label: `Stats: ${custom.name}` })
+    }
+  }
+  
+  return base
+})
+
+// Methods for managing custom aggregated metrics
+const addRawAggregatedMetric = () => {
+  settings.value.rawAggregatedMetrics.push({
+    name: '',
+    weights: {},
+  })
+}
+
+const removeRawAggregatedMetric = (index) => {
+  settings.value.rawAggregatedMetrics.splice(index, 1)
+}
+
+const addStatsAggregatedMetric = () => {
+  settings.value.statsAggregatedMetrics.push({
+    name: '',
+    weights: {},
+  })
+}
+
+const removeStatsAggregatedMetric = (index) => {
+  settings.value.statsAggregatedMetrics.splice(index, 1)
+}
 
 // Presets
 const presets = ref([])
