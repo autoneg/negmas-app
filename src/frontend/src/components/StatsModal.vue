@@ -488,12 +488,19 @@ async function loadAllData() {
   
   loadError.value = null
   
-  // Load all data in parallel
-  await Promise.all([
-    loadScenarioInfo(),
-    loadScenarioStats(),
-    loadUfunDetails()
-  ])
+  if (isTournamentScenario.value) {
+    // For tournament scenarios, load info first (ufuns come with it), then stats
+    await loadScenarioInfo()
+    await loadUfunDetails()  // This will use ufuns from scenarioInfo
+    // Stats are also loaded with scenario info for tournaments
+  } else {
+    // For regular scenarios, load all in parallel
+    await Promise.all([
+      loadScenarioInfo(),
+      loadScenarioStats(),
+      loadUfunDetails()
+    ])
+  }
   
   // Mark as loaded for this path/scenario
   loadedScenarioPath.value = isTournamentScenario.value 
