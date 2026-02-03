@@ -2305,20 +2305,293 @@ class TournamentStorageService:
         filter_scenario: str | None = None,
         filter_partner: str | None = None,
     ) -> dict | None:
-        """Compute aggregated scores by strategy for a given metric and statistic.
+        """Get aggregated scores by strategy for a given metric and statistic.
+
+        Reads precomputed statistics from type_scores.csv (written by negmas).
+        When filters are applied, falls back to computing from all_scores.
 
         Args:
             tournament_id: Tournament ID.
-            metric: The score metric to analyze (utility, advantage, welfare,
-                   nash_optimality, kalai_optimality, ks_optimality,
-                   max_welfare_optimality, pareto_optimality, partner_welfare, time).
-            statistic: The aggregation statistic (mean, median, min, max, std,
-                      truncated_mean, count, sum).
+            metric: The score metric to analyze.
+            statistic: The aggregation statistic (mean, median, min, max, std, count).
             filter_scenario: Optional scenario name to filter by.
             filter_partner: Optional partner strategy to filter by.
 
         Returns:
             Dict with leaderboard data and metadata.
+        """
+        # Get scenarios and partners for filter dropdowns from all_scores
+        scores_data = cls.get_all_scores_csv(tournament_id)
+        scenarios_seen: set[str] = set()
+        partners_seen: set[str] = set()
+
+        if scores_data:
+            for row in scores_data:
+                scenario = row.get("scenario", "")
+                partners = row.get("partners", "")
+                if scenario:
+                    scenarios_seen.add(scenario)
+                if partners:
+                    partners_seen.add(partners)
+
+        # If filters are applied, we need to compute from all_scores
+        if filter_scenario or filter_partner:
+            return cls._get_filtered_score_analysis(
+                tournament_id,
+                metric,
+                statistic,
+                filter_scenario,
+                filter_partner,
+                scenarios_seen,
+                partners_seen,
+            )
+
+        # Read from type_scores.csv for unfiltered data
+        type_scores = cls.get_type_scores_csv(tournament_id)
+        if not type_scores:
+            return None
+
+        metrics = type_scores.get("metrics", [])
+        stat_names = type_scores.get("stat_names", [])
+        strategies = type_scores.get("strategies", [])
+
+        if not metrics or not strategies:
+            return {"leaderboard": [], "metric": metric, "statistic": statistic}
+
+        if metric not in metrics:
+            return {"error": f"Invalid metric: {metric}. Valid: {metrics}"}
+
+        # Map statistic names to type_scores column names
+        stat_map = {
+            "mean": "mean",
+            "median": "50%",
+            "min": "min",
+            "max": "max",
+            "std": "std",
+            "count": "count",
+        }
+        stat_col = stat_map.get(statistic, "mean")
+
+        # Find metric index and stat index
+        metric_idx = metrics.index(metric)
+        try:
+            stat_idx = stat_names.index(stat_col)
+        except ValueError:
+            stat_idx = 1  # Default to mean
+
+        # Each metric has 8 stats, so column offset is metric_idx * 8 + stat_idx
+        stats_per_metric = len(stat_names)  # Usually 8
+
+        # Build leaderboard from strategies
+        leaderboard = []
+        for strategy_data in strategies:
+            strategy = strategy_data.get("strategy", "")
+            values = strategy_data.get("values", [])
+
+            if not strategy or not values:
+                continue
+
+            # Calculate column index for the requested metric+stat
+            col_idx = metric_idx * stats_per_metric + stat_idx
+
+            if col_idx >= len(values):
+                continue
+
+            try:
+                score = float(values[col_idx]) if values[col_idx] else None
+
+                # Get all stats for this metric
+                base_idx = metric_idx * stats_per_metric
+                count = (
+                    float(values[base_idx])
+                    if base_idx < len(values) and values[base_idx]
+                    else 0
+                )
+                mean_val = (
+                    float(values[base_idx + 1])
+                    if base_idx + 1 < len(values) and values[base_idx + 1]
+                    else 0
+                )
+                std_val = (
+                    float(values[base_idx + 2])
+                    if base_idx + 2 < len(values) and values[base_idx + 2]
+                    else 0
+                )
+                min_val = (
+                    float(values[base_idx + 3])
+                    if base_idx + 3 < len(values) and values[base_idx + 3]
+                    else 0
+                )
+                max_val = (
+                    float(values[base_idx + 7])
+                    if base_idx + 7 < len(values) and values[base_idx + 7]
+                    else 0
+                )
+
+                if score is not None:
+                    leaderboard.append(
+                        {
+                            "strategy": strategy,
+                            "score": score,
+                            "count": int(count),
+                            "mean": mean_val,
+                            "std": std_val,
+                            "min": min_val,
+                            "max": max_val,
+                        }
+                    )
+            except (ValueError, TypeError, IndexError):
+                continue
+
+        # Sort by score (descending for most metrics, ascending for time)
+        reverse = metric != "time"
+        leaderboard.sort(key=lambda x: x["score"], reverse=reverse)
+
+        # Add rank
+        for i, entry in enumerate(leaderboard):
+            entry["rank"] = i + 1
+
+        return {
+            "leaderboard": leaderboard,
+            "metric": metric,
+            "statistic": statistic,
+            "available_metrics": metrics,
+            "available_statistics": ["mean", "median", "min", "max", "std", "count"],
+            "scenarios": sorted(scenarios_seen),
+            "partners": sorted(partners_seen),
+            "filter_scenario": filter_scenario,
+            "filter_partner": filter_partner,
+        }
+
+        stat_col = stat_map.get(statistic, "mean")
+
+        # Find available metrics from headers
+        # Headers format: metric, metric, metric, ... (repeated for each stat)
+        # We need to find unique metrics
+        available_metrics: set[str] = set()
+        for header in headers:
+            if header and header not in ("", "index"):
+                available_metrics.add(header)
+
+        if metric not in available_metrics:
+            return {
+                "error": f"Invalid metric: {metric}. Valid: {sorted(available_metrics)}"
+            }
+
+        # Build column index map: find columns for (metric, stat) pairs
+        # The CSV has a multi-level header structure:
+        # Row 0: metric names repeated for each stat
+        # Row 1: stat names (count, mean, std, min, 25%, 50%, 75%, max)
+        # We need to find the column index for our metric + stat combination
+
+        # Find all column indices for the requested metric
+        metric_col_indices: dict[str, int] = {}
+        for i, header in enumerate(headers):
+            if header == metric:
+                # Look at the corresponding stat in rows structure
+                # The rows dict has strategy as key, values as list matching headers
+                metric_col_indices[i] = i
+
+        # Build leaderboard from rows
+        leaderboard = []
+        for strategy, values in rows.items():
+            if strategy == "index" or not values:
+                continue
+
+            # Find values for this metric
+            # values is a list matching headers order
+            # We need to find the right column for metric + stat
+
+            # Parse the structure: for each metric, there are 8 stats
+            # count, mean, std, min, 25%, 50%, 75%, max
+            stats_per_metric = 8
+            stats_order = ["count", "mean", "std", "min", "25%", "50%", "75%", "max"]
+
+            # Find metric index
+            metric_indices = [i for i, h in enumerate(headers) if h == metric]
+            if not metric_indices:
+                continue
+
+            # The first occurrence starts a block of 8 columns
+            metric_start = metric_indices[0]
+
+            # Find the stat column within the metric block
+            try:
+                stat_idx = stats_order.index(stat_col)
+            except ValueError:
+                stat_idx = 1  # Default to mean
+
+            col_idx = metric_start + stat_idx
+
+            if col_idx >= len(values):
+                continue
+
+            try:
+                score = float(values[col_idx]) if values[col_idx] else None
+                count = float(values[metric_start]) if values[metric_start] else 0
+                mean_val = (
+                    float(values[metric_start + 1]) if values[metric_start + 1] else 0
+                )
+                std_val = (
+                    float(values[metric_start + 2]) if values[metric_start + 2] else 0
+                )
+                min_val = (
+                    float(values[metric_start + 3]) if values[metric_start + 3] else 0
+                )
+                max_val = (
+                    float(values[metric_start + 7]) if values[metric_start + 7] else 0
+                )
+
+                if score is not None:
+                    leaderboard.append(
+                        {
+                            "strategy": strategy,
+                            "score": score,
+                            "count": int(count),
+                            "mean": mean_val,
+                            "std": std_val,
+                            "min": min_val,
+                            "max": max_val,
+                        }
+                    )
+            except (ValueError, TypeError, IndexError):
+                continue
+
+        # Sort by score (descending for most metrics, ascending for time)
+        reverse = metric != "time"
+        leaderboard.sort(key=lambda x: x["score"], reverse=reverse)
+
+        # Add rank
+        for i, entry in enumerate(leaderboard):
+            entry["rank"] = i + 1
+
+        return {
+            "leaderboard": leaderboard,
+            "metric": metric,
+            "statistic": statistic,
+            "available_metrics": sorted(available_metrics),
+            "available_statistics": ["mean", "median", "min", "max", "std", "count"],
+            "scenarios": sorted(scenarios_seen),
+            "partners": sorted(partners_seen),
+            "filter_scenario": filter_scenario,
+            "filter_partner": filter_partner,
+        }
+
+    @classmethod
+    def _get_filtered_score_analysis(
+        cls,
+        tournament_id: str,
+        metric: str,
+        statistic: str,
+        filter_scenario: str | None,
+        filter_partner: str | None,
+        scenarios_seen: set[str],
+        partners_seen: set[str],
+    ) -> dict | None:
+        """Compute filtered score analysis from all_scores data.
+
+        Used when scenario or partner filters are applied, since type_scores.csv
+        only has aggregate data without filtering capability.
         """
         import statistics
         from collections import defaultdict
@@ -2327,75 +2600,13 @@ class TournamentStorageService:
         if not scores_data:
             return None
 
-        # Base numeric metrics that can be aggregated
-        # These match the columns available in all_scores.csv from negmas tournaments
-        base_numeric_metrics = [
-            "utility",
-            "reserved_value",
-            "advantage",
-            "partner_welfare",
-            "welfare",
-            "time",
-            # Optimality metrics (how close to optimal points)
-            "nash_optimality",
-            "kalai_optimality",
-            "ks_optimality",
-            "max_welfare_optimality",
-            "pareto_optimality",
-            # Additional optimality metrics from negmas
-            "fairness",  # max(nash, kalai, ks optimality)
-            "modified_kalai_optimality",
-            "modified_ks_optimality",
-        ]
-
-        # Opponent modeling metrics (prefixed with opp_)
-        # These are dynamically added when opponent_modeling_metrics is configured
-        opponent_modeling_metrics = [
-            "opp_kendall",
-            "opp_kendall_optimality",
-            "opp_ndcg",
-            "opp_euclidean",
-            "opp_anl2026",
-        ]
-
-        # Combine all known metrics
-        numeric_metrics = base_numeric_metrics + opponent_modeling_metrics
-
-        # Also detect any additional opp_ columns from the data itself
-        # This handles future metrics without code changes
-        if scores_data:
-            first_row = scores_data[0]
-            for col in first_row.keys():
-                if col.startswith("opp_") and col not in numeric_metrics:
-                    numeric_metrics.append(col)
-
-        if metric not in numeric_metrics:
-            return {"error": f"Invalid metric: {metric}. Valid: {numeric_metrics}"}
-
         # Group scores by strategy
         strategy_scores: dict[str, list[float]] = defaultdict(list)
-        scenarios_seen: set[str] = set()
-        partners_seen: set[str] = set()
-
-        # Track which metrics actually have data
-        available_metrics_in_data: set[str] = set()
 
         for row in scores_data:
             strategy = row.get("strategy", "Unknown")
             scenario = row.get("scenario", "")
             partners = row.get("partners", "")
-
-            scenarios_seen.add(scenario)
-            partners_seen.add(partners)
-
-            # Track which metrics have data in this row
-            for m in numeric_metrics:
-                if row.get(m) not in (None, "", "nan", "NaN"):
-                    try:
-                        float(row.get(m))
-                        available_metrics_in_data.add(m)
-                    except (ValueError, TypeError):
-                        pass
 
             # Apply filters
             if filter_scenario and scenario != filter_scenario:
@@ -2403,13 +2614,14 @@ class TournamentStorageService:
             if filter_partner and partners != filter_partner:
                 continue
 
-            # Get the metric value
-            value_str = row.get(metric, "")
-            if not value_str:
+            # Get the metric value - include zeros
+            value_str = row.get(metric)
+            if value_str is None or value_str == "":
                 continue
 
             try:
                 value = float(value_str)
+                # Include all values including zeros
                 strategy_scores[strategy].append(value)
             except (ValueError, TypeError):
                 continue
@@ -2423,39 +2635,23 @@ class TournamentStorageService:
                 "partners": sorted(partners_seen),
             }
 
-        # Compute the requested statistic for each strategy
+        # Compute the requested statistic
         def compute_stat(values: list[float], stat: str) -> float | None:
             if not values:
                 return None
-            try:
-                if stat == "mean":
-                    return statistics.mean(values)
-                elif stat == "median":
-                    return statistics.median(values)
-                elif stat == "min":
-                    return min(values)
-                elif stat == "max":
-                    return max(values)
-                elif stat == "std":
-                    return statistics.stdev(values) if len(values) > 1 else 0.0
-                elif stat == "sum":
-                    return sum(values)
-                elif stat == "count":
-                    return float(len(values))
-                elif stat == "truncated_mean":
-                    # Remove top and bottom 10%
-                    if len(values) < 5:
-                        return statistics.mean(values)
-                    sorted_vals = sorted(values)
-                    trim = max(1, len(sorted_vals) // 10)
-                    trimmed = sorted_vals[trim:-trim] if trim > 0 else sorted_vals
-                    return (
-                        statistics.mean(trimmed) if trimmed else statistics.mean(values)
-                    )
-                else:
-                    return statistics.mean(values)
-            except Exception:
-                return None
+            if stat == "mean":
+                return statistics.mean(values)
+            elif stat == "median":
+                return statistics.median(values)
+            elif stat == "min":
+                return min(values)
+            elif stat == "max":
+                return max(values)
+            elif stat == "std":
+                return statistics.stdev(values) if len(values) > 1 else 0.0
+            elif stat == "count":
+                return float(len(values))
+            return statistics.mean(values)
 
         # Build leaderboard
         leaderboard = []
@@ -2474,31 +2670,38 @@ class TournamentStorageService:
                     }
                 )
 
-        # Sort by score (descending for most metrics, ascending for time)
+        # Sort by score
         reverse = metric != "time"
         leaderboard.sort(key=lambda x: x["score"], reverse=reverse)
 
-        # Add rank
         for i, entry in enumerate(leaderboard):
             entry["rank"] = i + 1
+
+        # Get available metrics from data
+        available_metrics: set[str] = set()
+        if scores_data:
+            first_row = scores_data[0]
+            for col in first_row.keys():
+                if col not in (
+                    "index",
+                    "strategy",
+                    "scenario",
+                    "partners",
+                    "negotiator_id",
+                    "has_error",
+                    "self_error",
+                    "mechanism_error",
+                    "error_details",
+                    "mechanism_name",
+                ):
+                    available_metrics.add(col)
 
         return {
             "leaderboard": leaderboard,
             "metric": metric,
             "statistic": statistic,
-            "available_metrics": sorted(available_metrics_in_data)
-            if available_metrics_in_data
-            else numeric_metrics,
-            "available_statistics": [
-                "mean",
-                "median",
-                "min",
-                "max",
-                "std",
-                "truncated_mean",
-                "count",
-                "sum",
-            ],
+            "available_metrics": sorted(available_metrics),
+            "available_statistics": ["mean", "median", "min", "max", "std", "count"],
             "scenarios": sorted(scenarios_seen),
             "partners": sorted(partners_seen),
             "filter_scenario": filter_scenario,
