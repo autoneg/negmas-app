@@ -1707,7 +1707,8 @@ const startTournament = async () => {
       storage_format: settings.value.storageFormat || null,
     }
     
-    const response = await fetch('/api/tournament/start', {
+    // Use start_background for polling-based architecture
+    const response = await fetch('/api/tournament/start_background', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
@@ -1784,7 +1785,8 @@ const startTournamentBackground = async () => {
       storage_format: settings.value.storageFormat || null,
     }
     
-    const response = await fetch('/api/tournament/start', {
+    // Use start_background for polling-based architecture
+    const response = await fetch('/api/tournament/start_background', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
