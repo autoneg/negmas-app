@@ -132,10 +132,22 @@ cli = typer.Typer(
     name="negmas-app",
     help="NegMAS App - A Vue.js GUI for running and monitoring negotiations",
     no_args_is_help=False,
+    invoke_without_command=True,
 )
 
 # Rich console for beautiful output
 console = Console()
+
+
+@cli.callback()
+def main(ctx: typer.Context) -> None:
+    """NegMAS App - A Vue.js GUI for running and monitoring negotiations.
+
+    Run 'negmas-app' without arguments to start the app (equivalent to 'negmas-app start').
+    """
+    if ctx.invoked_subcommand is None:
+        # No subcommand given, run start with defaults
+        start()
 
 
 def check_and_setup_scenarios() -> bool:
