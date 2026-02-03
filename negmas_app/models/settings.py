@@ -3,7 +3,11 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from negmas.plots.util import SUPPORTED_IMAGE_FORMATS
+# Try to import from negmas, fall back to local definition
+try:
+    from negmas.plots.util import SUPPORTED_IMAGE_FORMATS
+except ImportError:
+    SUPPORTED_IMAGE_FORMATS = {"webp", "png", "jpg", "jpeg", "svg", "pdf"}
 
 
 @dataclass

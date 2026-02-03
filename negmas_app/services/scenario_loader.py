@@ -8,13 +8,27 @@ from typing import Any
 
 import yaml
 
-from negmas import Scenario, scenario_registry, register_all_scenarios
+from negmas import Scenario
 from negmas.inout import (
     find_domain_and_utility_files_geniusweb,
     find_domain_and_utility_files_xml,
     find_domain_and_utility_files_yaml,
 )
 from negmas.preferences.ops import is_rational
+
+# Try to import scenario registry features (available in dev version, not PyPI)
+try:
+    from negmas import scenario_registry, register_all_scenarios
+
+    HAS_SCENARIO_REGISTRY = True
+except ImportError:
+    scenario_registry: Any = {}
+    HAS_SCENARIO_REGISTRY = False
+
+    def register_all_scenarios() -> None:
+        """No-op stub when scenario registry is not available."""
+        pass
+
 
 from ..models import ScenarioInfo, IssueInfo, ScenarioStatsInfo, ScenarioDefinition
 from .settings_service import SettingsService
