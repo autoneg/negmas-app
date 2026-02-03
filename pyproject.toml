@@ -10,7 +10,7 @@ readme = "README.md"
 license = "AGPL-3.0-or-later"
 requires-python = ">=3.14"
 dependencies = [
-    "negmas>=0.13.1",
+    "negmas>=0.15.0",
     "negmas-genius-agents>=0.1.0",
     "negmas-llm>=0.2.0",
     "negmas-negolog>=0.2.1",
