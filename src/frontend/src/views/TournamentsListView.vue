@@ -7,7 +7,10 @@
         <button class="btn btn-primary" @click="showNewTournamentModal = true">
           + New Tournament
         </button>
-        <button class="btn btn-secondary" @click="showImportModal = true" title="Import tournament from disk">
+        <button class="btn btn-secondary" @click="showLoadModal = true" title="Load tournament from disk (view only)">
+          📂 Load
+        </button>
+        <button class="btn btn-secondary" @click="showImportModal = true" title="Import tournament from disk (copy to app folder)">
           📥 Import
         </button>
         <button 
@@ -458,6 +461,58 @@
       </div>
     </Teleport>
     
+    <!-- Load Tournament Modal (view only, no copy) -->
+    <Teleport to="body">
+      <div v-if="showLoadModal" class="modal-overlay active" @click.self="closeLoadModal">
+        <div class="modal" style="max-width: 550px;">
+          <div class="modal-header">
+            <h3>Load Tournament</h3>
+            <button class="modal-close" @click="closeLoadModal">×</button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted" style="margin-bottom: 16px;">
+              Load a tournament from disk for viewing. This does not copy the tournament to the app's storage.
+              Use Import if you want to save it permanently.
+            </p>
+            
+            <div class="form-group">
+              <label class="form-label">Tournament Path *</label>
+              <div class="path-input-row">
+                <input 
+                  type="text" 
+                  v-model="loadPath" 
+                  @input="validateLoadPathDebounced"
+                  placeholder="/path/to/tournament/directory"
+                  class="form-input"
+                >
+                <button class="btn btn-secondary" @click="browseLoadFolder" title="Browse...">
+                  📁
+                </button>
+              </div>
+              <div v-if="loadValidation" class="validation-status" :class="loadValidation.valid ? 'valid' : 'invalid'">
+                <span v-if="loadValidation.valid">
+                  ✓ Valid tournament directory
+                  <span v-if="loadValidation.summary?.n_negotiations">({{ loadValidation.summary.n_negotiations }} negotiations)</span>
+                </span>
+                <span v-else>✗ {{ loadValidation.error || 'Invalid path' }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="closeLoadModal">Cancel</button>
+            <button 
+              class="btn btn-primary" 
+              @click="performLoad"
+              :disabled="!loadPath.trim() || loadLoading || (loadValidation && !loadValidation.valid)"
+            >
+              <span v-if="loadLoading">Loading...</span>
+              <span v-else>Load & View</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+    
     <!-- Import Tournament Modal -->
     <Teleport to="body">
       <div v-if="showImportModal" class="modal-overlay active" @click.self="closeImportModal">
@@ -468,22 +523,27 @@
           </div>
           <div class="modal-body">
             <p class="text-muted" style="margin-bottom: 16px;">
-              Import a tournament from a directory on disk into the app's storage.
+              Import a tournament from disk into the app's storage. This copies the tournament folder.
             </p>
             
             <div class="form-group">
               <label class="form-label">Source Path *</label>
-              <input 
-                type="text" 
-                v-model="importPath" 
-                @input="validateImportPathDebounced"
-                placeholder="/path/to/tournament/directory"
-                class="form-input"
-              >
+              <div class="path-input-row">
+                <input 
+                  type="text" 
+                  v-model="importPath" 
+                  @input="validateImportPathDebounced"
+                  placeholder="/path/to/tournament/directory"
+                  class="form-input"
+                >
+                <button class="btn btn-secondary" @click="browseImportFolder" title="Browse...">
+                  📁
+                </button>
+              </div>
               <div v-if="importValidation" class="validation-status" :class="importValidation.valid ? 'valid' : 'invalid'">
                 <span v-if="importValidation.valid">
                   ✓ Valid tournament directory
-                  <span v-if="importValidation.n_negotiations">({{ importValidation.n_negotiations }} negotiations)</span>
+                  <span v-if="importValidation.summary?.n_negotiations">({{ importValidation.summary.n_negotiations }} negotiations)</span>
                 </span>
                 <span v-else>✗ {{ importValidation.error || 'Invalid path' }}</span>
               </div>
@@ -676,6 +736,12 @@ const newTagInput = ref('')
 
 // Selection for combine
 const selectedForCombine = ref([])
+
+// Load modal state (view without copy)
+const showLoadModal = ref(false)
+const loadPath = ref('')
+const loadValidation = ref(null)
+const loadLoading = ref(false)
 
 // Import modal state
 const showImportModal = ref(false)
@@ -1109,6 +1175,100 @@ function toggleSelectAll() {
   }
 }
 
+// Load functions (view without copying)
+async function validateLoadPathDebounced() {
+  if (!loadPath.value.trim()) {
+    loadValidation.value = null
+    return
+  }
+  
+  loadLoading.value = true
+  try {
+    loadValidation.value = await tournamentsStore.validateImportPath(loadPath.value.trim())
+  } finally {
+    loadLoading.value = false
+  }
+}
+
+async function browseLoadFolder() {
+  try {
+    const response = await fetch('/api/system/browse-folder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Select Tournament Folder',
+        initial_dir: loadPath.value || null,
+      }),
+    })
+    
+    if (!response.ok) {
+      console.error('Browse failed:', response.statusText)
+      return
+    }
+    
+    const result = await response.json()
+    if (!result.cancelled && result.path) {
+      loadPath.value = result.path
+      await validateLoadPathDebounced()
+    }
+  } catch (error) {
+    console.error('Failed to open folder browser:', error)
+  }
+}
+
+async function performLoad() {
+  if (!loadPath.value.trim()) return
+  
+  loadLoading.value = true
+  try {
+    const tournamentData = await tournamentsStore.loadTournamentFromPath(loadPath.value.trim())
+    
+    // Create a session-like object from the loaded data
+    const loadedSession = {
+      id: tournamentData.id,
+      name: tournamentData.name || tournamentData.id,
+      status: 'completed',
+      n_competitors: tournamentData.n_competitors,
+      n_scenarios: tournamentData.n_scenarios,
+      n_negotiations: tournamentData.n_negotiations,
+      n_agreements: tournamentData.n_agreements,
+      agreement_rate: tournamentData.agreement_rate,
+      config: tournamentData.config || null,
+      isSaved: false,
+      isExternal: true,
+      externalPath: loadPath.value.trim(),
+    }
+    
+    // Select the session and navigate to view it
+    tournamentsStore.selectSession(loadedSession)
+    
+    // Populate the store with loaded data using the helper method
+    tournamentsStore.setLoadedTournamentData({
+      gridInit: tournamentData.gridInit,
+      cellStates: tournamentData.cellStates || {},
+      leaderboard: tournamentData.leaderboard || [],
+      liveNegotiations: tournamentData.liveNegotiations || [],
+      tournamentScenarios: tournamentData.scenarios || [],
+    })
+    
+    // Close modal
+    closeLoadModal()
+    
+    // Navigate to the tournament view
+    router.push({ name: 'SingleTournament', params: { id: tournamentData.id } })
+  } catch (error) {
+    alert(`Failed to load tournament: ${error.message}`)
+  } finally {
+    loadLoading.value = false
+  }
+}
+
+function closeLoadModal() {
+  showLoadModal.value = false
+  loadPath.value = ''
+  loadValidation.value = null
+}
+
 // Import functions
 async function validateImportPathDebounced() {
   if (!importPath.value.trim()) {
@@ -1121,6 +1281,32 @@ async function validateImportPathDebounced() {
     importValidation.value = await tournamentsStore.validateImportPath(importPath.value.trim())
   } finally {
     importLoading.value = false
+  }
+}
+
+async function browseImportFolder() {
+  try {
+    const response = await fetch('/api/system/browse-folder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Select Tournament Folder to Import',
+        initial_dir: importPath.value || null,
+      }),
+    })
+    
+    if (!response.ok) {
+      console.error('Browse failed:', response.statusText)
+      return
+    }
+    
+    const result = await response.json()
+    if (!result.cancelled && result.path) {
+      importPath.value = result.path
+      await validateImportPathDebounced()
+    }
+  } catch (error) {
+    console.error('Failed to open folder browser:', error)
   }
 }
 
@@ -2222,5 +2408,38 @@ async function stopTournament(tourn) {
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
+}
+
+/* Path input with browse button */
+.path-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.path-input-row .form-input {
+  flex: 1;
+}
+
+.path-input-row .btn {
+  flex-shrink: 0;
+  padding: 8px 12px;
+}
+
+/* Validation status for path inputs */
+.validation-status {
+  margin-top: 6px;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.validation-status.valid {
+  color: var(--success-color, #10b981);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.validation-status.invalid {
+  color: var(--error-color, #ef4444);
+  background: rgba(239, 68, 68, 0.1);
 }
 </style>

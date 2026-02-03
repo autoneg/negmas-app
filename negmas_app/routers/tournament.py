@@ -202,6 +202,73 @@ async def start_tournament(request: TournamentConfigRequest):
     }
 
 
+@router.post("/start_background")
+async def start_tournament_background(request: TournamentConfigRequest):
+    """Start a new tournament in background (for polling-based updates).
+
+    Creates a session and immediately starts running it in a background thread.
+    Use GET /{session_id}/state to poll for progress updates.
+
+    Returns:
+        Session info with session_id and state_url for polling.
+    """
+    config = TournamentConfig(
+        competitor_types=request.competitor_types,
+        scenario_paths=request.scenario_paths,
+        opponent_types=request.opponent_types,
+        competitor_params=request.competitor_params,
+        n_repetitions=request.n_repetitions,
+        rotate_ufuns=request.rotate_ufuns,
+        self_play=request.self_play,
+        mechanism_type=request.mechanism_type,
+        n_steps=_to_range_int(request.n_steps),
+        time_limit=_to_range_float(request.time_limit),
+        step_time_limit=_to_range_float(request.step_time_limit),
+        negotiator_time_limit=_to_range_float(request.negotiator_time_limit),
+        hidden_time_limit=_to_range_float(request.hidden_time_limit),
+        pend=_to_range_float(request.pend),
+        pend_per_second=_to_range_float(request.pend_per_second),
+        final_score_metric=request.final_score_metric,
+        final_score_stat=request.final_score_stat,
+        randomize_runs=request.randomize_runs,
+        sort_runs=request.sort_runs,
+        id_reveals_type=request.id_reveals_type,
+        name_reveals_type=request.name_reveals_type,
+        mask_scenario_names=request.mask_scenario_names,
+        only_failures_on_self_play=request.only_failures_on_self_play,
+        save_stats=request.save_stats,
+        save_scenario_figs=request.save_scenario_figs,
+        save_every=request.save_every,
+        save_logs=request.save_logs,
+        save_negotiations_as_folders=request.save_negotiations_as_folders,
+        normalization=request.normalization,
+        ignore_discount=request.ignore_discount,
+        ignore_reserved=request.ignore_reserved,
+        pass_opponent_ufun=request.pass_opponent_ufun,
+        raise_exceptions=request.raise_exceptions,
+        njobs=request.njobs,
+        monitor_negotiations=request.monitor_negotiations,
+        save_path=request.save_path,
+        verbosity=request.verbosity,
+        path_exists=request.path_exists,
+        storage_optimization=request.storage_optimization,
+        memory_optimization=request.memory_optimization,
+        storage_format=request.storage_format,
+    )
+
+    manager = get_manager()
+    session = manager.create_session(config)
+
+    # Start immediately in background
+    manager.start_tournament(session.id)
+
+    return {
+        "session_id": session.id,
+        "status": session.status.value,
+        "state_url": f"/api/tournament/{session.id}/state",
+    }
+
+
 @router.get("/{session_id}/stream")
 async def stream_tournament(session_id: str):
     """Stream tournament progress via Server-Sent Events.
@@ -402,6 +469,200 @@ async def stream_tournament(session_id: str):
             }
 
     return EventSourceResponse(event_generator())
+
+
+@router.get("/{session_id}/state")
+async def get_tournament_state(session_id: str):
+    """Get current tournament state for polling.
+
+    This endpoint returns the complete current state of a tournament,
+    suitable for polling-based updates instead of SSE streaming.
+
+    Returns:
+        Complete tournament state including grid, cells, leaderboard, progress.
+    """
+    manager = get_manager()
+    session = manager.get_session(session_id)
+    state = manager.get_tournament_state(session_id)
+
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Build response with all state data
+    response: dict = {
+        "session_id": session_id,
+        "status": session.status.value,
+        "error": session.error or (state.error if state else None),
+    }
+
+    # Add grid_init if available
+    if state and state.grid_init:
+        response["grid_init"] = {
+            "competitors": state.grid_init.competitors,
+            "opponents": state.grid_init.opponents,
+            "scenarios": state.grid_init.scenarios,
+            "n_repetitions": state.grid_init.n_repetitions,
+            "rotate_ufuns": state.grid_init.rotate_ufuns,
+            "total_negotiations": state.grid_init.total_negotiations,
+            "storage_path": state.grid_init.storage_path,
+        }
+
+    # Add cell states (completed and running)
+    if state:
+        cell_states = {}
+        for cell in state.completed_cells:
+            # Build cell key
+            if state.grid_init:
+                competitor = (
+                    state.grid_init.competitors[cell.competitor_idx]
+                    if cell.competitor_idx < len(state.grid_init.competitors)
+                    else f"Competitor {cell.competitor_idx}"
+                )
+                opponent = (
+                    state.grid_init.opponents[cell.opponent_idx]
+                    if cell.opponent_idx < len(state.grid_init.opponents)
+                    else f"Opponent {cell.opponent_idx}"
+                )
+                scenario = (
+                    state.grid_init.scenarios[cell.scenario_idx]
+                    if cell.scenario_idx < len(state.grid_init.scenarios)
+                    else f"Scenario {cell.scenario_idx}"
+                )
+                cell_key = f"{competitor}::{opponent}::{scenario}"
+
+                # Initialize or update cell state
+                if cell_key not in cell_states:
+                    total = state.grid_init.n_repetitions * (
+                        2 if state.grid_init.rotate_ufuns else 1
+                    )
+                    cell_states[cell_key] = {
+                        "status": "pending",
+                        "total": total,
+                        "completed": 0,
+                        "agreements": 0,
+                        "timeouts": 0,
+                        "errors": 0,
+                        "running": 0,
+                    }
+
+                # Update based on cell status
+                cell_data = cell_states[cell_key]
+                cell_data["completed"] += 1
+
+                if cell.end_reason:
+                    if cell.end_reason.value == "agreement":
+                        cell_data["agreements"] += 1
+                    elif cell.end_reason.value == "timeout":
+                        cell_data["timeouts"] += 1
+                    elif cell.end_reason.value in ("error", "broken"):
+                        cell_data["errors"] += 1
+
+                # Determine status
+                if cell_data["completed"] >= cell_data["total"]:
+                    if cell_data["errors"] > 0:
+                        cell_data["status"] = "error"
+                    elif cell_data["agreements"] > 0:
+                        cell_data["status"] = "complete"
+                    else:
+                        cell_data["status"] = "timeout"
+                else:
+                    cell_data["status"] = "running"
+
+        # Add current running cell
+        if state.current_cell and state.grid_init:
+            cell = state.current_cell
+            competitor = (
+                state.grid_init.competitors[cell.competitor_idx]
+                if cell.competitor_idx < len(state.grid_init.competitors)
+                else f"Competitor {cell.competitor_idx}"
+            )
+            opponent = (
+                state.grid_init.opponents[cell.opponent_idx]
+                if cell.opponent_idx < len(state.grid_init.opponents)
+                else f"Opponent {cell.opponent_idx}"
+            )
+            scenario = (
+                state.grid_init.scenarios[cell.scenario_idx]
+                if cell.scenario_idx < len(state.grid_init.scenarios)
+                else f"Scenario {cell.scenario_idx}"
+            )
+            cell_key = f"{competitor}::{opponent}::{scenario}"
+
+            if cell_key not in cell_states:
+                total = state.grid_init.n_repetitions * (
+                    2 if state.grid_init.rotate_ufuns else 1
+                )
+                cell_states[cell_key] = {
+                    "status": "running",
+                    "total": total,
+                    "completed": 0,
+                    "agreements": 0,
+                    "timeouts": 0,
+                    "errors": 0,
+                    "running": 1,
+                }
+            else:
+                cell_states[cell_key]["running"] = 1
+                if cell_states[cell_key]["status"] != "complete":
+                    cell_states[cell_key]["status"] = "running"
+
+        response["cell_states"] = cell_states
+
+    # Add leaderboard
+    if state and state.leaderboard:
+        response["leaderboard"] = [
+            {
+                "name": entry.name,
+                "score": entry.score,
+                "rank": entry.rank,
+                "n_negotiations": entry.n_negotiations,
+                "n_agreements": entry.n_agreements,
+                "mean_utility": entry.mean_utility,
+            }
+            for entry in state.leaderboard
+        ]
+
+    # Add progress
+    if state and state.progress:
+        response["progress"] = {
+            "completed": state.progress.completed,
+            "total": state.progress.total,
+            "current_scenario": state.progress.current_scenario,
+            "current_partners": state.progress.current_partners,
+            "percent": state.progress.percent,
+        }
+
+    # Add results if completed
+    if session.status.value == "completed" and session.results:
+        response["results"] = {
+            "final_scores": [
+                {
+                    "name": s.name,
+                    "type_name": s.type_name,
+                    "score": s.score,
+                    "rank": s.rank,
+                    "mean_utility": s.mean_utility,
+                    "mean_advantage": s.mean_advantage,
+                    "n_negotiations": s.n_negotiations,
+                    "n_agreements": s.n_agreements,
+                    "agreement_rate": s.agreement_rate,
+                }
+                for s in session.results.final_scores
+            ],
+            "total_negotiations": session.results.total_negotiations,
+            "total_agreements": session.results.total_agreements,
+            "overall_agreement_rate": session.results.overall_agreement_rate,
+            "results_path": session.results.results_path,
+        }
+
+    # Add timing info
+    if session.start_time:
+        response["start_time"] = session.start_time.isoformat()
+    if session.end_time:
+        response["end_time"] = session.end_time.isoformat()
+        response["duration_seconds"] = session.duration_seconds()
+
+    return response
 
 
 class CancelRequest(BaseModel):
@@ -1718,6 +1979,39 @@ class ValidateTournamentPathRequest(BaseModel):
     """Request model for validating a tournament path."""
 
     path: str
+
+
+class LoadTournamentFromPathRequest(BaseModel):
+    """Request model for loading a tournament from an external path."""
+
+    path: str
+
+
+@router.post("/load_from_path")
+async def load_tournament_from_path(request: LoadTournamentFromPathRequest):
+    """Load a tournament from an external path for viewing (without copying).
+
+    This allows viewing tournaments from anywhere on disk without importing
+    them into the app's tournaments directory. Use this for quick inspection
+    of tournament results.
+
+    For permanent storage, use /import instead.
+
+    Args:
+        request: LoadTournamentFromPathRequest with path to tournament
+
+    Returns:
+        Full tournament data if valid, 404 if not found or invalid.
+    """
+    tournament = await asyncio.to_thread(
+        TournamentStorageService.load_tournament_from_path, request.path
+    )
+    if tournament is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Tournament not found or invalid at the specified path",
+        )
+    return tournament
 
 
 @router.post("/validate_path")

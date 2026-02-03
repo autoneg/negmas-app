@@ -517,8 +517,8 @@ onMounted(async () => {
       tournamentsStore.selectSession(session)
       
       if (session.status === 'running' || session.status === 'pending') {
-        // Start streaming for running sessions
-        tournamentsStore.startStreaming(tournamentId, session.config || {})
+        // Start polling for running sessions
+        tournamentsStore.startPolling(tournamentId, session.config || {})
       } else if (session.status === 'completed' || session.status === 'failed') {
         // Try to load saved data for completed/failed sessions
         const savedData = await tournamentsStore.loadSavedTournament(tournamentId)
@@ -597,7 +597,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  tournamentsStore.stopStreaming()
+  tournamentsStore.stopPolling()
 })
 
 function onTournamentStart(data) {

@@ -577,6 +577,99 @@ class TournamentStorageService:
         return cls._sanitize_for_json(result)
 
     @classmethod
+    def load_tournament_from_path(cls, tournament_path: str) -> dict | None:
+        """Load full tournament data from an external path (without copying).
+
+        This allows viewing tournaments from anywhere on disk without
+        importing them into the app's tournaments directory.
+
+        Args:
+            tournament_path: Full path to the tournament directory.
+
+        Returns:
+            Full tournament data including scores and negotiation results,
+            or None if path is not a valid tournament.
+        """
+        path = Path(tournament_path)
+        if not path.exists():
+            return None
+
+        # Check if it's a valid tournament directory
+        if not cls._check_tournament_files_exist(path):
+            return None
+
+        # Load summary
+        summary = cls._load_tournament_summary(path)
+        if not summary:
+            return None
+
+        # Override id and path to use the external path
+        summary["id"] = f"external:{path.name}"
+        summary["path"] = str(path)
+        summary["is_external"] = True
+
+        # Load scores
+        scores = cls._load_scores(path)
+
+        # Load negotiation results (summary only, not full details)
+        negotiations = cls._load_negotiations_summary(path)
+
+        # Build gridInit and cellStates for frontend
+        gridInit, cellStates = cls._build_grid_structures(path, negotiations)
+
+        # Build leaderboard from scores
+        leaderboard = [
+            {
+                "name": s["name"],
+                "rank": s["rank"],
+                "score": s.get("score"),
+                "mean_utility": s.get("mean_utility"),
+                "n_negotiations": s.get("n_negotiations", 0),
+            }
+            for s in scores
+        ]
+
+        result = {
+            **summary,
+            "scores": scores,
+            "negotiations": negotiations,
+            "gridInit": gridInit,
+            "cellStates": cellStates,
+            "leaderboard": leaderboard,
+        }
+
+        # Also load config if available
+        config = cls._load_config_from_path(path)
+        if config:
+            result["config"] = config
+
+        # Sanitize for JSON serialization
+        return cls._sanitize_for_json(result)
+
+    @classmethod
+    def _load_config_from_path(cls, path: Path) -> dict | None:
+        """Load tournament config from a path (yaml or json)."""
+        # Try YAML first
+        yaml_file = path / "config.yaml"
+        if yaml_file.exists():
+            try:
+                with open(yaml_file) as f:
+                    return yaml.safe_load(f)
+            except Exception:
+                pass
+
+        # Try JSON
+        json_file = path / "config.json"
+        if json_file.exists():
+            try:
+                with open(json_file) as f:
+                    return json.load(f)
+            except Exception:
+                pass
+
+        return None
+
+    @classmethod
     def _load_scores(cls, path: Path) -> list[dict]:
         """Load competitor scores using SimpleTournamentResults.
 

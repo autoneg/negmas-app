@@ -337,6 +337,39 @@ class TournamentManager:
         self._tournament_states[session_id] = TournamentState()
         return session
 
+    def start_tournament(self, session_id: str) -> bool:
+        """Start a tournament running in the background.
+
+        This starts the tournament in a background thread without blocking.
+        Use get_session() and get_tournament_state() to poll for progress.
+
+        Args:
+            session_id: The session ID to start.
+
+        Returns:
+            True if started successfully, False if session not found or already running.
+        """
+        session = self.sessions.get(session_id)
+        state = self._tournament_states.get(session_id)
+
+        if session is None or session.config is None or state is None:
+            return False
+
+        # Check if already running
+        thread = self._background_threads.get(session_id)
+        if thread is not None and thread.is_alive():
+            return True  # Already running
+
+        # Start the tournament in a background thread
+        thread = threading.Thread(
+            target=self._run_tournament_in_background,
+            args=(session_id,),
+            daemon=True,
+        )
+        self._background_threads[session_id] = thread
+        thread.start()
+        return True
+
     def get_session(self, session_id: str) -> TournamentSession | None:
         """Get a session by ID."""
         return self.sessions.get(session_id)

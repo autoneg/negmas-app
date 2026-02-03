@@ -1,14 +1,18 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
+/**
+ * Tournaments store using polling instead of SSE.
+ * Much simpler, more reliable, easier to debug.
+ */
 export const useTournamentsStore = defineStore('tournaments', () => {
   const sessions = ref([])
   const currentSession = ref(null)
   const loading = ref(false)
-  const streamingSession = ref(null)
-  const eventSource = ref(null)
+  const pollingSession = ref(null)
+  let pollInterval = null
   
-  // Current tournament state (updated via SSE)
+  // Current tournament state (updated via polling)
   const gridInit = ref(null)
   const cellStates = ref({}) // Map of cell_id -> state
   const leaderboard = ref([])
@@ -18,8 +22,8 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   const liveNegotiations = ref([]) // Live negotiations as they complete
   const runningNegotiations = ref({}) // Map of run_id -> negotiation progress data
   const errorNegotiations = ref([]) // Failed negotiations with error details
-  const eventLog = ref([]) // Tournament event log (populated from callbacks, not neg_* events)
-  const scoreHistory = ref([]) // Score snapshots for chart (captured on each leaderboard update)
+  const eventLog = ref([]) // Tournament event log
+  const scoreHistory = ref([]) // Score snapshots for chart
   const saveLogs = ref(false) // Whether to save logs on completion
   const tournamentScenarios = ref([]) // Scenario objects for the current tournament
   
@@ -37,6 +41,10 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   const showArchivedTournaments = ref(false)
   const tournamentTagFilter = ref('')
   const availableTournamentTags = ref([])
+
+  // Track previous state for detecting changes (for event log)
+  let previousCompleted = 0
+  let previousCellStates = {}
 
   async function loadSessions() {
     loading.value = true
@@ -63,9 +71,31 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     }
   }
 
+  /**
+   * Get current tournament state (for polling)
+   */
+  async function getState(sessionId) {
+    try {
+      const response = await fetch(`/api/tournament/${sessionId}/state`)
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null
+        }
+        throw new Error(`HTTP ${response.status}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to get tournament state:', error)
+      return null
+    }
+  }
+
+  /**
+   * Start tournament using the new background endpoint
+   */
   async function startTournament(config) {
     try {
-      const response = await fetch('/api/tournament/start', {
+      const response = await fetch('/api/tournament/start_background', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
@@ -78,11 +108,14 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     }
   }
 
-  function startStreaming(sessionId, config = {}) {
-    // Close existing stream if any
-    stopStreaming()
+  /**
+   * Start polling for tournament state updates
+   */
+  function startPolling(sessionId, config = {}) {
+    // Stop any existing polling
+    stopPolling()
     
-    streamingSession.value = sessionId
+    pollingSession.value = sessionId
     gridInit.value = null
     cellStates.value = {}
     leaderboard.value = []
@@ -95,423 +128,180 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     setupProgress.value = null
     tournamentComplete.value = null
     saveLogs.value = config.save_logs || false
-    tournamentScenarios.value = config.scenarios || [] // Store scenario objects
+    tournamentScenarios.value = config.scenarios || []
+    previousCompleted = 0
+    previousCellStates = {}
     
-    const url = `/api/tournament/${sessionId}/stream`
-    eventSource.value = new EventSource(url)
+    // Add initial event log entry
+    eventLog.value.push({
+      id: 0,
+      timestamp: Date.now(),
+      type: 'started',
+      message: 'Tournament started'
+    })
     
-    eventSource.value.addEventListener('grid_init', (event) => {
-      const data = JSON.parse(event.data)
-      gridInit.value = data
+    // Poll every 250ms (4 times per second)
+    pollInterval = setInterval(async () => {
+      const state = await getState(sessionId)
       
-      // Add event log entry for tournament start
-      eventLog.value.push({
-        id: eventLog.value.length,
-        timestamp: Date.now(),
-        type: 'started',
-        message: 'Tournament started'
-      })
-    })
-    
-    eventSource.value.addEventListener('run_start', (event) => {
-      const data = JSON.parse(event.data)
-      // Create cell key using names from gridInit
-      if (gridInit.value) {
-        const competitor = gridInit.value.competitors[data.competitor_idx]
-        const opponent = gridInit.value.opponents[data.opponent_idx]
-        const scenario = gridInit.value.scenarios[data.scenario_idx]
-        const cellKey = `${competitor}::${opponent}::${scenario}`
-        
-        // Add event log entry for cell start
-        eventLog.value.push({
-          id: eventLog.value.length,
-          timestamp: Date.now(),
-          type: 'run_start',
-          message: `${competitor} vs ${opponent} on ${scenario} - started`
-        })
-        
-        // Initialize or update cell state with aggregation support (create new object for reactivity)
-        if (!cellStates.value[cellKey]) {
-          cellStates.value = {
-            ...cellStates.value,
-            [cellKey]: {
-              status: 'running',
-              total: gridInit.value.n_repetitions * (gridInit.value.rotate_ufuns ? 2 : 1),
-              completed: 0,
-              agreements: 0,
-              timeouts: 0,
-              errors: 0,
-              running: 1
-            }
-          }
-        } else {
-          cellStates.value = {
-            ...cellStates.value,
-            [cellKey]: {
-              ...cellStates.value[cellKey],
-              status: 'running',
-              running: (cellStates.value[cellKey].running || 0) + 1
-            }
-          }
-        }
+      if (!state) {
+        // Session not found - stop polling
+        console.log('[Tournaments Store] Session not found, stopping polling')
+        stopPolling()
+        return
       }
-    })
-    
-    eventSource.value.addEventListener('run_complete', (event) => {
-      const data = JSON.parse(event.data)
       
-      // Create cell key using names from gridInit
-      if (gridInit.value) {
-        const competitor = gridInit.value.competitors[data.competitor_idx]
-        const opponent = gridInit.value.opponents[data.opponent_idx]
-        const scenario = gridInit.value.scenarios[data.scenario_idx]
-        const cellKey = `${competitor}::${opponent}::${scenario}`
-        
-        // Get existing state or create default
-        const existingCell = cellStates.value[cellKey] || {
-          status: 'complete',
-          total: gridInit.value.n_repetitions * (gridInit.value.rotate_ufuns ? 2 : 1),
-          completed: 0,
-          agreements: 0,
-          timeouts: 0,
-          errors: 0,
-          running: 0,
-          has_agreement: false,
-          has_error: false
-        }
-        
-        // Calculate updated values
-        const completed = (existingCell.completed || 0) + 1
-        const running = Math.max(0, (existingCell.running || 0) - 1)
-        let agreements = existingCell.agreements || 0
-        let timeouts = existingCell.timeouts || 0
-        let errors = existingCell.errors || 0
-        let has_agreement = existingCell.has_agreement || false
-        let has_error = existingCell.has_error || false
-        
-        // Update aggregated stats based on end_reason
-        if (data.end_reason === 'agreement') {
-          agreements += 1
-          has_agreement = true
-        } else if (data.end_reason === 'timeout') {
-          timeouts += 1
-        } else if (data.end_reason === 'error' || data.end_reason === 'broken') {
-          errors += 1
-          has_error = true
-        }
-        
-        // Determine final status
-        const allComplete = completed >= existingCell.total
-        let status = existingCell.status || 'pending' // Preserve existing status as default
-        if (allComplete) {
-          if (errors > 0) {
-            status = 'error'
-          } else if (agreements > 0) {
-            status = 'complete'
-          } else if (timeouts > 0) {
-            status = 'timeout'
-          } else {
-            status = 'complete'
-          }
-        } else if (running > 0) {
-          status = 'running'
-        } else if (completed > 0) {
-          // Has some completed but not all, and nothing running
-          status = 'running' // Tournament is ongoing, just no active negotiations in this cell right now
-        }
-        
-        // Create new object to trigger reactivity
-        cellStates.value = {
-          ...cellStates.value,
-          [cellKey]: {
-            status,
-            total: existingCell.total,
-            completed,
-            agreements,
-            timeouts,
-            errors,
-            running,
-            has_agreement,
-            has_error
-          }
-        }
-        
-        // Add event log entry for cell completion
-        let endReasonText = data.end_reason
-        if (data.end_reason === 'agreement') {
-          endReasonText = 'agreement reached'
-        } else if (data.end_reason === 'timeout') {
-          endReasonText = 'timeout'
-        } else if (data.end_reason === 'error' || data.end_reason === 'broken') {
-          endReasonText = 'failed'
-        }
-        
-        eventLog.value.push({
-          id: eventLog.value.length,
-          timestamp: Date.now(),
-          type: data.end_reason === 'agreement' ? 'agreement' : (data.end_reason === 'error' || data.end_reason === 'broken' ? 'failed' : 'completed'),
-          message: `${competitor} vs ${opponent} on ${scenario} - ${endReasonText}`
-        })
-        
-        // Always add to live negotiations (even without detailed data)
-        // Check if this negotiation already exists (match by scenario and partners)
-        const scenarioPath = data.scenario_path || scenario
-        const existingIndex = liveNegotiations.value.findIndex(n => {
-          const nScenario = n.scenario_path || n.scenario
-          if (nScenario !== scenarioPath) return false
-          
-          // Check if partners match (order-independent)
-          const nPartners = new Set(n.partners || [])
-          const dataPartners = new Set([competitor, opponent])
-          
-          if (nPartners.size !== dataPartners.size) return false
-          
-          for (const p of dataPartners) {
-            if (!nPartners.has(p)) return false
-          }
-          
-          // Also check repetition and rotated to distinguish multiple runs
-          if (n.repetition !== undefined && data.repetition !== undefined && n.repetition !== data.repetition) return false
-          if (n.rotated !== undefined && data.rotated !== undefined && n.rotated !== data.rotated) return false
-          
-          return true
-        })
-        
-        const negotiation = {
-          index: existingIndex >= 0 ? liveNegotiations.value[existingIndex].index : liveNegotiations.value.length,
-          scenario: scenarioPath,
-          scenario_path: data.scenario_path || null,
-          partners: [competitor, opponent],
-          end_reason: data.end_reason,
-          has_agreement: data.end_reason === 'agreement',
-          has_error: data.end_reason === 'error' || data.end_reason === 'broken',
-          agreement: data.agreement || null,
-          utilities: data.utilities || {},
-          n_steps: data.n_steps || 0,
-          issue_names: data.issue_names || [],
-          offers: data.offers || [],
-          error: data.error || null,
-          repetition: data.repetition,
-          rotated: data.rotated,
-          run_id: data.run_id || null  // Unique ID for loading negotiation data from disk
-        }
-        
-        if (existingIndex >= 0) {
-          // Update existing negotiation
-          liveNegotiations.value[existingIndex] = negotiation
-        } else {
-          // Add new negotiation
-          liveNegotiations.value.push(negotiation)
-        }
-        
-        // Track errors separately for error panel
-        if (negotiation.has_error) {
-          errorNegotiations.value.push({
-            timestamp: Date.now(),
-            scenario: scenarioPath,
-            partners: [competitor, opponent],
-            error: data.error || 'Unknown error',
-            n_steps: data.n_steps || 0,
-            cellKey
-          })
-        }
+      // Update grid init
+      if (state.grid_init && !gridInit.value) {
+        gridInit.value = state.grid_init
       }
-    })
-    
-    eventSource.value.addEventListener('leaderboard', (event) => {
-      const data = JSON.parse(event.data)
-      // Backend sends array directly, not wrapped in {leaderboard: [...]}
-      leaderboard.value = Array.isArray(data) ? data : []
       
-      // Capture score snapshot for history chart
-      if (leaderboard.value.length > 0) {
-        const completedCount = progress.value?.completed || liveNegotiations.value.length || 0
-        const scores = {}
-        leaderboard.value.forEach(entry => {
-          // Use score if available, otherwise fall back to mean_utility
-          const score = entry.score ?? entry.mean_utility ?? entry.avg_utility ?? null
-          if (score !== null && !isNaN(score)) {
-            scores[entry.name || entry.competitor] = score
-          }
-        })
-        
-        if (Object.keys(scores).length > 0) {
-          scoreHistory.value.push({
-            negotiation: completedCount,
-            timestamp: Date.now(),
-            scores: scores
-          })
-        }
-      }
-    })
-    
-    eventSource.value.addEventListener('setup_progress', (event) => {
-      const data = JSON.parse(event.data)
-      setupProgress.value = data
-      
-      // Add event log entry for setup progress
-      if (data.message) {
-        eventLog.value.push({
-          id: eventLog.value.length,
-          timestamp: Date.now(),
-          type: 'progress',
-          message: data.message
-        })
-      }
-    })
-    
-    eventSource.value.addEventListener('progress', (event) => {
-      const data = JSON.parse(event.data)
-      progress.value = data
-      
-      // Add event log entry for progress updates
-      if (data.message) {
-        eventLog.value.push({
-          id: eventLog.value.length,
-          timestamp: Date.now(),
-          type: 'progress',
-          message: data.message
-        })
-      }
-    })
-    
-    // Negotiation monitoring events
-    eventSource.value.addEventListener('neg_start', (event) => {
-      const data = JSON.parse(event.data)
-      runningNegotiations.value[data.run_id] = {
-        run_id: data.run_id,
-        step: data.step,
-        relative_time: data.relative_time,
-        status: 'running'
-      }
-    })
-    
-    eventSource.value.addEventListener('neg_progress', (event) => {
-      const data = JSON.parse(event.data)
-      if (runningNegotiations.value[data.run_id]) {
-        runningNegotiations.value[data.run_id].step = data.step
-        runningNegotiations.value[data.run_id].relative_time = data.relative_time
-        runningNegotiations.value[data.run_id].current_offer = data.current_offer
-        runningNegotiations.value[data.run_id].current_proposer = data.current_proposer
-      }
-    })
-    
-    eventSource.value.addEventListener('neg_end', (event) => {
-      const data = JSON.parse(event.data)
-      if (runningNegotiations.value[data.run_id]) {
-        runningNegotiations.value[data.run_id].status = 'complete'
-        runningNegotiations.value[data.run_id].step = data.step
-        runningNegotiations.value[data.run_id].relative_time = data.relative_time
-        runningNegotiations.value[data.run_id].agreement = data.agreement
-        runningNegotiations.value[data.run_id].timedout = data.timedout
-        runningNegotiations.value[data.run_id].broken = data.broken
-        runningNegotiations.value[data.run_id].has_error = data.has_error
-        
-        // Clean up after a delay
-        setTimeout(() => {
-          delete runningNegotiations.value[data.run_id]
-        }, 5000)
-      }
-    })
-    
-    eventSource.value.addEventListener('warning', (event) => {
-      const data = JSON.parse(event.data)
-      console.warn('[Tournaments Store] Warning:', data.message)
-      
-      // Add warning to event log
-      eventLog.value.push({
-        id: eventLog.value.length,
-        timestamp: Date.now(),
-        type: 'warning',
-        message: data.message
-      })
-    })
-    
-    eventSource.value.addEventListener('complete', async (event) => {
-      const data = JSON.parse(event.data)
-      tournamentComplete.value = data
-      
-      // Add event log entry for tournament completion
-      eventLog.value.push({
-        id: eventLog.value.length,
-        timestamp: Date.now(),
-        type: 'completed',
-        message: 'Tournament completed'
-      })
-      
-      // Save logs if enabled and we have a valid results path
-      if (saveLogs.value && data.results?.results_path) {
-        try {
-          // Extract tournament ID from path (last component)
-          const pathParts = data.results.results_path.split(/[/\\]/)
-          const tournamentId = pathParts[pathParts.length - 1]
-          
-          if (tournamentId && eventLog.value.length > 0) {
-            await fetch(`/api/tournament/saved/${tournamentId}/logs`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                logs: eventLog.value.map(e => ({
-                  timestamp: e.timestamp,
-                  type: e.type,
-                  message: e.message
-                }))
+      // Update cell states
+      if (state.cell_states) {
+        // Detect new completions for event log
+        for (const [cellKey, cellData] of Object.entries(state.cell_states)) {
+          const prevCell = previousCellStates[cellKey]
+          if (cellData.completed > (prevCell?.completed || 0)) {
+            // New completion detected
+            const parts = cellKey.split('::')
+            if (parts.length >= 3) {
+              const [competitor, opponent, scenario] = parts
+              let endReasonText = cellData.status
+              if (cellData.agreements > (prevCell?.agreements || 0)) {
+                endReasonText = 'agreement reached'
+              } else if (cellData.errors > (prevCell?.errors || 0)) {
+                endReasonText = 'failed'
+              } else if (cellData.timeouts > (prevCell?.timeouts || 0)) {
+                endReasonText = 'timeout'
+              }
+              
+              eventLog.value.push({
+                id: eventLog.value.length,
+                timestamp: Date.now(),
+                type: cellData.status === 'error' ? 'failed' : (cellData.agreements > 0 ? 'agreement' : 'completed'),
+                message: `${competitor} vs ${opponent} on ${scenario} - ${endReasonText}`
               })
+            }
+          }
+        }
+        previousCellStates = JSON.parse(JSON.stringify(state.cell_states))
+        cellStates.value = state.cell_states
+      }
+      
+      // Update leaderboard and capture score history
+      if (state.leaderboard) {
+        leaderboard.value = state.leaderboard
+        
+        // Capture score snapshot for history chart
+        if (state.leaderboard.length > 0 && state.progress) {
+          const completedCount = state.progress.completed || 0
+          
+          // Only add if we have new completions
+          if (completedCount > previousCompleted) {
+            const scores = {}
+            state.leaderboard.forEach(entry => {
+              const score = entry.score ?? entry.mean_utility ?? null
+              if (score !== null && !isNaN(score)) {
+                scores[entry.name] = score
+              }
             })
-            console.log('[Tournaments Store] Saved event log to', tournamentId)
-          }
-          
-          // Save scenario plot if we have scenario data
-          if (tournamentId && tournamentScenarios.value.length > 0) {
-            try {
-              await fetch(`/api/tournament/saved/${tournamentId}/scenario_plot`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  scenarios: tournamentScenarios.value.map(s => ({
-                    name: s.name,
-                    n_outcomes: s.n_outcomes ?? s.stats?.n_outcomes ?? null,
-                    opposition: s.opposition ?? s.stats?.opposition ?? null
-                  }))
-                })
+            
+            if (Object.keys(scores).length > 0) {
+              scoreHistory.value.push({
+                negotiation: completedCount,
+                timestamp: Date.now(),
+                scores: scores
               })
-              console.log('[Tournaments Store] Saved scenario plot to', tournamentId)
-            } catch (plotError) {
-              console.error('[Tournaments Store] Failed to save scenario plot:', plotError)
             }
+            previousCompleted = completedCount
           }
-        } catch (error) {
-          console.error('[Tournaments Store] Failed to save event log:', error)
         }
       }
       
-      // Update current session status to completed so UI reflects the change
+      // Update progress
+      if (state.progress) {
+        progress.value = state.progress
+      }
+      
+      // Update current session status
       if (currentSession.value && currentSession.value.id === sessionId) {
         currentSession.value = {
           ...currentSession.value,
-          status: 'completed',
-          isSaved: true
+          status: state.status
         }
       }
       
-      stopStreaming()
-      loadSessions() // Refresh sessions list
-    })
-    
-    eventSource.value.addEventListener('error', (event) => {
-      console.error('Tournament SSE error:', event)
-      const data = event.data ? JSON.parse(event.data) : { error: 'Unknown error' }
-      tournamentComplete.value = { error: data.error, status: 'failed' }
-      stopStreaming()
-    })
+      // Check if completed/failed
+      if (state.status === 'completed' || state.status === 'failed' || state.status === 'cancelled') {
+        tournamentComplete.value = {
+          status: state.status,
+          results: state.results,
+          error: state.error,
+          duration_seconds: state.duration_seconds
+        }
+        
+        // Add completion event
+        eventLog.value.push({
+          id: eventLog.value.length,
+          timestamp: Date.now(),
+          type: state.status === 'completed' ? 'completed' : 'failed',
+          message: state.status === 'completed' ? 'Tournament completed' : `Tournament ${state.status}`
+        })
+        
+        // Save logs if enabled
+        if (saveLogs.value && state.results?.results_path) {
+          try {
+            const pathParts = state.results.results_path.split(/[/\\]/)
+            const tournamentId = pathParts[pathParts.length - 1]
+            
+            if (tournamentId && eventLog.value.length > 0) {
+              await fetch(`/api/tournament/saved/${tournamentId}/logs`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  logs: eventLog.value.map(e => ({
+                    timestamp: e.timestamp,
+                    type: e.type,
+                    message: e.message
+                  }))
+                })
+              })
+            }
+          } catch (error) {
+            console.error('[Tournaments Store] Failed to save event log:', error)
+          }
+        }
+        
+        // Update session status
+        if (currentSession.value && currentSession.value.id === sessionId) {
+          currentSession.value = {
+            ...currentSession.value,
+            status: state.status,
+            isSaved: state.status === 'completed'
+          }
+        }
+        
+        stopPolling()
+        loadSessions()
+      }
+    }, 250) // Poll 4 times per second
+  }
+
+  function stopPolling() {
+    if (pollInterval) {
+      clearInterval(pollInterval)
+      pollInterval = null
+    }
+    pollingSession.value = null
+  }
+
+  // Keep old function names for compatibility but map to new polling functions
+  function startStreaming(sessionId, config = {}) {
+    startPolling(sessionId, config)
   }
 
   function stopStreaming() {
-    if (eventSource.value) {
-      eventSource.value.close()
-      eventSource.value = null
-    }
-    streamingSession.value = null
+    stopPolling()
   }
 
   async function cancelSession(sessionId) {
@@ -740,9 +530,46 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     return sessions.value.filter(s => s.status === 'failed')
   })
 
+  // Computed for compatibility - map pollingSession to streamingSession
+  const streamingSession = computed(() => pollingSession.value)
+
   // Clear event log
   function clearEventLog() {
     eventLog.value = []
+  }
+
+  /**
+   * Set tournament data directly (used when loading from external path)
+   * This properly sets the ref values for externally loaded tournaments
+   */
+  function setLoadedTournamentData(data) {
+    if (data.gridInit !== undefined) {
+      gridInit.value = data.gridInit
+    }
+    if (data.cellStates !== undefined) {
+      cellStates.value = data.cellStates
+    }
+    if (data.leaderboard !== undefined) {
+      leaderboard.value = data.leaderboard
+    }
+    if (data.liveNegotiations !== undefined) {
+      liveNegotiations.value = data.liveNegotiations
+    }
+    if (data.eventLog !== undefined) {
+      eventLog.value = data.eventLog
+    }
+    if (data.scoreHistory !== undefined) {
+      scoreHistory.value = data.scoreHistory
+    }
+    if (data.tournamentScenarios !== undefined) {
+      tournamentScenarios.value = data.tournamentScenarios
+    }
+    if (data.progress !== undefined) {
+      progress.value = data.progress
+    }
+    if (data.tournamentComplete !== undefined) {
+      tournamentComplete.value = data.tournamentComplete
+    }
   }
 
   // Load event log for a saved tournament
@@ -818,6 +645,27 @@ export const useTournamentsStore = defineStore('tournaments', () => {
       return data
     } catch (error) {
       console.error('Failed to import tournament:', error)
+      throw error
+    }
+  }
+
+  // Load a tournament from disk (view without copying)
+  async function loadTournamentFromPath(tournamentPath) {
+    try {
+      const response = await fetch('/api/tournament/load_from_path', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: tournamentPath }),
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || 'Load failed')
+      }
+      
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to load tournament from path:', error)
       throw error
     }
   }
@@ -941,7 +789,8 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     sessions,
     currentSession,
     loading,
-    streamingSession,
+    streamingSession, // Computed for compatibility
+    pollingSession,
     gridInit,
     cellStates,
     leaderboard,
@@ -967,9 +816,10 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     failedSessions,
     loadSessions,
     getSession,
+    getState,
     startTournament,
-    startStreaming,
-    stopStreaming,
+    startPolling,
+    stopPolling,
     cancelSession,
     getProgress,
     getResults,
@@ -983,10 +833,12 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     deleteSavedTournament,
     updateTournamentTags,
     clearEventLog,
+    setLoadedTournamentData,
     loadEventLog,
     loadScenariosSummary,
-    // Import/Combine/Storage
+    // Import/Load/Combine/Storage
     importTournament,
+    loadTournamentFromPath,
     validateImportPath,
     previewCombineTournaments,
     combineTournaments,
