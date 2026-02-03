@@ -66,7 +66,7 @@ For developers who want to understand or extend the application:
 
 - [Architecture Overview](developer-guide/architecture.md) - System design and data flow
 - [Code Structure](developer-guide/code-structure.md) - Project organization and components
-- [Creating Panels](developer-guide/creating-panels.md) - How to add new visualization panels
+- [Creating Panels](panels/creating-panels.md) - How to add new visualization panels
 - [API Reference](developer-guide/api.md) - Backend REST API documentation
 - [Contributing](developer-guide/contributing.md) - How to contribute to the project
 
