@@ -764,7 +764,12 @@ const runningTournaments = computed(() => {
     .map(s => ({
       ...s,
       source: 'session',
-      timestamp: s.created_at || s.started_at || Date.now()
+      timestamp: s.created_at || s.start_time || Date.now(),
+      // Map nested fields to expected flat structure
+      n_competitors: s.config?.competitor_types?.length || 0,
+      n_scenarios: s.config?.scenario_paths?.length || 0,
+      completed: s.progress?.completed || 0,
+      total: s.progress?.total || 0,
     }))
 })
 
