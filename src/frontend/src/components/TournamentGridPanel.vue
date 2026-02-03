@@ -305,6 +305,10 @@ const props = defineProps({
   tournamentId: {
     type: String,
     default: null
+  },
+  liveNegotiations: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -321,6 +325,10 @@ const selectedNegotiatorType = ref('')
 // Modal state for scenario stats
 const showScenarioStatsModal = ref(false)
 const selectedScenarioName = ref('')
+
+// Modal state for cell negotiations
+const showCellModal = ref(false)
+const selectedCell = ref({ competitor: null, opponent: null, scenario: null })
 
 // Click handlers for negotiator and scenario
 function handleNegotiatorClick(negotiatorName) {
@@ -586,6 +594,41 @@ const competitors = computed(() => props.gridInit?.competitors || [])
 const opponents = computed(() => props.gridInit?.opponents || props.gridInit?.competitors || [])
 const scenarios = computed(() => props.gridInit?.scenarios || [])
 const isCompleted = computed(() => props.status === 'completed' || props.status === 'failed')
+
+// Filtered negotiations for the selected cell modal
+const cellNegotiations = computed(() => {
+  if (!showCellModal.value || !selectedCell.value.competitor) return []
+  
+  const { competitor, opponent, scenario } = selectedCell.value
+  
+  return (props.liveNegotiations || []).filter(neg => {
+    // Check if partners match the competitor/opponent
+    const partners = neg.partners || []
+    
+    // Partners can be in any order, check both combinations
+    // Also try matching by prefix (e.g., "Atlas3" matches "Atlas3@0")
+    const matchesPartners = partners.some(p => 
+      p === competitor || p.startsWith(competitor + '@') || p.startsWith(competitor + '-')
+    ) && partners.some(p => 
+      p === opponent || p.startsWith(opponent + '@') || p.startsWith(opponent + '-')
+    )
+    
+    if (!matchesPartners) return false
+    
+    // If scenario filter is set (from scenario tab), apply it
+    if (scenario) {
+      const negScenario = neg.scenario || neg.scenario_path || ''
+      // Match by full path or just the scenario name
+      const scenarioName = scenario.split('/').pop()
+      const negScenarioName = negScenario.split('/').pop()
+      if (negScenarioName !== scenarioName && !negScenario.includes(scenario)) {
+        return false
+      }
+    }
+    
+    return true
+  })
+})
 
 // Calculate all metrics for a given cell
 function calculateCellMetrics(state) {

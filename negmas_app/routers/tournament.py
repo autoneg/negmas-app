@@ -889,7 +889,8 @@ async def run_batch(session_id: str):
 async def continue_tournament(tournament_id: str):
     """Continue an incomplete tournament from a saved path.
 
-    This endpoint creates a new session that continues an existing tournament.
+    This endpoint creates a new session that continues an existing tournament
+    and starts it running in the background.
     If the tournament is already complete, it will just load and return the results.
     If incomplete, it will resume running the remaining negotiations.
 
@@ -897,7 +898,7 @@ async def continue_tournament(tournament_id: str):
         tournament_id: ID of the saved tournament to continue.
 
     Returns:
-        Session info with session_id and stream_url for monitoring progress.
+        Session info with session_id and state_url for polling progress.
     """
     # Get the tournament path from storage service
     from pathlib import Path
@@ -916,14 +917,21 @@ async def continue_tournament(tournament_id: str):
 
     # Create a session for continuing this tournament
     try:
-        session = get_manager().continue_session(str(tournament_path))
+        manager = get_manager()
+        session = manager.continue_session(str(tournament_path))
+
+        # Start the tournament running in background
+        started = manager.start_tournament(session.id)
+        if not started:
+            raise ValueError("Failed to start tournament")
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     return {
         "session_id": session.id,
         "status": session.status.value,
-        "stream_url": f"/api/tournament/{session.id}/stream",
+        "state_url": f"/api/tournament/{session.id}/state",
         "tournament_path": str(tournament_path),
     }
 

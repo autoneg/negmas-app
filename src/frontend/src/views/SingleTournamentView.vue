@@ -179,6 +179,7 @@
               :selfPlay="currentSession.config?.self_play ?? true"
               :status="currentSession.status"
               :tournamentId="tournamentId"
+              :liveNegotiations="liveNegotiations"
             />
           </div>
           

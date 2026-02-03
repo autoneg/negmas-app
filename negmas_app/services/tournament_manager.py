@@ -356,7 +356,22 @@ class TournamentManager:
         if not config_file.exists():
             raise ValueError(f"Tournament config not found at: {config_file}")
 
-        session_id = str(uuid.uuid4())[:8]
+        # Use the original tournament ID from the path name, not a new UUID
+        # This ensures continuity with the saved tournament data
+        session_id = path.name
+
+        # Check if there's already an active session with this ID
+        if session_id in self.sessions:
+            existing = self.sessions[session_id]
+            if existing.status in (TournamentStatus.RUNNING, TournamentStatus.PENDING):
+                raise ValueError(
+                    f"Tournament {session_id} is already running or pending"
+                )
+            # Clean up old session data
+            self.sessions.pop(session_id, None)
+            self._cancel_flags.pop(session_id, None)
+            self._tournament_states.pop(session_id, None)
+            self._background_threads.pop(session_id, None)
 
         # Create minimal config - continue_cartesian_tournament will load from config.yaml
         # We just need to know the path and basic settings
