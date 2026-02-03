@@ -52,7 +52,7 @@
                 <span class="collapse-icon">{{ panels.basicInfo ? '▼' : '▶' }}</span>
                 Basic Information
                 <DetailsIcon 
-                  v-if="scenarioId && panels.basicInfo"
+                  v-if="(scenarioId || isTournamentScenario) && panels.basicInfo"
                   title="View full scenario details"
                   @click="showObjectDetail('scenario', 'Scenario', 'Scenario')"
                 />
@@ -159,7 +159,7 @@
                 <span class="collapse-icon">{{ panels.outcomeSpace ? '▼' : '▶' }}</span>
                 Outcome Space
                 <DetailsIcon 
-                  v-if="scenarioId && panels.outcomeSpace"
+                  v-if="(scenarioId || isTournamentScenario) && panels.outcomeSpace"
                   title="View full outcome space details"
                   @click="showObjectDetail('outcome_space', 'Outcome Space', 'OutcomeSpace')"
                 />
@@ -201,7 +201,7 @@
                     <UfunDisplay 
                       :ufun="ufun"
                       :index="idx"
-                      :show-details-icon="!!scenarioId"
+                      :show-details-icon="!!(scenarioId || isTournamentScenario)"
                       @details="showObjectDetail('ufun', ufun.name || `Utility Function ${idx + 1}`, ufun.type || 'UtilityFunction', idx)"
                     />
                   </div>
@@ -457,10 +457,9 @@ const objectDetailTitle = ref('')
 const objectDetailType = ref('')
 const objectDetailUrl = ref('')
 
-// Compute scenario ID from path (for regular scenarios)
+// Compute scenario ID from path (for regular scenarios only)
 const scenarioId = computed(() => {
-  // If tournament scenario, we don't use scenarioId - we use tournamentId + scenarioName directly
-  if (props.tournamentId && props.scenarioName) return null
+  if (isTournamentScenario.value) return null
   if (!props.negotiation?.scenario_path) return null
   return btoa(props.negotiation.scenario_path)
 })
@@ -850,18 +849,32 @@ function showOutcomeDetail(title, outcome) {
 
 // Show object detail modal (ufun, outcome space, scenario)
 function showObjectDetail(type, title, objectType, index = null) {
-  if (!scenarioId.value) return
+  // Need either scenarioId (regular) or tournament params
+  if (!scenarioId.value && !isTournamentScenario.value) return
   
   objectDetailTitle.value = title
   objectDetailType.value = objectType
   
-  // Build URL based on type
-  if (type === 'ufun' && index !== null) {
-    objectDetailUrl.value = `/api/scenarios/${scenarioId.value}/ufuns/${index}/serialized`
-  } else if (type === 'outcome_space') {
-    objectDetailUrl.value = `/api/scenarios/${scenarioId.value}/outcome-space/serialized`
-  } else if (type === 'scenario') {
-    objectDetailUrl.value = `/api/scenarios/${scenarioId.value}/serialized`
+  // Build URL based on type and scenario source
+  if (isTournamentScenario.value) {
+    // Tournament scenario endpoints
+    const base = `/api/tournament/saved/${props.tournamentId}/scenario/${props.scenarioName}`
+    if (type === 'ufun' && index !== null) {
+      objectDetailUrl.value = `${base}/ufuns/${index}/serialized`
+    } else if (type === 'outcome_space') {
+      objectDetailUrl.value = `${base}/outcome-space/serialized`
+    } else if (type === 'scenario') {
+      objectDetailUrl.value = `${base}/serialized`
+    }
+  } else {
+    // Regular scenario endpoints
+    if (type === 'ufun' && index !== null) {
+      objectDetailUrl.value = `/api/scenarios/${scenarioId.value}/ufuns/${index}/serialized`
+    } else if (type === 'outcome_space') {
+      objectDetailUrl.value = `/api/scenarios/${scenarioId.value}/outcome-space/serialized`
+    } else if (type === 'scenario') {
+      objectDetailUrl.value = `/api/scenarios/${scenarioId.value}/serialized`
+    }
   }
   
   showObjectDetailModal.value = true

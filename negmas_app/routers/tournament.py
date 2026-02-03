@@ -1121,6 +1121,176 @@ async def get_scenario_outcome_space(tournament_id: str, scenario_name: str):
     return outcome_space_data
 
 
+@router.get("/saved/{tournament_id}/scenario/{scenario_name}/serialized")
+async def get_tournament_scenario_serialized(tournament_id: str, scenario_name: str):
+    """Get fully serialized scenario data for detailed display.
+
+    Loads the scenario from the tournament's scenarios folder and serializes it
+    using negmas.serialize() for tree view display.
+
+    Args:
+        tournament_id: Tournament ID.
+        scenario_name: Name of the scenario.
+
+    Returns:
+        Serialized scenario data as nested dict/list.
+    """
+    from pathlib import Path
+
+    from negmas import Scenario
+    from negmas.serialization import serialize
+
+    scenario_path = (
+        TournamentStorageService.TOURNAMENTS_DIR
+        / tournament_id
+        / "scenarios"
+        / scenario_name
+    )
+
+    if not scenario_path.exists():
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    try:
+        scenario = await asyncio.to_thread(
+            Scenario.load, scenario_path, load_info=True, load_stats=True
+        )
+
+        serialized = await asyncio.to_thread(
+            serialize,
+            scenario,
+            deep=True,
+            python_class_identifier="type",
+            shorten_type_field=False,
+        )
+
+        return {
+            "success": True,
+            "data": serialized,
+            "name": scenario_name,
+            "object_type": "scenario",
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/saved/{tournament_id}/scenario/{scenario_name}/outcome-space/serialized")
+async def get_tournament_outcome_space_serialized(
+    tournament_id: str, scenario_name: str
+):
+    """Get fully serialized outcome space data for detailed display.
+
+    Args:
+        tournament_id: Tournament ID.
+        scenario_name: Name of the scenario.
+
+    Returns:
+        Serialized outcome space data as nested dict/list.
+    """
+    from pathlib import Path
+
+    from negmas import Scenario
+    from negmas.serialization import serialize
+
+    scenario_path = (
+        TournamentStorageService.TOURNAMENTS_DIR
+        / tournament_id
+        / "scenarios"
+        / scenario_name
+    )
+
+    if not scenario_path.exists():
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    try:
+        scenario = await asyncio.to_thread(
+            Scenario.load, scenario_path, load_info=True, load_stats=False
+        )
+
+        serialized = await asyncio.to_thread(
+            serialize,
+            scenario.outcome_space,
+            deep=True,
+            python_class_identifier="type",
+            shorten_type_field=False,
+        )
+
+        return {
+            "success": True,
+            "data": serialized,
+            "name": getattr(scenario.outcome_space, "name", "Outcome Space"),
+            "object_type": "outcome_space",
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/saved/{tournament_id}/scenario/{scenario_name}/ufuns/{ufun_index}/serialized"
+)
+async def get_tournament_ufun_serialized(
+    tournament_id: str, scenario_name: str, ufun_index: int
+):
+    """Get fully serialized utility function data for detailed display.
+
+    Args:
+        tournament_id: Tournament ID.
+        scenario_name: Name of the scenario.
+        ufun_index: Index of the utility function (0-based).
+
+    Returns:
+        Serialized ufun data as nested dict/list.
+    """
+    from pathlib import Path
+
+    from negmas import Scenario
+    from negmas.serialization import serialize
+
+    scenario_path = (
+        TournamentStorageService.TOURNAMENTS_DIR
+        / tournament_id
+        / "scenarios"
+        / scenario_name
+    )
+
+    if not scenario_path.exists():
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    try:
+        scenario = await asyncio.to_thread(
+            Scenario.load, scenario_path, load_info=True, load_stats=False
+        )
+
+        if ufun_index < 0 or ufun_index >= len(scenario.ufuns):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Ufun index {ufun_index} out of range (0-{len(scenario.ufuns) - 1})",
+            )
+
+        ufun = scenario.ufuns[ufun_index]
+
+        serialized = await asyncio.to_thread(
+            serialize,
+            ufun,
+            deep=True,
+            python_class_identifier="type",
+            shorten_type_field=False,
+        )
+
+        return {
+            "success": True,
+            "data": serialized,
+            "name": getattr(ufun, "name", f"Utility Function {ufun_index + 1}"),
+            "object_type": "ufun",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/saved/{tournament_id}/files")
 async def get_tournament_files(tournament_id: str):
     """Get list of available files in the tournament directory.
