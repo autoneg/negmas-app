@@ -233,6 +233,7 @@ let chartInstance = null
 // Scenarios plot state
 const scenariosPlotDiv = ref(null)
 const savedPlotUrl = ref(null)
+const savedPlotChecked = ref(false) // Track if we've already checked for saved plot
 
 // Color palette for chart lines
 const colors = [
@@ -292,6 +293,10 @@ watch(() => props.scenarios, () => {
 
 // Watch for tournamentId changes to load saved plot
 watch(() => props.tournamentId, () => {
+  // Reset check flag when tournament changes
+  savedPlotChecked.value = false
+  savedPlotUrl.value = null
+  
   if (props.tournamentId && props.status === 'completed') {
     checkSavedPlot()
   }
@@ -321,9 +326,12 @@ onUnmounted(() => {
   }
 })
 
-// Check if saved plot exists and load it
+// Check if saved plot exists and load it (only once per tournament)
 async function checkSavedPlot() {
   if (!props.tournamentId) return
+  if (savedPlotChecked.value) return // Already checked, don't repeat
+  
+  savedPlotChecked.value = true
   
   try {
     const response = await fetch(`/api/tournament/saved/${props.tournamentId}/scenario_plot`, {

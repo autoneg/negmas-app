@@ -179,10 +179,20 @@ describe('NewNegotiationModal', () => {
     })
 
     it('should show "No saved sessions" when list is empty', async () => {
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ presets: [] }),
-      })
+      // Mock the fetch calls that happen on mount
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ scenarios: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ negotiators: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ presets: [] }),
+        })
 
       const wrapper = mount(NewNegotiationModal, {
         props: {
@@ -196,6 +206,9 @@ describe('NewNegotiationModal', () => {
       const loadButton = wrapper.findAll('.modal-header-actions button').find((b) => b.text() === 'Load')
       await loadButton.trigger('click')
 
+      // Wait for async operations to complete
+      await wrapper.vm.$nextTick()
+      await new Promise(resolve => setTimeout(resolve, 10))
       await wrapper.vm.$nextTick()
 
       expect(wrapper.text()).toContain('No saved sessions')

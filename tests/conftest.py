@@ -16,8 +16,10 @@ def client():
 @pytest.fixture
 def sample_scenario_path():
     """Get path to a sample scenario for testing."""
-    # Use a small scenario from the bundled scenarios
-    base_path = Path(__file__).parent.parent / "scenarios"
+    # Scenarios are stored under ~/negmas/app/scenarios
+    base_path = Path.home() / "negmas" / "app" / "scenarios"
+    if not base_path.exists():
+        return None
     # Try anac2011/Laptop - a simple 2-party scenario
     scenario_path = base_path / "anac2011" / "Laptop"
     if scenario_path.exists():

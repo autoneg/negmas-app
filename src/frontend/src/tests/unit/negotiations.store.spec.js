@@ -229,7 +229,7 @@ describe('Negotiations Store', () => {
       await store.loadSavedNegotiations()
 
       // API uses query param for archive filtering
-      expect(global.fetch).toHaveBeenCalledWith('/api/negotiation/saved?include_archived=false')
+      expect(global.fetch).toHaveBeenCalledWith('/api/negotiation/saved/list?include_archived=false')
       expect(store.savedNegotiations).toEqual(mockNegotiations)
     })
 
@@ -309,16 +309,17 @@ describe('Negotiations Store', () => {
         { id: '2', tags: ['test', 'important'] },
         { id: '3', tags: ['demo'] },
       ]
+      const mockTags = ['test', 'demo', 'important']
 
       global.fetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ negotiations: mockNegotiations }),
+        json: async () => ({ negotiations: mockNegotiations, tags: mockTags }),
       })
 
       const store = useNegotiationsStore()
       await store.loadSavedNegotiations()
 
-      // availableTags is computed from the loaded negotiations
+      // availableTags is now returned from the API response
       const availableTags = store.availableTags || []
       expect(availableTags).toContain('test')
       expect(availableTags).toContain('demo')
