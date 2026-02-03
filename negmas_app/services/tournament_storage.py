@@ -3151,3 +3151,175 @@ class TournamentStorageService:
                                 found.append(summary)
 
         return found
+
+    @classmethod
+    def cleanup_tournament_storage(
+        cls,
+        tournament_id: str | None = None,
+        remove_redundant_csvs: bool = True,
+        remove_config_json_if_yaml_exists: bool = False,
+    ) -> dict[str, Any]:
+        """Clean up tournament storage by removing redundant files.
+
+        This method removes:
+        - Redundant CSV files when parquet equivalents exist (all_scores, details)
+        - Optionally removes config.json if config.yaml exists and contains all needed info
+
+        Args:
+            tournament_id: Specific tournament to clean. If None, cleans all tournaments.
+            remove_redundant_csvs: If True, remove CSV files when parquet exists.
+            remove_config_json_if_yaml_exists: If True, remove config.json if config.yaml
+                contains equivalent information. Default False to preserve backward compat.
+
+        Returns:
+            Dict with cleanup statistics (files_removed, bytes_saved, tournaments_processed).
+        """
+        stats: dict[str, Any] = {
+            "files_removed": [],
+            "bytes_saved": 0,
+            "tournaments_processed": 0,
+            "errors": [],
+        }
+
+        # Get tournaments to process
+        if tournament_id:
+            paths = [cls.TOURNAMENTS_DIR / tournament_id]
+        else:
+            paths = (
+                [p for p in cls.TOURNAMENTS_DIR.iterdir() if p.is_dir()]
+                if cls.TOURNAMENTS_DIR.exists()
+                else []
+            )
+
+        for path in paths:
+            if not path.exists() or not path.is_dir():
+                continue
+
+            # Check if it's a valid tournament
+            if not cls._check_tournament_files_exist(path):
+                continue
+
+            stats["tournaments_processed"] += 1
+
+            try:
+                # Remove redundant CSV files
+                if remove_redundant_csvs:
+                    for base_name in ["all_scores", "details"]:
+                        parquet_file = path / f"{base_name}.parquet"
+                        csv_file = path / f"{base_name}.csv"
+                        csv_gz_file = path / f"{base_name}.csv.gz"
+
+                        if parquet_file.exists():
+                            for csv_path in [csv_file, csv_gz_file]:
+                                if csv_path.exists():
+                                    file_size = csv_path.stat().st_size
+                                    csv_path.unlink()
+                                    stats["files_removed"].append(str(csv_path))
+                                    stats["bytes_saved"] += file_size
+
+                # Optionally remove config.json if config.yaml exists
+                if remove_config_json_if_yaml_exists:
+                    config_json = path / "config.json"
+                    config_yaml = path / "config.yaml"
+
+                    if config_json.exists() and config_yaml.exists():
+                        # Check if config.yaml has the essential info
+                        try:
+                            with open(config_yaml) as f:
+                                yaml_config = yaml.safe_load(f)
+
+                            # config.yaml should have competitors and scenario info
+                            has_competitors = bool(
+                                yaml_config.get("competitors")
+                                or yaml_config.get("competitor_names")
+                            )
+                            has_scenarios = bool(yaml_config.get("n_scenarios"))
+
+                            if has_competitors and has_scenarios:
+                                file_size = config_json.stat().st_size
+                                config_json.unlink()
+                                stats["files_removed"].append(str(config_json))
+                                stats["bytes_saved"] += file_size
+                        except Exception as e:
+                            logger.warning(
+                                f"Error checking config.yaml for {path}: {e}"
+                            )
+
+            except Exception as e:
+                stats["errors"].append({"path": str(path), "error": str(e)})
+
+        return stats
+
+    @classmethod
+    def get_storage_stats(cls) -> dict[str, Any]:
+        """Get storage statistics for all tournaments.
+
+        Returns:
+            Dict with total size, number of tournaments, and breakdown by file type.
+        """
+        stats: dict[str, Any] = {
+            "total_tournaments": 0,
+            "total_size_bytes": 0,
+            "total_size_human": "",
+            "file_breakdown": {},
+            "redundant_files": {
+                "count": 0,
+                "size_bytes": 0,
+            },
+        }
+
+        if not cls.TOURNAMENTS_DIR.exists():
+            return stats
+
+        for path in cls.TOURNAMENTS_DIR.iterdir():
+            if not path.is_dir():
+                continue
+
+            if not cls._check_tournament_files_exist(path):
+                continue
+
+            stats["total_tournaments"] += 1
+
+            # Analyze files
+            for file in path.rglob("*"):
+                if file.is_file():
+                    try:
+                        size = file.stat().st_size
+                        stats["total_size_bytes"] += size
+
+                        # Track by extension
+                        ext = file.suffix or "no_extension"
+                        if ext not in stats["file_breakdown"]:
+                            stats["file_breakdown"][ext] = {"count": 0, "size_bytes": 0}
+                        stats["file_breakdown"][ext]["count"] += 1
+                        stats["file_breakdown"][ext]["size_bytes"] += size
+
+                        # Check for redundant files
+                        if file.name in ["all_scores.csv", "details.csv"]:
+                            parquet_equiv = file.with_suffix(".parquet")
+                            if parquet_equiv.exists():
+                                stats["redundant_files"]["count"] += 1
+                                stats["redundant_files"]["size_bytes"] += size
+                        elif file.name.endswith(".csv.gz"):
+                            base = file.name.replace(".csv.gz", "")
+                            if base in ["all_scores", "details"]:
+                                parquet_equiv = file.parent / f"{base}.parquet"
+                                if parquet_equiv.exists():
+                                    stats["redundant_files"]["count"] += 1
+                                    stats["redundant_files"]["size_bytes"] += size
+
+                    except Exception:
+                        pass
+
+        # Human readable size
+        size_bytes = stats["total_size_bytes"]
+        if size_bytes < 1024:
+            stats["total_size_human"] = f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            stats["total_size_human"] = f"{size_bytes / 1024:.1f} KB"
+        elif size_bytes < 1024 * 1024 * 1024:
+            stats["total_size_human"] = f"{size_bytes / (1024 * 1024):.1f} MB"
+        else:
+            stats["total_size_human"] = f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+
+        return stats

@@ -1694,3 +1694,51 @@ async def validate_tournament_path(request: ValidateTournamentPathRequest):
         "path": str(path),
         "summary": summary,
     }
+
+
+# =============================================================================
+# Storage Cleanup Endpoints
+# =============================================================================
+
+
+class CleanupStorageRequest(BaseModel):
+    """Request model for storage cleanup."""
+
+    tournament_id: str | None = None  # Specific tournament, or None for all
+    remove_redundant_csvs: bool = True  # Remove CSV when parquet exists
+    remove_config_json: bool = False  # Remove config.json if config.yaml exists
+
+
+@router.post("/storage/cleanup")
+async def cleanup_storage(request: CleanupStorageRequest):
+    """Clean up tournament storage by removing redundant files.
+
+    This removes:
+    - CSV files when parquet equivalents exist (all_scores.csv, details.csv)
+    - Optionally config.json if config.yaml has equivalent info
+
+    Args:
+        request: CleanupStorageRequest with cleanup options
+
+    Returns:
+        Cleanup statistics (files removed, bytes saved, etc.)
+    """
+    result = await asyncio.to_thread(
+        TournamentStorageService.cleanup_tournament_storage,
+        tournament_id=request.tournament_id,
+        remove_redundant_csvs=request.remove_redundant_csvs,
+        remove_config_json_if_yaml_exists=request.remove_config_json,
+    )
+
+    return result
+
+
+@router.get("/storage/stats")
+async def get_storage_stats():
+    """Get storage statistics for all saved tournaments.
+
+    Returns:
+        Storage statistics including total size, file breakdown, and redundant files.
+    """
+    stats = await asyncio.to_thread(TournamentStorageService.get_storage_stats)
+    return stats
