@@ -22,6 +22,22 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class ImportResult:
+    """Result of importing a tournament."""
+
+    success: bool
+    output_path: str | None = None
+    output_id: str | None = None
+    original_path: str | None = None
+    original_deleted: bool = False
+    n_negotiations: int = 0
+    n_scenarios: int = 0
+    n_competitors: int = 0
+    paths_remapped: int = 0
+    error: str | None = None
+
+
+@dataclass
 class CombineResult:
     """Result of combining tournaments."""
 
@@ -2642,6 +2658,223 @@ class TournamentStorageService:
             return None
 
     @classmethod
+    def import_tournament(
+        cls,
+        source_path: str,
+        name: str | None = None,
+        delete_original: bool = False,
+        on_collision: str = "rename",  # "rename", "overwrite", "skip"
+    ) -> ImportResult:
+        """Import a tournament from an external folder into the tournaments directory.
+
+        This method copies a tournament folder from any location on disk to the
+        standard tournaments directory, handling:
+        - Name collisions (via rename, overwrite, or skip)
+        - Path remapping in config files
+
+        Args:
+            source_path: Path to the tournament folder to import
+            name: Optional custom name for the imported tournament. If None, uses source folder name.
+            delete_original: If True, deletes the source folder after successful import
+            on_collision: How to handle name collisions:
+                - "rename": Append a number to make the name unique
+                - "overwrite": Replace the existing tournament
+                - "skip": Return an error
+
+        Returns:
+            ImportResult with success status, output location, and statistics.
+        """
+        try:
+            source = Path(source_path).absolute()
+
+            # Validate source exists and is a tournament folder
+            if not source.exists():
+                return ImportResult(
+                    success=False,
+                    original_path=str(source),
+                    error=f"Source path does not exist: {source}",
+                )
+
+            if not source.is_dir():
+                return ImportResult(
+                    success=False,
+                    original_path=str(source),
+                    error="Source path must be a directory",
+                )
+
+            if not cls._check_tournament_files_exist(source):
+                return ImportResult(
+                    success=False,
+                    original_path=str(source),
+                    error="Source directory is not a valid tournament folder (missing required files)",
+                )
+
+            # Determine output name
+            base_name = name if name else source.name
+
+            # Sanitize name for filesystem
+            safe_name = "".join(
+                c if c.isalnum() or c in "-_" else "_" for c in base_name
+            )
+
+            # Handle collision
+            output_id = safe_name
+            dest = cls.TOURNAMENTS_DIR / output_id
+
+            if dest.exists():
+                if on_collision == "skip":
+                    return ImportResult(
+                        success=False,
+                        original_path=str(source),
+                        error=f"Tournament '{output_id}' already exists",
+                    )
+                elif on_collision == "rename":
+                    # Find a unique name
+                    counter = 1
+                    while dest.exists():
+                        output_id = f"{safe_name}_{counter}"
+                        dest = cls.TOURNAMENTS_DIR / output_id
+                        counter += 1
+                elif on_collision == "overwrite":
+                    # Remove existing
+                    shutil.rmtree(dest)
+
+            # Ensure tournaments directory exists
+            cls.TOURNAMENTS_DIR.mkdir(parents=True, exist_ok=True)
+
+            # Copy the tournament folder
+            shutil.copytree(source, dest)
+
+            # Remap paths in config files
+            paths_remapped = cls._remap_tournament_paths(dest, source, dest)
+
+            # Load summary for statistics
+            summary = cls._load_tournament_summary(dest)
+            n_negotiations = 0
+            n_scenarios = 0
+            n_competitors = 0
+
+            if summary:
+                n_negotiations = summary.get("total", summary.get("n_negotiations", 0))
+                n_scenarios = summary.get("n_scenarios", 0)
+                n_competitors = summary.get("n_competitors", 0)
+
+            # Delete original if requested
+            original_deleted = False
+            if delete_original:
+                try:
+                    shutil.rmtree(source)
+                    original_deleted = True
+                except Exception as e:
+                    logger.warning(f"Failed to delete original after import: {e}")
+
+            # Clear any cache for this tournament
+            cls.clear_cache(output_id)
+
+            return ImportResult(
+                success=True,
+                output_path=str(dest),
+                output_id=output_id,
+                original_path=str(source),
+                original_deleted=original_deleted,
+                n_negotiations=n_negotiations,
+                n_scenarios=n_scenarios,
+                n_competitors=n_competitors,
+                paths_remapped=paths_remapped,
+            )
+
+        except Exception as e:
+            import traceback
+
+            traceback.print_exc()
+            return ImportResult(
+                success=False,
+                original_path=source_path,
+                error=f"Failed to import tournament: {e}",
+            )
+
+    @classmethod
+    def _remap_tournament_paths(
+        cls,
+        tournament_path: Path,
+        old_base: Path,
+        new_base: Path,
+    ) -> int:
+        """Remap internal paths in tournament config files.
+
+        This updates any absolute paths in config.json to point to the new location.
+
+        Args:
+            tournament_path: Path to the tournament folder
+            old_base: The original path the tournament was at
+            new_base: The new path the tournament is at
+
+        Returns:
+            Number of paths that were remapped
+        """
+        paths_remapped = 0
+
+        # Update config.json
+        config_json = tournament_path / "config.json"
+        if config_json.exists():
+            try:
+                with open(config_json) as f:
+                    config = json.load(f)
+
+                modified = False
+
+                # Remap scenario_paths
+                if "scenario_paths" in config and isinstance(
+                    config["scenario_paths"], list
+                ):
+                    new_scenario_paths = []
+                    for sp in config["scenario_paths"]:
+                        sp_path = Path(sp)
+                        # Check if it's under the old base
+                        try:
+                            rel = sp_path.relative_to(old_base)
+                            new_sp = str(new_base / rel)
+                            new_scenario_paths.append(new_sp)
+                            paths_remapped += 1
+                            modified = True
+                        except ValueError:
+                            # Not under old_base, keep as-is but note it
+                            new_scenario_paths.append(sp)
+                    config["scenario_paths"] = new_scenario_paths
+
+                # Remap combined_from if it exists
+                if "combined_from" in config and isinstance(
+                    config["combined_from"], list
+                ):
+                    new_combined_from = []
+                    for cf in config["combined_from"]:
+                        cf_path = Path(cf)
+                        try:
+                            rel = cf_path.relative_to(old_base)
+                            new_cf = str(new_base / rel)
+                            new_combined_from.append(new_cf)
+                            paths_remapped += 1
+                            modified = True
+                        except ValueError:
+                            new_combined_from.append(cf)
+                    config["combined_from"] = new_combined_from
+
+                # Add import metadata
+                config["imported"] = True
+                config["imported_at"] = datetime.now().isoformat()
+                config["original_path"] = str(old_base)
+                modified = True
+
+                if modified:
+                    with open(config_json, "w") as f:
+                        json.dump(config, f, indent=2)
+
+            except Exception as e:
+                logger.warning(f"Failed to update config.json during import: {e}")
+
+        return paths_remapped
+
+    @classmethod
     def combine_tournaments(
         cls,
         tournament_ids: list[str] | None = None,
@@ -2803,6 +3036,50 @@ class TournamentStorageService:
 
             with open(final_output_path / "config.json", "w") as f:
                 json.dump(config, f, indent=2)
+
+            # Save detailed metadata.yaml with source tournament information
+            source_tournaments_info = []
+            for loaded_path in loaded_paths:
+                loaded_path = Path(loaded_path)
+                source_info: dict[str, Any] = {
+                    "path": str(loaded_path),
+                    "name": loaded_path.name,
+                }
+                # Try to load summary info from each source
+                try:
+                    source_summary = cls._load_tournament_summary(loaded_path)
+                    if source_summary:
+                        source_info["n_negotiations"] = source_summary.get(
+                            "total", source_summary.get("n_negotiations", 0)
+                        )
+                        source_info["n_scenarios"] = source_summary.get(
+                            "n_scenarios", 0
+                        )
+                        source_info["n_competitors"] = source_summary.get(
+                            "n_competitors", 0
+                        )
+                        source_info["created_at"] = source_summary.get("created_at")
+                except Exception:
+                    pass
+                source_tournaments_info.append(source_info)
+
+            metadata_yaml = {
+                "combined": True,
+                "combined_at": datetime.now().isoformat(),
+                "output_name": output_name,
+                "n_source_tournaments": len(loaded_paths),
+                "total_negotiations": n_negotiations,
+                "total_scenarios": n_scenarios,
+                "total_competitors": n_competitors,
+                "source_tournaments": source_tournaments_info,
+            }
+
+            # Add custom metadata
+            if metadata:
+                metadata_yaml["user_metadata"] = metadata
+
+            with open(final_output_path / "metadata.yaml", "w") as f:
+                yaml.dump(metadata_yaml, f, default_flow_style=False, sort_keys=False)
 
             # Clear cache for the new tournament
             cls.clear_cache(output_id)

@@ -1578,3 +1578,119 @@ async def find_tournaments_in_paths(request: FindTournamentsRequest):
         request.recursive,
     )
     return {"tournaments": tournaments, "count": len(tournaments)}
+
+
+# =============================================================================
+# Import Tournament Endpoints
+# =============================================================================
+
+
+class ImportTournamentRequest(BaseModel):
+    """Request model for importing a tournament from disk."""
+
+    source_path: str  # Path to the tournament folder to import
+    name: str | None = None  # Optional custom name
+    delete_original: bool = False  # Delete source after import
+    on_collision: str = "rename"  # "rename", "overwrite", "skip"
+
+
+@router.post("/import")
+async def import_tournament(request: ImportTournamentRequest):
+    """Import a tournament from an external folder into the tournaments directory.
+
+    This copies a tournament folder from any location on disk to the standard
+    tournaments directory (~/negmas/app/tournaments/).
+
+    Features:
+    - Handles name collisions (rename, overwrite, or skip)
+    - Remaps internal absolute paths in config files
+    - Optionally deletes the original to save space
+
+    Args:
+        request: ImportTournamentRequest with source path and options
+
+    Returns:
+        Import result with success status, output location, and statistics.
+    """
+    if not request.source_path:
+        raise HTTPException(status_code=400, detail="source_path is required")
+
+    if request.on_collision not in ("rename", "overwrite", "skip"):
+        raise HTTPException(
+            status_code=400,
+            detail="on_collision must be 'rename', 'overwrite', or 'skip'",
+        )
+
+    result = await asyncio.to_thread(
+        TournamentStorageService.import_tournament,
+        source_path=request.source_path,
+        name=request.name,
+        delete_original=request.delete_original,
+        on_collision=request.on_collision,
+    )
+
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.error or "Import failed")
+
+    return {
+        "success": True,
+        "output_path": result.output_path,
+        "output_id": result.output_id,
+        "original_path": result.original_path,
+        "original_deleted": result.original_deleted,
+        "n_negotiations": result.n_negotiations,
+        "n_scenarios": result.n_scenarios,
+        "n_competitors": result.n_competitors,
+        "paths_remapped": result.paths_remapped,
+    }
+
+
+class ValidateTournamentPathRequest(BaseModel):
+    """Request model for validating a tournament path."""
+
+    path: str
+
+
+@router.post("/validate_path")
+async def validate_tournament_path(request: ValidateTournamentPathRequest):
+    """Validate that a path contains a valid tournament folder.
+
+    Use this before importing to check if the path is valid.
+
+    Args:
+        request: ValidateTournamentPathRequest with path to validate
+
+    Returns:
+        Validation result with tournament info if valid.
+    """
+    from pathlib import Path
+
+    path = Path(request.path)
+
+    if not path.exists():
+        return {"valid": False, "error": "Path does not exist"}
+
+    if not path.is_dir():
+        return {"valid": False, "error": "Path is not a directory"}
+
+    is_tournament = await asyncio.to_thread(
+        TournamentStorageService._check_tournament_files_exist, path
+    )
+
+    if not is_tournament:
+        return {
+            "valid": False,
+            "error": "Directory is not a valid tournament (missing required files)",
+        }
+
+    # Load summary for preview
+    summary = await asyncio.to_thread(
+        TournamentStorageService._load_tournament_summary, path
+    )
+
+    return {
+        "valid": True,
+        "name": path.name,
+        "path": str(path),
+        "summary": summary,
+    }
