@@ -68,7 +68,22 @@ After installation, run the setup command to extract bundled scenarios:
 negmas-app setup
 ```
 
-This extracts 279 scenarios to `~/negmas/app/scenarios/` and optionally builds caches for faster loading.
+This extracts 279 scenarios to `~/negmas/app/scenarios/` with pre-generated caches for faster loading.
+
+#### Optional: Build Full Cache for Best Performance
+
+For optimal performance, especially when viewing scenario statistics and Pareto frontiers, build the full cache:
+
+```bash
+negmas-app cache build --all --refresh --max-pareto-utils=20000 --max-pareto-outcomes=1000
+```
+
+This pre-calculates statistics (Pareto frontiers, Nash points, etc.) for all scenarios. You can adjust the limits based on your machine's computational power:
+
+- `--max-pareto-utils`: Maximum utility function evaluations for Pareto calculation (default: 20000)
+- `--max-pareto-outcomes`: Maximum outcomes to include in Pareto front (default: 1000)
+
+Lower values = faster cache build, higher values = more accurate statistics for large scenarios.
 
 ### Running
 

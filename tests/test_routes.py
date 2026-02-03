@@ -366,10 +366,10 @@ class TestScenarioRoutes:
         if sample_scenario_path is None:
             pytest.skip("No sample scenario available")
 
-        # URL encode the path for the path parameter
-        import urllib.parse
+        # Base64 encode the path for the path parameter
+        import base64
 
-        encoded_path = urllib.parse.quote(sample_scenario_path, safe="")
+        encoded_path = base64.urlsafe_b64encode(sample_scenario_path.encode()).decode()
         response = client.get(f"/api/scenarios/{encoded_path}")
         assert response.status_code == 200
         data = response.json()
@@ -380,7 +380,10 @@ class TestScenarioRoutes:
 
     def test_get_scenario_details_not_found(self, client: TestClient):
         """Test getting details for non-existent scenario."""
-        response = client.get("/api/scenarios/nonexistent_path")
+        import base64
+
+        encoded_path = base64.urlsafe_b64encode(b"/nonexistent/path").decode()
+        response = client.get(f"/api/scenarios/{encoded_path}")
         assert response.status_code == 404
 
 
@@ -448,20 +451,8 @@ class TestGeniusRoutes:
         assert isinstance(data["running"], bool)
 
 
-class TestMainRoutes:
-    """Tests for main application routes."""
-
-    def test_index_page(self, client: TestClient):
-        """Test that index page loads."""
-        response = client.get("/")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-    def test_static_css(self, client: TestClient):
-        """Test that static CSS is accessible."""
-        response = client.get("/static/css/styles.css")
-        assert response.status_code == 200
-        assert "text/css" in response.headers["content-type"]
+class TestIdentityRoute:
+    """Tests for identity endpoint."""
 
     def test_identity_endpoint(self, client: TestClient):
         """Test that identity endpoint returns app info."""

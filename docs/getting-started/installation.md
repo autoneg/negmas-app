@@ -65,6 +65,27 @@ negmas-app setup --skip-cache
 negmas-app setup --force
 ```
 
+### Optional: Build Full Cache for Best Performance
+
+For optimal performance, especially when viewing scenario statistics and Pareto frontiers, build the full cache after setup:
+
+```bash
+negmas-app cache build --all --refresh --max-pareto-utils=20000 --max-pareto-outcomes=1000
+```
+
+This pre-calculates statistics (Pareto frontiers, Nash points, Kalai points, etc.) for all scenarios. You can adjust the limits based on your machine's computational power:
+
+| Parameter | Description | Default | Effect |
+|-----------|-------------|---------|--------|
+| `--max-pareto-utils` | Max utility evaluations for Pareto calculation | 20000 | Higher = more accurate for large scenarios |
+| `--max-pareto-outcomes` | Max outcomes in Pareto front | 1000 | Higher = more detailed Pareto frontiers |
+
+**Tips:**
+- Lower values = faster cache build time
+- Higher values = more accurate statistics for large scenarios
+- For machines with limited resources, use `--max-pareto-utils=10000 --max-pareto-outcomes=500`
+- For powerful machines, use `--max-pareto-utils=50000 --max-pareto-outcomes=2000`
+
 ### Cache Types
 
 During setup, you'll be asked about building caches:

@@ -11,11 +11,31 @@ from pathlib import Path
 
 @pytest.fixture
 def camera_b_scenario():
-    """Get CameraB scenario path (from negmas source)."""
-    # CameraB is in the negmas package scenarios
-    camera_b = Path.home() / "code/projects/negmas/src/negmas/scenarios/CameraB"
-    if camera_b.exists():
-        return str(camera_b)
+    """Get CameraB scenario path (from negmas source).
+
+    Tries multiple possible locations where negmas package might be installed.
+    """
+    possible_paths = [
+        # Development paths
+        Path.home() / "code/projects/negmas/src/negmas/scenarios/CameraB",
+        Path.home() / "code/negmas/src/negmas/scenarios/CameraB",
+        # Try to find it in the negmas package
+    ]
+
+    for path in possible_paths:
+        if path.exists():
+            return str(path)
+
+    # Try to find it via negmas package
+    try:
+        import negmas
+
+        negmas_path = Path(negmas.__file__).parent / "scenarios" / "CameraB"
+        if negmas_path.exists():
+            return str(negmas_path)
+    except Exception:
+        pass
+
     return None
 
 
@@ -97,7 +117,8 @@ class TestScenarioEndpoints:
         # Verify file_path is a relative path (not absolute)
         assert ufun["file_path"] is not None
         assert not ufun["file_path"].startswith("/")
-        assert ufun["file_path"].endswith(".xml")
+        # File can be XML or YAML depending on scenario format
+        assert ufun["file_path"].endswith((".xml", ".yaml", ".yml"))
 
         # Check files info
         assert "files" in data

@@ -638,9 +638,9 @@ class ScenarioLoader:
                 # Include min/max for continuous/integer issues
                 min_value = None
                 max_value = None
-                if hasattr(issue, "min_value"):
+                if hasattr(issue, "min_value") and issue.min_value is not None:
                     min_value = float(issue.min_value)
-                if hasattr(issue, "max_value"):
+                if hasattr(issue, "max_value") and issue.max_value is not None:
                     max_value = float(issue.max_value)
 
                 # Limit discrete issue values to 100 to avoid huge data transfers
