@@ -547,6 +547,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useNegotiationsStore } from '../stores/negotiations'
 import { useTournamentsStore } from '../stores/tournaments'
 import { storeToRefs } from 'pinia'
+import { getNegotiatorColor as getColorFromPalette, getNegotiatorColors } from '@/composables/useNegotiatorColors.js'
 import NewNegotiationModal from '../components/NewNegotiationModal.vue'
 import Utility2DPanel from '../components/panels/Utility2DPanel.vue'
 import TimelinePanel from '../components/panels/TimelinePanel.vue'
@@ -671,7 +672,7 @@ function convertTournamentRunningNegotiation(neg) {
     status: 'running',
     scenario_name: neg.scenario || 'Unknown',
     negotiator_names: neg.negotiator_names || [`Agent 0`, `Agent 1`],
-    negotiator_colors: neg.negotiator_colors || ['#3b82f6', '#ef4444'],
+    negotiator_colors: neg.negotiator_colors || getNegotiatorColors(2),
     current_step: neg.step || 0,
     relative_time: neg.relative_time || 0,
     n_steps: neg.n_steps,
@@ -720,7 +721,7 @@ function convertTournamentCompletedNegotiation(neg) {
     status: neg.has_error ? 'failed' : 'completed',
     scenario_name: scenarioName,
     negotiator_names: partners,
-    negotiator_colors: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, partners.length),
+    negotiator_colors: getNegotiatorColors(partners.length),
     agreement: parseArrayField(neg.agreement),
     agreement_dict: neg.agreement_dict,
     final_utilities: parseArrayField(neg.utilities) || [],
@@ -1135,7 +1136,7 @@ async function loadPreviewData(neg) {
           
           // Extract negotiator names from negotiators array
           const negotiatorNames = (tournamentData.negotiators || []).map(n => n.short_type || n.name || 'Unknown')
-          const negotiatorColors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, negotiatorNames.length)
+          const negotiatorColors = getNegotiatorColors(negotiatorNames.length)
           
           // Create name-to-index mapping for proposer lookup
           const nameToIdx = {}
@@ -1302,10 +1303,8 @@ function getResultText(neg) {
 }
 
 function getNegotiatorColor(index, colors) {
-  if (colors && colors[index]) return colors[index]
-  
-  const fallbackColors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899']
-  return fallbackColors[index % fallbackColors.length]
+  // Use central color utility - respects colorblind mode
+  return getColorFromPalette(index, colors)
 }
 
 function getRelativeTimePercent(relativeTime) {

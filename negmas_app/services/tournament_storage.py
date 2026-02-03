@@ -1113,6 +1113,36 @@ class TournamentStorageService:
                     if trace_data:
                         history = trace_data.get("trace", [])
 
+            # Calculate utilities for each offer in history if not already present
+            if history and scenario_name:
+                ufuns = cls.load_ufuns(tournament_id, scenario_name)
+                if ufuns:
+                    for row in history:
+                        # Skip if utilities already present and non-empty
+                        if row.get("utilities") and len(row["utilities"]) > 0:
+                            continue
+
+                        # Get offer - could be tuple, list, or string representation
+                        offer_val = row.get("offer") or row.get("current_offer")
+                        if not offer_val:
+                            continue
+
+                        # Parse offer if it's a string
+                        if isinstance(offer_val, str):
+                            try:
+                                offer_tuple = ast.literal_eval(offer_val)
+                            except (ValueError, SyntaxError):
+                                continue
+                        else:
+                            offer_tuple = offer_val
+
+                        # Calculate utility for each negotiator using their ufun
+                        utils = []
+                        for ufun in ufuns:
+                            util = cls.calculate_utility(ufun, offer_tuple)
+                            utils.append(util if util is not None else 0.0)
+                        row["utilities"] = utils
+
             # Load outcome_space_data for visualization
             outcome_space_data = None
             if scenario_name:
@@ -1244,6 +1274,37 @@ class TournamentStorageService:
                     cls.TOURNAMENTS_DIR / tournament_id / "scenarios" / scenario_name
                 )
 
+            # Get history and calculate utilities if not present
+            history = trace_data.get("trace", [])
+            if history and scenario_name:
+                ufuns = cls.load_ufuns(tournament_id, scenario_name)
+                if ufuns:
+                    for row in history:
+                        # Skip if utilities already present and non-empty
+                        if row.get("utilities") and len(row["utilities"]) > 0:
+                            continue
+
+                        # Get offer - could be tuple, list, or string representation
+                        offer_val = row.get("offer") or row.get("current_offer")
+                        if not offer_val:
+                            continue
+
+                        # Parse offer if it's a string
+                        if isinstance(offer_val, str):
+                            try:
+                                offer_tuple = ast.literal_eval(offer_val)
+                            except (ValueError, SyntaxError):
+                                continue
+                        else:
+                            offer_tuple = offer_val
+
+                        # Calculate utility for each negotiator using their ufun
+                        utils = []
+                        for ufun in ufuns:
+                            util = cls.calculate_utility(ufun, offer_tuple)
+                            utils.append(util if util is not None else 0.0)
+                        row["utilities"] = utils
+
             # Build the complete negotiation object
             negotiation = {
                 "run_id": run_id,
@@ -1253,7 +1314,7 @@ class TournamentStorageService:
                 "tournament_id": tournament_id,  # For tournament-specific API calls
                 "partners": partners,
                 "issue_names": issue_names,
-                "history": trace_data.get("trace", []),
+                "history": history,  # Use modified history with utilities
                 "agreement": trace_data.get("agreement"),
                 "outcome_space_data": outcome_space_data,
                 "source": "tournament",

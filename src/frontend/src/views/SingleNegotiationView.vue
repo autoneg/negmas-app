@@ -150,6 +150,7 @@
 import { ref, onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useNegotiationsStore } from '../stores/negotiations'
+import { getNegotiatorColors } from '@/composables/useNegotiatorColors.js'
 import StatsModal from '../components/StatsModal.vue'
 import ZoomModal from '../components/ZoomModal.vue'
 import NegotiatorInfoModal from '../components/NegotiatorInfoModal.vue'
@@ -272,7 +273,7 @@ async function loadTemporaryNegotiation(sessionId) {
     scenario_path: tempData.scenario_path,
     negotiator_names: tempData.negotiator_names,
     negotiator_types: tempData.negotiator_types,
-    negotiator_colors: tempData.negotiator_colors || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, (tempData.negotiator_names || []).length),
+    negotiator_colors: tempData.negotiator_colors || getNegotiatorColors((tempData.negotiator_names || []).length),
     issue_names: tempData.issue_names,
     n_steps: tempData.n_steps,
     time_limit: tempData.time_limit,
@@ -393,7 +394,7 @@ async function loadTournamentNegotiation(sessionId) {
       tournament_id: fullData.tournament_id,  // For tournament-specific API
       negotiator_names: negotiatorNames,
       negotiator_types: negotiatorTypes,
-      negotiator_colors: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'].slice(0, negotiatorNames.length),
+      negotiator_colors: getNegotiatorColors(negotiatorNames.length),
       issue_names: issueNames,
       n_steps: fullData.n_steps,
       status: 'completed',

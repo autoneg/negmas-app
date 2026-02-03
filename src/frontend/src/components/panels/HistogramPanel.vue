@@ -90,6 +90,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import Plotly from 'plotly.js-dist-min'
+import { getColorsForNegotiation } from '@/composables/useNegotiatorColors.js'
 
 const props = defineProps({
   negotiation: {
@@ -148,11 +149,8 @@ function getPlotColors() {
 }
 
 function getNegotiatorColors() {
-  const isColorBlind = document.documentElement.classList.contains('color-blind-mode')
-  if (isColorBlind) {
-    return ['#0173b2', '#de8f05', '#029e73', '#cc78bc', '#ca9161', '#fbafe4', '#949494', '#ece133']
-  }
-  return ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899']
+  // Use central color utility - respects colorblind mode and passed colors
+  return getColorsForNegotiation(props.negotiation)
 }
 
 // Initialize histogram
