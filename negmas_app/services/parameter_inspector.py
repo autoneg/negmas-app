@@ -46,6 +46,14 @@ class ParameterInfo:
     # For nested/complex types
     is_complex: bool = False  # True if this can't be easily edited in UI
 
+    # For negotiator/component parameters (editable via selector modal)
+    component_type: str | None = (
+        None  # 'negotiator', 'acceptance', 'offering', 'model', etc.
+    )
+    is_list: bool = False  # True if the parameter is a list of negotiators/components
+    is_dict: bool = False  # True if the parameter is a dict of negotiators/components
+    is_iterable: bool = False  # True if the parameter is an Iterable (includes list)
+
 
 def _get_type_string(annotation: Any) -> str:
     """Convert a type annotation to a readable string."""
@@ -71,6 +79,116 @@ def _get_type_string(annotation: Any) -> str:
         return annotation.__name__
 
     return str(annotation)
+
+
+# Known base classes for negotiators and components
+# These are checked by class name to avoid import issues
+NEGOTIATOR_BASE_CLASSES = frozenset(
+    {
+        "Negotiator",
+        "SAONegotiator",
+        "GBNegotiator",
+        "GeniusNegotiator",
+    }
+)
+
+COMPONENT_BASE_CLASSES = {
+    # class name -> component_type
+    "AcceptancePolicy": "acceptance",
+    "OfferingPolicy": "offering",
+    "ProposalPolicy": "proposal",
+    "Model": "model",
+    "GBComponent": "component",
+    "Component": "component",
+}
+
+
+def _get_component_type(annotation: Any) -> tuple[str | None, bool, bool, bool]:
+    """Determine if an annotation is a negotiator or component type.
+
+    Returns: (component_type, is_list, is_dict, is_iterable)
+        component_type: 'negotiator', 'acceptance', 'offering', 'model', etc. or None
+        is_list: True if the parameter is a list of negotiators/components
+        is_dict: True if the parameter is a dict of negotiators/components
+        is_iterable: True if the parameter is an Iterable (includes list but also any iterable)
+    """
+    from typing import Iterable as TypingIterable
+    from collections.abc import Iterable as ABCIterable
+
+    if annotation is inspect.Parameter.empty:
+        return None, False, False, False
+
+    origin = get_origin(annotation)
+    args = get_args(annotation)
+
+    # Handle Optional types - unwrap and check inner type
+    if origin is Union:
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1:
+            return _get_component_type(non_none[0])
+        return None, False, False, False
+
+    # Handle list/tuple/set types
+    if origin in (list, tuple, set, frozenset):
+        if args:
+            inner_type, _, _, _ = _get_component_type(args[0])
+            if inner_type:
+                return inner_type, True, False, False
+        return None, False, False, False
+
+    # Handle dict types - check value type
+    if origin is dict:
+        if len(args) >= 2:
+            inner_type, _, _, _ = _get_component_type(args[1])
+            if inner_type:
+                return inner_type, False, True, False
+        return None, False, False, False
+
+    # Handle Iterable types
+    try:
+        if origin is TypingIterable or (
+            hasattr(origin, "__mro__") and ABCIterable in origin.__mro__
+        ):
+            if args:
+                inner_type, _, _, _ = _get_component_type(args[0])
+                if inner_type:
+                    return inner_type, False, False, True
+            return None, False, False, False
+    except (TypeError, AttributeError):
+        pass
+
+    # Check string annotation format "Iterable[X]"
+    type_str = _get_type_string(annotation)
+    if type_str.startswith("Iterable["):
+        # Extract the inner type and check if it's a negotiator/component
+        inner_str = type_str[9:-1]  # Remove "Iterable[" and "]"
+        for neg_class in NEGOTIATOR_BASE_CLASSES:
+            if neg_class in inner_str:
+                return "negotiator", False, False, True
+        for comp_class, comp_type in COMPONENT_BASE_CLASSES.items():
+            if comp_class in inner_str:
+                return comp_type, False, False, True
+
+    # Check if it's a class type
+    if hasattr(annotation, "__mro__"):
+        # Check MRO for negotiator base classes
+        for base in annotation.__mro__:
+            base_name = base.__name__
+            if base_name in NEGOTIATOR_BASE_CLASSES:
+                return "negotiator", False, False, False
+            if base_name in COMPONENT_BASE_CLASSES:
+                return COMPONENT_BASE_CLASSES[base_name], False, False, False
+
+    # Check type name string for forward references
+    type_str = _get_type_string(annotation)
+    for neg_class in NEGOTIATOR_BASE_CLASSES:
+        if neg_class in type_str:
+            return "negotiator", False, False, False
+    for comp_class, comp_type in COMPONENT_BASE_CLASSES.items():
+        if comp_class in type_str:
+            return comp_type, False, False, False
+
+    return None, False, False, False
 
 
 def _determine_ui_type(
@@ -279,6 +397,15 @@ def _get_class_init_params(cls: type) -> list[ParameterInfo]:
         # Determine UI type
         ui_type, choices, is_complex = _determine_ui_type(annotation, default)
 
+        # Check if this is a negotiator/component parameter
+        component_type, is_list, is_dict, is_iterable = _get_component_type(annotation)
+
+        # If it's a negotiator/component parameter, mark it as editable (not complex)
+        # but set the component_type so the UI knows to show a selector
+        if component_type:
+            is_complex = False  # Make it editable via selector modal
+            ui_type = "component_selector"
+
         # Skip very complex parameters that can't be configured via UI
         # but still include them as info
 
@@ -294,6 +421,10 @@ def _get_class_init_params(cls: type) -> list[ParameterInfo]:
             ui_type=ui_type,
             choices=choices,
             is_complex=is_complex,
+            component_type=component_type,
+            is_list=is_list,
+            is_dict=is_dict,
+            is_iterable=is_iterable,
         )
 
         params.append(param_info)
@@ -393,6 +524,10 @@ def _load_from_file_cache(type_name: str) -> list[ParameterInfo] | None:
                 min_value=p.get("min_value"),
                 max_value=p.get("max_value"),
                 is_complex=p.get("is_complex", False),
+                component_type=p.get("component_type"),
+                is_list=p.get("is_list", False),
+                is_dict=p.get("is_dict", False),
+                is_iterable=p.get("is_iterable", False),
             )
             for p in data
         ]
@@ -426,6 +561,10 @@ def _save_to_file_cache(type_name: str, params: list[ParameterInfo]) -> None:
             "min_value": p.min_value,
             "max_value": p.max_value,
             "is_complex": p.is_complex,
+            "component_type": p.component_type,
+            "is_list": p.is_list,
+            "is_dict": p.is_dict,
+            "is_iterable": p.is_iterable,
         }
         for p in params
     ]

@@ -130,6 +130,52 @@
                   </select>
                   <div v-if="param.description" class="form-hint">{{ param.description }}</div>
                 </div>
+                
+                <!-- Negotiator/Component selector parameters -->
+                <div v-else-if="param.ui_type === 'component_selector'">
+                  <label class="form-label">
+                    <span>{{ formatParamName(param.name) }}</span>
+                    <span v-if="param.required" class="text-danger">*</span>
+                    <span v-if="param.is_list || param.is_iterable" class="text-muted">(list)</span>
+                  </label>
+                  <div class="component-selector-row">
+                    <div class="component-selector-value">
+                      <span v-if="!values[param.name]" class="text-muted">
+                        Not configured
+                      </span>
+                      <span v-else-if="Array.isArray(values[param.name])">
+                        {{ values[param.name].length }} {{ getComponentTypeLabel(param.component_type) }}(s) selected
+                      </span>
+                      <span v-else>
+                        {{ values[param.name].name || values[param.name].type_name || 'Configured' }}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      @click="openSelectorModal(param)"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                      </svg>
+                      Configure
+                    </button>
+                    <button
+                      v-if="values[param.name]"
+                      type="button"
+                      class="btn btn-secondary btn-sm text-danger"
+                      @click="values[param.name] = null"
+                      title="Clear"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                  <div v-if="param.description" class="form-hint">{{ param.description }}</div>
+                </div>
               </div>
             </div>
             
@@ -250,11 +296,26 @@
         </div>
       </div>
     </div>
+    
+    <!-- Negotiator/Component Selector Modal -->
+    <NegotiatorSelectorModal
+      :show="showSelectorModal"
+      :component-type="selectorComponentType"
+      :param-name="selectorParamName"
+      :is-list="selectorIsList"
+      :is-iterable="selectorIsIterable"
+      :is-dict="selectorIsDict"
+      :is-required="selectorIsRequired"
+      :existing-value="selectorExistingValue"
+      @close="showSelectorModal = false"
+      @apply="onSelectorApply"
+    />
   </Teleport>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import NegotiatorSelectorModal from './NegotiatorSelectorModal.vue'
 
 const props = defineProps({
   show: {
@@ -272,6 +333,11 @@ const props = defineProps({
   existingParams: {
     type: Object,
     default: () => ({})
+  },
+  // For BOA component configuration (uses different API endpoint)
+  isBoaComponent: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -291,7 +357,17 @@ const savingVirtual = ref(false)
 const saveVirtualError = ref(null)
 const saveVirtualSuccess = ref(false)
 
-// Separate simple and complex parameters
+// Negotiator/Component selector modal state
+const showSelectorModal = ref(false)
+const selectorComponentType = ref('negotiator')
+const selectorParamName = ref('')
+const selectorIsList = ref(false)
+const selectorIsIterable = ref(false)
+const selectorIsDict = ref(false)
+const selectorIsRequired = ref(false)
+const selectorExistingValue = ref(null)
+
+// Separate simple and complex parameters (now includes component_selector as simple)
 const simpleParameters = computed(() => 
   parameters.value.filter(p => !p.is_complex)
 )
@@ -314,7 +390,17 @@ async function loadParameters() {
   error.value = null
   
   try {
-    const response = await fetch(`/api/negotiators/${encodeURIComponent(props.negotiatorType)}/parameters`)
+    // Use different endpoint for BOA components
+    let url
+    if (props.isBoaComponent) {
+      // For BOA components, use the component parameters endpoint
+      url = `/api/negotiators/boa/components/${encodeURIComponent(props.negotiatorType)}/parameters`
+    } else {
+      // For regular negotiators
+      url = `/api/negotiators/${encodeURIComponent(props.negotiatorType)}/parameters`
+    }
+    
+    const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`Failed to load parameters: ${response.statusText}`)
     }
@@ -427,6 +513,34 @@ async function saveAsVirtual() {
     savingVirtual.value = false
   }
 }
+
+function getComponentTypeLabel(componentType) {
+  switch (componentType) {
+    case 'negotiator': return 'Negotiator'
+    case 'acceptance': return 'Acceptance Policy'
+    case 'offering': return 'Offering Policy'
+    case 'model': return 'Model'
+    case 'component': return 'Component'
+    default: return 'Item'
+  }
+}
+
+function openSelectorModal(param) {
+  selectorComponentType.value = param.component_type || 'negotiator'
+  selectorParamName.value = param.name
+  selectorIsList.value = param.is_list || false
+  selectorIsIterable.value = param.is_iterable || false
+  selectorIsDict.value = param.is_dict || false
+  selectorIsRequired.value = param.required || false
+  selectorExistingValue.value = values.value[param.name] || null
+  showSelectorModal.value = true
+}
+
+function onSelectorApply(selectedValue) {
+  // Store the selected negotiator(s)/component(s) for this parameter
+  values.value[selectorParamName.value] = selectedValue
+  showSelectorModal.value = false
+}
 </script>
 
 <style scoped>
@@ -442,5 +556,31 @@ async function saveAsVirtual() {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+.component-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.component-selector-value {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  font-size: 13px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.text-danger {
+  color: var(--danger) !important;
 }
 </style>

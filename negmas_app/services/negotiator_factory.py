@@ -30,6 +30,10 @@ from ..models import (
 )
 from .settings_service import SettingsService
 
+# Type alias for nested component config (from frontend)
+# Format: {"type_name": str, "name": str | None, "params": dict}
+NestedComponentConfig = dict[str, str | dict | None]
+
 
 @dataclass
 class NegotiatorEntry:
@@ -548,6 +552,107 @@ def _get_class_for_type(type_name: str) -> type | None:
 _discover_all_negotiators()
 
 
+def _is_component_config(value: object) -> bool:
+    """Check if a value looks like a nested component config.
+
+    Expected format: {"type_name": str, "name"?: str, "params"?: dict}
+    """
+    if not isinstance(value, dict):
+        return False
+    if "type_name" not in value:
+        return False
+    if not isinstance(value.get("type_name"), str):
+        return False
+    return True
+
+
+def _instantiate_component(config: NestedComponentConfig) -> object:
+    """Instantiate a negotiator or BOA component from a config dict.
+
+    Args:
+        config: Dict with type_name, optional name, and optional params.
+
+    Returns:
+        Instantiated component object.
+
+    Raises:
+        ValueError: If the type cannot be resolved.
+    """
+    type_name = config["type_name"]
+    if not isinstance(type_name, str):
+        raise ValueError(f"Invalid type_name in component config: {type_name}")
+
+    params = config.get("params", {}) or {}
+    if not isinstance(params, dict):
+        params = {}
+
+    # Recursively process nested params
+    processed_params = _process_nested_params(params)
+
+    # Add name if provided
+    name = config.get("name")
+    if name and isinstance(name, str):
+        processed_params["name"] = name
+
+    # Try to get the class - first check if it's a negotiator
+    cls = _get_class_for_type(type_name)
+    if cls is not None:
+        return cls(**processed_params)
+
+    # Try as a BOA component
+    cls = BOAFactory.get_component_class(type_name)
+    if cls is not None:
+        return cls(**processed_params)
+
+    # Try with negmas.gb.components prefix
+    if not type_name.startswith("negmas."):
+        cls = BOAFactory.get_component_class(f"negmas.gb.components.{type_name}")
+        if cls is not None:
+            return cls(**processed_params)
+
+    raise ValueError(f"Cannot resolve component type: {type_name}")
+
+
+def _process_nested_params(params: dict) -> dict:
+    """Process params dict, instantiating any nested component configs.
+
+    Handles:
+    - Single component config: {"type_name": "...", ...} -> instantiated object
+    - List of configs: [{"type_name": "...", ...}, ...] -> list of objects
+    - Dict of configs: {"key": {"type_name": "...", ...}, ...} -> dict of objects
+    """
+    processed = {}
+
+    for key, value in params.items():
+        if _is_component_config(value):
+            # Single nested component
+            processed[key] = _instantiate_component(value)  # type: ignore[arg-type]
+        elif isinstance(value, list):
+            # Check if it's a list of component configs
+            if value and all(_is_component_config(item) for item in value):
+                processed[key] = [_instantiate_component(item) for item in value]  # type: ignore[arg-type]
+            else:
+                # Regular list, keep as-is but process any nested dicts
+                processed[key] = [
+                    _instantiate_component(item) if _is_component_config(item) else item  # type: ignore[arg-type]
+                    for item in value
+                ]
+        elif isinstance(value, dict) and value:
+            # Check if all values are component configs
+            if all(_is_component_config(v) for v in value.values()):
+                processed[key] = {
+                    k: _instantiate_component(v)
+                    for k, v in value.items()  # type: ignore[arg-type]
+                }
+            else:
+                # Regular dict - could be params for something else
+                processed[key] = value
+        else:
+            processed[key] = value
+
+    return processed
+
+
 class NegotiatorFactory:
     """Create negotiator instances from configuration."""
 
@@ -749,12 +854,66 @@ class NegotiatorFactory:
         if type_name.startswith("MAP:"):
             return NegotiatorFactory._create_map_negotiator(config, ufun)
 
+        # Handle BOANegotiator/MAPNegotiator with component names in params
+        # Frontend sends: type_name='BOANegotiator', params={acceptance_policy: 'ACTime', ...}
+        if type_name in ("BOANegotiator", "MAPNegotiator"):
+            params = config.params or {}
+            acc = params.get("acceptance_policy", "")
+            off = params.get("offering_policy", "")
+            if acc and off:
+                if type_name == "BOANegotiator":
+                    model = params.get("opponent_model", "")
+                    # Convert to BOA: format
+                    new_type = f"BOA:{acc}/{off}"
+                    if model:
+                        new_type += f"/{model}"
+                    # Build new params with component params
+                    new_params = {
+                        "acceptance_params": params.get("acceptance_params", {}),
+                        "offering_params": params.get("offering_params", {}),
+                        "model_params": params.get("model_params", {}),
+                    }
+                    new_config = NegotiatorConfig(
+                        type_name=new_type,
+                        name=config.name,
+                        params=new_params,
+                        time_limit=config.time_limit,
+                        n_steps=config.n_steps,
+                    )
+                    return NegotiatorFactory._create_boa_negotiator(new_config, ufun)
+                else:  # MAPNegotiator
+                    # Convert to MAP: format
+                    new_type = f"MAP:{acc}/{off}"
+                    # Build new params
+                    new_params = {
+                        "acceptance_params": params.get("acceptance_params", {}),
+                        "offering_params": params.get("offering_params", {}),
+                        "models": params.get("models", []),
+                        "model_params": params.get("model_params", []),
+                        "extra_components": params.get("extra_components", []),
+                        "extra_component_params": params.get(
+                            "extra_component_params", []
+                        ),
+                        "acceptance_first": params.get("acceptance_first", True),
+                    }
+                    new_config = NegotiatorConfig(
+                        type_name=new_type,
+                        name=config.name,
+                        params=new_params,
+                        time_limit=config.time_limit,
+                        n_steps=config.n_steps,
+                    )
+                    return NegotiatorFactory._create_map_negotiator(new_config, ufun)
+
         # Regular negotiator - look up class by type name
         cls = _get_class_for_type(type_name)
         if cls is None:
             raise ValueError(f"Unknown negotiator type: {type_name}")
 
-        negotiator = cls(name=config.name, **config.params)
+        # Process params to instantiate any nested negotiator/component configs
+        processed_params = _process_nested_params(config.params)
+
+        negotiator = cls(name=config.name, **processed_params)
         if ufun is not None:
             negotiator.ufun = ufun
         return negotiator

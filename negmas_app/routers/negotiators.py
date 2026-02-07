@@ -145,6 +145,61 @@ async def list_boa_components(
     }
 
 
+@router.get("/boa/components/{component_name}/parameters")
+async def get_boa_component_params(
+    component_name: str,
+    use_cache: bool = Query(True, description="Whether to use cached results"),
+):
+    """Get configurable parameters for a BOA component.
+
+    Args:
+        component_name: Name of the component (e.g., "ACTime", "GBoulwareOffering")
+        use_cache: Whether to use cached parameter info
+
+    Returns:
+        List of parameter info objects with type, default, and UI hints.
+    """
+    # Get the full type name for the component
+    component_class = await asyncio.to_thread(
+        BOAFactory.get_component_class, component_name
+    )
+    if component_class is None:
+        raise HTTPException(
+            status_code=404, detail=f"Component not found: {component_name}"
+        )
+
+    # Get the full type name
+    type_name = f"{component_class.__module__}.{component_class.__name__}"
+
+    params = await asyncio.to_thread(
+        get_negotiator_parameters, type_name, use_cache=use_cache
+    )
+    return {
+        "component_name": component_name,
+        "type_name": type_name,
+        "parameters": [
+            {
+                "name": p.name,
+                "type": p.type,
+                "default": p.default,
+                "required": p.required,
+                "description": p.description,
+                "ui_type": p.ui_type,
+                "choices": p.choices,
+                "min_value": p.min_value,
+                "max_value": p.max_value,
+                "is_complex": p.is_complex,
+                "component_type": p.component_type,
+                "is_list": p.is_list,
+                "is_dict": p.is_dict,
+                "is_iterable": p.is_iterable,
+            }
+            for p in params
+        ],
+        "count": len(params),
+    }
+
+
 @router.post("/refresh")
 async def refresh_registry():
     """Refresh the negotiator registry.
@@ -417,6 +472,10 @@ async def get_negotiator_params(
                 "min_value": p.min_value,
                 "max_value": p.max_value,
                 "is_complex": p.is_complex,
+                "component_type": p.component_type,
+                "is_list": p.is_list,
+                "is_dict": p.is_dict,
+                "is_iterable": p.is_iterable,
             }
             for p in params
         ],

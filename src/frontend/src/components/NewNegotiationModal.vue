@@ -524,32 +524,80 @@
                 <div class="boa-builder">
                   <div class="form-group">
                     <label class="form-label">Acceptance Policy <span class="text-danger">*</span></label>
-                    <select class="form-select" v-model="boaConfig.acceptance_policy">
-                      <option value="">Select acceptance policy...</option>
-                      <option v-for="c in boaComponents.acceptance" :key="c" :value="c">
-                        {{ c }}
-                      </option>
-                    </select>
+                    <div class="component-row">
+                      <select class="form-select" v-model="boaConfig.acceptance_policy" @change="boaConfig.acceptance_params = {}">
+                        <option value="">Select acceptance policy...</option>
+                        <option v-for="c in boaComponents.acceptance" :key="c" :value="c">
+                          {{ c }}
+                        </option>
+                      </select>
+                      <button
+                        v-if="boaConfig.acceptance_policy"
+                        class="btn btn-sm btn-secondary"
+                        @click="openComponentConfig('acceptance', boaConfig.acceptance_policy, boaConfig.acceptance_params, (params) => boaConfig.acceptance_params = params)"
+                        title="Configure parameters"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </button>
+                    </div>
+                    <div v-if="Object.keys(boaConfig.acceptance_params).length > 0" class="params-preview">
+                      {{ formatComponentParams(boaConfig.acceptance_params) }}
+                    </div>
                   </div>
 
                   <div class="form-group">
                     <label class="form-label">Offering Policy <span class="text-danger">*</span></label>
-                    <select class="form-select" v-model="boaConfig.offering_policy">
-                      <option value="">Select offering policy...</option>
-                      <option v-for="c in boaComponents.offering" :key="c" :value="c">
-                        {{ c }}
-                      </option>
-                    </select>
+                    <div class="component-row">
+                      <select class="form-select" v-model="boaConfig.offering_policy" @change="boaConfig.offering_params = {}">
+                        <option value="">Select offering policy...</option>
+                        <option v-for="c in boaComponents.offering" :key="c" :value="c">
+                          {{ c }}
+                        </option>
+                      </select>
+                      <button
+                        v-if="boaConfig.offering_policy"
+                        class="btn btn-sm btn-secondary"
+                        @click="openComponentConfig('offering', boaConfig.offering_policy, boaConfig.offering_params, (params) => boaConfig.offering_params = params)"
+                        title="Configure parameters"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </button>
+                    </div>
+                    <div v-if="Object.keys(boaConfig.offering_params).length > 0" class="params-preview">
+                      {{ formatComponentParams(boaConfig.offering_params) }}
+                    </div>
                   </div>
 
                   <div class="form-group">
                     <label class="form-label">Opponent Model <span class="text-muted">(optional)</span></label>
-                    <select class="form-select" v-model="boaConfig.opponent_model">
-                      <option value="">None (no opponent modeling)</option>
-                      <option v-for="c in boaComponents.model" :key="c" :value="c">
-                        {{ c }}
-                      </option>
-                    </select>
+                    <div class="component-row">
+                      <select class="form-select" v-model="boaConfig.opponent_model" @change="boaConfig.model_params = {}">
+                        <option value="">None (no opponent modeling)</option>
+                        <option v-for="c in boaComponents.model" :key="c" :value="c">
+                          {{ c }}
+                        </option>
+                      </select>
+                      <button
+                        v-if="boaConfig.opponent_model"
+                        class="btn btn-sm btn-secondary"
+                        @click="openComponentConfig('model', boaConfig.opponent_model, boaConfig.model_params, (params) => boaConfig.model_params = params)"
+                        title="Configure parameters"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </button>
+                    </div>
+                    <div v-if="Object.keys(boaConfig.model_params).length > 0" class="params-preview">
+                      {{ formatComponentParams(boaConfig.model_params) }}
+                    </div>
                   </div>
 
                   <button
@@ -571,30 +619,73 @@
                 <div class="map-builder">
                   <div class="form-group">
                     <label class="form-label">Acceptance Policy <span class="text-danger">*</span></label>
-                    <select class="form-select" v-model="mapConfig.acceptance_policy">
-                      <option value="">Select acceptance policy...</option>
-                      <option v-for="c in boaComponents.acceptance" :key="c" :value="c">
-                        {{ c }}
-                      </option>
-                    </select>
+                    <div class="component-row">
+                      <select class="form-select" v-model="mapConfig.acceptance_policy" @change="mapConfig.acceptance_params = {}">
+                        <option value="">Select acceptance policy...</option>
+                        <option v-for="c in boaComponents.acceptance" :key="c" :value="c">
+                          {{ c }}
+                        </option>
+                      </select>
+                      <button
+                        v-if="mapConfig.acceptance_policy"
+                        class="btn btn-sm btn-secondary"
+                        @click="openComponentConfig('acceptance', mapConfig.acceptance_policy, mapConfig.acceptance_params, (params) => mapConfig.acceptance_params = params)"
+                        title="Configure parameters"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </button>
+                    </div>
+                    <div v-if="Object.keys(mapConfig.acceptance_params).length > 0" class="params-preview">
+                      {{ formatComponentParams(mapConfig.acceptance_params) }}
+                    </div>
                   </div>
 
                   <div class="form-group">
                     <label class="form-label">Offering Policy <span class="text-danger">*</span></label>
-                    <select class="form-select" v-model="mapConfig.offering_policy">
-                      <option value="">Select offering policy...</option>
-                      <option v-for="c in boaComponents.offering" :key="c" :value="c">
-                        {{ c }}
-                      </option>
-                    </select>
+                    <div class="component-row">
+                      <select class="form-select" v-model="mapConfig.offering_policy" @change="mapConfig.offering_params = {}">
+                        <option value="">Select offering policy...</option>
+                        <option v-for="c in boaComponents.offering" :key="c" :value="c">
+                          {{ c }}
+                        </option>
+                      </select>
+                      <button
+                        v-if="mapConfig.offering_policy"
+                        class="btn btn-sm btn-secondary"
+                        @click="openComponentConfig('offering', mapConfig.offering_policy, mapConfig.offering_params, (params) => mapConfig.offering_params = params)"
+                        title="Configure parameters"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </button>
+                    </div>
+                    <div v-if="Object.keys(mapConfig.offering_params).length > 0" class="params-preview">
+                      {{ formatComponentParams(mapConfig.offering_params) }}
+                    </div>
                   </div>
 
                   <div class="form-group">
                     <label class="form-label">Models <span class="text-muted">(multiple allowed)</span></label>
                     <div class="model-selector">
-                      <span v-for="(model, index) in mapConfig.models" :key="index" class="badge badge-primary">
+                      <span v-for="(model, index) in mapConfig.models" :key="index" class="badge badge-primary model-badge">
                         {{ model }}
-                        <button type="button" @click="mapConfig.models.splice(index, 1)" class="badge-remove">×</button>
+                        <button
+                          type="button"
+                          class="badge-config"
+                          @click.stop="openMapModelConfig(index)"
+                          title="Configure"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                          </svg>
+                        </button>
+                        <button type="button" @click="removeMapModel(index)" class="badge-remove">×</button>
                       </span>
                     </div>
                     <div class="model-add">
@@ -1217,6 +1308,17 @@
     :negotiator="negotiatorForInfo"
     @close="showNegotiatorInfoModal = false"
   />
+  
+  <!-- BOA/MAP Component Configuration Modal -->
+  <NegotiatorConfigModal
+    :show="showComponentConfigModal"
+    :negotiator-type="componentConfigName"
+    :negotiator-name="componentConfigName"
+    :existing-params="componentConfigParams"
+    :is-boa-component="true"
+    @close="showComponentConfigModal = false"
+    @apply="applyComponentConfig"
+  />
 </template>
 
 <script setup>
@@ -1300,14 +1402,29 @@ const boaConfig = ref({
   acceptance_policy: '',
   offering_policy: '',
   opponent_model: '',
+  // Component parameters
+  acceptance_params: {},
+  offering_params: {},
+  model_params: {},
 })
 const mapConfig = ref({
   acceptance_policy: '',
   offering_policy: '',
   models: [],
   acceptance_first: false,
+  // Component parameters
+  acceptance_params: {},
+  offering_params: {},
+  model_params: [],  // Array of params for each model
 })
 const selectedMapModel = ref('')
+
+// BOA/MAP component configuration modal
+const showComponentConfigModal = ref(false)
+const componentConfigType = ref('')  // 'acceptance', 'offering', 'model'
+const componentConfigName = ref('')  // Component class name
+const componentConfigParams = ref({})
+const componentConfigCallback = ref(null)  // Function to call when modal closes
 
 // Mechanism params
 const mechanismType = ref('SAOMechanism')
@@ -1668,6 +1785,10 @@ function applyBOAToSlot() {
         acceptance_policy: boaConfig.value.acceptance_policy,
         offering_policy: boaConfig.value.offering_policy,
         opponent_model: boaConfig.value.opponent_model || null,
+        // Include component parameters
+        acceptance_params: boaConfig.value.acceptance_params || {},
+        offering_params: boaConfig.value.offering_params || {},
+        model_params: boaConfig.value.model_params || {},
       },
       source: 'custom',
       time_limit: null,
@@ -1679,6 +1800,9 @@ function applyBOAToSlot() {
       acceptance_policy: '',
       offering_policy: '',
       opponent_model: '',
+      acceptance_params: {},
+      offering_params: {},
+      model_params: {},
     }
   }
 }
@@ -1686,8 +1810,15 @@ function applyBOAToSlot() {
 function addMapModel() {
   if (selectedMapModel.value && !mapConfig.value.models.includes(selectedMapModel.value)) {
     mapConfig.value.models.push(selectedMapModel.value)
+    // Add empty params for this model
+    mapConfig.value.model_params.push({})
     selectedMapModel.value = ''
   }
+}
+
+function removeMapModel(index) {
+  mapConfig.value.models.splice(index, 1)
+  mapConfig.value.model_params.splice(index, 1)
 }
 
 function applyMAPToSlot() {
@@ -1700,6 +1831,10 @@ function applyMAPToSlot() {
         offering_policy: mapConfig.value.offering_policy,
         models: mapConfig.value.models,
         acceptance_first: mapConfig.value.acceptance_first,
+        // Include component parameters
+        acceptance_params: mapConfig.value.acceptance_params || {},
+        offering_params: mapConfig.value.offering_params || {},
+        model_params: mapConfig.value.model_params || [],
       },
       source: 'custom',
       time_limit: null,
@@ -1712,8 +1847,43 @@ function applyMAPToSlot() {
       offering_policy: '',
       models: [],
       acceptance_first: false,
+      acceptance_params: {},
+      offering_params: {},
+      model_params: [],
     }
   }
+}
+
+// BOA/MAP component configuration helpers
+function openComponentConfig(componentType, componentName, existingParams, callback) {
+  componentConfigType.value = componentType
+  componentConfigName.value = componentName
+  componentConfigParams.value = existingParams || {}
+  componentConfigCallback.value = callback
+  showComponentConfigModal.value = true
+}
+
+function applyComponentConfig(params) {
+  if (componentConfigCallback.value) {
+    componentConfigCallback.value(params)
+  }
+  showComponentConfigModal.value = false
+}
+
+function openMapModelConfig(index) {
+  const modelName = mapConfig.value.models[index]
+  const existingParams = mapConfig.value.model_params[index] || {}
+  openComponentConfig('model', modelName, existingParams, (params) => {
+    mapConfig.value.model_params[index] = params
+  })
+}
+
+function formatComponentParams(params) {
+  if (!params || Object.keys(params).length === 0) return ''
+  return Object.entries(params)
+    .filter(([_, v]) => v !== null && v !== undefined && v !== '')
+    .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+    .join(', ')
 }
 
 function getDeadlineSummary() {
@@ -2883,11 +3053,52 @@ onUnmounted(() => {
   margin-bottom: 12px;
 }
 
+.component-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.component-row .form-select {
+  flex: 1;
+}
+
+.params-preview {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .model-selector {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.model-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-config {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  color: inherit;
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+}
+
+.badge-config:hover {
+  opacity: 1;
 }
 
 .model-add {
