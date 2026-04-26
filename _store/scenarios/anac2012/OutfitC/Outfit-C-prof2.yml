@@ -1,0 +1,31 @@
+name: Outfit-C-prof2
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Blouse: 10.0
+    Polo shirt: 30.0
+    T-shirt: 50.0
+    sweaters: 40.0
+  type: TableFun
+- mapping:
+    Demin: 100.0
+    bermuda shorts: 50.0
+    classic pants: 80.0
+    leather pants: 10.0
+  type: TableFun
+- mapping:
+    boots: 25.0
+    sandals: 20.0
+    slipers: 10.0
+    sneakers: 30.0
+  type: TableFun
+- mapping:
+    hat: 10.0
+    sunglasses: 80.0
+  type: TableFun
+weights:
+- 0.3790199160561041
+- 0.31779084542289004
+- 0.10202998610198678
+- 0.20115925241901905

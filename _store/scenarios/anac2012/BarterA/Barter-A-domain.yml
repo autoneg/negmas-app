@@ -1,0 +1,25 @@
+issues:
+- name: price
+  type: CategoricalIssue
+  values:
+  - 3gm
+  - 4gm
+  - 5gm
+  - 6gm
+- name: CookingOil
+  type: CategoricalIssue
+  values:
+  - 4ml
+  - 5ml
+  - 6ml
+  - 7ml
+  - 8ml
+- name: Sugar
+  type: CategoricalIssue
+  values:
+  - 4gm
+  - 6gm
+  - 8gm
+  - 10gm
+name: Barter-A-domain
+type: DiscreteCartesianOutcomeSpace

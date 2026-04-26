@@ -1,0 +1,28 @@
+discount: 0.99
+dynamic_reservation: true
+name: util3
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/other/y2018_not_used/GohanTime/util3.xml
+  reserved_value: 0.0
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      Barley rice: 4.0
+      Mixed rice: 2.0
+      rice: 3.0
+    type: TableFun
+  - bias: 0.3
+    slope: 0.0031818181818181815
+    type: AffineFun
+  - mapping:
+      1km: 4.0
+      2km: 3.0
+      3km: 1.0
+      500m: 4.0
+    type: TableFun
+  weights:
+  - 0.3724637008064296
+  - 0.3824225625456249
+  - 0.24511373664794547

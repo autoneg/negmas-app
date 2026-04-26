@@ -1,0 +1,40 @@
+discount: 0.2
+dynamic_reservation: true
+name: util3
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/anac/y2016/DomainAce/util3.xml
+  reserved_value: 0.3
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      a1: 1.0
+      a2: 3.0
+      a3: 5.0
+      a4: 3.0
+      a5: 1.0
+    type: TableFun
+  - mapping:
+      b1: 3.0
+      b2: 5.0
+      b3: 2.0
+      b4: 4.0
+    type: TableFun
+  - mapping:
+      c1: 1.0
+      c2: 2.0
+      c3: 5.0
+      c4: 1.0
+    type: TableFun
+  - mapping:
+      d1: 5.0
+      d2: 1.0
+      d3: 1.0
+      d4: 5.0
+    type: TableFun
+  weights:
+  - 0.44360894152820973
+  - 0.06408472700892746
+  - 0.4372956555676412
+  - 0.05501067589522157

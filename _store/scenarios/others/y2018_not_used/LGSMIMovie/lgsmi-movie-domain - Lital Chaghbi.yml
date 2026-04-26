@@ -1,0 +1,31 @@
+issues:
+- name: Location
+  type: CategoricalIssue
+  values:
+  - At home
+  - Drive-in
+  - Cinema
+- name: Duration
+  type: CategoricalIssue
+  values:
+  - 1.5 hours
+  - 2 hours
+  - More than 2 hours
+- name: Genre
+  type: CategoricalIssue
+  values:
+  - Horror
+  - Action
+  - Comedy
+  - Romance
+  - Fantasy
+- name: Time
+  type: CategoricalIssue
+  values:
+  - Morning
+  - Noon
+  - Afternoon
+  - Evening
+  - Midnight
+name: lgsmi-movie-domain - Lital Chaghbi
+type: DiscreteCartesianOutcomeSpace

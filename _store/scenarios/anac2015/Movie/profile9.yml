@@ -1,0 +1,15 @@
+name: profile9
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    pathe: 2.0
+    wolff: 10.0
+  type: TableFun
+- mapping:
+    finding nemo: 5.0
+    the good, the bad and the ugly: 12.0
+  type: TableFun
+weights:
+- 0.4
+- 0.6

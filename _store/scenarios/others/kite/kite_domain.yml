@@ -1,0 +1,10 @@
+issues:
+- name: Kite
+  type: CategoricalIssue
+  values:
+  - a
+  - b
+  - c
+  - d
+name: kite_domain
+type: DiscreteCartesianOutcomeSpace

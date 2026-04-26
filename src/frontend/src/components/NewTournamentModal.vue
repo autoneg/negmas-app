@@ -1,0 +1,3097 @@
+<template>
+  <div v-if="show" class="modal-overlay active" @click.self="$emit('close')">
+    <div class="modal large">
+      <!-- Success Message Toast -->
+      <div v-if="saveSuccessMessage" class="success-toast">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        {{ saveSuccessMessage }}
+      </div>
+      
+      <div class="modal-header">
+        <h2>New Tournament</h2>
+        <div class="modal-header-actions">
+          <!-- Recent Tournaments Dropdown -->
+          <div class="dropdown">
+            <button class="btn btn-sm btn-secondary" @click.stop="recentDropdownOpen = !recentDropdownOpen">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              Recent
+            </button>
+            <div v-if="recentDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
+              <div v-if="recentTournaments.length === 0" class="dropdown-item text-muted">
+                No recent tournaments
+              </div>
+              <div
+                v-for="tournament in recentTournaments"
+                :key="tournament.name + tournament.last_used_at"
+                class="dropdown-item"
+                @click="loadTournamentPreset(tournament); recentDropdownOpen = false"
+              >
+                <div class="font-medium">{{ tournament.name }}</div>
+                <div class="text-muted" style="font-size: 11px;">
+                  {{ tournament.scenario_count || 0 }} scenarios, {{ tournament.competitor_count || 0 }} competitors
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Saved Presets Dropdown -->
+          <div class="dropdown">
+            <button 
+              class="btn btn-sm btn-secondary" 
+              @click.stop="savedDropdownOpen = !savedDropdownOpen; loadTournamentPresets()"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              Load
+            </button>
+            <div v-if="savedDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
+              <div v-if="isLoadingPresets" class="dropdown-item text-muted">
+                Loading...
+              </div>
+              <div v-else-if="tournamentsStore.tournamentPresets.length === 0" class="dropdown-item text-muted">
+                No saved presets
+              </div>
+              <div
+                v-else
+                v-for="preset in tournamentsStore.tournamentPresets"
+                :key="preset.name"
+                class="dropdown-item"
+                style="display: flex; justify-content: space-between; align-items: center;"
+              >
+                <div @click="loadTournamentPreset(preset); savedDropdownOpen = false" style="flex: 1; cursor: pointer;">
+                  <div class="font-medium">{{ preset.name }}</div>
+                  <div class="text-muted" style="font-size: 11px;">
+                    {{ preset.scenario_paths?.length || 0 }} scenarios, {{ preset.competitor_types?.length || 0 }} competitors
+                  </div>
+                </div>
+                <button class="btn-icon-sm" @click.stop="deleteTournamentPreset(preset.name)" title="Delete">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Save Preset Button -->
+          <button class="btn btn-sm btn-primary" @click.stop="showSaveModal = true" :disabled="!canStartTournament">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            Save
+          </button>
+        </div>
+        <button class="modal-close" @click="$emit('close')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      
+      <!-- Save Preset Modal -->
+      <div v-if="showSaveModal" class="save-modal-overlay" @click.self="showSaveModal = false">
+        <div class="save-modal">
+          <h3>Save Tournament Preset</h3>
+          <div class="form-group">
+            <label class="form-label">Preset Name</label>
+            <input v-model="savePresetName" type="text" class="form-input" placeholder="Enter preset name...">
+          </div>
+          <div class="save-modal-actions">
+            <button class="btn btn-secondary" @click="showSaveModal = false">Cancel</button>
+            <button class="btn btn-primary" @click="saveTournamentPreset" :disabled="!savePresetName.trim()">Save</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-body" style="padding: 0;">
+        <div class="wizard-layout">
+          <!-- Sidebar with tabs -->
+          <div class="wizard-sidebar">
+            
+            <button 
+              class="wizard-tab" 
+              :class="{ active: currentTab === 'scenarios', completed: selectedScenarios.length > 0 }" 
+              @click="currentTab = 'scenarios'"
+            >
+              <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+              <span class="wizard-tab-label">1. Scenarios</span>
+              <span v-if="selectedScenarios.length > 0" class="wizard-badge">{{ selectedScenarios.length }}</span>
+            </button>
+            
+            <button 
+              class="wizard-tab" 
+              :class="{ active: currentTab === 'competitors', completed: selectedCompetitors.length >= 1 }" 
+              @click="currentTab = 'competitors'"
+            >
+              <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <span class="wizard-tab-label">2. Competitors</span>
+              <span v-if="selectedCompetitors.length > 0" class="wizard-badge">{{ selectedCompetitors.length }}</span>
+            </button>
+            
+            <button 
+              class="wizard-tab" 
+              :class="{ active: currentTab === 'opponents', completed: opponentsSameAsCompetitors || selectedOpponents.length >= 1 }" 
+              @click="currentTab = 'opponents'"
+            >
+              <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <span class="wizard-tab-label">3. Opponents</span>
+              <span v-if="!opponentsSameAsCompetitors && selectedOpponents.length > 0" class="wizard-badge">{{ selectedOpponents.length }}</span>
+              <span v-else-if="opponentsSameAsCompetitors" class="wizard-badge badge-info">=</span>
+            </button>
+            
+            <button 
+              class="wizard-tab" 
+              :class="{ active: currentTab === 'settings' }" 
+              @click="currentTab = 'settings'"
+            >
+              <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              <span class="wizard-tab-label">4. Settings</span>
+            </button>
+            
+            <button 
+              class="wizard-tab" 
+              :class="{ active: currentTab === 'review', completed: canStartTournament }" 
+              @click="currentTab = 'review'"
+            >
+              <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 11l3 3L22 4"></path>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+              </svg>
+              <span class="wizard-tab-label">5. Review</span>
+            </button>
+          </div>
+          
+          <!-- Main content area -->
+          <div class="wizard-content">
+            <!-- Tab 1: Scenarios -->
+            <div v-if="currentTab === 'scenarios'" class="wizard-panel">
+              <div class="panel-header">
+                <h3>Select Scenarios</h3>
+              </div>
+              
+              <DualListSelector
+                v-model="selectedScenarios"
+                :items="scenarios"
+                :item-key="(s) => s.path"
+                :item-label="(s) => s.name"
+                search-placeholder="Search scenarios..."
+                :filter-fn="filterScenarios"
+              >
+                <template #filters>
+                  <select v-model="scenarioSourceFilter" class="form-select filter-select">
+                    <option value="">All sources</option>
+                    <option v-for="src in scenarioSources" :key="src" :value="src">{{ src }}</option>
+                  </select>
+                  
+                  <button class="btn btn-sm filter-toggle" @click="showAdvancedScenarioFilters = !showAdvancedScenarioFilters">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                    </svg>
+                    Advanced Filters
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"
+                         :style="{ transform: showAdvancedScenarioFilters ? 'rotate(180deg)' : '' }">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </button>
+                  
+                  <div v-if="showAdvancedScenarioFilters" class="advanced-filters">
+                    <div class="filter-row">
+                      <label class="filter-label">Outcomes</label>
+                      <div class="filter-range">
+                        <input v-model.number="scenarioFilters.minOutcomes" type="number" placeholder="Min" class="filter-input" min="1" />
+                        <span>-</span>
+                        <input v-model.number="scenarioFilters.maxOutcomes" type="number" placeholder="Max" class="filter-input" min="1" />
+                      </div>
+                    </div>
+                    <div class="filter-row">
+                      <label class="filter-label">Rational Fraction</label>
+                      <div class="filter-range">
+                        <input v-model.number="scenarioFilters.minRationalFraction" type="number" placeholder="Min" class="filter-input" min="0" max="1" step="0.01" />
+                        <span>-</span>
+                        <input v-model.number="scenarioFilters.maxRationalFraction" type="number" placeholder="Max" class="filter-input" min="0" max="1" step="0.01" />
+                      </div>
+                    </div>
+                    <div class="filter-row">
+                      <label class="filter-label">Opposition</label>
+                      <div class="filter-range">
+                        <input v-model.number="scenarioFilters.minOpposition" type="number" placeholder="Min" class="filter-input" min="0" max="1" step="0.01" />
+                        <span>-</span>
+                        <input v-model.number="scenarioFilters.maxOpposition" type="number" placeholder="Max" class="filter-input" min="0" max="1" step="0.01" />
+                      </div>
+                    </div>
+                    <button class="btn btn-sm btn-secondary" @click="clearScenarioFilters">
+                      Clear Filters
+                    </button>
+                  </div>
+                </template>
+                
+                <template #available-item="{ item }">
+                  <div class="item-content">
+                    <div class="item-name">{{ item.name }}</div>
+                    <div class="item-meta">
+                      <span class="badge badge-secondary">{{ item.source }}</span>
+                      <span>{{ item.n_negotiators }}p</span>
+                      <span v-if="item.n_outcomes">{{ formatNumber(item.n_outcomes) }} outcomes</span>
+                      <span v-if="item.opposition != null" :title="`Opposition: ${item.opposition}`">
+                        opp: {{ item.opposition?.toFixed(2) }}
+                      </span>
+                    </div>
+                  </div>
+                  <button class="info-icon-btn" @click.stop="showScenarioInfo(item)" title="View scenario details">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="16" x2="12" y2="12"></line>
+                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                  </button>
+                </template>
+                
+                <template #selected-item="{ item, remove }">
+                  <div class="item-content">
+                    <div class="item-name">{{ item.name }}</div>
+                    <div class="item-meta">
+                      <span>{{ item.source }}</span>
+                      <span v-if="item.n_outcomes">{{ formatNumber(item.n_outcomes) }} out</span>
+                      <span v-if="item.opposition != null">opp: {{ item.opposition?.toFixed(2) }}</span>
+                    </div>
+                  </div>
+                  <button class="btn-remove" @click.stop="remove" title="Remove">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </template>
+              </DualListSelector>
+              
+              <!-- Opposition vs Outcomes Graph (collapsible) -->
+              <div v-if="selectedScenarios.length > 0" class="scenario-stats-graph">
+                <div class="graph-header" @click="showOppositionGraph = !showOppositionGraph">
+                  <span class="graph-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"
+                         :style="{ transform: showOppositionGraph ? 'rotate(0deg)' : 'rotate(-90deg)' }">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                    Opposition vs Outcomes
+                  </span>
+                  <span class="graph-count">{{ selectedScenarios.length }} scenarios</span>
+                </div>
+                <div v-if="showOppositionGraph" class="graph-content">
+                  <div ref="oppositionPlotDiv" class="opposition-plot"></div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Tab 2: Competitors -->
+            <div v-if="currentTab === 'competitors'" class="wizard-panel">
+              <div class="panel-header">
+                <h3>Select Competitors</h3>
+                <span class="panel-hint">(these agents will be scored)</span>
+              </div>
+              
+              <DualListSelector
+                v-model="selectedCompetitors"
+                :items="negotiators"
+                :item-key="(n) => n.type_name"
+                :item-label="(n) => n.name"
+                search-placeholder="Search negotiators..."
+                :filter-fn="filterCompetitors"
+              >
+                <template #filters>
+                  <select v-model="competitorSourceFilter" class="form-select filter-select">
+                    <option value="">All sources</option>
+                    <option value="virtual">Virtual (saved configs)</option>
+                    <option v-for="src in negotiatorSources" :key="src" :value="src">{{ src }}</option>
+                  </select>
+                  
+                  <select v-model="competitorTagFilter" class="form-select filter-select">
+                    <option value="">All tags</option>
+                    <option v-for="tag in negotiatorTags" :key="tag" :value="tag">{{ tag }}</option>
+                  </select>
+                </template>
+                
+                <template #available-item="{ item }">
+                  <div class="item-content">
+                    <div class="item-name">{{ item.name }}</div>
+                    <div class="item-meta">
+                      <span class="badge badge-secondary">{{ item.source }}</span>
+                      <span v-if="item.description" class="item-description">{{ item.description }}</span>
+                    </div>
+                  </div>
+                  <button class="info-icon-btn" @click.stop="showNegotiatorInfo(item)" title="View negotiator details">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="16" x2="12" y2="12"></line>
+                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                  </button>
+                </template>
+                
+                <template #selected-item="{ item, remove }">
+                  <div class="item-content">
+                    <div class="item-name">{{ item.name }}</div>
+                    <div class="item-meta">
+                      <span v-if="item.has_params" class="badge badge-warning">Params</span>
+                      <span v-if="item.is_virtual" class="badge badge-info">Virtual</span>
+                    </div>
+                  </div>
+                  <div class="item-actions">
+                    <button class="info-icon-btn" @click.stop="showNegotiatorInfo(item)" title="View negotiator details">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                      </svg>
+                    </button>
+                    <button class="btn-config" @click.stop="configureCompetitor(item)" title="Configure">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                      </svg>
+                    </button>
+                    <button class="btn-remove" @click.stop="remove" title="Remove">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                </template>
+              </DualListSelector>
+            </div>
+            
+            <!-- Tab 3: Opponents -->
+            <div v-if="currentTab === 'opponents'" class="wizard-panel">
+              <div class="panel-header">
+                <h3>Select Opponents</h3>
+                <span class="panel-hint">(agents that competitors play against)</span>
+              </div>
+              
+              <!-- Same as competitors checkbox -->
+              <div class="form-group checkbox-card">
+                <label class="form-checkbox">
+                  <input v-model="opponentsSameAsCompetitors" type="checkbox" />
+                  <span class="checkbox-text">Same as competitors</span>
+                </label>
+                <div class="checkbox-hint">
+                  When checked, competitors play against each other (standard tournament mode).
+                  Uncheck to specify separate opponents - competitors will play against opponents but only competitors are scored.
+                </div>
+              </div>
+              
+              <!-- Dual-list (shown when not same as competitors) -->
+              <DualListSelector
+                v-if="!opponentsSameAsCompetitors"
+                v-model="selectedOpponents"
+                :items="negotiators"
+                :item-key="(n) => n.type_name"
+                :item-label="(n) => n.name"
+                search-placeholder="Search negotiators..."
+                :filter-fn="filterOpponents"
+              >
+                <template #filters>
+                  <select v-model="opponentSourceFilter" class="form-select filter-select">
+                    <option value="">All sources</option>
+                    <option value="virtual">Virtual (saved configs)</option>
+                    <option v-for="src in negotiatorSources" :key="src" :value="src">{{ src }}</option>
+                  </select>
+                </template>
+                
+                <template #available-item="{ item }">
+                  <div class="item-content">
+                    <div class="item-name">{{ item.name }}</div>
+                    <div class="item-meta">
+                      <span class="badge badge-secondary">{{ item.source }}</span>
+                      <span v-if="item.description" class="item-description">{{ item.description }}</span>
+                    </div>
+                  </div>
+                  <button class="info-icon-btn" @click.stop="showNegotiatorInfo(item)" title="View negotiator details">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="16" x2="12" y2="12"></line>
+                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                  </button>
+                </template>
+                
+                <template #selected-item="{ item, remove }">
+                  <div class="item-content">
+                    <div class="item-name">{{ item.name }}</div>
+                    <div class="item-meta">
+                      <span v-if="isAlsoCompetitor(item)" class="badge badge-success">Also competitor</span>
+                    </div>
+                  </div>
+                  <div class="item-actions">
+                    <button class="info-icon-btn" @click.stop="showNegotiatorInfo(item)" title="View negotiator details">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                      </svg>
+                    </button>
+                    <button class="btn-remove" @click.stop="remove" title="Remove">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                </template>
+              </DualListSelector>
+              
+              <!-- Info when not using dual-list -->
+              <div v-if="!opponentsSameAsCompetitors" class="info-panel">
+                <button class="btn btn-sm btn-secondary" @click="copyCompetitorsToOpponents">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  Copy from competitors
+                </button>
+              </div>
+            </div>
+            
+            <!-- Tab 4: Settings -->
+            <div v-if="currentTab === 'settings'" class="wizard-panel">
+              <div class="panel-header">
+                <h3>Tournament Settings</h3>
+              </div>
+              
+              <div class="settings-grid">
+                <div class="form-group">
+                  <label class="form-label">Repetitions</label>
+                  <input v-model.number="settings.nRepetitions" type="number" min="1" max="100" class="form-input" />
+                  <div class="form-hint">Run each pairing multiple times</div>
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label">
+                    Max Steps
+                    <label class="inline-checkbox">
+                      <input v-model="settings.nStepsRangeEnabled" type="checkbox" />
+                      <span>Range</span>
+                    </label>
+                  </label>
+                  <div v-if="!settings.nStepsRangeEnabled">
+                    <input v-model.number="settings.nSteps" type="number" min="1" class="form-input" />
+                  </div>
+                  <div v-else class="range-inputs">
+                    <input v-model.number="settings.nStepsMin" type="number" min="1" placeholder="Min" class="form-input" />
+                    <span>-</span>
+                    <input v-model.number="settings.nStepsMax" type="number" min="1" placeholder="Max" class="form-input" />
+                  </div>
+                  <div v-if="settings.nStepsRangeEnabled" class="form-hint">Random sample per negotiation</div>
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label">
+                    Time Limit (seconds)
+                    <label class="inline-checkbox">
+                      <input v-model="settings.timeLimitRangeEnabled" type="checkbox" />
+                      <span>Range</span>
+                    </label>
+                  </label>
+                  <div v-if="!settings.timeLimitRangeEnabled">
+                    <input v-model.number="settings.timeLimit" type="number" min="0" step="0.1" placeholder="No limit" class="form-input" />
+                  </div>
+                  <div v-else class="range-inputs">
+                    <input v-model.number="settings.timeLimitMin" type="number" min="0" step="0.1" placeholder="Min" class="form-input" />
+                    <span>-</span>
+                    <input v-model.number="settings.timeLimitMax" type="number" min="0" step="0.1" placeholder="Max" class="form-input" />
+                  </div>
+                  <div v-if="!settings.timeLimitRangeEnabled" class="form-hint">Max time per negotiation</div>
+                  <div v-else class="form-hint">Random sample per negotiation</div>
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label">Mechanism</label>
+                  <select v-model="settings.mechanismType" class="form-select">
+                    <option value="SAOMechanism">SAO Mechanism</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-checkbox">
+                  <input v-model="settings.rotateUfuns" type="checkbox" />
+                  <span>Rotate Utility Functions</span>
+                </label>
+                <div class="form-hint">Each pair plays both positions</div>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-checkbox">
+                  <input v-model="settings.selfPlay" type="checkbox" />
+                  <span>Allow Self-Play</span>
+                </label>
+                <div class="form-hint">Allow competitors to play against themselves</div>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Utility Function Normalization</label>
+                <select v-model="settings.normalization" class="form-select">
+                  <option value="normalize">Normalize to [0, 1] (recommended)</option>
+                  <option value="scale_max">Scale so max = 1.0</option>
+                  <option value="scale_min">Scale so min = 1.0</option>
+                  <option value="none">No normalization</option>
+                </select>
+                <div class="form-hint">How to transform utility values for fair cross-scenario comparison</div>
+                <div v-if="settings.normalization === 'none'" class="warning-box">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                  <strong>Warning:</strong> Aggregating results without normalization may give disproportionate influence to scenarios with different utility scales.
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-checkbox">
+                  <input v-model="settings.ignoreDiscount" type="checkbox" />
+                  <span>Ignore Discounting</span>
+                </label>
+                <div class="form-hint">Use base utility functions, ignoring time-based discounting</div>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-checkbox">
+                  <input v-model="settings.ignoreReserved" type="checkbox" />
+                  <span>Ignore Reserved Values</span>
+                </label>
+                <div class="form-hint">Ignore reserved/disagreement values in utility functions</div>
+              </div>
+              
+              <!-- Metrics Section (Collapsible) -->
+              <details class="metrics-settings">
+                <summary>Metrics & Scoring</summary>
+                
+                <div class="metrics-section">
+                  <h4>Opponent Modeling Metrics</h4>
+                  <div class="form-hint" style="margin-bottom: 8px;">
+                    Evaluate how well competitors model their opponents' utility functions
+                  </div>
+                  <div class="checkbox-group">
+                    <label 
+                      v-for="metric in availableOpponentModelingMetrics" 
+                      :key="metric.value" 
+                      class="form-checkbox-inline"
+                      :title="metric.description"
+                    >
+                      <input 
+                        type="checkbox" 
+                        :value="metric.value"
+                        v-model="settings.opponentModelingMetrics"
+                      />
+                      <span>{{ metric.label }}</span>
+                    </label>
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label class="form-checkbox">
+                      <input type="checkbox" v-model="settings.distributeOpponentModelingScores" />
+                      <span>Distribute Opponent Modeling Scores</span>
+                    </label>
+                    <div class="form-hint">
+                      When enabled, opponent modeling scores are distributed across all negotiators in the negotiation (not just the one being evaluated)
+                    </div>
+                  </div>
+                  
+                  <h4>Final Score Configuration</h4>
+                  <div class="settings-grid">
+                    <div class="form-group">
+                      <label class="form-label">Score Metric</label>
+                      <select v-model="settings.finalScoreMetric" class="form-select">
+                        <option v-for="m in availableFinalScoreMetrics" :key="m.value" :value="m.value">
+                          {{ m.label }}
+                        </option>
+                      </select>
+                      <div class="form-hint">Primary metric for ranking competitors</div>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label class="form-label">Score Statistic</label>
+                      <select v-model="settings.finalScoreStat" class="form-select">
+                        <option value="mean">Mean</option>
+                        <option value="median">Median</option>
+                        <option value="min">Min</option>
+                        <option value="max">Max</option>
+                        <option value="std">Std Dev</option>
+                      </select>
+                      <div class="form-hint">Aggregation across negotiations</div>
+                    </div>
+                  </div>
+                  
+                  <h4>Custom Raw Aggregated Metrics</h4>
+                  <div class="form-hint" style="margin-bottom: 8px;">
+                    Define custom metrics as weighted sums of per-negotiation raw metrics
+                  </div>
+                  
+                  <div v-for="(metric, idx) in settings.rawAggregatedMetrics" :key="'raw-' + idx" class="custom-metric-card">
+                    <div class="custom-metric-header">
+                      <input 
+                        v-model="metric.name" 
+                        type="text" 
+                        class="form-input metric-name-input" 
+                        placeholder="Metric name..."
+                      />
+                      <button class="btn-remove" @click="removeRawAggregatedMetric(idx)" title="Remove">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="weight-grid">
+                      <div v-for="base in baseRawMetrics" :key="base.value" class="weight-input-group">
+                        <label class="weight-label" :title="base.description">{{ base.label }}</label>
+                        <input 
+                          type="number" 
+                          step="0.1" 
+                          :value="metric.weights[base.value] || 0"
+                          @input="metric.weights[base.value] = parseFloat($event.target.value) || 0"
+                          class="form-input weight-input"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <button class="btn btn-sm btn-secondary add-metric-btn" @click="addRawAggregatedMetric">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add Raw Metric
+                  </button>
+                  
+                  <h4>Custom Stats Aggregated Metrics</h4>
+                  <div class="form-hint" style="margin-bottom: 8px;">
+                    Define custom metrics as weighted combinations of statistics across all negotiations
+                  </div>
+                  
+                  <div v-for="(metric, idx) in settings.statsAggregatedMetrics" :key="'stats-' + idx" class="custom-metric-card">
+                    <div class="custom-metric-header">
+                      <input 
+                        v-model="metric.name" 
+                        type="text" 
+                        class="form-input metric-name-input" 
+                        placeholder="Metric name..."
+                      />
+                      <button class="btn-remove" @click="removeStatsAggregatedMetric(idx)" title="Remove">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="stats-weight-grid">
+                      <div v-for="base in baseRawMetrics" :key="base.value" class="stat-metric-group">
+                        <div class="stat-metric-label">{{ base.label }}</div>
+                        <div class="stat-inputs">
+                          <div v-for="stat in ['mean', 'std', 'min', 'max']" :key="stat" class="stat-input-pair">
+                            <label class="stat-label">{{ stat }}</label>
+                            <input 
+                              type="number" 
+                              step="0.1" 
+                              :value="metric.weights[base.value + '::' + stat] || 0"
+                              @input="metric.weights[base.value + '::' + stat] = parseFloat($event.target.value) || 0"
+                              class="form-input stat-weight-input"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <button class="btn btn-sm btn-secondary add-metric-btn" @click="addStatsAggregatedMetric">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add Stats Metric
+                  </button>
+                </div>
+              </details>
+              
+              <!-- Advanced Settings (Collapsible) -->
+              <details class="advanced-settings">
+                <summary>Advanced Settings</summary>
+                
+                <div class="advanced-section">
+                  <h4>Time Limits</h4>
+                  <div class="settings-grid-3">
+                    <div class="form-group">
+                      <label class="form-label">Step Time Limit</label>
+                      <input v-model.number="settings.stepTimeLimit" type="number" min="0" step="0.1" placeholder="None" class="form-input" />
+                      <div class="form-hint">Per-step limit (s)</div>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Negotiator Time</label>
+                      <input v-model.number="settings.negotiatorTimeLimit" type="number" min="0" step="0.1" placeholder="None" class="form-input" />
+                      <div class="form-hint">Total per negotiator (s)</div>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Hidden Time Limit</label>
+                      <input v-model.number="settings.hiddenTimeLimit" type="number" min="0" step="0.1" placeholder="None" class="form-input" />
+                      <div class="form-hint">Not revealed to agents</div>
+                    </div>
+                  </div>
+                  
+                  <h4>Probabilistic Ending</h4>
+                  <div class="settings-grid">
+                    <div class="form-group">
+                      <label class="form-label">End Probability (per step)</label>
+                      <input v-model.number="settings.pend" type="number" min="0" max="1" step="0.01" placeholder="0" class="form-input" />
+                      <div class="form-hint">Prob. of ending each step</div>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">End Prob. (per second)</label>
+                      <input v-model.number="settings.pendPerSecond" type="number" min="0" max="1" step="0.01" placeholder="0" class="form-input" />
+                      <div class="form-hint">Prob. of ending per second</div>
+                    </div>
+                  </div>
+                  
+                  <h4>Information Hiding</h4>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.idRevealsType" type="checkbox" />
+                      <span>ID Reveals Type</span>
+                    </label>
+                    <div class="form-hint">Negotiator ID reveals its type to opponents</div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.nameRevealsType" type="checkbox" />
+                      <span>Name Reveals Type</span>
+                    </label>
+                    <div class="form-hint">Negotiator name reveals its type to opponents</div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.maskScenarioNames" type="checkbox" />
+                      <span>Mask Scenario Names</span>
+                    </label>
+                    <div class="form-hint">Hide scenario names from negotiators</div>
+                  </div>
+                  
+                  <h4>Run Ordering</h4>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.randomizeRuns" type="checkbox" />
+                      <span>Randomize Runs</span>
+                    </label>
+                    <div class="form-hint">Randomize order of negotiations</div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.sortRuns" type="checkbox" />
+                      <span>Sort Runs</span>
+                    </label>
+                    <div class="form-hint">Sort runs by scenario/competitors</div>
+                  </div>
+                  
+                  <h4>Self-Play Options</h4>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.onlyFailuresOnSelfPlay" type="checkbox" />
+                      <span>Only Failures on Self-Play</span>
+                    </label>
+                    <div class="form-hint">Only record failures for self-play negotiations</div>
+                  </div>
+                  
+                  <h4>Save Options</h4>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.saveStats" type="checkbox" />
+                      <span>Save Statistics</span>
+                    </label>
+                    <div class="form-hint">⚠️ Calculates Pareto/Nash/Kalai points per scenario - slow for many scenarios</div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.saveScenarioFigs" type="checkbox" />
+                      <span>Save Scenario Figures</span>
+                    </label>
+                    <div class="form-hint">⚠️ Generates figures per scenario - slow for many scenarios</div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.recalculateStats" type="checkbox" />
+                      <span>Recalculate Statistics</span>
+                    </label>
+                    <div class="form-hint">Force recalculation (slower, but ensures fresh stats)</div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Save Every N Negotiations</label>
+                    <input v-model.number="settings.saveEvery" type="number" min="0" placeholder="0 (only at end)" class="form-input" />
+                    <div class="form-hint">0 = save only at end</div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.saveLogs" type="checkbox" />
+                      <span>Save Event Log</span>
+                    </label>
+                    <div class="form-hint">Save tournament events to logs.csv at completion</div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.saveNegotiationsAsFolders" type="checkbox" />
+                      <span>Save Negotiations as Folders</span>
+                    </label>
+                    <div class="form-hint">Save each negotiation as a folder with full details (CompletedRun format)</div>
+                  </div>
+                  
+                  <h4>Information Sharing</h4>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.passOpponentUfun" type="checkbox" />
+                      <span>Pass Opponent Utility Function</span>
+                    </label>
+                    <div class="form-hint">Give each negotiator access to opponent's utility function via private_info</div>
+                  </div>
+                  
+                  <h4>Error Handling</h4>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.raiseExceptions" type="checkbox" />
+                      <span>Raise Exceptions</span>
+                    </label>
+                    <div class="form-hint">Stop tournament on negotiator errors (useful for debugging)</div>
+                  </div>
+                  
+                  <h4>Execution & Performance</h4>
+                  <div class="settings-grid-3">
+                    <div class="form-group">
+                      <label class="form-label">Parallel Jobs</label>
+                      <input v-model.number="settings.njobs" type="number" class="form-input" placeholder="-1" />
+                      <div class="form-hint">-1=serial, 0=all cores, N=specific</div>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">External Timeout (s)</label>
+                      <input v-model.number="settings.externalTimeout" type="number" min="0" placeholder="None" class="form-input" />
+                      <div class="form-hint">Timeout for parallel negotiations</div>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Verbosity Level</label>
+                      <input v-model.number="settings.verbosity" type="number" min="0" max="3" placeholder="0" class="form-input" />
+                      <div class="form-hint">0=silent, 1-3=more verbose</div>
+                    </div>
+                  </div>
+                  
+                  <h4>Monitoring (Experimental)</h4>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.monitorNegotiations" type="checkbox" />
+                      <span>Monitor Running Negotiations</span>
+                      <span class="badge badge-info" style="margin-left: 8px;">Experimental</span>
+                    </label>
+                    <div class="form-hint">Enable live monitoring of individual negotiations during tournament execution. Shows real-time step-by-step progress of each negotiation as it runs. May impact performance with large tournaments.</div>
+                  </div>
+                  <div v-if="settings.monitorNegotiations" class="form-group">
+                    <label class="form-label">Progress Sample Rate</label>
+                    <select v-model.number="settings.progressSampleRate" class="form-select">
+                      <option :value="1">Every step</option>
+                      <option :value="5">Every 5 steps</option>
+                      <option :value="10">Every 10 steps</option>
+                      <option :value="25">Every 25 steps</option>
+                      <option :value="50">Every 50 steps</option>
+                    </select>
+                    <div class="form-hint">How often to emit progress updates. Higher values reduce network load for long negotiations.</div>
+                  </div>
+                  
+                  <h4>Plotting & Visualization</h4>
+                  <div class="settings-grid">
+                    <div class="form-group">
+                      <label class="form-label">Plot Fraction</label>
+                      <input v-model.number="settings.plotFraction" type="number" min="0" max="1" step="0.1" placeholder="0.0" class="form-input" />
+                      <div class="form-hint">Fraction of negotiations to plot (0.0-1.0)</div>
+                    </div>
+                  </div>
+                  
+                  <h4>Advanced Negotiator Options</h4>
+                  <div class="form-group">
+                    <label class="form-checkbox">
+                      <input v-model="settings.rotatePrivateInfos" type="checkbox" />
+                      <span>Rotate Private Infos</span>
+                    </label>
+                    <div class="form-hint">Rotate private information with utility functions when rotate_ufuns is enabled</div>
+                  </div>
+                  
+                  <h4>Storage & Memory Optimization</h4>
+                  <div class="settings-grid-3">
+                    <div class="form-group">
+                      <label class="form-label">Storage Optimization</label>
+                      <select v-model="settings.storageOptimization" class="form-select">
+                        <option value="speed">Speed (keep all files)</option>
+                        <option value="balanced">Balanced</option>
+                        <option value="space">Space (remove results/)</option>
+                        <option value="max">Max (minimal files)</option>
+                      </select>
+                      <div class="form-hint">Controls disk space usage</div>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Memory Optimization</label>
+                      <select v-model="settings.memoryOptimization" class="form-select">
+                        <option value="speed">Speed (keep all in RAM)</option>
+                        <option value="balanced">Balanced</option>
+                        <option value="space">Space (load from disk)</option>
+                      </select>
+                      <div class="form-hint">Controls RAM usage</div>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Storage Format</label>
+                      <select v-model="settings.storageFormat" class="form-select">
+                        <option value="">Auto</option>
+                        <option value="csv">CSV (human-readable)</option>
+                        <option value="gzip">Gzip (compressed CSV)</option>
+                        <option value="parquet">Parquet (best compression, default)</option>
+                      </select>
+                      <div class="form-hint">Format for large result files (Parquet recommended)</div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </div>
+            
+            <!-- Tab 5: Review -->
+            <div v-if="currentTab === 'review'" class="wizard-panel">
+              <div class="panel-header">
+                <h3>Review Tournament Configuration</h3>
+              </div>
+              
+              <div class="review-container">
+                <!-- Left column -->
+                <div class="review-column">
+                  <div class="review-section">
+                    <h4>Scenarios</h4>
+                    <div class="review-value">{{ selectedScenarios.length }} selected</div>
+                    <div v-if="selectedScenarios.length > 0" class="review-list">
+                      <div v-for="s in selectedScenarios.slice(0, 5)" :key="s.path" class="review-item">
+                        {{ s.name }}
+                      </div>
+                      <div v-if="selectedScenarios.length > 5" class="review-more">
+                        +{{ selectedScenarios.length - 5 }} more
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="review-section">
+                    <h4>Competitors</h4>
+                    <div class="review-value">{{ selectedCompetitors.length }} selected</div>
+                    <div v-if="selectedCompetitors.length > 0" class="review-list">
+                      <div v-for="c in selectedCompetitors.slice(0, 5)" :key="c.type_name" class="review-item">
+                        {{ c.name }}
+                      </div>
+                      <div v-if="selectedCompetitors.length > 5" class="review-more">
+                        +{{ selectedCompetitors.length - 5 }} more
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="review-section">
+                    <h4>Opponents</h4>
+                    <div v-if="opponentsSameAsCompetitors" class="review-value">
+                      Same as competitors
+                    </div>
+                    <div v-else class="review-value">{{ selectedOpponents.length }} selected</div>
+                  </div>
+                  
+                  <div class="review-section">
+                    <h4>Estimated Total Negotiations</h4>
+                    <div class="review-value estimated-total">
+                      {{ estimatedTotalNegotiations.toLocaleString() }}
+                    </div>
+                    <div class="review-formula">
+                      = {{ selectedScenarios.length }} scenarios × {{ selectedCompetitors.length }} competitors × 
+                      {{ opponentsSameAsCompetitors ? selectedCompetitors.length : selectedOpponents.length }} opponents × 
+                      {{ settings.nRepetitions }} repetitions
+                      {{ settings.rotateUfuns ? ' × 2 (rotated)' : '' }}
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Right column -->
+                <div class="review-column">
+                  <div class="review-section">
+                    <h4>Settings</h4>
+                    <div class="review-grid">
+                      <div class="review-row">
+                        <span class="review-label">Repetitions:</span>
+                        <span class="review-value">{{ settings.nRepetitions }}</span>
+                      </div>
+                      <div class="review-row">
+                        <span class="review-label">Max Steps:</span>
+                        <span class="review-value">
+                          {{ settings.nStepsRangeEnabled ? `${settings.nStepsMin}-${settings.nStepsMax}` : settings.nSteps }}
+                        </span>
+                      </div>
+                      <div class="review-row">
+                        <span class="review-label">Time Limit:</span>
+                        <span class="review-value">
+                          {{ settings.timeLimitRangeEnabled ? `${settings.timeLimitMin}-${settings.timeLimitMax}s` : (settings.timeLimit || 'None') }}
+                        </span>
+                      </div>
+                      <div class="review-row">
+                        <span class="review-label">Mechanism:</span>
+                        <span class="review-value">{{ settings.mechanismType }}</span>
+                      </div>
+                      <div class="review-row">
+                        <span class="review-label">Score Metric:</span>
+                        <span class="review-value">{{ settings.finalScoreMetric }}</span>
+                      </div>
+                      <div class="review-row">
+                        <span class="review-label">Score Statistic:</span>
+                        <span class="review-value">{{ settings.finalScoreStat }}</span>
+                      </div>
+                      <div class="review-row">
+                        <span class="review-label">Rotate Ufuns:</span>
+                        <span class="review-value">{{ settings.rotateUfuns ? 'Yes' : 'No' }}</span>
+                      </div>
+                      <div class="review-row">
+                        <span class="review-label">Self-Play:</span>
+                        <span class="review-value">{{ settings.selfPlay ? 'Yes' : 'No' }}</span>
+                      </div>
+                      <div class="review-row">
+                        <span class="review-label">Normalization:</span>
+                        <span class="review-value">{{ settings.normalization }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="review-section">
+                    <h4>Save Configuration</h4>
+                    <div class="save-config-form">
+                      <input v-model="presetName" type="text" placeholder="Preset name..." class="form-input" />
+                      <button class="btn btn-secondary" @click="savePreset" :disabled="!presetName">
+                        Save
+                      </button>
+                    </div>
+                    <p v-if="saveSuccessMessage" class="save-success-message">{{ saveSuccessMessage }}</p>
+                  </div>
+                  
+                  <!-- Name Conflict Confirmation Dialog -->
+                  <div v-if="showOverwriteConfirm" class="confirm-dialog-overlay" @click.self="showOverwriteConfirm = false">
+                    <div class="confirm-dialog">
+                      <h4>Preset Already Exists</h4>
+                      <p>A preset named "<strong>{{ pendingPresetName }}</strong>" already exists. What would you like to do?</p>
+                      <div class="confirm-dialog-actions">
+                        <button class="btn btn-secondary" @click="showOverwriteConfirm = false">Cancel</button>
+                        <button class="btn btn-primary" @click="confirmOverwrite">Overwrite</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="$emit('close')">
+          Cancel
+        </button>
+        <template v-if="currentTab === 'review'">
+          <button 
+            class="btn btn-secondary" 
+            @click="startTournamentBackground" 
+            :disabled="!canStartTournament || starting"
+          >
+            Start without Monitoring
+          </button>
+          <button 
+            class="btn btn-primary" 
+            @click="startTournament" 
+            :disabled="!canStartTournament || starting"
+          >
+            {{ starting ? 'Starting...' : 'Start Tournament' }}
+          </button>
+        </template>
+        <button v-else class="btn btn-primary" @click="goToNextTab">
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Scenario Stats Modal -->
+  <StatsModal
+    :show="showScenarioStatsModal"
+    :negotiation="scenarioForStats"
+    @close="showScenarioStatsModal = false"
+  />
+  
+  <!-- Negotiator Info Modal -->
+  <NegotiatorInfoModal
+    :show="showNegotiatorInfoModal"
+    :type-name="negotiatorForInfo?.type_name || ''"
+    :negotiator="negotiatorForInfo"
+    @close="showNegotiatorInfoModal = false"
+  />
+</template>
+
+<script setup>
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import DualListSelector from './DualListSelector.vue'
+import { useTournamentsStore } from '../stores/tournaments'
+import Plotly from 'plotly.js-dist-min'
+import StatsModal from './StatsModal.vue'
+import NegotiatorInfoModal from './NegotiatorInfoModal.vue'
+
+const tournamentsStore = useTournamentsStore()
+
+const props = defineProps({
+  show: Boolean,
+})
+
+const emit = defineEmits(['close', 'start', 'startBackground'])
+
+// UI state for dropdowns and save modal
+const recentDropdownOpen = ref(false)
+const savedDropdownOpen = ref(false)
+const showSaveModal = ref(false)
+const savePresetName = ref('')
+const isLoadingPresets = ref(false)
+const recentTournaments = ref([])
+
+// Current tab
+const currentTab = ref('scenarios')
+
+// Scenarios
+const scenarios = ref([])
+const selectedScenarios = ref([])
+const scenarioSourceFilter = ref('')
+const showAdvancedScenarioFilters = ref(false)
+const scenarioFilters = ref({
+  minOutcomes: null,
+  maxOutcomes: null,
+  minRationalFraction: null,
+  maxRationalFraction: null,
+  minOpposition: null,
+  maxOpposition: null,
+})
+const showOppositionGraph = ref(false)
+const oppositionPlotDiv = ref(null)
+
+// Competitors
+const negotiators = ref([])
+const selectedCompetitors = ref([])
+const competitorSourceFilter = ref('')
+const competitorTagFilter = ref('')
+
+// Opponents
+const selectedOpponents = ref([])
+const opponentsSameAsCompetitors = ref(true)
+const opponentSourceFilter = ref('')
+
+// Scenario stats modal
+const showScenarioStatsModal = ref(false)
+const scenarioForStats = ref(null)
+
+// Negotiator info modal
+const showNegotiatorInfoModal = ref(false)
+const negotiatorForInfo = ref(null)
+
+// Settings
+const settings = ref({
+  nRepetitions: 1,
+  nSteps: 100,
+  nStepsRangeEnabled: false,
+  nStepsMin: 50,
+  nStepsMax: 150,
+  timeLimit: 0,
+  timeLimitRangeEnabled: false,
+  timeLimitMin: 10,
+  timeLimitMax: 60,
+  mechanismType: 'SAOMechanism',
+  finalScoreMetric: 'advantage',
+  finalScoreStat: 'mean',
+  rotateUfuns: true,
+  selfPlay: true,
+  normalization: 'normalize',
+  ignoreDiscount: false,
+  ignoreReserved: false,
+  // Metrics settings
+  opponentModelingMetrics: ['anl2026'],  // Selected opponent modeling metrics (anl2026 checked by default)
+  rawAggregatedMetrics: [],  // Custom weighted sums of raw metrics: [{name, weights: {metric: weight}}]
+  statsAggregatedMetrics: [],  // Custom weighted sums of stats: [{name, weights: {"metric::stat": weight}}]
+  distributeOpponentModelingScores: false,  // Distribute opponent modeling scores across negotiators
+  // Advanced settings
+  stepTimeLimit: null,
+  negotiatorTimeLimit: null,
+  hiddenTimeLimit: null,
+  pend: 0,
+  pendPerSecond: 0,
+  idRevealsType: true,
+  nameRevealsType: true,
+  maskScenarioNames: false,
+  randomizeRuns: false,
+  sortRuns: false,
+  onlyFailuresOnSelfPlay: false,
+  saveStats: false,
+  saveScenarioFigs: false,
+  recalculateStats: false,
+  saveEvery: 0,
+  saveLogs: true,
+  saveNegotiationsAsFolders: true,
+  passOpponentUfun: false,
+  raiseExceptions: false,
+  // NEW: Execution & Performance
+  njobs: -1,
+  externalTimeout: null,
+  verbosity: 0,
+  monitorNegotiations: false,  // Currently disabled, requires negmas support
+  progressSampleRate: 1,  // Emit progress every N steps (1 = every step)
+  // NEW: Plotting
+  plotFraction: 0.0,
+  // NEW: Advanced negotiator options
+  rotatePrivateInfos: true,
+  // Storage
+  storageOptimization: 'balanced',
+  memoryOptimization: 'balanced',
+  storageFormat: 'parquet',
+})
+
+// Available opponent modeling metrics from negmas
+const availableOpponentModelingMetrics = [
+  { value: 'kendall', label: 'Kendall', description: 'Kendall correlation between estimated and actual ufun' },
+  { value: 'kendall_optimality', label: 'Kendall Optimality', description: 'How optimal the Kendall correlation is' },
+  { value: 'ndcg', label: 'NDCG', description: 'Normalized Discounted Cumulative Gain' },
+  { value: 'euclidean', label: 'Euclidean', description: 'Euclidean distance (inverted, 1=perfect)' },
+  { value: 'anl2026', label: 'ANL 2026', description: 'ANL 2026 opponent modeling score (default)' },
+]
+
+// Available optimality metrics (these come from scenario stats)
+const availableOptimalityMetrics = [
+  { value: 'ordinal_optimality', label: 'Ordinal Optimality', description: 'Distance to Pareto front in ordinal terms' },
+  { value: 'cardinal_optimality', label: 'Cardinal Optimality', description: 'Distance to Pareto front in cardinal terms' },
+  { value: 'utility_optimality', label: 'Utility Optimality', description: 'Optimality based on utility values' },
+  { value: 'pareto_optimality', label: 'Pareto Optimality', description: 'Distance to nearest Pareto point' },
+  { value: 'nash_optimality', label: 'Nash Optimality', description: 'Distance to Nash bargaining solution' },
+  { value: 'kalai_optimality', label: 'Kalai Optimality', description: 'Distance to Kalai-Smorodinsky point' },
+  { value: 'max_welfare_optimality', label: 'Max Welfare Optimality', description: 'Distance to max welfare point' },
+]
+
+// Static base metrics available for aggregation
+const staticBaseRawMetrics = [
+  { value: 'advantage', label: 'Advantage', description: 'Utility minus partner utility' },
+  { value: 'utility', label: 'Utility', description: 'Agent utility value' },
+  { value: 'partner_welfare', label: 'Partner Welfare', description: 'Partner utility value' },
+  { value: 'welfare', label: 'Welfare', description: 'Sum of all utilities' },
+  { value: 'nash_optimality', label: 'Nash Optimality', description: 'Distance to Nash point' },
+  { value: 'kalai_optimality', label: 'Kalai Optimality', description: 'Distance to Kalai point' },
+  { value: 'pareto_optimality', label: 'Pareto Optimality', description: 'Distance to Pareto front' },
+  { value: 'max_welfare_optimality', label: 'Max Welfare Optimality', description: 'Distance to max welfare' },
+  { value: 'ks_optimality', label: 'KS Optimality', description: 'Distance to Kalai-Smorodinsky point' },
+  { value: 'fairness', label: 'Fairness', description: 'max(nash, kalai, ks optimality)' },
+]
+
+// Computed: base metrics including selected opponent modeling metrics
+const baseRawMetrics = computed(() => {
+  const metrics = [...staticBaseRawMetrics]
+  
+  // Add selected opponent modeling metrics with opp_ prefix
+  for (const metric of settings.value.opponentModelingMetrics) {
+    const found = availableOpponentModelingMetrics.find(m => m.value === metric)
+    if (found) {
+      metrics.push({ 
+        value: `opp_${metric}`, 
+        label: `Opp: ${found.label}`, 
+        description: found.description 
+      })
+    }
+  }
+  
+  return metrics
+})
+
+// Available statistics for aggregation
+const availableStats = ['mean', 'std', 'min', 'max', '25%', '50%', '75%', 'count']
+
+// Computed: all available metrics for final score (including custom aggregated ones)
+const availableFinalScoreMetrics = computed(() => {
+  // All raw metrics available from negmas cartesian_tournament
+  const base = [
+    { value: 'advantage', label: 'Advantage' },
+    { value: 'utility', label: 'Utility' },
+    { value: 'partner_welfare', label: 'Partner Welfare' },
+    { value: 'welfare', label: 'Welfare' },
+    { value: 'nash_optimality', label: 'Nash Optimality' },
+    { value: 'kalai_optimality', label: 'Kalai Optimality' },
+    { value: 'pareto_optimality', label: 'Pareto Optimality' },
+    { value: 'max_welfare_optimality', label: 'Max Welfare Optimality' },
+    { value: 'ks_optimality', label: 'KS Optimality' },
+    { value: 'fairness', label: 'Fairness' },
+    { value: 'time', label: 'Time' },
+    { value: 'rounds', label: 'Rounds' },
+    { value: 'steps', label: 'Steps' },
+    { value: 'has_error', label: 'Has Error' },
+    { value: 'agreement', label: 'Agreement' },
+    { value: 'ordinal_optimality', label: 'Ordinal Optimality' },
+    { value: 'cardinal_optimality', label: 'Cardinal Optimality' },
+    { value: 'utility_optimality', label: 'Utility Optimality' },
+  ]
+  
+  // Add opponent modeling metrics if selected
+  for (const metric of settings.value.opponentModelingMetrics) {
+    const found = availableOpponentModelingMetrics.find(m => m.value === metric)
+    if (found) {
+      base.push({ value: `opp_${metric}`, label: `Opp: ${found.label}` })
+    }
+  }
+  
+  // Add custom raw aggregated metrics
+  for (const custom of settings.value.rawAggregatedMetrics) {
+    if (custom.name) {
+      base.push({ value: custom.name, label: `Custom: ${custom.name}` })
+    }
+  }
+  
+  // Add custom stats aggregated metrics
+  for (const custom of settings.value.statsAggregatedMetrics) {
+    if (custom.name) {
+      base.push({ value: custom.name, label: `Stats: ${custom.name}` })
+    }
+  }
+  
+  return base
+})
+
+// Methods for managing custom aggregated metrics
+const addRawAggregatedMetric = () => {
+  settings.value.rawAggregatedMetrics.push({
+    name: '',
+    weights: {},
+  })
+}
+
+const removeRawAggregatedMetric = (index) => {
+  settings.value.rawAggregatedMetrics.splice(index, 1)
+}
+
+const addStatsAggregatedMetric = () => {
+  settings.value.statsAggregatedMetrics.push({
+    name: '',
+    weights: {},
+  })
+}
+
+const removeStatsAggregatedMetric = (index) => {
+  settings.value.statsAggregatedMetrics.splice(index, 1)
+}
+
+// Presets
+const presets = ref([])
+const selectedPreset = ref('')
+const presetName = ref('')
+const saveSuccessMessage = ref('')
+const showOverwriteConfirm = ref(false)
+const pendingPresetName = ref('')
+
+// UI state
+const starting = ref(false)
+
+// Computed
+const scenarioSources = computed(() => {
+  const sources = scenarios.value.map(s => s.source)
+  return [...new Set(sources)]
+})
+
+const negotiatorSources = computed(() => {
+  const sources = negotiators.value.map(n => n.source)
+  return [...new Set(sources)]
+})
+
+const negotiatorTags = computed(() => {
+  const tags = negotiators.value.flatMap(n => n.tags || [])
+  return [...new Set(tags)]
+})
+
+const canStartTournament = computed(() => {
+  return selectedScenarios.value.length >= 1 &&
+         selectedCompetitors.value.length >= 1 &&
+         (opponentsSameAsCompetitors.value || selectedOpponents.value.length >= 1)
+})
+
+const estimatedTotalNegotiations = computed(() => {
+  const scenarios = selectedScenarios.value.length || 0
+  const competitors = selectedCompetitors.value.length || 0
+  const opponents = opponentsSameAsCompetitors.value ? competitors : (selectedOpponents.value.length || 0)
+  const repetitions = settings.value.nRepetitions || 1
+  const rotationMultiplier = settings.value.rotateUfuns ? 2 : 1
+  
+  return scenarios * competitors * opponents * repetitions * rotationMultiplier
+})
+
+// Filter functions
+const filterScenarios = (scenario, searchQuery) => {
+  // Apply search
+  const query = searchQuery.toLowerCase()
+  const matchesSearch = !query ||
+    scenario.name.toLowerCase().includes(query) ||
+    scenario.source.toLowerCase().includes(query) ||
+    (scenario.tags && scenario.tags.some(t => t.toLowerCase().includes(query)))
+  
+  if (!matchesSearch) return false
+  
+  // Apply source filter
+  if (scenarioSourceFilter.value && scenario.source !== scenarioSourceFilter.value) {
+    return false
+  }
+  
+  // Apply advanced filters
+  const f = scenarioFilters.value
+  if (f.minOutcomes && scenario.n_outcomes < f.minOutcomes) return false
+  if (f.maxOutcomes && scenario.n_outcomes > f.maxOutcomes) return false
+  if (f.minRationalFraction != null && (scenario.rational_fraction == null || scenario.rational_fraction < f.minRationalFraction)) return false
+  if (f.maxRationalFraction != null && (scenario.rational_fraction == null || scenario.rational_fraction > f.maxRationalFraction)) return false
+  if (f.minOpposition != null && (scenario.opposition == null || scenario.opposition < f.minOpposition)) return false
+  if (f.maxOpposition != null && (scenario.opposition == null || scenario.opposition > f.maxOpposition)) return false
+  
+  return true
+}
+
+const filterCompetitors = (negotiator, searchQuery) => {
+  const query = searchQuery.toLowerCase()
+  const matchesSearch = !query ||
+    negotiator.name.toLowerCase().includes(query) ||
+    negotiator.type_name.toLowerCase().includes(query)
+  
+  if (!matchesSearch) return false
+  
+  if (competitorSourceFilter.value) {
+    if (competitorSourceFilter.value === 'virtual' && !negotiator.is_virtual) return false
+    if (competitorSourceFilter.value !== 'virtual' && negotiator.source !== competitorSourceFilter.value) return false
+  }
+  
+  if (competitorTagFilter.value) {
+    if (!negotiator.tags || !negotiator.tags.includes(competitorTagFilter.value)) return false
+  }
+  
+  return true
+}
+
+const filterOpponents = (negotiator, searchQuery) => {
+  const query = searchQuery.toLowerCase()
+  const matchesSearch = !query ||
+    negotiator.name.toLowerCase().includes(query) ||
+    negotiator.type_name.toLowerCase().includes(query)
+  
+  if (!matchesSearch) return false
+  
+  if (opponentSourceFilter.value) {
+    if (opponentSourceFilter.value === 'virtual' && !negotiator.is_virtual) return false
+    if (opponentSourceFilter.value !== 'virtual' && negotiator.source !== opponentSourceFilter.value) return false
+  }
+  
+  return true
+}
+
+// Methods
+const formatNumber = (num) => {
+  if (num === null || num === undefined) return 'N/A'
+  if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B'
+  if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M'
+  if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K'
+  return num.toString()
+}
+
+const clearScenarioFilters = () => {
+  scenarioFilters.value = {
+    minOutcomes: null,
+    maxOutcomes: null,
+    minRationalFraction: null,
+    maxRationalFraction: null,
+    minOpposition: null,
+    maxOpposition: null,
+  }
+}
+
+const configureCompetitor = (competitor) => {
+  // TODO: Open competitor config modal
+  console.log('Configure competitor:', competitor)
+}
+
+const isAlsoCompetitor = (opponent) => {
+  return selectedCompetitors.value.some(c => c.type_name === opponent.type_name)
+}
+
+const showScenarioInfo = (scenario) => {
+  scenarioForStats.value = { scenario_path: scenario.path }
+  showScenarioStatsModal.value = true
+}
+
+const showNegotiatorInfo = (negotiator) => {
+  negotiatorForInfo.value = negotiator
+  showNegotiatorInfoModal.value = true
+}
+
+const copyCompetitorsToOpponents = () => {
+  selectedOpponents.value = [...selectedCompetitors.value]
+}
+
+const goToReview = () => {
+  currentTab.value = 'review'
+}
+
+const goToNextTab = () => {
+  const tabs = ['scenarios', 'competitors', 'opponents', 'settings', 'review']
+  const currentIndex = tabs.indexOf(currentTab.value)
+  if (currentIndex < tabs.length - 1) {
+    currentTab.value = tabs[currentIndex + 1]
+  }
+}
+
+// Preset management functions
+const loadTournamentPresets = async () => {
+  isLoadingPresets.value = true
+  try {
+    await tournamentsStore.loadTournamentPresets()
+  } catch (error) {
+    console.error('Failed to load tournament presets:', error)
+  } finally {
+    isLoadingPresets.value = false
+  }
+}
+
+const loadTournamentPreset = async (preset) => {
+  if (!preset) return
+  
+  // Load scenarios
+  selectedScenarios.value = scenarios.value.filter(s => 
+    preset.scenario_paths?.includes(s.path)
+  )
+  
+  // Load competitors
+  selectedCompetitors.value = negotiators.value.filter(n => 
+    preset.competitor_types?.includes(n.type_name)
+  )
+  
+  // Load opponents
+  if (preset.opponents_same_as_competitors) {
+    opponentsSameAsCompetitors.value = true
+    selectedOpponents.value = []
+  } else {
+    opponentsSameAsCompetitors.value = false
+    selectedOpponents.value = negotiators.value.filter(n => 
+      preset.opponent_types && preset.opponent_types.includes(n.type_name)
+    )
+  }
+  
+  // Load basic settings
+  settings.value.nRepetitions = preset.n_repetitions || 1
+  settings.value.mechanismType = preset.mechanism_type || 'SAOMechanism'
+  settings.value.rotateUfuns = preset.rotate_ufuns ?? true
+  settings.value.selfPlay = preset.self_play ?? true
+  settings.value.finalScoreMetric = preset.final_score_metric || 'advantage'
+  settings.value.finalScoreStat = preset.final_score_stat || 'mean'
+  settings.value.opponentModelingMetrics = preset.opponent_modeling_metrics || []
+  settings.value.distributeOpponentModelingScores = preset.distribute_opponent_modeling_scores ?? false
+  settings.value.rawAggregatedMetrics = preset.raw_aggregated_metrics || []
+  settings.value.statsAggregatedMetrics = preset.stats_aggregated_metrics || []
+  settings.value.normalization = preset.normalization || 'normalize'
+  settings.value.ignoreDiscount = preset.ignore_discount ?? false
+  settings.value.ignoreReserved = preset.ignore_reserved ?? false
+  
+  // Load steps/time settings
+  if (preset.n_steps_min != null && preset.n_steps_max != null) {
+    settings.value.nStepsRangeEnabled = true
+    settings.value.nStepsMin = preset.n_steps_min
+    settings.value.nStepsMax = preset.n_steps_max
+    settings.value.nSteps = 100
+  } else {
+    settings.value.nStepsRangeEnabled = false
+    settings.value.nSteps = preset.n_steps ?? 100
+  }
+  
+  if (preset.time_limit_min != null && preset.time_limit_max != null) {
+    settings.value.timeLimitRangeEnabled = true
+    settings.value.timeLimitMin = preset.time_limit_min
+    settings.value.timeLimitMax = preset.time_limit_max
+    settings.value.timeLimit = 0
+  } else {
+    settings.value.timeLimitRangeEnabled = false
+    settings.value.timeLimit = preset.time_limit ?? 0
+  }
+  
+  // Load advanced time limits
+  settings.value.stepTimeLimit = preset.step_time_limit ?? null
+  settings.value.negotiatorTimeLimit = preset.negotiator_time_limit ?? null
+  settings.value.hiddenTimeLimit = preset.hidden_time_limit ?? null
+  
+  // Load probabilistic ending
+  settings.value.pend = preset.pend ?? 0
+  settings.value.pendPerSecond = preset.pend_per_second ?? 0
+  
+  // Load run ordering
+  settings.value.randomizeRuns = preset.randomize_runs ?? false
+  settings.value.sortRuns = preset.sort_runs ?? false
+  
+  // Load information hiding
+  settings.value.idRevealsType = preset.id_reveals_type ?? true
+  settings.value.nameRevealsType = preset.name_reveals_type ?? true
+  settings.value.maskScenarioNames = preset.mask_scenario_names ?? false
+  
+  // Load self-play options
+  settings.value.onlyFailuresOnSelfPlay = preset.only_failures_on_self_play ?? false
+  
+  // Load save options
+  settings.value.saveStats = preset.save_stats ?? false
+  settings.value.saveScenarioFigs = preset.save_scenario_figs ?? false
+  settings.value.recalculateStats = preset.recalculate_stats ?? false
+  settings.value.saveEvery = preset.save_every ?? 0
+  settings.value.saveLogs = preset.save_logs ?? true
+  settings.value.saveNegotiationsAsFolders = preset.save_negotiations_as_folders ?? true
+  
+  // Load scenario options
+  settings.value.passOpponentUfun = preset.pass_opponent_ufun ?? false
+  settings.value.raiseExceptions = preset.raise_exceptions ?? false
+  
+  // Load execution & performance settings
+  settings.value.njobs = preset.njobs ?? -1
+  settings.value.verbosity = preset.verbosity ?? 0
+  settings.value.monitorNegotiations = preset.monitor_negotiations ?? false
+  settings.value.progressSampleRate = preset.progress_sample_rate ?? 1
+  
+  // Load plotting settings
+  settings.value.plotFraction = preset.plot_fraction ?? 0.0
+  
+  // Load advanced negotiator options
+  settings.value.rotatePrivateInfos = preset.rotate_private_infos ?? true
+  settings.value.externalTimeout = preset.external_timeout ?? null
+  
+  // Load storage settings
+  settings.value.storageOptimization = preset.storage_optimization || 'balanced'
+  settings.value.memoryOptimization = preset.memory_optimization || 'balanced'
+  settings.value.storageFormat = preset.storage_format || 'parquet'
+  
+  // Add to recent tournaments
+  const recentEntry = {
+    ...preset,
+    name: preset.name,
+    last_used_at: new Date().toISOString(),
+    scenario_count: preset.scenario_paths?.length || 0,
+    competitor_count: preset.competitor_types?.length || 0,
+  }
+  addToRecentTournaments(recentEntry)
+}
+
+const addToRecentTournaments = (tournament) => {
+  // Keep only last 10 recent tournaments
+  const existing = recentTournaments.value.findIndex(t => t.name === tournament.name)
+  if (existing >= 0) {
+    recentTournaments.value.splice(existing, 1)
+  }
+  recentTournaments.value.unshift(tournament)
+  if (recentTournaments.value.length > 10) {
+    recentTournaments.value = recentTournaments.value.slice(0, 10)
+  }
+  // Save to localStorage
+  localStorage.setItem('recentTournaments', JSON.stringify(recentTournaments.value))
+}
+
+const saveTournamentPreset = async () => {
+  if (!savePresetName.value.trim()) return
+  
+  // Use buildTournamentPreset to get all fields
+  const preset = buildTournamentPreset(savePresetName.value.trim())
+  
+  try {
+    await tournamentsStore.saveTournamentPreset(preset)
+    saveSuccessMessage.value = `Preset "${preset.name}" saved successfully`
+    showSaveModal.value = false
+    savePresetName.value = ''
+    setTimeout(() => { saveSuccessMessage.value = '' }, 3000)
+  } catch (error) {
+    console.error('Failed to save preset:', error)
+    alert('Failed to save preset: ' + error.message)
+  }
+}
+
+const deleteTournamentPreset = async (name) => {
+  if (!confirm(`Delete preset "${name}"?`)) return
+  
+  try {
+    await tournamentsStore.deleteTournamentPreset(name)
+  } catch (error) {
+    console.error('Failed to delete preset:', error)
+    alert('Failed to delete preset: ' + error.message)
+  }
+}
+
+const loadPreset = async () => {
+  if (!selectedPreset.value) return
+  
+  const preset = tournamentsStore.tournamentPresets.find(p => p.name === selectedPreset.value)
+  if (!preset) return
+  
+  // Load scenarios
+  selectedScenarios.value = scenarios.value.filter(s => 
+    preset.scenario_paths.includes(s.path)
+  )
+  
+  // Load competitors
+  selectedCompetitors.value = negotiators.value.filter(n => 
+    preset.competitor_types.includes(n.type_name)
+  )
+  
+  // Load opponents
+  if (preset.opponents_same_as_competitors) {
+    opponentsSameAsCompetitors.value = true
+    selectedOpponents.value = []
+  } else {
+    opponentsSameAsCompetitors.value = false
+    selectedOpponents.value = negotiators.value.filter(n => 
+      preset.opponent_types && preset.opponent_types.includes(n.type_name)
+    )
+  }
+  
+  // Load settings
+  settings.value.nRepetitions = preset.n_repetitions || 1
+  settings.value.mechanismType = preset.mechanism_type || 'SAOMechanism'
+  settings.value.rotateUfuns = preset.rotate_ufuns ?? true
+  settings.value.selfPlay = preset.self_play ?? true
+  settings.value.finalScoreMetric = preset.final_score_metric || 'advantage'
+  settings.value.finalScoreStat = preset.final_score_stat || 'mean'
+  settings.value.opponentModelingMetrics = preset.opponent_modeling_metrics || []
+  settings.value.distributeOpponentModelingScores = preset.distribute_opponent_modeling_scores ?? false
+  settings.value.rawAggregatedMetrics = preset.raw_aggregated_metrics || []
+  settings.value.statsAggregatedMetrics = preset.stats_aggregated_metrics || []
+  settings.value.normalization = preset.normalization || 'normalize'
+  settings.value.ignoreDiscount = preset.ignore_discount ?? false
+  settings.value.ignoreReserved = preset.ignore_reserved ?? false
+  
+  // Steps/time limits
+  if (preset.n_steps_min && preset.n_steps_max) {
+    settings.value.nStepsRangeEnabled = true
+    settings.value.nStepsMin = preset.n_steps_min
+    settings.value.nStepsMax = preset.n_steps_max
+  } else {
+    settings.value.nStepsRangeEnabled = false
+    settings.value.nSteps = preset.n_steps || 100
+  }
+  
+  if (preset.time_limit_min && preset.time_limit_max) {
+    settings.value.timeLimitRangeEnabled = true
+    settings.value.timeLimitMin = preset.time_limit_min
+    settings.value.timeLimitMax = preset.time_limit_max
+  } else {
+    settings.value.timeLimitRangeEnabled = false
+    settings.value.timeLimit = preset.time_limit || 0
+  }
+  
+  // Advanced settings
+  settings.value.stepTimeLimit = preset.step_time_limit
+  settings.value.negotiatorTimeLimit = preset.negotiator_time_limit
+  settings.value.hiddenTimeLimit = preset.hidden_time_limit
+  settings.value.pend = preset.pend || 0
+  settings.value.pendPerSecond = preset.pend_per_second || 0
+  settings.value.idRevealsType = preset.id_reveals_type ?? false
+  settings.value.nameRevealsType = preset.name_reveals_type ?? true
+  settings.value.maskScenarioNames = preset.mask_scenario_names ?? false
+  settings.value.randomizeRuns = preset.randomize_runs ?? false
+  settings.value.sortRuns = preset.sort_runs ?? true
+  settings.value.onlyFailuresOnSelfPlay = preset.only_failures_on_self_play ?? false
+  settings.value.saveStats = preset.save_stats ?? true
+  settings.value.saveScenarioFigs = preset.save_scenario_figs ?? true
+  settings.value.saveEvery = preset.save_every || 0
+  settings.value.saveNegotiationsAsFolders = preset.save_negotiations_as_folders ?? true
+  settings.value.passOpponentUfun = preset.pass_opponent_ufun ?? false
+  settings.value.raiseExceptions = preset.raise_exceptions ?? false
+  // Execution & Performance
+  settings.value.njobs = preset.njobs ?? -1
+  settings.value.externalTimeout = preset.external_timeout ?? null
+  settings.value.verbosity = preset.verbosity ?? 0
+  settings.value.monitorNegotiations = preset.monitor_negotiations ?? false
+  settings.value.progressSampleRate = preset.progress_sample_rate ?? 1
+  // Plotting
+  settings.value.plotFraction = preset.plot_fraction ?? 0.0
+  // Advanced negotiator options
+  settings.value.rotatePrivateInfos = preset.rotate_private_infos ?? true
+  // Storage
+  settings.value.storageOptimization = preset.storage_optimization || 'balanced'
+  settings.value.memoryOptimization = preset.memory_optimization || 'balanced'
+  settings.value.storageFormat = preset.storage_format || ''
+}
+
+function buildTournamentPreset(name) {
+  return {
+    name,
+    scenario_paths: selectedScenarios.value.map(s => s.path),
+    competitor_types: selectedCompetitors.value.map(c => c.type_name),
+    competitor_configs: {}, // TODO: Handle custom params
+    opponent_types: opponentsSameAsCompetitors.value ? null : selectedOpponents.value.map(o => o.type_name),
+    opponents_same_as_competitors: opponentsSameAsCompetitors.value,
+    n_repetitions: settings.value.nRepetitions,
+    rotate_ufuns: settings.value.rotateUfuns,
+    self_play: settings.value.selfPlay,
+    mechanism_type: settings.value.mechanismType,
+    n_steps: settings.value.nStepsRangeEnabled ? null : settings.value.nSteps,
+    n_steps_min: settings.value.nStepsRangeEnabled ? settings.value.nStepsMin : null,
+    n_steps_max: settings.value.nStepsRangeEnabled ? settings.value.nStepsMax : null,
+    time_limit: settings.value.timeLimitRangeEnabled ? null : (settings.value.timeLimit || null),
+    time_limit_min: settings.value.timeLimitRangeEnabled ? settings.value.timeLimitMin : null,
+    time_limit_max: settings.value.timeLimitRangeEnabled ? settings.value.timeLimitMax : null,
+    step_time_limit: settings.value.stepTimeLimit,
+    negotiator_time_limit: settings.value.negotiatorTimeLimit,
+    hidden_time_limit: settings.value.hiddenTimeLimit,
+    pend: settings.value.pend,
+    pend_per_second: settings.value.pendPerSecond,
+    final_score_metric: settings.value.finalScoreMetric,
+    final_score_stat: settings.value.finalScoreStat,
+    opponent_modeling_metrics: settings.value.opponentModelingMetrics.length > 0 
+      ? settings.value.opponentModelingMetrics : null,
+    distribute_opponent_modeling_scores: settings.value.distributeOpponentModelingScores,
+    raw_aggregated_metrics: settings.value.rawAggregatedMetrics.length > 0
+      ? settings.value.rawAggregatedMetrics : null,
+    stats_aggregated_metrics: settings.value.statsAggregatedMetrics.length > 0
+      ? settings.value.statsAggregatedMetrics : null,
+    normalization: settings.value.normalization,
+    ignore_discount: settings.value.ignoreDiscount,
+    ignore_reserved: settings.value.ignoreReserved,
+    // Advanced settings
+    id_reveals_type: settings.value.idRevealsType,
+    name_reveals_type: settings.value.nameRevealsType,
+    mask_scenario_names: settings.value.maskScenarioNames,
+    randomize_runs: settings.value.randomizeRuns,
+    sort_runs: settings.value.sortRuns,
+    only_failures_on_self_play: settings.value.onlyFailuresOnSelfPlay,
+    // Save options
+    save_stats: settings.value.saveStats,
+    save_scenario_figs: settings.value.saveScenarioFigs,
+    recalculate_stats: settings.value.recalculateStats,
+    save_every: settings.value.saveEvery,
+    save_logs: settings.value.saveLogs,
+    save_negotiations_as_folders: settings.value.saveNegotiationsAsFolders,
+    // Scenario options
+    pass_opponent_ufun: settings.value.passOpponentUfun,
+    raise_exceptions: settings.value.raiseExceptions,
+    // Execution & Performance
+    njobs: settings.value.njobs,
+    external_timeout: settings.value.externalTimeout,
+    verbosity: settings.value.verbosity,
+    monitor_negotiations: settings.value.monitorNegotiations,
+    progress_sample_rate: settings.value.progressSampleRate,
+    // Plotting
+    plot_fraction: settings.value.plotFraction,
+    // Advanced negotiator options
+    rotate_private_infos: settings.value.rotatePrivateInfos,
+    // Storage
+    storage_optimization: settings.value.storageOptimization,
+    memory_optimization: settings.value.memoryOptimization,
+    storage_format: settings.value.storageFormat,
+  }
+}
+
+const savePreset = async () => {
+  if (!presetName.value.trim()) return
+  
+  const name = presetName.value.trim()
+  
+  // Check if preset with this name already exists
+  const existingPreset = tournamentsStore.tournamentPresets.find(p => p.name === name)
+  if (existingPreset) {
+    // Show confirmation dialog
+    pendingPresetName.value = name
+    showOverwriteConfirm.value = true
+    return
+  }
+  
+  // Save the preset
+  await doSavePreset(name)
+}
+
+const confirmOverwrite = async () => {
+  showOverwriteConfirm.value = false
+  await doSavePreset(pendingPresetName.value)
+  pendingPresetName.value = ''
+}
+
+const doSavePreset = async (name) => {
+  const preset = buildTournamentPreset(name)
+  await tournamentsStore.saveTournamentPreset(preset)
+  
+  // Refresh presets list
+  await tournamentsStore.loadTournamentPresets()
+  
+  // Show success message
+  saveSuccessMessage.value = `Preset "${name}" saved successfully!`
+  setTimeout(() => {
+    saveSuccessMessage.value = ''
+  }, 3000)
+  
+  // Clear preset name
+  presetName.value = ''
+}
+
+const startTournament = async () => {
+  if (!canStartTournament.value || starting.value) return
+  
+  starting.value = true
+  
+  try {
+    const request = {
+      competitor_types: selectedCompetitors.value.map(c => c.type_name),
+      scenario_paths: selectedScenarios.value.map(s => s.path),
+      opponent_types: opponentsSameAsCompetitors.value ? null : selectedOpponents.value.map(o => o.type_name),
+      competitor_params: null,
+      opponent_params: null,
+      n_repetitions: settings.value.nRepetitions,
+      rotate_ufuns: settings.value.rotateUfuns,
+      self_play: settings.value.selfPlay,
+      mechanism_type: settings.value.mechanismType,
+      n_steps: settings.value.nStepsRangeEnabled ? [settings.value.nStepsMin, settings.value.nStepsMax] : settings.value.nSteps,
+      time_limit: settings.value.timeLimitRangeEnabled ? [settings.value.timeLimitMin, settings.value.timeLimitMax] : (settings.value.timeLimit || null),
+      final_score_metric: settings.value.finalScoreMetric,
+      final_score_stat: settings.value.finalScoreStat,
+      opponent_modeling_metrics: settings.value.opponentModelingMetrics.length > 0 
+        ? settings.value.opponentModelingMetrics : null,
+      distribute_opponent_modeling_scores: settings.value.distributeOpponentModelingScores,
+      normalization: settings.value.normalization,
+      ignore_discount: settings.value.ignoreDiscount,
+      ignore_reserved: settings.value.ignoreReserved,
+      save_stats: settings.value.saveStats,
+      recalculate_stats: settings.value.recalculateStats,
+      save_logs: settings.value.saveLogs,
+      save_negotiations_as_folders: settings.value.saveNegotiationsAsFolders,
+      // Advanced settings
+      step_time_limit: settings.value.stepTimeLimit || null,
+      negotiator_time_limit: settings.value.negotiatorTimeLimit || null,
+      hidden_time_limit: settings.value.hiddenTimeLimit || null,
+      pend: settings.value.pend || 0,
+      pend_per_second: settings.value.pendPerSecond || 0,
+      id_reveals_type: settings.value.idRevealsType,
+      name_reveals_type: settings.value.nameRevealsType,
+      mask_scenario_names: settings.value.maskScenarioNames,
+      randomize_runs: settings.value.randomizeRuns,
+      sort_runs: settings.value.sortRuns,
+      only_failures_on_self_play: settings.value.onlyFailuresOnSelfPlay,
+      save_scenario_figs: settings.value.saveScenarioFigs,
+      save_every: settings.value.saveEvery || 0,
+      pass_opponent_ufun: settings.value.passOpponentUfun,
+      raise_exceptions: settings.value.raiseExceptions,
+      // NEW: Execution & Performance
+      njobs: settings.value.njobs,
+      external_timeout: settings.value.externalTimeout || null,
+      verbosity: settings.value.verbosity || 0,
+      monitor_negotiations: settings.value.monitorNegotiations || false,
+      progress_sample_rate: settings.value.progressSampleRate || 1,
+      // NEW: Plotting
+      plot_fraction: settings.value.plotFraction || 0.0,
+      // NEW: Advanced negotiator options
+      rotate_private_infos: settings.value.rotatePrivateInfos,
+      // Storage
+      storage_optimization: settings.value.storageOptimization,
+      memory_optimization: settings.value.memoryOptimization,
+      storage_format: settings.value.storageFormat || null,
+    }
+    
+    // Use start_background for polling-based architecture
+    const response = await fetch('/api/tournament/start_background', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    
+    const data = await response.json()
+    // Include scenario objects in the emitted data for the store
+    emit('start', { ...data, scenarios: selectedScenarios.value })
+    emit('close')
+  } catch (error) {
+    console.error('Failed to start tournament:', error)
+    alert('Failed to start tournament: ' + error.message)
+  } finally {
+    starting.value = false
+  }
+}
+
+const startTournamentBackground = async () => {
+  if (!canStartTournament.value || starting.value) return
+  
+  starting.value = true
+  
+  try {
+    const request = {
+      competitor_types: selectedCompetitors.value.map(c => c.type_name),
+      scenario_paths: selectedScenarios.value.map(s => s.path),
+      opponent_types: opponentsSameAsCompetitors.value ? null : selectedOpponents.value.map(o => o.type_name),
+      competitor_params: null,
+      opponent_params: null,
+      n_repetitions: settings.value.nRepetitions,
+      rotate_ufuns: settings.value.rotateUfuns,
+      self_play: settings.value.selfPlay,
+      mechanism_type: settings.value.mechanismType,
+      n_steps: settings.value.nStepsRangeEnabled ? [settings.value.nStepsMin, settings.value.nStepsMax] : settings.value.nSteps,
+      time_limit: settings.value.timeLimitRangeEnabled ? [settings.value.timeLimitMin, settings.value.timeLimitMax] : (settings.value.timeLimit || null),
+      final_score_metric: settings.value.finalScoreMetric,
+      final_score_stat: settings.value.finalScoreStat,
+      opponent_modeling_metrics: settings.value.opponentModelingMetrics.length > 0 
+        ? settings.value.opponentModelingMetrics : null,
+      distribute_opponent_modeling_scores: settings.value.distributeOpponentModelingScores,
+      normalization: settings.value.normalization,
+      ignore_discount: settings.value.ignoreDiscount,
+      ignore_reserved: settings.value.ignoreReserved,
+      save_stats: settings.value.saveStats,
+      recalculate_stats: settings.value.recalculateStats,
+      save_logs: settings.value.saveLogs,
+      save_negotiations_as_folders: settings.value.saveNegotiationsAsFolders,
+      // Advanced settings
+      step_time_limit: settings.value.stepTimeLimit || null,
+      negotiator_time_limit: settings.value.negotiatorTimeLimit || null,
+      hidden_time_limit: settings.value.hiddenTimeLimit || null,
+      pend: settings.value.pend || 0,
+      pend_per_second: settings.value.pendPerSecond || 0,
+      id_reveals_type: settings.value.idRevealsType,
+      name_reveals_type: settings.value.nameRevealsType,
+      mask_scenario_names: settings.value.maskScenarioNames,
+      randomize_runs: settings.value.randomizeRuns,
+      sort_runs: settings.value.sortRuns,
+      only_failures_on_self_play: settings.value.onlyFailuresOnSelfPlay,
+      save_scenario_figs: settings.value.saveScenarioFigs,
+      save_every: settings.value.saveEvery || 0,
+      pass_opponent_ufun: settings.value.passOpponentUfun,
+      raise_exceptions: settings.value.raiseExceptions,
+      njobs: settings.value.njobs,
+      external_timeout: settings.value.externalTimeout || null,
+      verbosity: settings.value.verbosity || 0,
+      monitor_negotiations: false,  // Background mode - no monitoring
+      progress_sample_rate: settings.value.progressSampleRate || 1,
+      plot_fraction: settings.value.plotFraction || 0.0,
+      rotate_private_infos: settings.value.rotatePrivateInfos,
+      storage_optimization: settings.value.storageOptimization,
+      memory_optimization: settings.value.memoryOptimization,
+      storage_format: settings.value.storageFormat || null,
+    }
+    
+    // Use start_background for polling-based architecture
+    const response = await fetch('/api/tournament/start_background', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    
+    const data = await response.json()
+    emit('startBackground', data)
+    emit('close')
+  } catch (error) {
+    console.error('Failed to start tournament:', error)
+    alert('Failed to start tournament: ' + error.message)
+  } finally {
+    starting.value = false
+  }
+}
+
+const loadData = async () => {
+  try {
+    console.log('[NewTournamentModal] Starting loadData...')
+    const [scenariosRes, negotiatorsRes] = await Promise.all([
+      fetch('/api/scenarios'),
+      fetch('/api/negotiators'),
+    ])
+    
+    console.log('[NewTournamentModal] API responses received:', {
+      scenariosStatus: scenariosRes.status,
+      negotiatorsStatus: negotiatorsRes.status
+    })
+    
+    const scenariosData = await scenariosRes.json()
+    const negotiatorsData = await negotiatorsRes.json()
+    
+    console.log('[NewTournamentModal] Raw API data:', {
+      scenariosData: scenariosData,
+      negotiatorsData: negotiatorsData
+    })
+    
+    scenarios.value = scenariosData.scenarios || []
+    negotiators.value = negotiatorsData.negotiators || []
+    
+    console.log('[NewTournamentModal] Loaded data:', {
+      scenarios: scenarios.value.length,
+      negotiators: negotiators.value.length,
+      scenariosArray: scenarios.value.slice(0, 3),
+      negotiatorsArray: negotiators.value.slice(0, 3)
+    })
+  } catch (error) {
+    console.error('[NewTournamentModal] Failed to load data:', error)
+  }
+}
+
+// Opposition vs Outcomes plot
+const isLoadingOppositionData = ref(false)
+
+const renderOppositionPlot = async () => {
+  if (!oppositionPlotDiv.value || selectedScenarios.value.length === 0) return
+  
+  await nextTick()
+  
+  const isDark = document.documentElement.classList.contains('dark')
+  const colors = {
+    background: isDark ? '#1a1a2e' : '#ffffff',
+    text: isDark ? '#e0e0e0' : '#333333',
+    grid: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+    marker: isDark ? '#4fc3f7' : '#1976d2',
+  }
+  
+  // Find scenarios missing data and fetch quick-info for them
+  const scenariosMissingData = selectedScenarios.value.filter(s => {
+    const nOutcomes = s.n_outcomes ?? s.stats?.n_outcomes
+    const opposition = s.opposition ?? s.stats?.opposition
+    return nOutcomes == null || opposition == null || isNaN(nOutcomes) || isNaN(opposition)
+  })
+  
+  if (scenariosMissingData.length > 0 && !isLoadingOppositionData.value) {
+    // Show loading message
+    oppositionPlotDiv.value.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading scenario data... (${scenariosMissingData.length} scenarios)</div>`
+    
+    isLoadingOppositionData.value = true
+    try {
+      // Fetch quick-info for all scenarios missing data in parallel
+      const fetchPromises = scenariosMissingData.map(async (scenario) => {
+        try {
+          const response = await fetch(`/api/scenarios/${scenario.id}/quick-info`)
+          if (response.ok) {
+            const data = await response.json()
+            // Update the scenario object with the fetched data
+            scenario.n_outcomes = data.n_outcomes ?? scenario.n_outcomes
+            scenario.opposition = data.opposition ?? scenario.opposition
+            scenario.rational_fraction = data.rational_fraction ?? scenario.rational_fraction
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch quick-info for ${scenario.name}:`, error)
+        }
+      })
+      
+      await Promise.all(fetchPromises)
+    } finally {
+      isLoadingOppositionData.value = false
+    }
+  }
+  
+  // Extract data from selected scenarios
+  const x = [] // n_outcomes
+  const y = [] // opposition
+  const hoverText = []
+  let scenariosWithoutData = 0
+  
+  for (const scenario of selectedScenarios.value) {
+    const nOutcomes = scenario.n_outcomes ?? scenario.stats?.n_outcomes
+    const opposition = scenario.opposition ?? scenario.stats?.opposition
+    
+    // Check for valid numeric values (not null, undefined, or NaN)
+    if (nOutcomes != null && opposition != null && !isNaN(nOutcomes) && !isNaN(opposition)) {
+      x.push(nOutcomes)
+      y.push(opposition)
+      hoverText.push(`${scenario.name}<br>Outcomes: ${nOutcomes}<br>Opposition: ${opposition.toFixed(3)}`)
+    } else {
+      scenariosWithoutData++
+    }
+  }
+  
+  if (x.length === 0) {
+    // No data with both fields - show message
+    Plotly.purge(oppositionPlotDiv.value)
+    const message = scenariosWithoutData > 0
+      ? `No scenario data available<br><span style="font-size: 11px;">${scenariosWithoutData} scenario(s) missing opposition or outcome data.<br>Calculate stats in Scenario Explorer to populate this data.</span>`
+      : 'No scenario data available'
+    oppositionPlotDiv.value.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">${message}</div>`
+    return
+  }
+  
+  const trace = {
+    x: x,
+    y: y,
+    mode: 'markers',
+    type: 'scatter',
+    marker: {
+      size: 8,
+      color: colors.marker,
+      opacity: 0.7,
+    },
+    text: hoverText,
+    hoverinfo: 'text',
+  }
+  
+  // Build title with data availability info
+  const totalScenarios = selectedScenarios.value.length
+  const titleText = scenariosWithoutData > 0
+    ? `Opposition vs Outcomes (${x.length}/${totalScenarios} with data)`
+    : 'Opposition vs Number of Outcomes'
+  
+  const layout = {
+    title: {
+      text: titleText,
+      font: { size: 14, color: colors.text }
+    },
+    xaxis: {
+      title: { text: 'Number of Outcomes', font: { size: 12, color: colors.text } },
+      type: 'log',
+      gridcolor: colors.grid,
+      tickfont: { color: colors.text },
+      linecolor: colors.grid,
+    },
+    yaxis: {
+      title: { text: 'Opposition Level', font: { size: 12, color: colors.text } },
+      range: [0, 1],
+      gridcolor: colors.grid,
+      tickfont: { color: colors.text },
+      linecolor: colors.grid,
+    },
+    paper_bgcolor: colors.background,
+    plot_bgcolor: colors.background,
+    margin: { t: 40, r: 20, b: 50, l: 60 },
+    showlegend: false,
+  }
+  
+  const config = {
+    responsive: true,
+    displayModeBar: false,
+  }
+  
+  try {
+    await Plotly.newPlot(oppositionPlotDiv.value, [trace], layout, config)
+  } catch (error) {
+    console.error('Failed to render opposition plot:', error)
+  }
+}
+
+// Watch for graph toggle and scenario changes
+watch([showOppositionGraph, selectedScenarios], async ([showGraph, scenarios]) => {
+  if (showGraph && scenarios.length > 0) {
+    await nextTick()
+    renderOppositionPlot()
+  }
+}, { deep: true })
+
+// Watch for modal open/close
+watch(() => props.show, (newShow, oldShow) => {
+  console.log('[NewTournamentModal] props.show changed:', { oldShow, newShow })
+  if (newShow) {
+    console.log('[NewTournamentModal] Modal opened, loading data...')
+    currentTab.value = 'scenarios'
+    selectedScenarios.value = []
+    selectedCompetitors.value = []
+    selectedOpponents.value = []
+    opponentsSameAsCompetitors.value = true
+    loadData()
+    tournamentsStore.loadTournamentPresets()
+  }
+}, { immediate: true })
+
+onMounted(() => {
+  console.log('[NewTournamentModal] Component mounted, props.show:', props.show)
+  
+  // Load recent tournaments from localStorage
+  try {
+    const stored = localStorage.getItem('recentTournaments')
+    if (stored) {
+      recentTournaments.value = JSON.parse(stored)
+    }
+  } catch (e) {
+    console.error('Failed to load recent tournaments:', e)
+  }
+  
+  if (props.show) {
+    console.log('[NewTournamentModal] Loading data on mount...')
+    loadData()
+    tournamentsStore.loadTournamentPresets()
+  }
+})
+</script>
+
+<style>
+/* Modal styles - Not scoped because modal is teleported to body */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 1100px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.modal.large {
+  max-width: 1200px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--bg-hover);
+}
+
+.modal-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-right: auto;
+  margin-left: 20px;
+}
+
+.success-toast {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--success-bg, #d4edda);
+  color: var(--success-text, #155724);
+  padding: 10px 20px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.save-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+}
+
+.save-modal {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  padding: 24px;
+  width: 400px;
+  max-width: 90%;
+}
+
+.save-modal h3 {
+  margin: 0 0 16px 0;
+}
+
+.save-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.modal-body {
+  flex: 1;
+  overflow: hidden;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.wizard-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  height: 600px;
+}
+
+.wizard-sidebar {
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+}
+
+.wizard-preset-selector {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.wizard-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+  border-left: 3px solid transparent;
+}
+
+.wizard-tab:hover {
+  background: var(--bg-hover);
+}
+
+.wizard-tab.active {
+  background: var(--bg-primary);
+  color: var(--primary);
+  border-left-color: var(--primary);
+}
+
+.wizard-tab.completed .wizard-badge {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.wizard-tab-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.wizard-tab-label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.wizard-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--primary-bg);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.wizard-badge.badge-info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.wizard-content {
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.wizard-panel {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.panel-header {
+  margin-bottom: 20px;
+}
+
+.panel-header h3 {
+  margin: 0 0 4px 0;
+  font-size: 1.25rem;
+}
+
+.panel-hint {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.form-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+}
+
+.form-select,
+.form-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.filter-select {
+  margin-top: 8px;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.filter-toggle {
+  margin-top: 8px;
+  width: 100%;
+  font-size: 11px;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.advanced-filters {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.filter-row {
+  margin-bottom: 6px;
+}
+
+.filter-label {
+  font-size: 10px;
+  margin-bottom: 2px;
+  display: block;
+}
+
+.filter-range {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.filter-input {
+  width: 70px;
+  font-size: 11px;
+  padding: 3px 6px;
+}
+
+.item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-name {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.item-description {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+.btn-config,
+.btn-remove {
+  padding: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-config:hover {
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+
+.btn-remove:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.badge-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.badge-warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.badge-info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.badge-success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.scenario-stats-graph {
+  margin-top: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.graph-header {
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.graph-title {
+  font-weight: 600;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.graph-count {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.graph-content {
+  padding: 8px;
+}
+
+.graph-placeholder {
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.opposition-plot {
+  height: 250px;
+  width: 100%;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+}
+
+.checkbox-card {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+}
+
+.form-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.checkbox-text {
+  font-weight: 500;
+}
+
+.checkbox-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  margin-left: 26px;
+}
+
+.info-panel {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.settings-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inline-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  font-weight: normal;
+  font-size: 11px;
+}
+
+.range-inputs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.range-inputs input {
+  width: 80px;
+}
+
+.form-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.warning-box {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 193, 7, 0.15);
+  border: 1px solid rgba(255, 193, 7, 0.5);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-warning);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.advanced-settings {
+  margin-top: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.advanced-settings summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-secondary);
+  list-style: none;
+}
+
+.advanced-settings summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-section {
+  margin-top: 16px;
+}
+
+.advanced-section h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 16px 0 12px;
+}
+
+.advanced-section h4:first-child {
+  margin-top: 0;
+}
+
+.review-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.review-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.review-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.review-value {
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.review-list {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.review-item {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.review-item:last-child {
+  border-bottom: none;
+}
+
+.review-more {
+  padding: 4px 0;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.estimated-total {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.review-formula {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.review-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.review-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.review-label {
+  color: var(--text-secondary);
+}
+
+.save-config-form {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-sm {
+  font-size: 11px;
+  padding: 6px 12px;
+}
+
+/* Confirmation Dialog */
+.confirm-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.confirm-dialog {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.confirm-dialog h4 {
+  margin: 0 0 12px 0;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+.confirm-dialog p {
+  margin: 0 0 20px 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Success Message */
+.save-success-message {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--success-bg, rgba(16, 185, 129, 0.1));
+  color: var(--success-color, #10b981);
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+/* Info icon button */
+.info-icon-btn {
+  padding: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.info-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent-primary, var(--primary));
+}
+</style>

@@ -1,0 +1,96 @@
+<!-- Header -->
+<header class="header">
+    <div class="header-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        <span>NegMAS App</span>
+    </div>
+    
+    <nav class="header-nav">
+        <button class="header-nav-btn" :class="{ active: currentPage === 'negotiations' }" @click="currentPage = 'negotiations'">Negotiations</button>
+        <button class="header-nav-btn" :class="{ active: currentPage === 'tournaments' }" @click="currentPage = 'tournaments'; loadTournamentSessions()">Tournaments</button>
+        <button class="header-nav-btn" :class="{ active: currentPage === 'scenarios' }" @click="currentPage = 'scenarios'; loadScenariosForExplorer()">Scenarios</button>
+        <button class="header-nav-btn" :class="{ active: currentPage === 'negotiators' }" @click="currentPage = 'negotiators'; loadNegotiatorsForExplorer()">Negotiators</button>
+        <button class="header-nav-btn" @click="showSettings = true">Settings</button>
+    </nav>
+    
+    <div class="header-spacer"></div>
+    
+    <!-- Layout Switcher -->
+    <div class="layout-switcher-container" x-data="{ open: false }" x-show="currentPage === 'negotiations' && currentNegotiation" x-cloak>
+        <button class="header-btn layout-switcher-trigger" @click="open = !open" title="Change layout">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            <span class="layout-name" x-text="LayoutManager?.getActiveLayout()?.name || 'Layout'"></span>
+            <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+        </button>
+        <div class="layout-switcher-dropdown" x-show="open" @click.away="open = false" x-transition>
+            <div class="layout-switcher-section">
+                <div class="layout-switcher-title">Layouts</div>
+                <template x-for="layout in (LayoutManager?.getAvailableLayouts() || [])" :key="layout.id">
+                    <button class="layout-option" 
+                            :class="{ active: LayoutManager?.getActiveLayout()?.id === layout.id }"
+                            @click="LayoutManager?.switchLayout(layout.id); open = false; $dispatch('layout-changed')">
+                        <span class="layout-option-name" x-text="layout.name"></span>
+                        <svg x-show="LayoutManager?.getActiveLayout()?.id === layout.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                    </button>
+                </template>
+            </div>
+            <div class="layout-switcher-divider"></div>
+            <div class="layout-switcher-section">
+                <button class="layout-option" @click="LayoutManager?.resetCurrentLayout(); open = false; $dispatch('layout-changed')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                        <path d="M3 3v5h5"></path>
+                    </svg>
+                    <span>Reset Layout</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Genius Bridge Status -->
+    <div class="header-status genius-bridge-status" 
+         @click="toggleGeniusBridge()"
+         :title="geniusBridge.running ? 'Click to stop Genius Bridge' : 'Click to start Genius Bridge'">
+        <span class="status-dot" :class="{ 'running': geniusBridge.running, 'stopped': !geniusBridge.running }"></span>
+        <span x-text="geniusBridge.running ? 'Genius Bridge' : 'Genius Bridge (Off)'"></span>
+        <span class="bridge-action-icon" x-show="geniusBridge.loading">
+            <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"></circle>
+            </svg>
+        </span>
+    </div>
+    
+    <!-- Loading Indicator -->
+    <div class="header-status header-loading" x-show="scenariosLoading || negotiatorsLoading" x-cloak>
+        <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"></circle>
+        </svg>
+        <span x-text="scenariosLoading && negotiatorsLoading ? 'Loading data...' : (scenariosLoading ? 'Loading scenarios...' : 'Loading negotiators...')"></span>
+    </div>
+    
+    <div class="header-status">
+        <span class="status-dot" :class="{ 'disconnected': !connected }"></span>
+        <span x-text="connected ? 'Connected' : 'Disconnected'"></span>
+    </div>
+    
+    <div class="header-actions">
+        <button class="btn btn-primary" @click="openNewNegotiation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            New Negotiation
+        </button>
+    </div>
+</header>

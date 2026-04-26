@@ -1,0 +1,58 @@
+discount: 0.87
+dynamic_reservation: true
+name: util1
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/anac/y2013/SmartPhone/util1.xml
+  reserved_value: 0.6
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      Apple: 500.0
+      Black Berry: 100.0
+      HTC: 0.0
+      Nokia: 20.0
+      Samson: 70.0
+      Sony: 300.0
+    type: TableFun
+  - mapping:
+      '2.4': 30.0
+      '2.8': 315.0
+      '3.0': 120.0
+      '3.2': 10.0
+      '3.6': 60.0
+    type: TableFun
+  - mapping:
+      Black: 250.0
+      Blue: 200.0
+      Red: 10.0
+      Silver: 50.0
+      White: 125.0
+    type: TableFun
+  - mapping:
+      AT and T Mobility: 160.0
+      Sprint Nextel: 20.0
+      T-Mobile USA: 100.0
+      Verizon Wireless: 50.0
+    type: TableFun
+  - mapping:
+      Android: 20.0
+      Black Berry: 30.0
+      Windows Mobile: 10.0
+      iOS: 100.0
+    type: TableFun
+  - mapping:
+      Blue tooth: 15.0
+      Camera: 35.0
+      Good Battery: 25.0
+      Infrared communication: 5.0
+      Water Proof: 20.0
+    type: TableFun
+  weights:
+  - 0.05927842911713837
+  - 0.06702093524810457
+  - 0.29771280656992694
+  - 0.23152230066977317
+  - 0.1562961447425481
+  - 0.18816938365250893

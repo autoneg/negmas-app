@@ -1,0 +1,38 @@
+issues:
+- name: Vendor
+  type: CategoricalIssue
+  values:
+  - Apple
+  - LG
+  - Samsung
+  - Sony
+  - HTC
+  - Huawei
+  - Google
+- name: Color
+  type: CategoricalIssue
+  values:
+  - Blue
+  - Red
+  - Yellow
+  - Green
+  - White
+  - Black
+- name: OS
+  type: CategoricalIssue
+  values:
+  - Android
+  - Windows phone
+  - IOS
+- name: Screen Width
+  type: ContiguousIssue
+  values:
+  - 4
+  - 12
+- name: Screen Height
+  type: ContiguousIssue
+  values:
+  - 8
+  - 16
+name: Phone
+type: DiscreteCartesianOutcomeSpace

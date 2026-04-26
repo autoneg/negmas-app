@@ -1,0 +1,59 @@
+discount: 0.75
+dynamic_reservation: true
+name: Car-A-prof2
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/anac/y2012/CarA/Car-A-prof2.xml
+  reserved_value: 0.5
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      fairly good: 85.0
+      good: 0.0
+      meager: 98.0
+      none: 100.0
+      standard: 91.0
+    type: TableFun
+  - mapping:
+      fairly good: 80.0
+      good: 0.0
+      meager: 93.0
+      none: 100.0
+      standard: 96.0
+    type: TableFun
+  - mapping:
+      fairly good: 80.0
+      good: 0.0
+      meager: 99.0
+      none: 100.0
+      standard: 91.0
+    type: TableFun
+  - mapping:
+      fairly good: 80.0
+      good: 0.0
+      meager: 98.0
+      none: 100.0
+      standard: 90.0
+    type: TableFun
+  - mapping:
+      fairly good: 80.0
+      good: 0.0
+      meager: 95.0
+      none: 100.0
+      standard: 90.0
+    type: TableFun
+  - mapping:
+      fairly good: 80.0
+      good: 0.0
+      meager: 95.0
+      none: 100.0
+      standard: 90.0
+    type: TableFun
+  weights:
+  - 0.36
+  - 0.2
+  - 0.2
+  - 0.2
+  - 0.02
+  - 0.02

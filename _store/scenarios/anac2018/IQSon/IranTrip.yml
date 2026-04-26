@@ -1,0 +1,57 @@
+issues:
+- name: place
+  type: CategoricalIssue
+  values:
+  - esfehan
+  - shiraz
+  - tehran
+  - tabriz
+  - rasht
+  - gheshm
+  - kish
+- name: budget
+  type: CategoricalIssue
+  values:
+  - 1000-1500
+  - 1500-2000
+  - 2000-2500
+  - 2500-3000
+  - 3000-3500
+  - 3500-4000
+- name: duration
+  type: CategoricalIssue
+  values:
+  - '3'
+  - '5'
+  - '7'
+  - '9'
+  - '11'
+- name: purpose
+  type: CategoricalIssue
+  values:
+  - sightseeing
+  - Business
+  - activity
+- name: staying_at
+  type: CategoricalIssue
+  values:
+  - hotel
+  - villa
+  - local_houses
+  - tent
+- name: transportation_type
+  type: CategoricalIssue
+  values:
+  - public_transportation
+  - renting_a_car
+  - motorcycle
+  - Hitchhiking
+- name: food
+  type: CategoricalIssue
+  values:
+  - local_foods
+  - resturant
+  - cooking
+  - buying
+name: IranTrip
+type: DiscreteCartesianOutcomeSpace

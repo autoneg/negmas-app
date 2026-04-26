@@ -1,0 +1,40 @@
+issues:
+- name: Meat
+  type: CategoricalIssue
+  values:
+  - Burgers and chicken
+  - Fish
+  - Luxury meats
+  - Biological
+  - Vegetarian
+  - None
+- name: Drinks
+  type: CategoricalIssue
+  values:
+  - Non-Alcoholic
+  - Beer plus
+  - Bio-beer
+  - Luxury alcoholic
+- name: Location
+  type: CategoricalIssue
+  values:
+  - Balcony
+  - Woods
+  - Park
+  - Beach
+- name: Vegetables
+  type: CategoricalIssue
+  values:
+  - None
+  - Cheap veggies
+  - Good veggies
+  - Prepared veggies
+  - Superveggies
+- name: BBQ type
+  type: CategoricalIssue
+  values:
+  - Disposable
+  - Normal
+  - Gas
+name: Barbecue-A-domain
+type: DiscreteCartesianOutcomeSpace

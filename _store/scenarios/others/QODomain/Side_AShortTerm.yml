@@ -1,0 +1,43 @@
+name: Side_AShortTerm
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    12,000 NIS: 6.0
+    20,000 NIS: 3.0
+    7,000 NIS: 7.0
+  type: TableFun
+- mapping:
+    Programmer: 6.0
+    Project Manager: 2.0
+    QA: 4.0
+    Team Manager: 4.0
+  type: TableFun
+- mapping:
+    No agreement: 1.0
+    With leased car: 3.0
+    Without leased car: 5.0
+  type: TableFun
+- mapping:
+    0%: 4.0
+    10%: 5.0
+    20%: 4.0
+    No agreement: 1.0
+  type: TableFun
+- mapping:
+    Fast promotion track: 4.0
+    No agreement: 1.0
+    Slow promotion track: 4.0
+  type: TableFun
+- mapping:
+    10 hours: 8.0
+    8 hours: 3.0
+    9 hours: 6.0
+  type: TableFun
+weights:
+- 0.2
+- 0.2
+- 0.1
+- 0.1
+- 0.1
+- 0.3

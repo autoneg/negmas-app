@@ -1,0 +1,37 @@
+issues:
+- name: Electric Vehicle
+  type: CategoricalIssue
+  values:
+  - 'Tesla Model S P90D '
+  - Honda Fit EV
+  - Nissan Leaf
+  - Toyota RAV4 EV
+  - Mitsubishi i-MiEV
+  - Ford Focus Electric
+  - Fiat 500e
+  - Kia Soul EV
+  - BMW i3
+  - Chevrolet Spark EV
+- name: Battery Capacity
+  type: CategoricalIssue
+  values:
+  - 20KW/KG
+  - 30KW/KG
+  - 60KW/KG
+  - 70KW/KG
+  - 100KW/KG
+- name: Charging Speed
+  type: ContiguousIssue
+  values:
+  - 1
+  - 17
+- name: Weather Condition
+  type: CategoricalIssue
+  values:
+  - Sunny
+  - Partly Sunny
+  - Windy
+  - Rainy
+  - Isolated T-Storms
+name: Smart_Energy_Grid
+type: DiscreteCartesianOutcomeSpace

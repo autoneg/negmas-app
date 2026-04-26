@@ -1,0 +1,25 @@
+issues:
+- name: food
+  type: CategoricalIssue
+  values:
+  - shshi
+  - pizza
+  - noodles
+  - Katsudon
+  - curry
+- name: price
+  type: CategoricalIssue
+  values:
+  - $7
+  - $12
+  - $15
+  - $20
+- name: Location
+  type: CategoricalIssue
+  values:
+  - ~200m
+  - ~400m
+  - ~1km
+  - 1km~
+name: LunchTime
+type: DiscreteCartesianOutcomeSpace

@@ -1,0 +1,20 @@
+issues:
+- name: Roles
+  type: CategoricalIssue
+  values:
+  - Driver
+  - Hostage Taker
+  - Money Grabber
+- name: Escape Plan
+  type: CategoricalIssue
+  values:
+  - Car
+  - Hellicopter
+  - Horse
+- name: Money Split
+  type: CategoricalIssue
+  values:
+  - Proportional to Performance
+  - Equally
+name: Bank_Robbery
+type: DiscreteCartesianOutcomeSpace

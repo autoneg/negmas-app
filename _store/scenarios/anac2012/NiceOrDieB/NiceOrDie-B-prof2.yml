@@ -1,0 +1,17 @@
+discount: 0.75
+dynamic_reservation: true
+name: NiceOrDie-B-prof2
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/anac/y2012/NiceOrDieB/NiceOrDie-B-prof2.xml
+  reserved_value: 0.25
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      '100_16': 160.0
+      '16_100': 1000.0
+      '29_29': 299.0
+    type: TableFun
+  weights:
+  - 1.0

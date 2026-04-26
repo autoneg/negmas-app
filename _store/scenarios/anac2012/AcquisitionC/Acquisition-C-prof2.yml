@@ -1,0 +1,43 @@
+discount: 0.5
+dynamic_reservation: true
+name: Acquisition-C-prof2
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/anac/y2012/AcquisitionC/Acquisition-C-prof2.xml
+  reserved_value: 0.25
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      1 million $: 8.0
+      2.5 million $: 8.0
+      5 million $: 9.0
+      8 million $: 10.0
+    type: TableFun
+  - mapping:
+      BI-Tech founders maintain all IP: 10.0
+      IS receives all IP: 6.0
+      IS receives the patents, industrial design rights and trade secrets: 7.0
+    type: TableFun
+  - mapping:
+      BI-Tech founders get 2%: 5.0
+      BI-Tech founders get 2% + jobs at IS: 9.0
+      BI-Tech founders get 5%: 6.0
+      'BI-Tech founders get 5% + jobs ': 10.0
+    type: TableFun
+  - mapping:
+      half fired and half private contracts: 4.0
+      private contracts: 8.0
+      salary raise of 15%: 9.0
+      same conditions: 7.0
+    type: TableFun
+  - mapping:
+      IS liable for all activities: 10.0
+      past activities remains with Bi-Tech: 7.0
+    type: TableFun
+  weights:
+  - 0.5
+  - 0.04
+  - 0.2
+  - 0.06
+  - 0.2

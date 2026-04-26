@@ -1,0 +1,51 @@
+issues:
+- name: 0000-0400
+  type: CategoricalIssue
+  values:
+  - 0 kW
+  - 25 kW
+  - 50 kW
+  - 75 kW
+  - 100 kW
+- name: 0400-0800
+  type: CategoricalIssue
+  values:
+  - 0 kW
+  - 25 kW
+  - 50 kW
+  - 75 kW
+  - 100 kW
+- name: 0800-1200
+  type: CategoricalIssue
+  values:
+  - 0 kW
+  - 25 kW
+  - 50 kW
+  - 75 kW
+  - 100 kW
+- name: 1200-1600
+  type: CategoricalIssue
+  values:
+  - 0 kW
+  - 25 kW
+  - 50 kW
+  - 75 kW
+  - 100 kW
+- name: 1600-2000
+  type: CategoricalIssue
+  values:
+  - 0 kW
+  - 25 kW
+  - 50 kW
+  - 75 kW
+  - 100 kW
+- name: 2000-0000
+  type: CategoricalIssue
+  values:
+  - 0 kW
+  - 25 kW
+  - 50 kW
+  - 75 kW
+  - 100 kW
+name: EnergySmall-B-domain
+type: DiscreteCartesianOutcomeSpace

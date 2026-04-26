@@ -1,0 +1,29 @@
+discount: 0.75
+dynamic_reservation: true
+name: Laptop-B-prof2
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/anac/y2012/LaptopB/Laptop-B-prof2.xml
+  reserved_value: 0.25
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      Dell: 12.0
+      HP: 20.0
+      Macintosh: 30.0
+    type: TableFun
+  - mapping:
+      120 Gb: 9.0
+      60 Gb: 20.0
+      80 Gb: 30.0
+    type: TableFun
+  - mapping:
+      19'' LCD: 3.0
+      20'' LCD: 2.0
+      23'' LCD: 1.0
+    type: TableFun
+  weights:
+  - 0.37808251708013424
+  - 0.1767567099260568
+  - 0.4452125771655631

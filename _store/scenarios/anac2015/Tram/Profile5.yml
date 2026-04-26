@@ -1,0 +1,45 @@
+name: Profile5
+reserved_value: 0.1
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    'no': 1.0
+    'yes': 2.0
+  type: TableFun
+- mapping:
+    high: 3.0
+    low: 1.0
+    middle: 2.0
+  type: TableFun
+- mapping:
+    1 ph: 1.0
+    2 ph: 2.0
+    4 ph: 3.0
+  type: TableFun
+- mapping:
+    1 mln: 2.0
+    2 mln: 3.0
+    3 mln: 1.0
+  type: TableFun
+- mapping:
+    new: 2.0
+    used: 1.0
+  type: TableFun
+- mapping:
+    Delft Zuid: 3.0
+    Rotterdam: 1.0
+    TU Delft campus: 2.0
+  type: TableFun
+- mapping:
+    '2016': 3.0
+    '2017': 2.0
+    '2018': 1.0
+  type: TableFun
+weights:
+- 0.1642758502310232
+- 0.12218687920488466
+- 0.19122206639633996
+- 0.2061762476773728
+- 0.14308547368090488
+- 0.09903879868493771
+- 0.07401468412453685

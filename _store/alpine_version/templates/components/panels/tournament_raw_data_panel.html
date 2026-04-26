@@ -1,0 +1,193 @@
+<!-- Tournament Raw Data Panel - Config, scores CSVs, and file listing -->
+<div class="tournament-detail-panel" :class="{ collapsed: tournamentPanelCollapsed.rawData }">
+    <div class="tournament-panel-header" @click="tournamentPanelCollapsed.rawData = !tournamentPanelCollapsed.rawData">
+        <h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                 :style="{ transform: tournamentPanelCollapsed.rawData ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+            Raw Data
+            <template x-if="tournamentRawData.loading">
+                <span class="loading loading-spinner loading-xs ml-2"></span>
+            </template>
+        </h3>
+    </div>
+    <div class="tournament-panel-content" x-show="!tournamentPanelCollapsed.rawData" x-collapse>
+        <!-- Tab Navigation -->
+        <div class="raw-data-tabs">
+            <button class="raw-data-tab" 
+                    :class="{ active: tournamentRawData.activeTab === 'config' }"
+                    @click="tournamentRawData.activeTab = 'config'">
+                Config
+            </button>
+            <button class="raw-data-tab" 
+                    :class="{ active: tournamentRawData.activeTab === 'type_scores' }"
+                    @click="tournamentRawData.activeTab = 'type_scores'">
+                Type Scores
+            </button>
+            <button class="raw-data-tab" 
+                    :class="{ active: tournamentRawData.activeTab === 'all_scores' }"
+                    @click="tournamentRawData.activeTab = 'all_scores'">
+                All Scores
+            </button>
+            <button class="raw-data-tab" 
+                    :class="{ active: tournamentRawData.activeTab === 'files' }"
+                    @click="tournamentRawData.activeTab = 'files'">
+                Files
+            </button>
+        </div>
+        
+        <!-- Config Tab Content -->
+        <div class="raw-data-content" x-show="tournamentRawData.activeTab === 'config'">
+            <template x-if="tournamentRawData.config">
+                <div class="raw-data-json">
+                    <pre x-text="JSON.stringify(tournamentRawData.config, null, 2)"></pre>
+                </div>
+            </template>
+            <template x-if="!tournamentRawData.config && !tournamentRawData.loading">
+                <div class="empty-state">No config.json available</div>
+            </template>
+        </div>
+        
+        <!-- Type Scores Tab Content -->
+        <div class="raw-data-content" x-show="tournamentRawData.activeTab === 'type_scores'">
+            <template x-if="tournamentRawData.typeScores?.strategies?.length > 0">
+                <div class="raw-data-table-container">
+                    <table class="raw-data-table">
+                        <thead>
+                            <tr>
+                                <th>Strategy</th>
+                                <th>Utility (mean)</th>
+                                <th>Advantage (mean)</th>
+                                <th>Welfare (mean)</th>
+                                <th>Nash Opt. (mean)</th>
+                                <th>Pareto Opt. (mean)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="row in tournamentRawData.typeScores.strategies.filter(s => s.strategy !== 'index')" :key="row.strategy">
+                                <tr>
+                                    <td x-text="row.strategy"></td>
+                                    <td x-text="row.values[1] ? parseFloat(row.values[1]).toFixed(4) : '-'"></td>
+                                    <td x-text="row.values[17] ? parseFloat(row.values[17]).toFixed(4) : '-'"></td>
+                                    <td x-text="row.values[33] ? parseFloat(row.values[33]).toFixed(4) : '-'"></td>
+                                    <td x-text="row.values[49] ? parseFloat(row.values[49]).toFixed(4) : '-'"></td>
+                                    <td x-text="row.values[81] ? parseFloat(row.values[81]).toFixed(4) : '-'"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                    <div class="raw-data-table-info" style="margin-top: 8px;">
+                        Available metrics: <span x-text="tournamentRawData.typeScores.metrics?.join(', ') || '-'"></span>
+                    </div>
+                </div>
+            </template>
+            <template x-if="!tournamentRawData.typeScores?.strategies?.length && !tournamentRawData.loading">
+                <div class="empty-state">No type_scores.csv available</div>
+            </template>
+        </div>
+        
+        <!-- All Scores Tab Content -->
+        <div class="raw-data-content" x-show="tournamentRawData.activeTab === 'all_scores'">
+            <template x-if="tournamentRawData.allScores?.length > 0">
+                <div class="raw-data-table-container">
+                    <div class="raw-data-table-info">
+                        Showing <span x-text="Math.min(100, tournamentRawData.allScores.length)"></span> 
+                        of <span x-text="tournamentRawData.allScores.length"></span> rows
+                    </div>
+                    <table class="raw-data-table">
+                        <thead>
+                            <tr>
+                                <th>Strategy</th>
+                                <th>Partner</th>
+                                <th>Scenario</th>
+                                <th>Utility</th>
+                                <th>Advantage</th>
+                                <th>Welfare</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(row, idx) in tournamentRawData.allScores.slice(0, 100)" :key="idx">
+                                <tr>
+                                    <td x-text="row.strategy || '-'"></td>
+                                    <td x-text="row.partners || '-'"></td>
+                                    <td x-text="row.scenario || '-'" class="truncate-cell" :title="row.scenario"></td>
+                                    <td x-text="row.utility ? parseFloat(row.utility).toFixed(4) : '-'"></td>
+                                    <td x-text="row.advantage ? parseFloat(row.advantage).toFixed(4) : '-'"></td>
+                                    <td x-text="row.welfare ? parseFloat(row.welfare).toFixed(4) : '-'"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </template>
+            <template x-if="!tournamentRawData.allScores?.length && !tournamentRawData.loading">
+                <div class="empty-state">No all_scores.csv available</div>
+            </template>
+        </div>
+        
+        <!-- Files Tab Content -->
+        <div class="raw-data-content" x-show="tournamentRawData.activeTab === 'files'">
+            <template x-if="tournamentRawData.files">
+                <div class="raw-data-files">
+                    <div class="file-list">
+                        <div class="file-item" x-show="tournamentRawData.files.config">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                            config.json
+                        </div>
+                        <div class="file-item" x-show="tournamentRawData.files.scores">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                            scores.csv
+                        </div>
+                        <div class="file-item" x-show="tournamentRawData.files.type_scores">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                            type_scores.csv
+                        </div>
+                        <div class="file-item" x-show="tournamentRawData.files.all_scores">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                            all_scores.csv
+                        </div>
+                        <div class="file-item" x-show="tournamentRawData.files.details">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                            details.csv
+                        </div>
+                        <div class="file-item" x-show="tournamentRawData.files.negotiations_count > 0">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            negotiations/ (<span x-text="tournamentRawData.files.negotiations_count"></span> files)
+                        </div>
+                        <div class="file-item" x-show="tournamentRawData.files.scenarios_count > 0">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            scenarios/ (<span x-text="tournamentRawData.files.scenarios_count"></span> scenarios)
+                        </div>
+                    </div>
+                    <div class="file-path">
+                        <span class="config-label">Path:</span>
+                        <code x-text="selectedTournament?.path || '-'"></code>
+                    </div>
+                </div>
+            </template>
+            <template x-if="!tournamentRawData.files && !tournamentRawData.loading">
+                <div class="empty-state">Unable to load file information</div>
+            </template>
+        </div>
+    </div>
+</div>

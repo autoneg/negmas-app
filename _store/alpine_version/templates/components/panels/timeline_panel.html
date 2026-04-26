@@ -1,0 +1,48 @@
+<!-- Utility Timeline Panel -->
+<div class="panel panel-compact panel-timeline" x-ref="panelTimeline" :class="{'collapsed': panelCollapsed.timeline}">
+    <span class="panel-collapsed-label" x-show="panelCollapsed.timeline">TIMELINE</span>
+    <div class="panel-floating-actions panel-floating-actions-left">
+        <select class="form-select form-select-xs" x-show="currentNegotiation?.panelSettings?.adjustable && !panelCollapsed.timeline" x-model="panelState.timeline.xAxis" @change="initUtilityTimelinePlots()" title="X-Axis">
+            <option value="step">Step</option>
+            <option value="time">Time</option>
+            <option value="relative_time">Rel</option>
+        </select>
+        <button class="panel-btn" :class="{'panel-btn-active': !timelineSimplifiedView}" title="Full View (per-agent)" @click="timelineSimplifiedView = false; initUtilityTimelinePlots()" x-show="!panelCollapsed.timeline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+            </svg>
+        </button>
+        <button class="panel-btn" :class="{'panel-btn-active': timelineSimplifiedView}" title="Simplified View (single plot)" @click="timelineSimplifiedView = true; initUtilityTimelinePlots()" x-show="!panelCollapsed.timeline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+            </svg>
+        </button>
+        <button class="panel-btn" title="Save as Image" @click="savePlot('utility-timeline-container', 'utility-timeline')" x-show="!panelCollapsed.timeline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+        </button>
+        <button class="panel-btn" title="Zoom" @click="zoomPanel('Utility Timeline', 'utility-timeline-container')" x-show="!panelCollapsed.timeline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+            </svg>
+        </button>
+        <button class="panel-btn" title="Reset View" @click="resetTimelinePlotView()" x-show="!panelCollapsed.timeline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+            </svg>
+        </button>
+        <button class="panel-btn panel-collapse-btn" title="Toggle panel" @click="panelCollapsed.timeline = !panelCollapsed.timeline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+    </div>
+    <div class="panel-content panel-content-compact" style="padding: 0; position: relative; overflow: hidden;" x-show="!panelCollapsed.timeline">
+        <div id="utility-timeline-container" style="width: 100%; height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px;"></div>
+        <div x-show="!currentNegotiation?.offers || currentNegotiation.offers.length === 0" class="empty-state-mini" style="position: absolute; inset: 0; background: var(--bg-secondary);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px; opacity: 0.4;">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            <span class="text-muted">Waiting...</span>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,58 @@
+name: util1
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    no welfare and health insurance: 1.0
+    no welfare and no health insurance: 0.0
+    welfare and health insurance: 4.0
+    welfare and no health insurance: 1.0
+  type: TableFun
+- mapping:
+    High labor tax: 1.0
+    Low labor tax: 1.0
+    Medium labor tax: 5.0
+  type: TableFun
+- mapping:
+    High tax: 5.0
+    Low tax: 0.0
+    Medium tax: 1.0
+  type: TableFun
+- mapping:
+    Army for offencive missions: 0.0
+    Army for peace mission: 1.0
+    Army just for defence: 4.0
+    No army: 5.0
+  type: TableFun
+- mapping:
+    Closed borders: 0.0
+    Just people from the EU: 1.0
+    Just refugees: 1.0
+    Open borders: 8.0
+    People from the EU and refugees: 3.0
+  type: TableFun
+- mapping:
+    leave: 1.0
+    stay: 5.0
+  type: TableFun
+- mapping:
+    Mostly dependent on national products, but some export: 3.0
+    Only dependent on national products: 1.0
+    mostly dependent on export: 14.0
+    somewhat dependent on export: 7.0
+  type: TableFun
+- mapping:
+    All drugs illegal: 1.0
+    All drugs legal: 4.0
+    Softdrugs legal: 8.0
+    Softdrugs tolerated: 3.0
+  type: TableFun
+weights:
+- 0.2423991044521965
+- 0.061109933021810066
+- 0.22223106488363198
+- 0.12209337060366644
+- 0.1140709801547101
+- 0.10505034049772512
+- 0.09503796567003182
+- 0.03800724071622797

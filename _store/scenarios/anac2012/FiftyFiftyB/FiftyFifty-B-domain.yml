@@ -1,0 +1,17 @@
+issues:
+- name: Fifty_Fifty
+  type: CategoricalIssue
+  values:
+  - '100_0'
+  - '90_10'
+  - '80_20'
+  - '70_30'
+  - '60_40'
+  - '50_50'
+  - '40_60'
+  - '30_70'
+  - '20_80'
+  - '10_90'
+  - '0_100'
+name: FiftyFifty-B-domain
+type: DiscreteCartesianOutcomeSpace

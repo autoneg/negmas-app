@@ -1,0 +1,27 @@
+name: Barter-B-prof1
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    3gm: 4.0
+    4gm: 3.0
+    5gm: 2.0
+    6gm: 1.0
+  type: TableFun
+- mapping:
+    4ml: 5.0
+    5ml: 4.0
+    6ml: 3.0
+    7ml: 2.0
+    8ml: 1.0
+  type: TableFun
+- mapping:
+    10gm: 1.0
+    4gm: 4.0
+    6gm: 3.0
+    8gm: 2.0
+  type: TableFun
+weights:
+- 0.36
+- 0.32
+- 0.32

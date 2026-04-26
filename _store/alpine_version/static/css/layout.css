@@ -1,0 +1,946 @@
+/**
+ * Layout System Styles
+ * 
+ * Provides styles for:
+ * - Layout container (top row + bottom row)
+ * - Zones (left, center, right, bottom-left, bottom-right)
+ * - Tab groups and tabs
+ * - Stacked panel mode
+ * - Resize handles
+ * - Layout switcher UI
+ * - Panel picker
+ * - Drag and drop visual feedback
+ */
+
+/* ========== Layout Container ========== */
+
+.layout-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 0;
+    overflow: hidden;
+}
+
+/* ========== Top Row ========== */
+
+.layout-top-row {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    gap: 0;
+}
+
+/* Two-column mode */
+.layout-top-row.two-column {
+    display: grid;
+    grid-template-columns: var(--left-width, 35%) var(--right-width, 65%);
+}
+
+/* Three-column mode */
+.layout-top-row.three-column {
+    display: grid;
+    grid-template-columns: var(--left-width, 280px) var(--center-width, 1fr) var(--right-width, 280px);
+}
+
+/* Hide center zone in two-column mode */
+.layout-top-row.two-column .panel-zone[data-zone="center"] {
+    display: none;
+}
+
+/* ========== Bottom Row ========== */
+
+.layout-bottom-row {
+    display: flex;
+    height: var(--bottom-height, 120px);
+    min-height: 0;
+    gap: 0;
+    flex-shrink: 0;
+}
+
+.layout-bottom-row.collapsed {
+    height: 0;
+    overflow: hidden;
+}
+
+/* Bottom split */
+.layout-bottom-row.split {
+    display: grid;
+    grid-template-columns: var(--bottom-split, 50%) 1fr;
+}
+
+/* Bottom merged states */
+.layout-bottom-row.merged-left .panel-zone[data-zone="bottom-right"] {
+    display: none;
+}
+
+.layout-bottom-row.merged-left .panel-zone[data-zone="bottom-left"] {
+    flex: 1;
+}
+
+.layout-bottom-row.merged-right .panel-zone[data-zone="bottom-left"] {
+    display: none;
+}
+
+.layout-bottom-row.merged-right .panel-zone[data-zone="bottom-right"] {
+    flex: 1;
+}
+
+/* ========== Panel Zones ========== */
+
+.panel-zone {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.panel-zone.empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    border-style: dashed;
+}
+
+.panel-zone.hidden {
+    display: none;
+}
+
+/* Drop target state */
+.panel-zone.drop-target {
+    outline: 2px dashed var(--primary);
+    outline-offset: -2px;
+    background: var(--primary-light);
+}
+
+.panel-zone.drop-target-invalid {
+    outline-color: var(--danger);
+    background: var(--danger-light);
+}
+
+/* ========== Zone Tabs ========== */
+
+.zone-tabs {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    padding: 4px 4px 0 4px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+    min-height: 32px;
+    flex-shrink: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.zone-tabs::-webkit-scrollbar {
+    height: 3px;
+}
+
+.zone-tabs::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 2px;
+}
+
+.zone-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 4px 4px 0 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.zone-tab:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.zone-tab.active {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    box-shadow: inset 0 -2px 0 var(--primary);
+}
+
+.zone-tab.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.zone-tab-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.zone-tab-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.zone-tab-label {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.zone-tab-close {
+    width: 16px;
+    height: 16px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 3px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    margin-left: 2px;
+    flex-shrink: 0;
+}
+
+.zone-tab:hover .zone-tab-close {
+    display: flex;
+}
+
+.zone-tab-close:hover {
+    background: var(--danger-light);
+    color: var(--danger);
+}
+
+/* Tab drop indicator */
+.tab-drop-indicator {
+    position: absolute;
+    width: 2px;
+    height: 24px;
+    background: var(--primary);
+    border-radius: 1px;
+    display: none;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.tab-drop-indicator.visible {
+    display: block;
+}
+
+/* Zone actions (add button) */
+.zone-actions {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    padding-right: 4px;
+    flex-shrink: 0;
+}
+
+.zone-add-btn {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.zone-add-btn:hover {
+    background: var(--bg-secondary);
+    color: var(--primary);
+}
+
+.zone-add-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Zone menu button */
+.zone-menu-btn {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 3px;
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.zone-tabs:hover .zone-menu-btn {
+    opacity: 1;
+}
+
+.zone-menu-btn:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.zone-menu-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* ========== Zone Content ========== */
+
+.zone-content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Panel content container */
+.zone-panel {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+}
+
+.zone-panel.hidden {
+    display: none;
+}
+
+/* ========== Stacked Mode ========== */
+
+.zone-content.stacked {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow: hidden;
+}
+
+.zone-content.stacked .zone-panel {
+    flex: 1;
+    min-height: 100px;
+    border-bottom: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.zone-content.stacked .zone-panel:last-child {
+    border-bottom: none;
+}
+
+/* Stacked panel header */
+.stacked-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    min-height: 28px;
+    cursor: grab;
+}
+
+.stacked-panel-header:active {
+    cursor: grabbing;
+}
+
+.stacked-panel-header-icon {
+    width: 12px;
+    height: 12px;
+    opacity: 0.7;
+}
+
+.stacked-panel-header-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.stacked-panel-header-label {
+    flex: 1;
+}
+
+.stacked-panel-header-actions {
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.stacked-panel-header:hover .stacked-panel-header-actions {
+    opacity: 1;
+}
+
+.stacked-panel-btn {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 3px;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.stacked-panel-btn:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.stacked-panel-btn svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Stacked panel content */
+.stacked-panel-content {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+/* ========== Resize Handles ========== */
+
+/* Vertical resize (between columns) */
+.zone-resize-v {
+    width: 8px;
+    cursor: col-resize;
+    background: transparent;
+    position: relative;
+    flex-shrink: 0;
+    z-index: 10;
+    margin: 4px 0;
+}
+
+.zone-resize-v::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 3px;
+    height: 40px;
+    background: var(--border-color);
+    border-radius: 2px;
+    opacity: 0;
+    transition: all 0.15s ease;
+}
+
+.zone-resize-v:hover::after,
+.zone-resize-v.dragging::after {
+    opacity: 1;
+    height: 60px;
+    background: var(--primary);
+}
+
+/* Horizontal resize (between top and bottom rows, and stacked panels) */
+.zone-resize-h {
+    height: 8px;
+    cursor: row-resize;
+    background: transparent;
+    position: relative;
+    flex-shrink: 0;
+    z-index: 10;
+    margin: 0 4px;
+}
+
+.zone-resize-h::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 3px;
+    background: var(--border-color);
+    border-radius: 2px;
+    opacity: 0;
+    transition: all 0.15s ease;
+}
+
+.zone-resize-h:hover::after,
+.zone-resize-h.dragging::after {
+    opacity: 1;
+    width: 60px;
+    background: var(--primary);
+}
+
+/* Stacked panel resize handle */
+.stacked-resize-h,
+.stack-resize-handle {
+    height: 6px;
+    cursor: row-resize;
+    background: transparent;
+    position: relative;
+    flex-shrink: 0;
+    z-index: 5;
+}
+
+.stacked-resize-h::after,
+.stack-resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 30px;
+    height: 2px;
+    background: var(--border-color);
+    border-radius: 1px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.stacked-resize-h:hover::after,
+.stack-resize-handle:hover::after,
+.stack-resize-handle.dragging::after {
+    opacity: 1;
+}
+
+/* ========== Layout Switcher ========== */
+
+.layout-switcher {
+    position: relative;
+}
+
+.layout-switcher-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.layout-switcher-btn:hover {
+    background: var(--bg-secondary);
+    border-color: var(--border-color-dark);
+}
+
+.layout-switcher-btn svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.7;
+}
+
+.layout-switcher-btn .chevron {
+    margin-left: auto;
+}
+
+.layout-switcher-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    min-width: 200px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.layout-switcher-section {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.layout-switcher-section:last-child {
+    border-bottom: none;
+}
+
+.layout-switcher-section-title {
+    padding: 4px 12px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+}
+
+.layout-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.layout-option:hover {
+    background: var(--bg-tertiary);
+}
+
+.layout-option.active {
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+.layout-option-check {
+    margin-left: auto;
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.layout-option-actions {
+    display: none;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.layout-option:hover .layout-option-actions {
+    display: flex;
+}
+
+.layout-option:hover .layout-option-check {
+    display: none;
+}
+
+.layout-option-actions button {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 3px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.layout-option-actions button:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.layout-switcher-actions {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.layout-switcher-actions button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.layout-switcher-actions button:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.layout-switcher-actions button svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* ========== Panel Picker ========== */
+
+.panel-picker {
+    position: fixed;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: var(--shadow-lg);
+    min-width: 200px;
+    max-width: 280px;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.panel-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.panel-picker-header button {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 3px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.panel-picker-header button:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.panel-picker-list {
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.panel-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.panel-picker-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.panel-picker-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.panel-picker-item.disabled:hover {
+    background: none;
+}
+
+.panel-picker-icon {
+    width: 18px;
+    height: 18px;
+    opacity: 0.7;
+}
+
+.panel-picker-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.panel-picker-name {
+    flex: 1;
+}
+
+.panel-picker-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+/* ========== Empty Zone Placeholder ========== */
+
+.zone-empty-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 20px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.zone-empty-placeholder svg {
+    width: 24px;
+    height: 24px;
+    opacity: 0.5;
+}
+
+.zone-empty-placeholder-text {
+    font-size: 12px;
+}
+
+.zone-empty-placeholder-btn {
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    border: 1px dashed var(--border-color);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.zone-empty-placeholder-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+/* ========== Panel Common Styles ========== */
+
+.panel-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.panel-icon {
+    width: 24px;
+    height: 24px;
+    opacity: 0.5;
+    margin-bottom: 8px;
+}
+
+.panel-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* ========== Zone Menu Dropdown ========== */
+
+.zone-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    min-width: 160px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: var(--shadow-md);
+    z-index: 100;
+    overflow: hidden;
+}
+
+.zone-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.zone-menu-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.zone-menu-item.active {
+    color: var(--primary);
+}
+
+.zone-menu-item svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.7;
+}
+
+.zone-menu-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 4px 0;
+}
+
+/* ========== Drag Ghost ========== */
+
+.drag-ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 10000;
+    padding: 6px 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--primary);
+    border-radius: 4px;
+    box-shadow: var(--shadow-md);
+    font-size: 12px;
+    color: var(--text-primary);
+    opacity: 0.9;
+    transform: translate(-50%, -50%);
+}
+
+/* ========== Transitions ========== */
+
+.zone-panel,
+.panel-zone {
+    transition: opacity 0.15s ease;
+}
+
+/* Prevent transitions during resize */
+.resizing .zone-panel,
+.resizing .panel-zone,
+.resizing .layout-top-row,
+.resizing .layout-bottom-row {
+    transition: none !important;
+}
+
+/* ========== Print Styles ========== */
+
+@media print {
+    .layout-switcher,
+    .zone-tabs,
+    .zone-actions,
+    .zone-resize-v,
+    .zone-resize-h,
+    .stacked-resize-h {
+        display: none !important;
+    }
+    
+    .panel-zone {
+        border: none;
+        margin: 0;
+    }
+}

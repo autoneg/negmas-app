@@ -1,0 +1,33 @@
+name: Profile5
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    BMW: 2.0
+    Ford: 3.0
+    Kia: 1.0
+    Toyota: 4.0
+  type: TableFun
+- mapping:
+    Convertible: 2.0
+    SUV: 3.0
+    Sedan: 2.0
+    Station Wagon: 4.0
+  type: TableFun
+- mapping:
+    Black: 4.0
+    Blue: 1.0
+    Gray: 3.0
+    Green: 2.0
+    Red: 5.0
+  type: TableFun
+- mapping:
+    Basic: 1.0
+    Luxury: 2.0
+    Sports: 3.0
+  type: TableFun
+weights:
+- 0.2993878753430352
+- 0.20122668608788707
+- 0.3963567149727945
+- 0.10302872359628329

@@ -1,0 +1,36 @@
+name: util2
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    33%,33%,33%: 30.0
+    all to one(cons. comp.): 100.0
+    all to one(farmer): 0.0
+    all to one(municipality): 0.0
+    all to two(farmer and cons. comp.): 50.0
+    all to two(farmer and mun.): 0.0
+    all to two(mun. and cons. comp.): 50.0
+  type: TableFun
+- mapping:
+    Big: 20.0
+    Medium: 100.0
+    None: 40.0
+    Small: 80.0
+  type: TableFun
+- mapping:
+    Big: 0.0
+    Medium: 30.0
+    None: 100.0
+    Small: 60.0
+  type: TableFun
+- mapping:
+    Commercial: 100.0
+    Farming: 5.0
+    Housing: 80.0
+    Industrial: 70.0
+  type: TableFun
+weights:
+- 0.39958327196727156
+- 0.20120406251952466
+- 0.10008095952393839
+- 0.2991317059892655

@@ -1,0 +1,31 @@
+{
+  "name": "negmas-vue",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  },
+  "dependencies": {
+    "ag-grid-community": "^35.0.1",
+    "ag-grid-vue3": "^35.0.1",
+    "chart.js": "^4.4.0",
+    "pinia": "^2.1.0",
+    "plotly.js": "^2.27.0",
+    "plotly.js-dist-min": "^2.27.0",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "@vitest/ui": "^4.0.17",
+    "@vue/test-utils": "^2.4.6",
+    "happy-dom": "^20.3.4",
+    "vite": "^5.0.0",
+    "vitest": "^4.0.17"
+  }
+}

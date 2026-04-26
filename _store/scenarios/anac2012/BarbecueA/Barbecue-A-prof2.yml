@@ -1,0 +1,48 @@
+discount: 0.5
+dynamic_reservation: true
+name: Barbecue-A-prof2
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/anac/y2012/BarbecueA/Barbecue-A-prof2.xml
+  reserved_value: 0.25
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      Biological: 50.0
+      Burgers and chicken: 1.0
+      Fish: 80.0
+      Luxury meats: 30.0
+      None: 100.0
+      Vegetarian: 100.0
+    type: TableFun
+  - mapping:
+      Beer plus: 70.0
+      Bio-beer: 100.0
+      Luxury alcoholic: 90.0
+      Non-Alcoholic: 60.0
+    type: TableFun
+  - mapping:
+      Balcony: 30.0
+      Beach: 70.0
+      Park: 40.0
+      Woods: 100.0
+    type: TableFun
+  - mapping:
+      Cheap veggies: 20.0
+      Good veggies: 70.0
+      None: 1.0
+      Prepared veggies: 60.0
+      Superveggies: 100.0
+    type: TableFun
+  - mapping:
+      Disposable: 10.0
+      Gas: 100.0
+      Normal: 60.0
+    type: TableFun
+  weights:
+  - 0.3
+  - 0.1
+  - 0.2
+  - 0.3
+  - 0.1

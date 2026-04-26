@@ -1,0 +1,45 @@
+name: util5
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Block: 1.0
+    Humanoid: 3.0
+    Spherical: 2.0
+  type: TableFun
+- mapping:
+    Hover: 1.0
+    Legs: 2.0
+    Tracks: 4.0
+    Wheel: 3.0
+  type: TableFun
+- bias: 0.5
+  slope: 0.05555555555555555
+  type: AffineFun
+- mapping:
+    Bullets: 5.0
+    Laser: 3.0
+    Plasma: 2.0
+    Railgun: 4.0
+    Soundwave: 1.0
+  type: TableFun
+- mapping:
+    Black: 1.0
+    Blue: 4.0
+    Green: 6.0
+    Purple: 8.0
+    Red: 5.0
+    Silver: 2.0
+    White: 3.0
+    Yellow: 7.0
+  type: TableFun
+- bias: 0.6
+  slope: 0.00816326530612245
+  type: AffineFun
+weights:
+- 0.2145369085392195
+- 0.20736749278349728
+- 0.1010005303856661
+- 0.20019369469489856
+- 0.20500678795491964
+- 0.07189458564179899

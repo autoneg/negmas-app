@@ -1,0 +1,59 @@
+discount: 0.5
+dynamic_reservation: true
+name: EnergySmall-C-prof2
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/anac/y2012/EnergySmallC/EnergySmall-C-prof2.xml
+  reserved_value: 0.0
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      0 kW: 0.0
+      100 kW: 1000.0
+      25 kW: 14.0
+      50 kW: 277.0
+      75 kW: 883.0
+    type: TableFun
+  - mapping:
+      0 kW: 0.0
+      100 kW: 1000.0
+      25 kW: 19.0
+      50 kW: 344.0
+      75 kW: 895.0
+    type: TableFun
+  - mapping:
+      0 kW: 0.0
+      100 kW: 1000.0
+      25 kW: 243.0
+      50 kW: 413.0
+      75 kW: 713.0
+    type: TableFun
+  - mapping:
+      0 kW: 0.0
+      100 kW: 1000.0
+      25 kW: 354.0
+      50 kW: 510.0
+      75 kW: 555.0
+    type: TableFun
+  - mapping:
+      0 kW: 0.0
+      100 kW: 1000.0
+      25 kW: 22.0
+      50 kW: 107.0
+      75 kW: 749.0
+    type: TableFun
+  - mapping:
+      0 kW: 0.0
+      100 kW: 1000.0
+      25 kW: 671.0
+      50 kW: 741.0
+      75 kW: 807.0
+    type: TableFun
+  weights:
+  - 0.045759405795226
+  - 0.25266422192864
+  - 0.27252719524102
+  - 0.21499819553896
+  - 0.15540726999895
+  - 0.058643711497201

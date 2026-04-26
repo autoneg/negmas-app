@@ -1,0 +1,34 @@
+issues:
+- name: Segmentation
+  type: CategoricalIssue
+  values:
+  - all to one(farmer)
+  - all to one(cons. comp.)
+  - all to one(municipality)
+  - all to two(farmer and mun.)
+  - all to two(farmer and cons. comp.)
+  - all to two(mun. and cons. comp.)
+  - 33%,33%,33%
+- name: Water Canal
+  type: CategoricalIssue
+  values:
+  - Big
+  - Medium
+  - Small
+  - None
+- name: Park
+  type: CategoricalIssue
+  values:
+  - Big
+  - Medium
+  - Small
+  - None
+- name: Functionality
+  type: CategoricalIssue
+  values:
+  - Farming
+  - Commercial
+  - Housing
+  - Industrial
+name: zoning_plan
+type: DiscreteCartesianOutcomeSpace

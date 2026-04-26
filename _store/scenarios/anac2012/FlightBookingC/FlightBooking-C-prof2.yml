@@ -1,0 +1,24 @@
+name: FlightBooking-C-prof2
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    150000yen: 4.0
+    200000yen: 3.0
+    250000yen: 2.0
+    300000yen: 1.0
+  type: TableFun
+- mapping:
+    CentrAir: 1.0
+    Kansai: 3.0
+    Narita: 2.0
+  type: TableFun
+- mapping:
+    Sep2_2011: 3.0
+    Sep3_2011: 2.0
+    Sep4_2011: 1.0
+  type: TableFun
+weights:
+- 0.7
+- 0.15
+- 0.15

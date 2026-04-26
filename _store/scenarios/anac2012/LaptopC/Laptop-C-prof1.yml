@@ -1,0 +1,23 @@
+name: Laptop-C-prof1
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Dell: 12.0
+    HP: 30.0
+    Macintosh: 20.0
+  type: TableFun
+- mapping:
+    120 Gb: 9.0
+    60 Gb: 30.0
+    80 Gb: 20.0
+  type: TableFun
+- mapping:
+    19'' LCD: 30.0
+    20'' LCD: 10.0
+    23'' LCD: 20.0
+  type: TableFun
+weights:
+- 0.4452125771655631
+- 0.37808251708013424
+- 0.1767567099260568

@@ -1,0 +1,6 @@
+bias: -0.3333333
+name: seller
+reserved_value: 0.0
+type: AffineUtilityFunction
+weights:
+- 0.03333333

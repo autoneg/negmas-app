@@ -1,0 +1,33 @@
+issues:
+- name: grandstand
+  type: CategoricalIssue
+  values:
+  - no grandstand
+  - retractible grandstand
+  - normal grandstand
+- name: Floor
+  type: CategoricalIssue
+  values:
+  - Wood
+  - Lineleum
+  - Soft mats
+- name: Sports bar
+  type: CategoricalIssue
+  values:
+  - No bar
+  - Small bar
+  - Big bar
+- name: Budget for aparatusses
+  type: CategoricalIssue
+  values:
+  - 10,000
+  - 20,000
+  - 40,000
+- name: Amount of dressing rooms
+  type: CategoricalIssue
+  values:
+  - '2'
+  - '4'
+  - '6'
+name: New_sporthal
+type: DiscreteCartesianOutcomeSpace

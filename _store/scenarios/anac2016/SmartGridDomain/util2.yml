@@ -1,0 +1,34 @@
+discount: 0.6
+dynamic_reservation: true
+name: util2
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/anac/y2016/SmartGridDomain/util2.xml
+  reserved_value: 0.4
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      Price 1: 100.0
+      Price 2: 250.0
+      Price 3: 150.0
+      Price 4: 50.0
+    type: TableFun
+  - mapping:
+      1 Month: 100.0
+      1 Year: 300.0
+      2 Years: 200.0
+      5 Years: 50.0
+      6 Months: 150.0
+    type: TableFun
+  - mapping:
+      Energy Amount 1: 350.0
+      Energy Amount 2: 300.0
+      Energy Amount 3: 250.0
+      Energy Amount 4: 200.0
+      Energy Amount 5: 50.0
+    type: TableFun
+  weights:
+  - 0.377622930851405
+  - 0.25105585910144107
+  - 0.371321210047154

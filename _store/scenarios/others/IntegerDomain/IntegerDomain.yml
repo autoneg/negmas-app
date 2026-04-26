@@ -1,0 +1,13 @@
+issues:
+- name: price
+  type: ContiguousIssue
+  values:
+  - -5
+  - 5
+- name: otherprice
+  type: ContiguousIssue
+  values:
+  - -5
+  - 5
+name: IntegerDomain
+type: DiscreteCartesianOutcomeSpace

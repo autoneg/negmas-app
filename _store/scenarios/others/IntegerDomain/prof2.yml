@@ -1,0 +1,7 @@
+bias: 0.0
+name: prof2
+reserved_value: 0.0
+type: AffineUtilityFunction
+weights:
+- 0.025
+- 0.07500000000000001

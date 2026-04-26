@@ -1,0 +1,31 @@
+issues:
+- name: Place
+  type: CategoricalIssue
+  values:
+  - Tokyo
+  - Osaka
+  - Nagoya
+  - Hokkaido
+  - Okinawa
+- name: Budget
+  type: CategoricalIssue
+  values:
+  - '900'
+  - '1200'
+  - '1500'
+  - '1800'
+- name: Days
+  type: CategoricalIssue
+  values:
+  - '3'
+  - '4'
+  - '5'
+  - '6'
+- name: Purpose
+  type: CategoricalIssue
+  values:
+  - Sightseeing
+  - Activity
+  - Shopping
+name: JapanTrip
+type: DiscreteCartesianOutcomeSpace

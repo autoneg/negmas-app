@@ -1,0 +1,3298 @@
+<template>
+  <div v-if="show" class="modal-overlay active" @click.self="$emit('close')">
+    <div class="modal large">
+      <!-- Success Message Toast -->
+      <div v-if="saveSuccessMessage" class="success-toast">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        {{ saveSuccessMessage }}
+      </div>
+      
+      <div class="modal-header">
+        <h2 class="modal-title">
+          {{ startMode ? 'Start Negotiation' : (editMode ? 'Edit Configuration' : 'Start New Negotiation') }}
+        </h2>
+        <div class="modal-header-actions">
+          <!-- Recent Sessions Dropdown -->
+          <div class="dropdown">
+            <button class="btn btn-sm btn-secondary" @click.stop="recentDropdownOpen = !recentDropdownOpen; loadRecentSessions()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              Recent
+            </button>
+            <div v-if="recentDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
+              <div v-if="enabledRecentSessions.length === 0" class="dropdown-item text-muted">
+                No recent sessions
+              </div>
+              <div
+                v-for="session in enabledRecentSessions"
+                :key="session.name + session.last_used_at"
+                class="dropdown-item"
+                @click="loadFullSession(session); recentDropdownOpen = false"
+              >
+                <div class="font-medium">{{ session.scenario_name }}</div>
+                <div class="text-muted" style="font-size: 11px;">
+                  {{ session.negotiators.map(n => n.name).join(' vs ') }}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Saved Sessions Dropdown -->
+          <div class="dropdown">
+            <button 
+              class="btn btn-sm btn-secondary" 
+              @click.stop="savedDropdownOpen = !savedDropdownOpen; loadSessionPresets()"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              Load
+            </button>
+            <div v-if="savedDropdownOpen" class="dropdown-menu" style="right: 0; min-width: 280px;" @click.stop>
+              <div v-if="isLoadingPresets" class="dropdown-item text-muted">
+                Loading...
+              </div>
+              <div v-else-if="enabledSessionPresets.length === 0" class="dropdown-item text-muted">
+                No saved sessions
+              </div>
+              <div
+                v-else
+                v-for="preset in enabledSessionPresets"
+                :key="preset.name"
+                class="dropdown-item"
+                style="display: flex; justify-content: space-between; align-items: center;"
+              >
+                <div @click="loadFullSession(preset); savedDropdownOpen = false" style="flex: 1; cursor: pointer;">
+                  <div class="font-medium">{{ preset.name }}</div>
+                  <div class="text-muted" style="font-size: 11px;">{{ preset.scenario_name }}</div>
+                </div>
+                <button class="btn-icon-sm" @click.stop="deleteSessionPreset(preset.name)" title="Delete">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Save Session Button -->
+          <button class="btn btn-sm btn-primary" @click.stop="showSaveModal = true" :disabled="!selectedScenario">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            Save
+          </button>
+        </div>
+        <button class="modal-close" @click="$emit('close')">×</button>
+      </div>
+
+      <div class="modal-body" style="padding: 0;">
+        <!-- Wizard Layout with Vertical Tabs -->
+        <div class="wizard-layout">
+          <!-- Vertical Sidebar Tabs -->
+          <div class="wizard-sidebar">
+            <button
+              class="wizard-tab"
+              :class="{ active: currentTab === 'scenario', completed: !!selectedScenario }"
+              @click="currentTab = 'scenario'"
+              title="Scenario"
+            >
+              <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+              <span class="wizard-tab-label">Scenario</span>
+            </button>
+            <button
+              class="wizard-tab"
+              :class="{ active: currentTab === 'negotiators', completed: negotiators.length >= (selectedScenario?.n_negotiators || 2) }"
+              @click="currentTab = 'negotiators'"
+              title="Negotiators"
+            >
+              <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <span class="wizard-tab-label">Negotiators</span>
+            </button>
+            <button
+              class="wizard-tab"
+              :class="{ active: currentTab === 'parameters' }"
+              @click="currentTab = 'parameters'"
+              title="Mechanism Parameters"
+            >
+              <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              <span class="wizard-tab-label">Params</span>
+            </button>
+            <button
+              class="wizard-tab"
+              :class="{ active: currentTab === 'panels' }"
+              @click="currentTab = 'panels'"
+              title="Panel Configuration"
+            >
+              <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+              <span class="wizard-tab-label">Panels</span>
+            </button>
+            <button
+              class="wizard-tab"
+              :class="{ active: currentTab === 'display' }"
+              @click="currentTab = 'display'"
+              title="Display & Run"
+            >
+              <svg class="wizard-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              <span class="wizard-tab-label">Run</span>
+            </button>
+          </div>
+
+          <!-- Tab Content -->
+          <div class="wizard-content">
+            <!-- Tab 1: Scenario Selection -->
+            <div v-show="currentTab === 'scenario'" class="tab-content">
+              <div class="form-group">
+                <label class="form-label">Search Scenarios</label>
+                <input
+                  type="text"
+                  class="form-input"
+                  placeholder="Type to search all scenarios..."
+                  v-model="scenarioSearch"
+                  @input="filterScenarios"
+                />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Filter by Source <span class="text-muted">(optional)</span></label>
+                <select class="form-select" v-model="sourceFilter" @change="filterScenarios">
+                  <option value="">All sources</option>
+                  <option v-for="source in scenarioSources" :key="source" :value="source">
+                    {{ source }}
+                  </option>
+                </select>
+              </div>
+
+              <!-- Advanced Filters Toggle -->
+              <div class="form-group">
+                <button
+                  type="button"
+                  class="btn btn-link"
+                  @click="showAdvancedFilters = !showAdvancedFilters"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    width="14"
+                    height="14"
+                    :style="{ transform: showAdvancedFilters ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }"
+                  >
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                  Advanced Filters
+                </button>
+              </div>
+
+              <!-- Advanced Filters Panel -->
+              <div v-if="showAdvancedFilters" class="advanced-filters">
+                <div class="filters-grid">
+                  <div>
+                    <label class="form-label-sm">Min Outcomes</label>
+                    <input type="number" class="form-input-sm" v-model.number="filters.minOutcomes" min="1" />
+                  </div>
+                  <div>
+                    <label class="form-label-sm">Max Outcomes</label>
+                    <input type="number" class="form-input-sm" v-model.number="filters.maxOutcomes" min="1" />
+                  </div>
+                  <div>
+                    <label class="form-label-sm">Min Rational Fraction</label>
+                    <input type="number" class="form-input-sm" v-model.number="filters.minRationalFraction" min="0" max="1" step="0.1" />
+                  </div>
+                  <div>
+                    <label class="form-label-sm">Max Rational Fraction</label>
+                    <input type="number" class="form-input-sm" v-model.number="filters.maxRationalFraction" min="0" max="1" step="0.1" />
+                  </div>
+                  <div>
+                    <label class="form-label-sm">Min Opposition</label>
+                    <input type="number" class="form-input-sm" v-model.number="filters.minOpposition" min="0" max="1" step="0.1" />
+                  </div>
+                  <div>
+                    <label class="form-label-sm">Max Opposition</label>
+                    <input type="number" class="form-input-sm" v-model.number="filters.maxOpposition" min="0" max="1" step="0.1" />
+                  </div>
+                </div>
+                <div class="filters-footer">
+                  <div class="text-muted-sm">
+                    Note: Scenarios without calculated stats will be hidden when using advanced filters.
+                  </div>
+                  <button type="button" class="btn btn-sm btn-secondary" @click="clearFilters">
+                    Clear Filters
+                  </button>
+                </div>
+              </div>
+
+              <!-- Scenario List -->
+              <div class="form-group" v-if="filteredScenarios.length > 0">
+                <label class="form-label">
+                  Select Scenario
+                  <span class="text-muted">({{ filteredScenarios.length }} found)</span>
+                </label>
+                <div class="scenario-list">
+                  <div
+                    v-for="scenario in filteredScenarios"
+                    :key="scenario.path"
+                    class="scenario-card"
+                    :class="{ selected: selectedScenario?.path === scenario.path }"
+                    @click="selectScenario(scenario)"
+                  >
+                    <div class="scenario-card-header">
+                      <div class="scenario-card-title">{{ scenario.name }}</div>
+                      <button 
+                        class="info-icon-btn" 
+                        @click.stop="showScenarioInfo(scenario)"
+                        title="View scenario details"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="16" x2="12" y2="12"></line>
+                          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="scenario-card-meta">
+                      <span class="badge badge-neutral">{{ scenario.source }}</span>
+                      <span>{{ scenario.n_negotiators }} parties</span>
+                      <span>{{ scenario.issues?.length || 0 }} issues</span>
+                      <span v-if="scenario.n_outcomes">{{ formatNumber(scenario.n_outcomes) }} outcomes</span>
+                      <span v-if="scenario.opposition !== null && scenario.opposition !== undefined">
+                        opp: {{ scenario.opposition.toFixed(2) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Selected Scenario Details -->
+              <div class="form-group" v-if="selectedScenario">
+                <label class="form-label">Scenario Details</label>
+                <div class="scenario-details">
+                  <div class="font-semibold">{{ selectedScenario.name }}</div>
+                  <div class="text-secondary">
+                    <div><strong>Issues:</strong></div>
+                    <div v-for="issue in selectedScenario.issues || []" :key="issue.name" class="issue-item">
+                      <span>{{ issue.name }}</span>
+                      <span class="text-muted">({{ issue.type }})</span>
+                      <span v-if="issue.values" class="text-muted">
+                        : {{ issue.values.slice(0, 5).join(', ') }}{{ issue.values.length > 5 ? '...' : '' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Scenario Loading Options -->
+              <div class="form-group" v-if="selectedScenario">
+                <label class="form-label">Utility Function Options</label>
+                <div class="checkbox-group">
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="options.ignoreDiscount" />
+                    <span>Ignore discount factors</span>
+                    <span class="text-muted-sm">(use stationary utilities)</span>
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="options.ignoreReserved" />
+                    <span>Ignore reserved values</span>
+                    <span class="text-muted-sm">(set to -infinity)</span>
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="options.normalize" />
+                    <span>Normalize utilities</span>
+                    <span class="text-muted-sm">(scale to [0, 1] range)</span>
+                  </label>
+                  <label class="checkbox-label" :class="{ disabled: scenarioModified }">
+                    <input 
+                      type="checkbox" 
+                      v-model="options.saveScenario" 
+                      :disabled="scenarioModified"
+                      :checked="scenarioModified || options.saveScenario"
+                    />
+                    <span>Save scenario with negotiation</span>
+                    <span class="text-muted-sm" v-if="scenarioModified">(required when modifying scenario)</span>
+                    <span class="text-muted-sm" v-else>(save a copy of the scenario)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab 2: Negotiators -->
+            <div v-show="currentTab === 'negotiators'" class="tab-content">
+              <!-- Sub-tabs -->
+              <div class="tabs-secondary">
+                <button
+                  class="tab"
+                  :class="{ active: negotiatorSubTab === 'preset' }"
+                  @click="negotiatorSubTab = 'preset'"
+                >
+                  Preset Agents
+                </button>
+                <button
+                  class="tab"
+                  :class="{ active: negotiatorSubTab === 'boa' }"
+                  @click="negotiatorSubTab = 'boa'; loadBOAComponents()"
+                >
+                  Build Custom (BOA)
+                </button>
+                <button
+                  class="tab"
+                  :class="{ active: negotiatorSubTab === 'map' }"
+                  @click="negotiatorSubTab = 'map'; loadBOAComponents()"
+                >
+                  Build Custom (MAP)
+                </button>
+              </div>
+
+              <!-- Assigned Negotiators -->
+              <div class="form-group">
+                <label class="form-label">
+                  Assigned Negotiators
+                  <span class="text-muted">
+                    ({{ negotiators.length }}/{{ selectedScenario?.n_negotiators || 2 }} required)
+                  </span>
+                </label>
+
+                <div class="negotiator-list">
+                  <div
+                    v-for="(neg, index) in negotiators"
+                    :key="index"
+                    class="negotiator-item"
+                    :class="{ selected: selectedSlot === index }"
+                    @click="selectedSlot = index"
+                  >
+                    <div class="drag-handle">⋮⋮</div>
+                    <div class="negotiator-item-content">
+                      <input
+                        type="text"
+                        class="negotiator-name-input"
+                        v-model="neg.name"
+                        @click.stop
+                        placeholder="Agent name"
+                      />
+                      <div class="negotiator-type">{{ getNegotiatorDisplayName(neg.type_name) }}</div>
+                      <div v-if="neg.params && Object.keys(neg.params).length > 0" class="negotiator-params">
+                        {{ formatParams(neg.params) }}
+                      </div>
+                      <span v-if="neg.source" class="badge badge-sm">{{ neg.source }}</span>
+                    </div>
+                    <button
+                      class="btn-icon btn-sm"
+                      @click.stop="openTimePressure(index)"
+                      title="Configure time pressure"
+                      :class="{ 'has-config': neg.time_limit || neg.n_steps }"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                      </svg>
+                    </button>
+                    <button
+                      class="btn-icon btn-sm"
+                      @click.stop="openNegotiatorConfig(index)"
+                      title="Configure parameters"
+                      :class="{ 'has-config': neg.params && Object.keys(neg.params).length > 0 }"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="text-muted-sm">Click a slot to select it, then choose a negotiator below</div>
+              </div>
+
+              <!-- Sub-tab: Preset Negotiators -->
+              <div v-show="negotiatorSubTab === 'preset'">
+                <div class="form-group">
+                  <label class="form-label">Search Negotiators</label>
+                  <input
+                    type="text"
+                    class="form-input"
+                    placeholder="Type to search all negotiators..."
+                    v-model="negotiatorSearch"
+                    @input="filterNegotiators"
+                  />
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Source <span class="text-muted">(optional)</span></label>
+                    <select class="form-select" v-model="negotiatorSourceFilter" @change="filterNegotiators">
+                      <option value="">All sources</option>
+                      <option v-for="source in negotiatorSources" :key="source" :value="source">
+                        {{ source }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <div class="form-group" v-if="negotiatorSourceFilter === 'genius'">
+                    <label class="form-label">Year <span class="text-muted">(optional)</span></label>
+                    <select class="form-select" v-model="negotiatorYearFilter" @change="filterNegotiators">
+                      <option value="">All years</option>
+                      <option value="y2019">ANAC 2019</option>
+                      <option value="y2018">ANAC 2018</option>
+                      <option value="y2017">ANAC 2017</option>
+                      <option value="y2016">ANAC 2016</option>
+                      <option value="y2015">ANAC 2015</option>
+                      <option value="y2014">ANAC 2014</option>
+                      <option value="y2013">ANAC 2013</option>
+                      <option value="y2012">ANAC 2012</option>
+                      <option value="y2011">ANAC 2011</option>
+                      <option value="y2010">ANAC 2010</option>
+                      <option value="basic">Basic</option>
+                      <option value="others">Others</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Tag <span class="text-muted">(optional)</span></label>
+                    <select class="form-select" v-model="negotiatorTagFilter" @change="filterNegotiators">
+                      <option value="">All tags</option>
+                      <option v-for="tag in allNegotiatorTags" :key="tag" :value="tag">
+                        {{ tag }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">
+                    Available Negotiators
+                    <span class="text-muted">({{ filteredNegotiators.length }} found)</span>
+                  </label>
+                  <div class="negotiator-grid">
+                    <div
+                      v-for="neg in filteredNegotiators"
+                      :key="neg.type_name"
+                      class="negotiator-card"
+                      @click="selectNegotiatorForSlot(neg)"
+                    >
+                      <div class="negotiator-card-header">
+                        <div class="negotiator-card-name">{{ neg.name }}</div>
+                        <button 
+                          class="info-icon-btn" 
+                          @click.stop="showNegotiatorInfo(neg)"
+                          title="View negotiator details"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                          </svg>
+                        </button>
+                      </div>
+                      <div class="negotiator-card-meta">
+                        <span class="badge badge-sm">{{ neg.source }}</span>
+                      </div>
+                      <div v-if="neg.description" class="negotiator-card-desc">{{ neg.description }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sub-tab: BOA Builder -->
+              <div v-show="negotiatorSubTab === 'boa'">
+                <div class="boa-builder">
+                  <div class="form-group">
+                    <label class="form-label">Acceptance Policy <span class="text-danger">*</span></label>
+                    <div class="component-row">
+                      <select class="form-select" v-model="boaConfig.acceptance_policy" @change="boaConfig.acceptance_params = {}">
+                        <option value="">Select acceptance policy...</option>
+                        <option v-for="c in boaComponents.acceptance" :key="c" :value="c">
+                          {{ c }}
+                        </option>
+                      </select>
+                      <button
+                        v-if="boaConfig.acceptance_policy"
+                        class="btn btn-sm btn-secondary"
+                        @click="openComponentConfig('acceptance', boaConfig.acceptance_policy, boaConfig.acceptance_params, (params) => boaConfig.acceptance_params = params)"
+                        title="Configure parameters"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </button>
+                    </div>
+                    <div v-if="Object.keys(boaConfig.acceptance_params).length > 0" class="params-preview">
+                      {{ formatComponentParams(boaConfig.acceptance_params) }}
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Offering Policy <span class="text-danger">*</span></label>
+                    <div class="component-row">
+                      <select class="form-select" v-model="boaConfig.offering_policy" @change="boaConfig.offering_params = {}">
+                        <option value="">Select offering policy...</option>
+                        <option v-for="c in boaComponents.offering" :key="c" :value="c">
+                          {{ c }}
+                        </option>
+                      </select>
+                      <button
+                        v-if="boaConfig.offering_policy"
+                        class="btn btn-sm btn-secondary"
+                        @click="openComponentConfig('offering', boaConfig.offering_policy, boaConfig.offering_params, (params) => boaConfig.offering_params = params)"
+                        title="Configure parameters"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </button>
+                    </div>
+                    <div v-if="Object.keys(boaConfig.offering_params).length > 0" class="params-preview">
+                      {{ formatComponentParams(boaConfig.offering_params) }}
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Opponent Model <span class="text-muted">(optional)</span></label>
+                    <div class="component-row">
+                      <select class="form-select" v-model="boaConfig.opponent_model" @change="boaConfig.model_params = {}">
+                        <option value="">None (no opponent modeling)</option>
+                        <option v-for="c in boaComponents.model" :key="c" :value="c">
+                          {{ c }}
+                        </option>
+                      </select>
+                      <button
+                        v-if="boaConfig.opponent_model"
+                        class="btn btn-sm btn-secondary"
+                        @click="openComponentConfig('model', boaConfig.opponent_model, boaConfig.model_params, (params) => boaConfig.model_params = params)"
+                        title="Configure parameters"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </button>
+                    </div>
+                    <div v-if="Object.keys(boaConfig.model_params).length > 0" class="params-preview">
+                      {{ formatComponentParams(boaConfig.model_params) }}
+                    </div>
+                  </div>
+
+                  <button
+                    class="btn btn-primary"
+                    @click="applyBOAToSlot"
+                    :disabled="!boaConfig.acceptance_policy || !boaConfig.offering_policy"
+                  >
+                    Apply to Selected Slot
+                  </button>
+                </div>
+
+                <div class="text-muted-sm">
+                  <strong>BOA Architecture:</strong> Build modular negotiators by combining acceptance, offering, and opponent modeling components.
+                </div>
+              </div>
+
+              <!-- Sub-tab: MAP Builder -->
+              <div v-show="negotiatorSubTab === 'map'">
+                <div class="map-builder">
+                  <div class="form-group">
+                    <label class="form-label">Acceptance Policy <span class="text-danger">*</span></label>
+                    <div class="component-row">
+                      <select class="form-select" v-model="mapConfig.acceptance_policy" @change="mapConfig.acceptance_params = {}">
+                        <option value="">Select acceptance policy...</option>
+                        <option v-for="c in boaComponents.acceptance" :key="c" :value="c">
+                          {{ c }}
+                        </option>
+                      </select>
+                      <button
+                        v-if="mapConfig.acceptance_policy"
+                        class="btn btn-sm btn-secondary"
+                        @click="openComponentConfig('acceptance', mapConfig.acceptance_policy, mapConfig.acceptance_params, (params) => mapConfig.acceptance_params = params)"
+                        title="Configure parameters"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </button>
+                    </div>
+                    <div v-if="Object.keys(mapConfig.acceptance_params).length > 0" class="params-preview">
+                      {{ formatComponentParams(mapConfig.acceptance_params) }}
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Offering Policy <span class="text-danger">*</span></label>
+                    <div class="component-row">
+                      <select class="form-select" v-model="mapConfig.offering_policy" @change="mapConfig.offering_params = {}">
+                        <option value="">Select offering policy...</option>
+                        <option v-for="c in boaComponents.offering" :key="c" :value="c">
+                          {{ c }}
+                        </option>
+                      </select>
+                      <button
+                        v-if="mapConfig.offering_policy"
+                        class="btn btn-sm btn-secondary"
+                        @click="openComponentConfig('offering', mapConfig.offering_policy, mapConfig.offering_params, (params) => mapConfig.offering_params = params)"
+                        title="Configure parameters"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </button>
+                    </div>
+                    <div v-if="Object.keys(mapConfig.offering_params).length > 0" class="params-preview">
+                      {{ formatComponentParams(mapConfig.offering_params) }}
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Models <span class="text-muted">(multiple allowed)</span></label>
+                    <div class="model-selector">
+                      <span v-for="(model, index) in mapConfig.models" :key="index" class="badge badge-primary model-badge">
+                        {{ model }}
+                        <button
+                          type="button"
+                          class="badge-config"
+                          @click.stop="openMapModelConfig(index)"
+                          title="Configure"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                          </svg>
+                        </button>
+                        <button type="button" @click="removeMapModel(index)" class="badge-remove">×</button>
+                      </span>
+                    </div>
+                    <div class="model-add">
+                      <select class="form-select" v-model="selectedMapModel">
+                        <option value="">Add a model...</option>
+                        <option
+                          v-for="c in boaComponents.model"
+                          :key="c"
+                          :value="c"
+                          :disabled="mapConfig.models.includes(c)"
+                        >
+                          {{ c }}
+                        </option>
+                      </select>
+                      <button type="button" class="btn btn-secondary" @click="addMapModel">Add</button>
+                    </div>
+                    <div class="form-hint">Unlike BOA, MAP supports multiple opponent models that run in sequence.</div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" v-model="mapConfig.acceptance_first" />
+                      <span>Evaluate Acceptance First</span>
+                    </label>
+                    <div class="form-hint">
+                      If checked, acceptance is evaluated before offering. If unchecked, offering is evaluated first.
+                    </div>
+                  </div>
+
+                  <button
+                    class="btn btn-primary"
+                    @click="applyMAPToSlot"
+                    :disabled="!mapConfig.acceptance_policy || !mapConfig.offering_policy"
+                  >
+                    Apply to Selected Slot
+                  </button>
+                </div>
+
+                <div class="text-muted-sm">
+                  <strong>MAP Architecture:</strong> Advanced modular negotiators with multiple models and flexible component ordering.
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab 3: Mechanism Parameters -->
+            <div v-show="currentTab === 'parameters'" class="tab-content">
+              <div class="form-group">
+                <label class="form-label">Mechanism Protocol</label>
+                <div class="mechanism-selector">
+                  <button
+                    type="button"
+                    class="mechanism-card"
+                    :class="{ selected: mechanismType === 'SAOMechanism' }"
+                    @click="mechanismType = 'SAOMechanism'"
+                  >
+                    <span class="mechanism-name">SAO</span>
+                    <span class="mechanism-desc">Stacked Alternating Offers</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="shareUfuns" />
+                  <span>Share utility functions</span>
+                </label>
+                <div class="form-hint">Give each negotiator access to opponent's utility function</div>
+              </div>
+
+              <!-- Basic Time Limits -->
+              <div class="param-section">
+                <h4 class="param-section-title">Time Limits</h4>
+
+                <div class="form-group">
+                  <label class="form-label">Number of Steps</label>
+                  <input
+                    type="number"
+                    class="form-input"
+                    v-model.number="mechanismParams.n_steps"
+                    placeholder="None (infinite)"
+                  />
+                  <div class="form-hint">Maximum number of negotiation rounds</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Time Limit (seconds)</label>
+                  <input
+                    type="number"
+                    class="form-input"
+                    v-model.number="mechanismParams.time_limit"
+                    step="0.1"
+                    placeholder="None (infinite)"
+                  />
+                  <div class="form-hint">Maximum wall-time allowed for negotiation</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Step Time Limit (seconds)</label>
+                  <input
+                    type="number"
+                    class="form-input"
+                    v-model.number="mechanismParams.step_time_limit"
+                    step="0.1"
+                    placeholder="None (infinite)"
+                  />
+                  <div class="form-hint">Maximum wall-time per negotiation round</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Negotiator Time Limit (seconds)</label>
+                  <input
+                    type="number"
+                    class="form-input"
+                    v-model.number="mechanismParams.negotiator_time_limit"
+                    step="0.1"
+                    placeholder="None (infinite)"
+                  />
+                  <div class="form-hint">Maximum time per negotiator action</div>
+                </div>
+              </div>
+
+              <!-- Probabilistic Ending -->
+              <div class="param-section">
+                <h4 class="param-section-title">Probabilistic Ending</h4>
+
+                <div class="form-group">
+                  <label class="form-label">Pend (probability)</label>
+                  <input
+                    type="number"
+                    class="form-input"
+                    v-model.number="mechanismParams.pend"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    placeholder="0"
+                  />
+                  <div class="form-hint">Probability of ending negotiation at any step</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Pend per Second (probability)</label>
+                  <input
+                    type="number"
+                    class="form-input"
+                    v-model.number="mechanismParams.pend_per_second"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    placeholder="0"
+                  />
+                  <div class="form-hint">Probability of ending per second</div>
+                </div>
+              </div>
+
+              <!-- Core Behavior -->
+              <div class="param-section">
+                <h4 class="param-section-title">Core Behavior</h4>
+
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="mechanismParams.end_on_no_response" />
+                  <span>End on No Response</span>
+                </label>
+                <div class="form-hint">End if negotiator returns NO_RESPONSE</div>
+
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="mechanismParams.offering_is_accepting" />
+                  <span>Offering is Accepting</span>
+                </label>
+                <div class="form-hint">Proposing an offer implies accepting it</div>
+
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="mechanismParams.allow_offering_just_rejected_outcome" />
+                  <span>Allow Offering Just Rejected Outcome</span>
+                </label>
+                <div class="form-hint">Allow re-offering outcomes just rejected</div>
+
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="mechanismParams.one_offer_per_step" />
+                  <span>One Offer per Step</span>
+                </label>
+                <div class="form-hint">Each step processes only one negotiator's offer</div>
+              </div>
+
+              <!-- Offer Validation -->
+              <div class="param-section">
+                <h4 class="param-section-title">Offer Validation</h4>
+
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="mechanismParams.check_offers" />
+                  <span>Check Offers</span>
+                </label>
+                <div class="form-hint">Validate offers against outcome space</div>
+
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="mechanismParams.enforce_issue_types" />
+                  <span>Enforce Issue Types</span>
+                </label>
+                <div class="form-hint">Enforce correct types for issue values</div>
+
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="mechanismParams.cast_offers" :disabled="!mechanismParams.enforce_issue_types" />
+                  <span>Cast Offers</span>
+                </label>
+                <div class="form-hint">Cast issue values to correct types (requires enforce_issue_types)</div>
+              </div>
+
+              <!-- Advanced Settings (Collapsible) -->
+              <div class="param-section collapsible">
+                <h4 class="param-section-title" @click="showAdvancedMechParams = !showAdvancedMechParams">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    width="16"
+                    height="16"
+                    :style="{ transform: showAdvancedMechParams ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }"
+                  >
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                  Advanced Settings
+                </h4>
+
+                <div v-if="showAdvancedMechParams" class="param-section-content">
+                  <div class="form-group">
+                    <label class="form-label">Hidden Time Limit (seconds)</label>
+                    <input
+                      type="number"
+                      class="form-input"
+                      v-model.number="mechanismParams.hidden_time_limit"
+                      step="0.1"
+                      placeholder="inf"
+                    />
+                    <div class="form-hint">Time limit not visible to negotiators</div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Max Wait</label>
+                    <input
+                      type="number"
+                      class="form-input"
+                      v-model.number="mechanismParams.max_wait"
+                      placeholder="sys.maxsize"
+                    />
+                    <div class="form-hint">Maximum consecutive WAIT responses before timeout</div>
+                  </div>
+
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="mechanismParams.sync_calls" />
+                    <span>Synchronous Calls</span>
+                  </label>
+                  <div class="form-hint">Disable per-call timeouts (slower but easier debugging)</div>
+
+                  <div class="form-group">
+                    <label class="form-label">Max N Negotiators</label>
+                    <input
+                      type="number"
+                      class="form-input"
+                      v-model.number="mechanismParams.max_n_negotiators"
+                      placeholder="None"
+                    />
+                    <div class="form-hint">Maximum allowed number of negotiators</div>
+                  </div>
+
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="mechanismParams.dynamic_entry" />
+                    <span>Dynamic Entry</span>
+                  </label>
+                  <div class="form-hint">Allow negotiators to enter/leave between rounds</div>
+
+                  <div class="form-group">
+                    <label class="form-label">Max Cardinality</label>
+                    <input
+                      type="number"
+                      class="form-input"
+                      v-model.number="mechanismParams.max_cardinality"
+                      placeholder="10000000000"
+                    />
+                    <div class="form-hint">Maximum number of outcomes in cached set</div>
+                  </div>
+
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="mechanismParams.ignore_negotiator_exceptions" />
+                    <span>Ignore Negotiator Exceptions</span>
+                  </label>
+                  <div class="form-hint">Silently ignore negotiator exceptions</div>
+
+                  <div class="form-group">
+                    <label class="form-label">Verbosity (0-3)</label>
+                    <input
+                      type="number"
+                      class="form-input"
+                      v-model.number="mechanismParams.verbosity"
+                      min="0"
+                      max="3"
+                      placeholder="0"
+                    />
+                    <div class="form-hint">Logging verbosity level</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab 4: Panels Configuration -->
+            <div v-show="currentTab === 'panels'" class="tab-content">
+              <div class="form-group">
+                <label class="form-label">Panel Configuration</label>
+                <div class="form-hint">Configure which panels to display during the negotiation</div>
+              </div>
+
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="panels.adjustable" />
+                  <span>Adjustable panels</span>
+                </label>
+                <div class="form-hint">Allow resizing panels during negotiation</div>
+              </div>
+
+              <div class="param-section">
+                <h4 class="param-section-title">Utility Space View</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">X-Axis (Negotiator)</label>
+                    <select class="form-select" v-model.number="panels.utilityView.xAxis">
+                      <option v-for="(neg, idx) in negotiators" :key="idx" :value="idx">
+                        {{ neg.name || `Agent ${idx + 1}` }}
+                      </option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Y-Axis (Negotiator)</label>
+                    <select class="form-select" v-model.number="panels.utilityView.yAxis">
+                      <option v-for="(neg, idx) in negotiators" :key="idx" :value="idx">
+                        {{ neg.name || `Agent ${idx + 1}` }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="param-section">
+                <h4 class="param-section-title">Timeline View</h4>
+                <div class="form-group">
+                  <label class="form-label">X-Axis</label>
+                  <select class="form-select" v-model="panels.timeline.xAxis">
+                    <option value="step">Step</option>
+                    <option value="time">Time</option>
+                    <option value="relative_time">Relative Time</option>
+                  </select>
+                </div>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="panels.timeline.simplified" />
+                  <span>Simplified View</span>
+                </label>
+                <div class="form-hint">Show single plot instead of per-agent plots</div>
+              </div>
+
+              <div class="param-section">
+                <h4 class="param-section-title">Issue Space 2D</h4>
+                <div v-if="issueOptions.length >= 2" class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">X-Axis (Issue)</label>
+                    <select class="form-select" v-model.number="panels.issueSpace.xAxis">
+                      <option v-for="opt in issueOptions" :key="opt.value" :value="opt.value">
+                        {{ opt.label }}
+                      </option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Y-Axis (Issue)</label>
+                    <select class="form-select" v-model.number="panels.issueSpace.yAxis">
+                      <option v-for="opt in issueOptions" :key="opt.value" :value="opt.value">
+                        {{ opt.label }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+                <div v-else class="form-hint" style="color: var(--text-muted); font-style: italic;">
+                  Not available for this scenario (requires 2+ named issues)
+                </div>
+                <div v-if="issueOptions.length >= 2" class="form-hint">Select which issues to display on X and Y axes</div>
+              </div>
+            </div>
+
+            <!-- Tab 5: Display & Run -->
+            <div v-show="currentTab === 'display'" class="tab-content">
+              <div class="form-group">
+                <label class="form-label">Summary</label>
+                <div class="summary-box">
+                  <div><strong>Scenario:</strong> {{ selectedScenario?.name || 'Not selected' }}</div>
+                  <div>
+                    <strong>Negotiators:</strong>
+                    {{ negotiators.map(n => getNegotiatorDisplayName(n.type_name)).join(' vs ') || 'None' }}
+                  </div>
+                  <div><strong>Mechanism:</strong> {{ mechanismType.replace('Mechanism', '') }}</div>
+                  <div><strong>Deadline:</strong> {{ getDeadlineSummary() }}</div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Step Delay: {{ stepDelay }}ms</label>
+                <input
+                  type="range"
+                  class="form-range"
+                  v-model.number="stepDelay"
+                  min="0"
+                  max="1000"
+                  step="50"
+                />
+                <div class="form-hint">Delay between steps for visualization</div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="displayOptions.showPlot" />
+                    <span>Show live utility plot</span>
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="displayOptions.showOffers" />
+                    <span>Show offer history</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="autoSave" />
+                  <span>Auto-save negotiation</span>
+                </label>
+                <div class="form-hint">Save results to disk when negotiation completes</div>
+              </div>
+
+              <!-- Save Options (collapsible) -->
+              <div v-if="autoSave" class="param-section collapsible">
+                <h4 class="param-section-title" @click="showSaveOptions = !showSaveOptions">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    width="16"
+                    height="16"
+                    :style="{ transform: showSaveOptions ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }"
+                  >
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                  Save Options
+                </h4>
+                
+                <div v-if="showSaveOptions" class="param-section-content">
+                  <div class="form-group">
+                    <label class="form-label">History Source</label>
+                    <select class="form-select" v-model="saveOptions.source">
+                      <option value="">Auto (let negmas decide)</option>
+                      <option value="history">History (minimal)</option>
+                      <option value="trace">Trace</option>
+                      <option value="extended_trace">Extended Trace</option>
+                      <option value="full_trace">Full Trace</option>
+                      <option value="full_trace_with_utils">Full Trace with Utils</option>
+                    </select>
+                    <div class="form-hint">What negotiation history data to save</div>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label class="form-label">Storage Format</label>
+                    <select class="form-select" v-model="saveOptions.storage_format">
+                      <option value="parquet">Parquet (best compression)</option>
+                      <option value="csv">CSV (human-readable)</option>
+                      <option value="gzip">Gzip (compressed CSV)</option>
+                    </select>
+                    <div class="form-hint">Format for trace files</div>
+                  </div>
+                  
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="saveOptions.single_file" />
+                    <span>Save as single file</span>
+                  </label>
+                  <div class="form-hint">Save entire trace in one file instead of a directory</div>
+                  
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="saveOptions.save_scenario" />
+                    <span>Save scenario</span>
+                  </label>
+                  <div class="form-hint">Save utility functions and outcome space</div>
+                  
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="saveOptions.save_scenario_stats" />
+                    <span>Save scenario statistics</span>
+                  </label>
+                  <div class="form-hint">Save Pareto frontier, Nash, Kalai-Smorodinsky points</div>
+                  
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="saveOptions.save_agreement_stats" />
+                    <span>Save agreement statistics</span>
+                  </label>
+                  <div class="form-hint">Save optimality metrics of the agreement</div>
+                  
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="saveOptions.save_config" />
+                    <span>Save mechanism config</span>
+                  </label>
+                  <div class="form-hint">Save mechanism parameters</div>
+                  
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="saveOptions.generate_previews" />
+                    <span>Generate preview images</span>
+                  </label>
+                  <div class="form-hint">Generate thumbnail previews for the negotiations list</div>
+                </div>
+              </div>
+
+              <!-- Panel visibility controls removed - panels are always visible and can be collapsed individually -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="$emit('close')">Cancel</button>
+        <button v-if="currentTab !== 'scenario'" class="btn btn-secondary" @click="prevTab">Back</button>
+        <button v-if="currentTab !== 'display'" class="btn btn-primary" @click="nextTab" :disabled="!canProceed">
+          Next
+        </button>
+        <button v-if="currentTab === 'display' && !editMode && !startMode" class="btn btn-secondary" @click="startWithoutMonitoring" :disabled="starting">
+          Start without Monitoring
+        </button>
+        <button v-if="currentTab === 'display' && !editMode" class="btn btn-primary" @click="startNegotiation" :disabled="starting">
+          {{ starting ? 'Starting...' : 'Start Negotiation' }}
+        </button>
+        <button v-if="currentTab === 'display' && editMode && !startMode" class="btn btn-primary" @click="saveConfig" :disabled="starting">
+          Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Save Session Modal -->
+  <div v-if="showSaveModal" class="modal-overlay active" @click.self="showSaveModal = false">
+    <div class="modal small">
+      <div class="modal-header">
+        <h2 class="modal-title">Save Session Configuration</h2>
+        <button class="modal-close" @click="showSaveModal = false">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Configuration Name</label>
+          <input
+            type="text"
+            class="form-input"
+            v-model="savePresetName"
+            placeholder="e.g., My Default Setup"
+            @keyup.enter="saveFullSession"
+          />
+          <div class="form-hint">
+            Give this configuration a memorable name so you can easily load it later
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="showSaveModal = false">Cancel</button>
+        <button class="btn btn-primary" @click="saveFullSession" :disabled="!savePresetName.trim()">
+          Save Configuration
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Name Conflict Confirmation Dialog -->
+  <div v-if="showOverwriteConfirm" class="modal-overlay active" style="z-index: 2000;" @click.self="showOverwriteConfirm = false">
+    <div class="modal small">
+      <div class="modal-header">
+        <h2 class="modal-title">Preset Already Exists</h2>
+        <button class="modal-close" @click="showOverwriteConfirm = false">×</button>
+      </div>
+      <div class="modal-body">
+        <p>A preset named "<strong>{{ pendingPresetName }}</strong>" already exists. What would you like to do?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="showOverwriteConfirm = false">Cancel</button>
+        <button class="btn btn-primary" @click="confirmOverwritePreset">Overwrite</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Negotiator Configuration Modal -->
+  <NegotiatorConfigModal
+    :show="showConfigModal"
+    :negotiator-type="configNegotiatorIndex !== null ? negotiators[configNegotiatorIndex]?.type_name : ''"
+    :negotiator-name="configNegotiatorIndex !== null ? negotiators[configNegotiatorIndex]?.name : ''"
+    :existing-params="configNegotiatorIndex !== null ? negotiators[configNegotiatorIndex]?.params || {} : {}"
+    @close="showConfigModal = false"
+    @apply="applyNegotiatorConfig"
+    @virtual-saved="handleVirtualSaved"
+  />
+  
+  <!-- Time Pressure Modal -->
+  <TimePressureModal
+    :show="showTimePressureModal"
+    :negotiator-name="timePressureNegotiatorIndex !== null ? negotiators[timePressureNegotiatorIndex]?.name : ''"
+    :existing-n-steps="timePressureNegotiatorIndex !== null ? negotiators[timePressureNegotiatorIndex]?.n_steps : null"
+    :existing-time-limit="timePressureNegotiatorIndex !== null ? negotiators[timePressureNegotiatorIndex]?.time_limit : null"
+    @close="showTimePressureModal = false"
+    @apply="applyTimePressure"
+  />
+  
+  <!-- Scenario Stats Modal -->
+  <StatsModal
+    :show="showScenarioStatsModal"
+    :negotiation="scenarioForStats"
+    @close="showScenarioStatsModal = false"
+  />
+  
+  <!-- Negotiator Info Modal -->
+  <NegotiatorInfoModal
+    :show="showNegotiatorInfoModal"
+    :type-name="negotiatorForInfo?.type_name || ''"
+    :negotiator="negotiatorForInfo"
+    @close="showNegotiatorInfoModal = false"
+  />
+  
+  <!-- BOA/MAP Component Configuration Modal -->
+  <NegotiatorConfigModal
+    :show="showComponentConfigModal"
+    :negotiator-type="componentConfigName"
+    :negotiator-name="componentConfigName"
+    :existing-params="componentConfigParams"
+    :is-boa-component="true"
+    @close="showComponentConfigModal = false"
+    @apply="applyComponentConfig"
+  />
+</template>
+
+<script setup>
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useNegotiationsStore } from '../stores/negotiations'
+import NegotiatorConfigModal from './NegotiatorConfigModal.vue'
+import TimePressureModal from './TimePressureModal.vue'
+import StatsModal from './StatsModal.vue'
+import NegotiatorInfoModal from './NegotiatorInfoModal.vue'
+
+const negotiationsStore = useNegotiationsStore()
+
+const props = defineProps({
+  show: Boolean,
+  preselectedScenario: Object,
+  editMode: Boolean,
+  startMode: Boolean,
+  initialData: Object,
+})
+
+const emit = defineEmits(['close', 'start', 'startBackground', 'saved'])
+
+
+
+// Filter out disabled presets for the Load dropdown
+const enabledSessionPresets = computed(() => {
+  return (negotiationsStore.sessionPresets || []).filter(preset => !preset.disabled)
+})
+
+// Filter out disabled presets from Recent sessions
+const enabledRecentSessions = computed(() => {
+  return (negotiationsStore.recentSessions || []).filter(session => !session.disabled)
+})
+
+// Tab management
+const currentTab = ref('scenario')
+const negotiatorSubTab = ref('preset')
+
+// Scenario data
+const scenarios = ref([])
+const selectedScenario = ref(null)
+const scenarioSearch = ref('')
+const sourceFilter = ref('')
+const scenarioSources = ref([])
+const showAdvancedFilters = ref(false)
+const filters = ref({
+  minOutcomes: null,
+  maxOutcomes: null,
+  minRationalFraction: null,
+  maxRationalFraction: null,
+  minOpposition: null,
+  maxOpposition: null,
+})
+
+// Scenario options
+const options = ref({
+  ignoreDiscount: false,
+  ignoreReserved: false,
+  normalize: false,
+  saveScenario: false,  // Save modified scenario with negotiation
+})
+
+// Negotiators data
+const allNegotiators = ref([])
+const negotiators = ref([])
+const selectedSlot = ref(0)
+const negotiatorSearch = ref('')
+const negotiatorSourceFilter = ref('')
+const negotiatorYearFilter = ref('')
+const negotiatorTagFilter = ref('')
+const negotiatorSources = ref([])
+const allNegotiatorTags = ref([])
+
+// BOA/MAP configuration
+const boaComponents = ref({
+  acceptance: [],
+  offering: [],
+  model: [],
+})
+const boaConfig = ref({
+  acceptance_policy: '',
+  offering_policy: '',
+  opponent_model: '',
+  // Component parameters
+  acceptance_params: {},
+  offering_params: {},
+  model_params: {},
+})
+const mapConfig = ref({
+  acceptance_policy: '',
+  offering_policy: '',
+  models: [],
+  acceptance_first: false,
+  // Component parameters
+  acceptance_params: {},
+  offering_params: {},
+  model_params: [],  // Array of params for each model
+})
+const selectedMapModel = ref('')
+
+// BOA/MAP component configuration modal
+const showComponentConfigModal = ref(false)
+const componentConfigType = ref('')  // 'acceptance', 'offering', 'model'
+const componentConfigName = ref('')  // Component class name
+const componentConfigParams = ref({})
+const componentConfigCallback = ref(null)  // Function to call when modal closes
+
+// Mechanism params
+const mechanismType = ref('SAOMechanism')
+const shareUfuns = ref(false) // Session-level parameter, not mechanism param
+const mechanismParams = ref({
+  n_steps: null,
+  time_limit: null,
+  step_time_limit: null,
+  negotiator_time_limit: null,
+  pend: 0,
+  pend_per_second: 0,
+  end_on_no_response: true,
+  offering_is_accepting: true,
+  allow_offering_just_rejected_outcome: true,
+  one_offer_per_step: false,
+  check_offers: false,
+  enforce_issue_types: false,
+  cast_offers: false,
+  hidden_time_limit: null,
+  max_wait: null,
+  sync_calls: false,
+  max_n_negotiators: null,
+  dynamic_entry: false,
+  max_cardinality: null,
+  ignore_negotiator_exceptions: false,
+  verbosity: 0,
+})
+const showAdvancedMechParams = ref(false)
+
+// Panel configuration
+const panels = ref({
+  adjustable: false,
+  utilityView: { xAxis: 0, yAxis: 1 },
+  timeline: { xAxis: 'relative_time', simplified: false },
+  issueSpace: { xAxis: 0, yAxis: 1 },
+  visible: {
+    info: true,
+    history: true,
+    result: true,
+    utility2d: true,
+    issueSpace2d: false,
+    timeline: true,
+    histogram: false,
+  },
+})
+
+// Display & Run
+const runMode = ref('realtime')
+const stepDelay = ref(100)
+const displayOptions = ref({
+  showPlot: true,
+  showOffers: true,
+})
+const autoSave = ref(true)
+const starting = ref(false)
+const showSaveOptions = ref(false)
+const saveOptions = ref({
+  source: '',  // Empty string means null/auto on backend
+  storage_format: 'parquet',
+  single_file: false,
+  save_scenario: true,
+  save_scenario_stats: false,
+  save_agreement_stats: true,
+  save_config: true,
+  generate_previews: true,
+})
+
+// Session preset management
+const showSaveModal = ref(false)
+const savePresetName = ref('')
+const recentDropdownOpen = ref(false)
+const savedDropdownOpen = ref(false)
+const isLoadingPresets = ref(false)
+const saveSuccessMessage = ref('')
+const showOverwriteConfirm = ref(false)
+const pendingPresetName = ref('')
+
+// Negotiator configuration modal
+const showConfigModal = ref(false)
+const configNegotiatorIndex = ref(null)
+
+// Time pressure modal
+const showTimePressureModal = ref(false)
+const timePressureNegotiatorIndex = ref(null)
+
+// Scenario stats modal
+const showScenarioStatsModal = ref(false)
+const scenarioForStats = ref(null)
+
+// Negotiator info modal
+const showNegotiatorInfoModal = ref(false)
+const negotiatorForInfo = ref(null)
+
+// Computed
+const filteredScenarios = computed(() => {
+  let result = scenarios.value
+
+  // Text search
+  if (scenarioSearch.value) {
+    const search = scenarioSearch.value.toLowerCase()
+    result = result.filter(s =>
+      s.name.toLowerCase().includes(search) ||
+      s.source.toLowerCase().includes(search)
+    )
+  }
+
+  // Source filter
+  if (sourceFilter.value) {
+    result = result.filter(s => s.source === sourceFilter.value)
+  }
+
+  // Advanced filters
+  if (filters.value.minOutcomes !== null) {
+    result = result.filter(s => s.n_outcomes && s.n_outcomes >= filters.value.minOutcomes)
+  }
+  if (filters.value.maxOutcomes !== null) {
+    result = result.filter(s => s.n_outcomes && s.n_outcomes <= filters.value.maxOutcomes)
+  }
+  if (filters.value.minRationalFraction !== null) {
+    result = result.filter(s => s.rational_fraction && s.rational_fraction >= filters.value.minRationalFraction)
+  }
+  if (filters.value.maxRationalFraction !== null) {
+    result = result.filter(s => s.rational_fraction && s.rational_fraction <= filters.value.maxRationalFraction)
+  }
+  if (filters.value.minOpposition !== null) {
+    result = result.filter(s => s.opposition !== null && s.opposition >= filters.value.minOpposition)
+  }
+  if (filters.value.maxOpposition !== null) {
+    result = result.filter(s => s.opposition !== null && s.opposition <= filters.value.maxOpposition)
+  }
+
+  return result
+})
+
+const filteredNegotiators = computed(() => {
+  let result = allNegotiators.value
+
+  // Text search
+  if (negotiatorSearch.value) {
+    const search = negotiatorSearch.value.toLowerCase()
+    result = result.filter(n =>
+      n.name.toLowerCase().includes(search) ||
+      n.type_name.toLowerCase().includes(search)
+    )
+  }
+
+  // Source filter
+  if (negotiatorSourceFilter.value) {
+    result = result.filter(n => n.source === negotiatorSourceFilter.value)
+  }
+
+  // Year filter (for Genius agents)
+  if (negotiatorYearFilter.value) {
+    result = result.filter(n => n.anac_year === negotiatorYearFilter.value)
+  }
+
+  // Tag filter
+  if (negotiatorTagFilter.value) {
+    result = result.filter(n => n.tags && n.tags.includes(negotiatorTagFilter.value))
+  }
+
+  return result
+})
+
+const canProceed = computed(() => {
+  if (currentTab.value === 'scenario') return !!selectedScenario.value
+  if (currentTab.value === 'negotiators') {
+    return negotiators.value.length === (selectedScenario.value?.n_negotiators || 2) &&
+           negotiators.value.every(n => n.type_name)
+  }
+  return true
+})
+
+// Check if scenario is being modified (normalize, ignore discount, or ignore reserved)
+const scenarioModified = computed(() => {
+  return options.value.normalize || options.value.ignoreDiscount || options.value.ignoreReserved
+})
+
+const issueOptions = computed(() => {
+  if (!selectedScenario.value?.issues || selectedScenario.value.issues.length === 0) {
+    // Fallback: if scenario loaded but issues not yet available, 
+    // return empty to avoid showing fake names
+    return []
+  }
+  return selectedScenario.value.issues.map((issue, idx) => ({
+    value: idx,
+    label: issue.name
+  }))
+})
+
+// Check if histogram should be available for this scenario
+// For enumerated outcome spaces (no named issues), histogram shows all outcomes
+// which can be very slow for large spaces
+const histogramAvailable = computed(() => {
+  const scenario = selectedScenario.value
+  if (!scenario) return true // Allow by default if no scenario selected yet
+  
+  // If scenario has named issues, histogram is efficient (shows per-issue distribution)
+  if (scenario.issues && scenario.issues.length > 0) return true
+  
+  // For enumerated spaces, check outcome count against threshold
+  const MAX_HISTOGRAM_OUTCOMES = 10000 // TODO: Get from settings
+  const outcomeCount = scenario.n_outcomes || 0
+  
+  return outcomeCount <= MAX_HISTOGRAM_OUTCOMES
+})
+
+const histogramDisabledReason = computed(() => {
+  if (histogramAvailable.value) return null
+  
+  const outcomeCount = selectedScenario.value?.n_outcomes || 0
+  return `Histogram disabled: ${formatNumber(outcomeCount)} outcomes exceeds limit of 10,000 for enumerated outcome spaces`
+})
+
+// Methods
+function formatNumber(num) {
+  if (num === null || num === undefined) return 'N/A'
+  if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B'
+  if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M'
+  if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K'
+  return num.toString()
+}
+
+function clearFilters() {
+  filters.value = {
+    minOutcomes: null,
+    maxOutcomes: null,
+    minRationalFraction: null,
+    maxRationalFraction: null,
+    minOpposition: null,
+    maxOpposition: null,
+  }
+}
+
+function selectScenario(scenario) {
+  selectedScenario.value = scenario
+  
+  // Initialize negotiators array
+  const numNegotiators = scenario.n_negotiators || 2
+  negotiators.value = Array.from({ length: numNegotiators }, () => ({
+    type_name: '',
+    name: '',
+    params: {},
+    source: '',
+    time_limit: null,
+    n_steps: null,
+  }))
+  selectedSlot.value = 0
+  
+  // Auto-disable histogram if outcome space is too large for enumerated spaces
+  if (!histogramAvailable.value) {
+    panels.value.visible.histogram = false
+  }
+}
+
+function filterScenarios() {
+  // Trigger computed property recalculation
+}
+
+function filterNegotiators() {
+  // Trigger computed property recalculation
+}
+
+function getNegotiatorDisplayName(typeName) {
+  if (!typeName) return 'Empty'
+  const neg = allNegotiators.value.find(n => n.type_name === typeName)
+  return neg?.name || typeName
+}
+
+function formatParams(params) {
+  return Object.entries(params)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(', ')
+    .substring(0, 50)
+}
+
+function selectNegotiatorForSlot(negotiator) {
+  if (selectedSlot.value < negotiators.value.length) {
+    negotiators.value[selectedSlot.value] = {
+      type_name: negotiator.type_name,
+      name: negotiator.name || `Agent ${selectedSlot.value + 1}`,
+      params: {},
+      source: negotiator.source,
+      time_limit: null,
+      n_steps: null,
+    }
+    // Move to next slot
+    if (selectedSlot.value < negotiators.value.length - 1) {
+      selectedSlot.value++
+    }
+  }
+}
+
+function openNegotiatorConfig(index) {
+  configNegotiatorIndex.value = index
+  showConfigModal.value = true
+}
+
+function applyNegotiatorConfig(result) {
+  if (configNegotiatorIndex.value !== null) {
+    negotiators.value[configNegotiatorIndex.value].params = result.params
+  }
+  showConfigModal.value = false
+}
+
+function openTimePressure(index) {
+  timePressureNegotiatorIndex.value = index
+  showTimePressureModal.value = true
+}
+
+function applyTimePressure(result) {
+  if (timePressureNegotiatorIndex.value !== null) {
+    negotiators.value[timePressureNegotiatorIndex.value].time_limit = result.time_limit
+    negotiators.value[timePressureNegotiatorIndex.value].n_steps = result.n_steps
+  }
+  showTimePressureModal.value = false
+}
+
+function showScenarioInfo(scenario) {
+  scenarioForStats.value = { scenario_path: scenario.path }
+  showScenarioStatsModal.value = true
+}
+
+function showNegotiatorInfo(negotiator) {
+  negotiatorForInfo.value = negotiator
+  showNegotiatorInfoModal.value = true
+}
+
+function handleVirtualSaved() {
+  // Optionally reload negotiators list if needed
+  // For now, just show a success message in the UI
+  console.log('Virtual negotiator saved successfully')
+}
+
+async function loadBOAComponents() {
+  if (boaComponents.value.acceptance.length > 0) return // Already loaded
+
+  try {
+    const response = await fetch('/api/components')
+    const data = await response.json()
+    
+    boaComponents.value = {
+      acceptance: data.acceptance || [],
+      offering: data.offering || [],
+      model: data.model || [],
+    }
+  } catch (error) {
+    console.error('Failed to load BOA components:', error)
+  }
+}
+
+function applyBOAToSlot() {
+  if (selectedSlot.value < negotiators.value.length) {
+    negotiators.value[selectedSlot.value] = {
+      type_name: 'BOANegotiator',
+      name: `BOA ${selectedSlot.value + 1}`,
+      params: {
+        acceptance_policy: boaConfig.value.acceptance_policy,
+        offering_policy: boaConfig.value.offering_policy,
+        opponent_model: boaConfig.value.opponent_model || null,
+        // Include component parameters
+        acceptance_params: boaConfig.value.acceptance_params || {},
+        offering_params: boaConfig.value.offering_params || {},
+        model_params: boaConfig.value.model_params || {},
+      },
+      source: 'custom',
+      time_limit: null,
+      n_steps: null,
+    }
+    
+    // Reset BOA config
+    boaConfig.value = {
+      acceptance_policy: '',
+      offering_policy: '',
+      opponent_model: '',
+      acceptance_params: {},
+      offering_params: {},
+      model_params: {},
+    }
+  }
+}
+
+function addMapModel() {
+  if (selectedMapModel.value && !mapConfig.value.models.includes(selectedMapModel.value)) {
+    mapConfig.value.models.push(selectedMapModel.value)
+    // Add empty params for this model
+    mapConfig.value.model_params.push({})
+    selectedMapModel.value = ''
+  }
+}
+
+function removeMapModel(index) {
+  mapConfig.value.models.splice(index, 1)
+  mapConfig.value.model_params.splice(index, 1)
+}
+
+function applyMAPToSlot() {
+  if (selectedSlot.value < negotiators.value.length) {
+    negotiators.value[selectedSlot.value] = {
+      type_name: 'MAPNegotiator',
+      name: `MAP ${selectedSlot.value + 1}`,
+      params: {
+        acceptance_policy: mapConfig.value.acceptance_policy,
+        offering_policy: mapConfig.value.offering_policy,
+        models: mapConfig.value.models,
+        acceptance_first: mapConfig.value.acceptance_first,
+        // Include component parameters
+        acceptance_params: mapConfig.value.acceptance_params || {},
+        offering_params: mapConfig.value.offering_params || {},
+        model_params: mapConfig.value.model_params || [],
+      },
+      source: 'custom',
+      time_limit: null,
+      n_steps: null,
+    }
+    
+    // Reset MAP config
+    mapConfig.value = {
+      acceptance_policy: '',
+      offering_policy: '',
+      models: [],
+      acceptance_first: false,
+      acceptance_params: {},
+      offering_params: {},
+      model_params: [],
+    }
+  }
+}
+
+// BOA/MAP component configuration helpers
+function openComponentConfig(componentType, componentName, existingParams, callback) {
+  componentConfigType.value = componentType
+  componentConfigName.value = componentName
+  componentConfigParams.value = existingParams || {}
+  componentConfigCallback.value = callback
+  showComponentConfigModal.value = true
+}
+
+function applyComponentConfig(params) {
+  if (componentConfigCallback.value) {
+    componentConfigCallback.value(params)
+  }
+  showComponentConfigModal.value = false
+}
+
+function openMapModelConfig(index) {
+  const modelName = mapConfig.value.models[index]
+  const existingParams = mapConfig.value.model_params[index] || {}
+  openComponentConfig('model', modelName, existingParams, (params) => {
+    mapConfig.value.model_params[index] = params
+  })
+}
+
+function formatComponentParams(params) {
+  if (!params || Object.keys(params).length === 0) return ''
+  return Object.entries(params)
+    .filter(([_, v]) => v !== null && v !== undefined && v !== '')
+    .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+    .join(', ')
+}
+
+function getDeadlineSummary() {
+  const parts = []
+  if (mechanismParams.value.n_steps) {
+    parts.push(`${mechanismParams.value.n_steps} steps`)
+  }
+  if (mechanismParams.value.time_limit) {
+    parts.push(`${mechanismParams.value.time_limit}s`)
+  }
+  return parts.length > 0 ? parts.join(' or ') : 'None (infinite)'
+}
+
+function prevTab() {
+  const tabs = ['scenario', 'negotiators', 'parameters', 'panels', 'display']
+  const currentIndex = tabs.indexOf(currentTab.value)
+  if (currentIndex > 0) {
+    currentTab.value = tabs[currentIndex - 1]
+  }
+}
+
+function nextTab() {
+  if (!canProceed.value) return
+  
+  const tabs = ['scenario', 'negotiators', 'parameters', 'panels', 'display']
+  const currentIndex = tabs.indexOf(currentTab.value)
+  if (currentIndex < tabs.length - 1) {
+    currentTab.value = tabs[currentIndex + 1]
+  }
+}
+
+async function startNegotiation() {
+  if (starting.value) return
+  starting.value = true
+
+  try {
+    // Determine if scenario should be saved with negotiation
+    // Always save if scenario is modified (normalize, ignore discount, ignore reserved)
+    const shouldSaveScenario = scenarioModified.value || options.value.saveScenario
+    
+    // Only send fields that backend expects
+    const request = {
+      scenario_path: selectedScenario.value.path,
+      negotiators: negotiators.value.map(n => ({
+        type_name: n.type_name,
+        name: n.name || null,
+        params: n.params || {},
+        time_limit: n.time_limit || null,
+        n_steps: n.n_steps || null,
+      })),
+      mechanism_type: mechanismType.value,
+      mechanism_params: mechanismParams.value,
+      ignore_discount: options.value.ignoreDiscount,
+      ignore_reserved: options.value.ignoreReserved,
+      normalize: options.value.normalize,
+      save_scenario: shouldSaveScenario,  // Save (modified) scenario with negotiation
+      step_delay: stepDelay.value / 1000, // Convert ms to seconds
+      share_ufuns: shareUfuns.value,
+      auto_save: autoSave.value,
+      save_options: autoSave.value ? {
+        source: saveOptions.value.source || null,  // Convert empty string to null
+        storage_format: saveOptions.value.storage_format,
+        single_file: saveOptions.value.single_file,
+        save_scenario: shouldSaveScenario,  // Use the computed value
+        save_scenario_stats: saveOptions.value.save_scenario_stats,
+        save_agreement_stats: saveOptions.value.save_agreement_stats,
+        save_config: saveOptions.value.save_config,
+        generate_previews: saveOptions.value.generate_previews,
+      } : null,
+    }
+
+    // Use background endpoint so negotiation continues even if we navigate away
+    const response = await fetch('/api/negotiation/start_background', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    })
+
+    const data = await response.json()
+    
+    // Add to recent sessions
+    const preset = buildSessionPreset(selectedScenario.value.name)
+    await negotiationsStore.addToRecentSessions(preset)
+    
+    // Store panel settings in localStorage for this session
+    if (data.session_id) {
+      const panelSettings = {
+        panels: panels.value,
+        runMode: runMode.value,
+        stepDelay: stepDelay.value,
+        displayOptions: displayOptions.value,
+      }
+      localStorage.setItem(`negotiation_settings_${data.session_id}`, JSON.stringify(panelSettings))
+    }
+    
+    // Return session_id for polling-based view
+    const result = {
+      session_id: data.session_id,
+    }
+    
+    emit('start', result)
+    emit('close')
+  } catch (error) {
+    console.error('Failed to start negotiation:', error)
+    alert('Failed to start negotiation: ' + error.message)
+  } finally {
+    starting.value = false
+  }
+}
+
+async function startWithoutMonitoring() {
+  if (starting.value) return
+  starting.value = true
+
+  try {
+    // Determine if scenario should be saved with negotiation
+    const shouldSaveScenario = scenarioModified.value || options.value.saveScenario
+    
+    const request = {
+      scenario_path: selectedScenario.value.path,
+      negotiators: negotiators.value.map(n => ({
+        type_name: n.type_name,
+        name: n.name || null,
+        params: n.params || {},
+        time_limit: n.time_limit || null,
+        n_steps: n.n_steps || null,
+      })),
+      mechanism_type: mechanismType.value,
+      mechanism_params: mechanismParams.value,
+      ignore_discount: options.value.ignoreDiscount,
+      ignore_reserved: options.value.ignoreReserved,
+      normalize: options.value.normalize,
+      save_scenario: shouldSaveScenario,
+      step_delay: stepDelay.value / 1000,
+      share_ufuns: shareUfuns.value,
+      auto_save: autoSave.value,
+      save_options: autoSave.value ? {
+        source: saveOptions.value.source || null,
+        storage_format: saveOptions.value.storage_format,
+        single_file: saveOptions.value.single_file,
+        save_scenario: shouldSaveScenario,
+        save_scenario_stats: saveOptions.value.save_scenario_stats,
+        save_agreement_stats: saveOptions.value.save_agreement_stats,
+        save_config: saveOptions.value.save_config,
+        generate_previews: saveOptions.value.generate_previews,
+      } : null,
+    }
+
+    const response = await fetch('/api/negotiation/start_background', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    })
+
+    const data = await response.json()
+    
+    // Add to recent sessions
+    const preset = buildSessionPreset(selectedScenario.value.name)
+    await negotiationsStore.addToRecentSessions(preset)
+    
+    // Store panel settings in localStorage for this session
+    if (data.session_id) {
+      const panelSettings = {
+        panels: panels.value,
+        runMode: runMode.value,
+        stepDelay: stepDelay.value,
+        displayOptions: displayOptions.value,
+      }
+      localStorage.setItem(`negotiation_settings_${data.session_id}`, JSON.stringify(panelSettings))
+    }
+    
+    // Emit startBackground event - parent should NOT navigate to single view
+    emit('startBackground', { session_id: data.session_id })
+    emit('close')
+  } catch (error) {
+    console.error('Failed to start negotiation:', error)
+    alert('Failed to start negotiation: ' + error.message)
+  } finally {
+    starting.value = false
+  }
+}
+
+async function loadScenarios() {
+  try {
+    const response = await fetch('/api/scenarios')
+    const data = await response.json()
+    scenarios.value = data.scenarios || []
+    
+    // Extract unique sources
+    scenarioSources.value = [...new Set(scenarios.value.map(s => s.source))]
+    
+    // If preselected scenario, select it
+    if (props.preselectedScenario) {
+      const found = scenarios.value.find(s => s.path === props.preselectedScenario.path)
+      if (found) {
+        selectScenario(found)
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load scenarios:', error)
+  }
+}
+
+async function loadNegotiators() {
+  try {
+    const response = await fetch('/api/negotiators')
+    const data = await response.json()
+    allNegotiators.value = data.negotiators || []
+    
+    // Extract unique sources
+    negotiatorSources.value = [...new Set(allNegotiators.value.map(n => n.source))]
+    
+    // Extract unique tags
+    const tags = new Set()
+    allNegotiators.value.forEach(n => {
+      if (n.tags) {
+        n.tags.forEach(tag => tags.add(tag))
+      }
+    })
+    allNegotiatorTags.value = Array.from(tags)
+  } catch (error) {
+    console.error('Failed to load negotiators:', error)
+  }
+}
+
+// Session preset management functions
+async function loadRecentSessions() {
+  await negotiationsStore.loadRecentSessions()
+}
+
+async function loadSessionPresets() {
+  isLoadingPresets.value = true
+  try {
+    await negotiationsStore.loadSessionPresets()
+  } finally {
+    isLoadingPresets.value = false
+  }
+}
+
+function buildSessionPreset(name) {
+  // Sanitize mechanism params - convert empty strings to null
+  const sanitizedMechanismParams = {}
+  for (const [key, value] of Object.entries(mechanismParams.value)) {
+    if (value === '' || value === undefined) {
+      sanitizedMechanismParams[key] = null
+    } else {
+      sanitizedMechanismParams[key] = value
+    }
+  }
+  
+  return {
+    name,
+    scenario_path: selectedScenario.value?.path,
+    scenario_name: selectedScenario.value?.name,
+    negotiators: negotiators.value.map(n => ({
+      type_name: n.type_name,
+      name: n.name,
+      source: n.source || 'native',
+      requires_bridge: n.requires_bridge || false,
+      params: n.params || {}
+    })),
+    mechanism_type: mechanismType.value,
+    mechanism_params: sanitizedMechanismParams,
+    share_ufuns: shareUfuns.value,
+    // Scenario options
+    ignore_discount: options.value.ignoreDiscount,
+    ignore_reserved: options.value.ignoreReserved,
+    normalize: options.value.normalize,
+    save_scenario: options.value.saveScenario,
+    // Display options
+    mode: runMode.value,
+    step_delay: stepDelay.value,
+    show_plot: displayOptions.value.showPlot,
+    show_offers: displayOptions.value.showOffers,
+    auto_save: autoSave.value,
+    panels: panels.value,
+    // Save options
+    save_options: saveOptions.value
+  }
+}
+
+async function saveFullSession() {
+  console.log('[NewNegotiationModal] saveFullSession called')
+  console.log('[NewNegotiationModal] savePresetName:', savePresetName.value)
+  console.log('[NewNegotiationModal] selectedScenario:', selectedScenario.value)
+  
+  if (!savePresetName.value.trim() || !selectedScenario.value) {
+    console.log('[NewNegotiationModal] Validation failed - missing name or scenario')
+    return
+  }
+  
+  const name = savePresetName.value.trim()
+  
+  // Check if preset with this name already exists
+  const existingPreset = negotiationsStore.sessionPresets.find(p => p.name === name)
+  if (existingPreset) {
+    // Show confirmation dialog
+    pendingPresetName.value = name
+    showOverwriteConfirm.value = true
+    return
+  }
+  
+  // Save the preset
+  await doSavePreset(name)
+}
+
+async function confirmOverwritePreset() {
+  showOverwriteConfirm.value = false
+  await doSavePreset(pendingPresetName.value)
+  pendingPresetName.value = ''
+}
+
+async function doSavePreset(name) {
+  const preset = buildSessionPreset(name)
+  console.log('[NewNegotiationModal] Built preset:', preset)
+  
+  const result = await negotiationsStore.saveSessionPreset(preset)
+  console.log('[NewNegotiationModal] Save result:', result)
+  
+  // Show success message
+  saveSuccessMessage.value = `Configuration "${name}" saved successfully!`
+  setTimeout(() => {
+    saveSuccessMessage.value = ''
+  }, 3000)
+  
+  showSaveModal.value = false
+  savePresetName.value = ''
+  console.log('[NewNegotiationModal] Save modal closed')
+}
+
+async function deleteSessionPreset(name) {
+  if (confirm(`Delete preset "${name}"?`)) {
+    await negotiationsStore.deleteSessionPreset(name)
+    await loadSessionPresets()
+  }
+}
+
+async function saveConfig() {
+  if (!selectedScenario.value || !props.initialData) return
+  
+  starting.value = true
+  try {
+    // Build the preset with the same name (to overwrite)
+    const preset = buildSessionPreset(props.initialData.name)
+    
+    // Save
+    await negotiationsStore.saveSessionPreset(preset)
+    
+    // Show success message
+    saveSuccessMessage.value = `Configuration "${props.initialData.name}" updated successfully!`
+    setTimeout(() => {
+      saveSuccessMessage.value = ''
+    }, 3000)
+    
+    // Emit saved event
+    emit('saved')
+    
+    // Close modal after a short delay
+    setTimeout(() => {
+      emit('close')
+    }, 1000)
+  } catch (error) {
+    console.error('[NewNegotiationModal] Error saving config:', error)
+    alert('Failed to save configuration: ' + error.message)
+  } finally {
+    starting.value = false
+  }
+}
+
+function loadFullSession(session) {
+  // Find the scenario in the loaded scenarios
+  const scenario = scenarios.value.find(s => s.path === session.scenario_path)
+  
+  // Set scenario
+  selectedScenario.value = scenario || { 
+    path: session.scenario_path, 
+    name: session.scenario_name,
+    n_negotiators: session.negotiators?.length || 2
+  }
+  
+  // Set negotiators
+  negotiators.value = (session.negotiators || []).map((n, i) => ({
+    type_name: n.type_name,
+    name: n.name || `Agent${i + 1}`,
+    source: n.source || 'native',
+    requires_bridge: n.requires_bridge || false,
+    params: n.params || {}
+  }))
+  
+  // Ensure we have the right number of slots
+  const requiredSlots = selectedScenario.value.n_negotiators || 2
+  while (negotiators.value.length < requiredSlots) {
+    negotiators.value.push(null)
+  }
+  
+  // Set mechanism
+  mechanismType.value = session.mechanism_type || 'SAOMechanism'
+  shareUfuns.value = session.share_ufuns ?? false
+  
+  // Set mechanism params
+  if (session.mechanism_params) {
+    Object.assign(mechanismParams.value, session.mechanism_params)
+  }
+  
+  // Set scenario options
+  options.value.ignoreDiscount = session.ignore_discount ?? false
+  options.value.ignoreReserved = session.ignore_reserved ?? false
+  options.value.normalize = session.normalize ?? false
+  options.value.saveScenario = session.save_scenario ?? false
+  
+  // Set display options
+  runMode.value = session.mode || 'realtime'
+  stepDelay.value = session.step_delay ?? 100
+  displayOptions.value.showPlot = session.show_plot ?? true
+  displayOptions.value.showOffers = session.show_offers ?? true
+  autoSave.value = session.auto_save ?? false
+  
+  // Set panels
+  if (session.panels) {
+    Object.assign(panels.value, session.panels)
+  }
+  
+  // Set save options
+  if (session.save_options) {
+    Object.assign(saveOptions.value, session.save_options)
+  }
+  
+  // Jump to display tab
+  currentTab.value = 'display'
+  
+  // Close dropdown
+  recentDropdownOpen.value = false
+  savedDropdownOpen.value = false
+}
+
+// Watch for modal open/close
+watch(() => props.show, (newShow) => {
+  if (newShow) {
+    // Load data
+    loadScenarios()
+    loadNegotiators()
+    loadRecentSessions()
+    loadSessionPresets()
+    
+    // If in edit mode or start mode, load the initial data
+    if ((props.editMode || props.startMode) && props.initialData) {
+      loadInitialData(props.initialData)
+    } else {
+      // Reset to defaults for create mode
+      currentTab.value = 'scenario'
+      negotiatorSubTab.value = 'preset'
+      selectedScenario.value = null
+      negotiators.value = []
+    }
+  }
+})
+
+function loadInitialData(data) {
+  console.log('[NewNegotiationModal] Loading initial data for edit/start mode:', data)
+  
+  // Set scenario
+  if (data.scenario_path) {
+    selectedScenario.value = scenarios.value.find(s => s.path === data.scenario_path) || {
+      path: data.scenario_path,
+      name: data.scenario_name,
+      n_negotiators: data.negotiators?.length || 2
+    }
+  }
+  
+  // Set negotiators
+  if (data.negotiators && data.negotiators.length > 0) {
+    negotiators.value = [...data.negotiators]
+  }
+  
+  // Set mechanism params
+  if (data.mechanism_type) {
+    mechanismType.value = data.mechanism_type
+  }
+  if (data.mechanism_params) {
+    Object.assign(mechanismParams.value, data.mechanism_params)
+  }
+  
+  // Set other params
+  if (data.share_ufuns !== undefined) {
+    shareUfuns.value = data.share_ufuns
+  }
+  if (data.mode) {
+    runMode.value = data.mode
+  }
+  if (data.step_delay !== undefined) {
+    stepDelay.value = data.step_delay
+  }
+  if (data.show_plot !== undefined) {
+    displayOptions.value.showPlot = data.show_plot
+  }
+  if (data.show_offers !== undefined) {
+    displayOptions.value.showOffers = data.show_offers
+  }
+  if (data.panels && Array.isArray(data.panels)) {
+    panels.value = [...data.panels]
+  }
+  
+  // If in start mode, go directly to display tab (last tab)
+  // If in edit mode, go to negotiators tab
+  currentTab.value = props.startMode ? 'display' : 'negotiators'
+}
+
+onMounted(() => {
+  if (props.show) {
+    loadScenarios()
+    loadNegotiators()
+  }
+  
+  // Close dropdowns on outside click
+  document.addEventListener('click', closeDropdowns)
+})
+
+function closeDropdowns() {
+  recentDropdownOpen.value = false
+  savedDropdownOpen.value = false
+}
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeDropdowns)
+})
+</script>
+
+<style>
+/* Base Modal Styles - Not scoped because modal is teleported to body */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 1200px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.modal.large {
+  max-width: 1400px;
+}
+
+.modal.small {
+  max-width: 500px;
+}
+
+.success-toast {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #10b981;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  z-index: 1001;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateX(-50%) translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.modal-header-actions {
+  display: flex;
+  gap: 8px;
+  position: relative;
+  z-index: 10;
+}
+
+.modal-header-actions .dropdown {
+  position: relative;
+  z-index: 100;
+}
+
+.modal-header-actions .dropdown-menu {
+  position: absolute !important;
+  display: block !important;
+  top: calc(100% + 4px) !important;
+  right: 0 !important;
+  z-index: 1050 !important;
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-width: 280px !important;
+  padding: 6px 0 !important;
+  max-height: 400px !important;
+  overflow-y: auto !important;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--bg-hover);
+}
+
+.modal-body {
+  flex: 1;
+  overflow: hidden;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Wizard Layout */
+.wizard-layout {
+  display: flex;
+  height: 100%;
+}
+
+.wizard-sidebar {
+  width: 200px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wizard-tab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.wizard-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.wizard-tab.active {
+  border-left-color: var(--primary-color);
+  background: var(--bg-hover);
+  color: var(--primary-color);
+}
+
+.wizard-tab.completed::after {
+  content: '✓';
+  margin-left: auto;
+  color: var(--success-color);
+}
+
+.wizard-tab-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.wizard-tab-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.wizard-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.tab-content {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Form Elements */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.form-label-sm {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.form-input-sm {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.form-hint {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.form-row > .form-group {
+  flex: 1;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.text-muted {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.text-muted-sm {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.text-danger {
+  color: var(--danger-color);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+/* Buttons */
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.btn-icon {
+  padding: 8px;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-icon:hover {
+  background: var(--bg-hover);
+}
+
+.btn-icon.has-config {
+  background: var(--primary-bg);
+  border-color: var(--primary-color);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Badges */
+.badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-sm {
+  padding: 2px 6px;
+  font-size: 0.7rem;
+}
+
+.badge-neutral {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.badge-primary {
+  background: var(--primary-color);
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+/* Advanced Filters */
+.advanced-filters {
+  background: var(--bg-tertiary);
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.filters-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+}
+
+/* Scenario List */
+.scenario-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.scenario-card {
+  padding: 16px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.scenario-card:hover {
+  border-color: var(--primary-color);
+  background: var(--bg-hover);
+}
+
+.scenario-card.selected {
+  border-color: var(--primary-color);
+  background: var(--primary-bg);
+}
+
+.scenario-card-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.scenario-card-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.scenario-details {
+  background: var(--bg-tertiary);
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.issue-item {
+  margin-left: 12px;
+  margin-top: 4px;
+}
+
+/* Secondary Tabs */
+.tabs-secondary {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.tab {
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-weight: 500;
+  transition: all 0.2s;
+  margin-bottom: -2px;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tab.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+}
+
+/* Negotiator List & Grid */
+.negotiator-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.negotiator-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.negotiator-item:hover {
+  background: var(--bg-hover);
+}
+
+.negotiator-item.selected {
+  border-color: var(--primary-color);
+  background: var(--bg-tertiary);
+}
+
+.drag-handle {
+  color: var(--text-secondary);
+  cursor: grab;
+  font-size: 1.2rem;
+}
+
+.negotiator-item-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.negotiator-name-input {
+  background: transparent;
+  border: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 2px 4px;
+  color: var(--text-primary);
+  outline: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.negotiator-name-input:focus {
+  border-bottom-color: var(--primary-color);
+}
+
+.negotiator-type {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.negotiator-params {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-family: monospace;
+}
+
+.negotiator-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.negotiator-card {
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.negotiator-card:hover {
+  border-color: var(--primary-color);
+  background: var(--bg-hover);
+}
+
+.negotiator-card-name {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.negotiator-card-meta {
+  margin-bottom: 6px;
+}
+
+.negotiator-card-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* BOA/MAP Builders */
+.boa-builder,
+.map-builder {
+  background: var(--bg-tertiary);
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.component-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.component-row .form-select {
+  flex: 1;
+}
+
+.params-preview {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.model-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-config {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  color: inherit;
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+}
+
+.badge-config:hover {
+  opacity: 1;
+}
+
+.model-add {
+  display: flex;
+  gap: 8px;
+}
+
+.model-add .form-select {
+  flex: 1;
+}
+
+/* Mechanism Selector */
+.mechanism-selector {
+  display: flex;
+  gap: 12px;
+}
+
+.mechanism-card {
+  flex: 1;
+  padding: 16px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-secondary);
+}
+
+.mechanism-card:hover {
+  border-color: var(--primary-color);
+  background: var(--bg-hover);
+}
+
+.mechanism-card.selected {
+  border-color: var(--primary-color);
+  background: var(--primary-bg);
+}
+
+.mechanism-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.mechanism-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* Parameter Sections */
+.param-section {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.param-section:last-child {
+  border-bottom: none;
+}
+
+.param-section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.param-section.collapsible .param-section-title {
+  cursor: pointer;
+}
+
+.param-section-content {
+  margin-top: 12px;
+}
+
+/* Summary Box */
+.summary-box {
+  background: var(--bg-tertiary);
+  padding: 16px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Run Mode Selector */
+.run-mode-selector {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.run-mode-card {
+  padding: 16px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-secondary);
+}
+
+.run-mode-card:hover {
+  border-color: var(--primary-color);
+  background: var(--bg-hover);
+}
+
+.run-mode-card.selected {
+  border-color: var(--primary-color);
+  background: var(--primary-bg);
+}
+
+.run-mode-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.run-mode-title {
+  font-weight: 600;
+}
+
+.run-mode-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* Range Input */
+.form-range {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.form-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  cursor: pointer;
+}
+
+.form-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  cursor: pointer;
+  border: none;
+}
+
+/* Visible Panels Grid */
+/* Disabled checkbox label */
+.checkbox-label.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.checkbox-label.disabled input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
+/* Info icon button for scenario and negotiator cards */
+.scenario-card-header,
+.negotiator-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.info-icon-btn {
+  padding: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.info-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent-primary);
+}
+</style>

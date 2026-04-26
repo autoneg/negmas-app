@@ -1,0 +1,61 @@
+<!-- Tournament Negotiations Panel - Live/completed negotiations list -->
+<div class="tournament-negotiations-panel" 
+     x-show="(selectedTournament?.status === 'running' && tournamentLiveNegotiations.length > 0) || (selectedTournament?.status === 'completed' && selectedTournament?.results?.negotiations?.length > 0)" 
+     :class="{ collapsed: tournamentPanelCollapsed.negotiations }">
+    <div class="tournament-panel-header" @click="tournamentPanelCollapsed.negotiations = !tournamentPanelCollapsed.negotiations">
+        <h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" 
+                 :style="{ transform: tournamentPanelCollapsed.negotiations ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+            <span x-text="selectedTournament?.status === 'running' ? 'Live Negotiations' : 'Negotiations'"></span>
+            (<span x-text="selectedTournament?.status === 'running' ? tournamentLiveNegotiations.length : (selectedTournament?.results?.negotiations?.length || 0)"></span>)
+        </h3>
+    </div>
+    
+    <div class="tournament-panel-content negotiations-list" x-show="!tournamentPanelCollapsed.negotiations" x-collapse>
+        <table class="tournament-table tournament-negotiations-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Scenario</th>
+                    <th>Partners</th>
+                    <th>Result</th>
+                    <th>Utilities</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Live negotiations (running tournament) - show in reverse order (newest first) -->
+                <template x-if="selectedTournament?.status === 'running'">
+                    <template x-for="neg in [...tournamentLiveNegotiations].reverse()" :key="'live-' + neg.index">
+                        <tr class="negotiation-row" @click="viewTournamentNegotiation(neg)" style="cursor: pointer;" title="Click to view details">
+                            <td x-text="neg.index + 1"></td>
+                            <td x-text="neg.scenario"></td>
+                            <td x-text="(neg.partners || []).join(' vs ')"></td>
+                            <td>
+                                <span class="badge badge-sm" :class="neg.has_agreement ? 'badge-success' : (neg.has_error ? 'badge-danger' : 'badge-warning')"
+                                      x-text="neg.has_agreement ? 'Agr' : (neg.has_error ? 'Err' : 'No')"></span>
+                            </td>
+                            <td x-text="neg.utilities ? neg.utilities.map(u => u.toFixed(2)).join(', ') : '-'"></td>
+                        </tr>
+                    </template>
+                </template>
+                <!-- Final negotiations (completed tournament) -->
+                <template x-if="selectedTournament?.status === 'completed'">
+                    <template x-for="neg in (selectedTournament?.results?.negotiations || [])" :key="'final-' + neg.index">
+                        <tr class="negotiation-row" @click="viewTournamentNegotiation(neg)" style="cursor: pointer;" title="Click to view details">
+                            <td x-text="neg.index + 1"></td>
+                            <td x-text="neg.scenario"></td>
+                            <td x-text="(neg.partners || []).join(' vs ')"></td>
+                            <td>
+                                <span class="badge badge-sm" :class="neg.has_agreement ? 'badge-success' : (neg.has_error ? 'badge-danger' : 'badge-warning')"
+                                      x-text="neg.has_agreement ? 'Agr' : (neg.has_error ? 'Err' : 'No')"></span>
+                            </td>
+                            <td x-text="neg.utilities ? neg.utilities.map(u => u.toFixed(2)).join(', ') : '-'"></td>
+                        </tr>
+                    </template>
+                </template>
+            </tbody>
+        </table>
+    </div>
+</div>

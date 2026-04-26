@@ -1,0 +1,44 @@
+name: util2
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    '10': 10.0
+    '100': 90.0
+    '20': 20.0
+    '40': 30.0
+    '50': 40.0
+    '60': 50.0
+    '70': 60.0
+    '80': 70.0
+    '90': 80.0
+  type: TableFun
+- mapping:
+    100kW: 67.0
+    10kW: 30.0
+    120kW: 68.0
+    150kW: 69.0
+    20kW: 33.0
+    300kW: 70.0
+    30kW: 37.0
+    35kW: 40.0
+    40kW: 43.0
+    55kW: 47.0
+    60kW: 50.0
+    70kW: 53.0
+    75kW: 57.0
+    80kW: 58.0
+    85kW: 60.0
+    90kW: 63.0
+    95kW: 65.0
+  type: TableFun
+- mapping:
+    method1: 20.0
+    method2: 15.0
+    method3: 10.0
+    method4: 5.0
+  type: TableFun
+weights:
+- 0.7074547441511527
+- 0.18751813866019013
+- 0.1050271171886572

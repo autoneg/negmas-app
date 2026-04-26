@@ -1,0 +1,68 @@
+discount: 0.92
+dynamic_reservation: true
+name: CoffeeShop_util2 - karin F
+reserved_value: -.inf
+type: ExpDiscountedUFun
+ufun:
+  name: scenarios/xml/original/other/y2018_not_used/CoffeeShop/CoffeeShop_util2 -
+    karin F.xml
+  reserved_value: 0.3
+  type: LinearAdditiveUtilityFunction
+  values:
+  - mapping:
+      Americano: 4.0
+      Cappucino: 19.0
+      Espresso: 3.0
+      French Vanilla: 29.0
+      Herbal Tea: 1.0
+      Hot Chocolate: 28.0
+    type: TableFun
+  - mapping:
+      Beet: 17.0
+      Cesar: 30.0
+      Greek: 32.0
+      Kuinoa: 10.0
+      Tofu: 14.0
+      Tuna: 38.0
+    type: TableFun
+  - mapping:
+      Avocado: 22.0
+      Cheese: 10.0
+      French Toast: 50.0
+      Omlette: 45.0
+      Salmon: 4.0
+      Tuna: 40.0
+    type: TableFun
+  - mapping:
+      Coca Cola: 2.0
+      Grape Juice: 3.0
+      Lemonade: 13.0
+      Mineral Water: 20.0
+      Orange Juice: 15.0
+      Sparkling Water: 25.0
+    type: TableFun
+  - mapping:
+      Apple Crumble: 75.0
+      Bavaria Cream Pie: 20.0
+      Carrot Cake: 45.0
+      Cheese Cake: 13.0
+      Chocolate Cake: 21.0
+      Date Cake: 50.0
+      Poppy Seed Cake: 90.0
+      Raw Fruit Salad: 35.0
+      Tiramisu: 80.0
+    type: TableFun
+  - mapping:
+      Make your own Pizza: 20.0
+      Mushroom Pizza: 24.0
+      Pizza Margarita: 21.0
+      Pizza Napolitana: 10.0
+      Veggie Pizza: 10.0
+    type: TableFun
+  weights:
+  - 0.23671618788053717
+  - 0.07926355103843638
+  - 0.2184866557457244
+  - 0.15026326025519812
+  - 0.1481741049331656
+  - 0.16709624014693816

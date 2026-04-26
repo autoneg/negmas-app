@@ -1,0 +1,42 @@
+name: util2
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Meat: 7.0
+    Vegetarian: 3.0
+  type: TableFun
+- mapping:
+    Cheap Restaurant: 4.0
+    Fancy Restaurant: 2.0
+    Home(make it yourself): 6.0
+    Home(take away): 5.0
+  type: TableFun
+- mapping:
+    Asian food: 6.0
+    Dutch food: 1.0
+    French food: 0.0
+    Greek food: 3.0
+    Italian food: 2.0
+    Turkish food: 4.0
+  type: TableFun
+- mapping:
+    '18:00': 1.0
+    '19:00': 2.0
+    '20:00': 4.0
+    '21:00': 2.0
+    '22:00': 1.0
+  type: TableFun
+- mapping:
+    HOT: 5.0
+    not spicy at all: 0.0
+    pretty spicy: 4.0
+    somewhat spicy: 1.0
+    very spicy: 5.0
+  type: TableFun
+weights:
+- 0.13003888842901845
+- 0.21942458630683648
+- 0.12917847414166145
+- 0.16913711604013906
+- 0.35222093508234464

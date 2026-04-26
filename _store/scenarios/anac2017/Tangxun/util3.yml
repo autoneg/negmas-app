@@ -1,0 +1,35 @@
+name: util3
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    a1: 8.0
+    a2: 10.0
+    a3: 18.0
+    a4: 12.0
+  type: TableFun
+- mapping:
+    b1: 24.0
+    b2: 3.0
+    b3: 26.0
+    b4: 15.0
+    b5: 12.0
+  type: TableFun
+- mapping:
+    c1: 8.0
+    c2: 10.0
+    c3: 12.0
+  type: TableFun
+- mapping:
+    d1: 17.0
+    d2: 6.0
+    d3: 11.0
+    d4: 12.0
+    d5: 28.0
+    d6: 16.0
+  type: TableFun
+weights:
+- 0.013083859769433208
+- 0.32847201274806076
+- 0.32929180908175393
+- 0.32915231840075204

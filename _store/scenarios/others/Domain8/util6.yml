@@ -1,0 +1,53 @@
+name: util6
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    a1: 2.0
+    a2: 1.0
+    a3: 2.0
+  type: TableFun
+- mapping:
+    b1: 2.0
+    b2: 1.0
+    b3: 1.0
+  type: TableFun
+- mapping:
+    c1: 1.0
+    c2: 1.0
+    c3: 5.0
+  type: TableFun
+- mapping:
+    d1: 1.0
+    d2: 2.0
+    d3: 4.0
+  type: TableFun
+- mapping:
+    e1: 4.0
+    e2: 2.0
+    e3: 1.0
+  type: TableFun
+- mapping:
+    f1: 5.0
+    f2: 1.0
+    f3: 1.0
+  type: TableFun
+- mapping:
+    g1: 4.0
+    g2: 2.0
+    g3: 3.0
+  type: TableFun
+- mapping:
+    h1: 5.0
+    h2: 4.0
+    h3: 2.0
+  type: TableFun
+weights:
+- 0.12808427594794797
+- 0.12671734805066687
+- 0.12460724561174001
+- 0.12450380208597116
+- 0.1254038155305995
+- 0.12430258115926353
+- 0.12319063503426372
+- 0.12319029657954725

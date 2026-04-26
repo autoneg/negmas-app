@@ -1,0 +1,45 @@
+issues:
+- name: Torso
+  type: CategoricalIssue
+  values:
+  - Humanoid
+  - Block
+  - Spherical
+- name: Propulsion
+  type: CategoricalIssue
+  values:
+  - Legs
+  - Wheel
+  - Tracks
+  - Hover
+- name: Guns
+  type: ContiguousIssue
+  values:
+  - 1
+  - 10
+- name: GunType
+  type: CategoricalIssue
+  values:
+  - Bullets
+  - Railgun
+  - Laser
+  - Plasma
+  - Soundwave
+- name: Color
+  type: CategoricalIssue
+  values:
+  - Red
+  - Green
+  - Blue
+  - Yellow
+  - Purple
+  - White
+  - Black
+  - Silver
+- name: Height (m)
+  type: ContiguousIssue
+  values:
+  - 1
+  - 50
+name: KillerRobot
+type: DiscreteCartesianOutcomeSpace

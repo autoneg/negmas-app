@@ -1,0 +1,21 @@
+name: util4
+reserved_value: 0.5
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    a1: 3.0
+    a2: 5.0
+    a3: 2.0
+    a4: 4.0
+    a5: 3.0
+  type: TableFun
+- mapping:
+    b1: 2.0
+    b2: 3.0
+    b3: 5.0
+    b4: 3.0
+    b5: 1.0
+  type: TableFun
+weights:
+- 0.5115978841579758
+- 0.4884021158420242

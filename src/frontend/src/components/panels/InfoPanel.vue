@@ -1,0 +1,392 @@
+<template>
+  <!-- Negotiation Info Panel - Ultra Compact -->
+  <div 
+    class="panel panel-compact panel-info" 
+    :class="{ 'collapsed': collapsed }"
+  >
+    <span class="panel-collapsed-label" v-show="collapsed">INFO</span>
+    
+    <!-- Floating Actions -->
+    <div class="panel-floating-actions">
+      <!-- Saved badge for saved negotiations -->
+      <span v-if="negotiation?.isSaved" class="badge badge-xs badge-ghost" style="font-size: 9px;">
+        SAVED
+      </span>
+      
+      <!-- Start button for pending negotiations -->
+      <button 
+        v-if="negotiation?.pendingStart && !negotiation?.isSaved"
+        class="panel-btn panel-btn-primary" 
+        title="Start" 
+        @click="$emit('start')"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+      </button>
+      
+      <!-- Pause/Resume and Cancel buttons for running negotiations -->
+      <div 
+        v-if="negotiation && negotiation.status === 'running' && !negotiation?.agreement && !negotiation?.end_reason" 
+        style="display: flex; gap: 2px;"
+      >
+        <button 
+          class="panel-btn" 
+          :title="negotiation?.paused ? 'Resume' : 'Pause'" 
+          @click="$emit('togglePause')"
+        >
+          <svg v-if="!negotiation?.paused" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="6" y="4" width="4" height="16"></rect>
+            <rect x="14" y="4" width="4" height="16"></rect>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+        </button>
+        <button class="panel-btn" title="Cancel" @click="$emit('stop')">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+          </svg>
+        </button>
+      </div>
+      
+      <!-- Collapse button -->
+      <button 
+        class="panel-btn panel-collapse-btn" 
+        title="Toggle panel" 
+        @click="collapsed = !collapsed"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+      
+      <!-- Stats button -->
+      <button 
+        class="panel-btn" 
+        title="Scenario Stats" 
+        @click="$emit('showStats')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/>
+        </svg>
+      </button>
+    </div>
+    
+    <!-- Panel Content -->
+    <div class="panel-content-ultra-compact" v-show="!collapsed">
+      <!-- Row 1: Scenario + Status + Progress -->
+      <div class="info-row">
+        <span class="info-scenario">{{ negotiation?.scenario_name || 'Unknown' }}</span>
+        <span 
+          class="badge badge-xs" 
+          :class="statusBadgeClass"
+        >
+          {{ statusText }}
+        </span>
+        <span class="info-stats">
+          {{ negotiation?.step || negotiation?.current_step || 0 }}/{{ negotiation?.n_steps || '∞' }} steps
+        </span>
+        <span class="info-stats" v-if="negotiation?.time !== undefined || negotiation?.time_limit">
+          {{ formatTime(negotiation?.time) }}/{{ negotiation?.time_limit ? formatTime(negotiation.time_limit) : '∞' }}
+        </span>
+        <span class="info-stats" v-if="negotiation?.relative_time !== undefined">
+          ({{ Math.round((negotiation?.relative_time || 0) * 100) }}%)
+        </span>
+        <div 
+          class="info-progress" 
+          v-show="!negotiation?.pendingStart && !negotiation?.agreement && !negotiation?.end_reason"
+        >
+          <div class="progress-mini">
+            <div 
+              class="progress-bar" 
+              :style="{ width: Math.min(100, (negotiation?.relative_time || 0) * 100) + '%' }"
+            ></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Row 2: Summary Section (when complete) - 2 lines only -->
+      <div v-if="showSummary" class="info-summary">
+        <div class="summary-row">
+          <span class="summary-label">Result:</span>
+          <span class="summary-value" :class="{ 'success': negotiation?.agreement }">
+            {{ negotiation?.agreement ? 'Agreement Reached' : endReasonText }}
+          </span>
+          <span v-if="negotiation?.agreement && agreementProposer" class="summary-label" style="margin-left: 8px;">by</span>
+          <span 
+            v-if="negotiation?.agreement && agreementProposer" 
+            class="badge badge-xs"
+            :style="{ 
+              background: agreementProposerColor, 
+              color: 'white',
+              marginLeft: '4px'
+            }"
+          >
+            {{ agreementProposer }}
+          </span>
+          <span class="summary-label" style="margin-left: 12px;">Steps:</span>
+          <span class="summary-value">{{ negotiation?.step || negotiation?.current_step || 0 }}/{{ negotiation?.n_steps || '∞' }}</span>
+          <span class="summary-label" style="margin-left: 12px;">Time:</span>
+          <span class="summary-value">{{ formatTime(negotiation?.time) }}/{{ negotiation?.time_limit ? formatTime(negotiation.time_limit) : '∞' }} ({{ Math.round((negotiation?.relative_time || 0) * 100) }}%)</span>
+        </div>
+        <div class="summary-row" v-if="negotiation?.final_utilities">
+          <span class="summary-label">Utilities:</span>
+          <span class="summary-value">{{ formatUtilities }}</span>
+        </div>
+      </div>
+      
+      <!-- Row 3: ID (clickable to open folder) -->
+      <div class="info-row" v-show="negotiation?.id" style="font-size: 10px;">
+        <span class="text-muted">ID:</span>
+        <code 
+          class="negotiation-id-display" 
+          style="font-size: 10px; background: var(--bg-tertiary); padding: 1px 4px; border-radius: 3px; cursor: pointer; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+          :title="'Click to open folder: ' + negotiation?.id"
+          @click="openNegotiationFolder"
+        >
+          {{ negotiation?.id }}
+        </code>
+      </div>
+      
+      <!-- Row 4: Negotiators -->
+      <div class="info-row info-row-negotiators">
+        <span 
+          v-for="(name, idx) in (negotiation?.negotiator_names || [])" 
+          :key="idx"
+          class="badge badge-xs negotiator-badge" 
+          :style="{ 
+            background: negotiation?.negotiator_colors?.[idx] || 'var(--primary)', 
+            color: 'white' 
+          }"
+          :title="'Click for info: ' + (negotiation?.negotiator_types?.[idx] || name)"
+          @click="handleNegotiatorClick(idx)"
+        >
+          {{ name }}
+        </span>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+
+const props = defineProps({
+  negotiation: {
+    type: Object,
+    default: null
+  }
+})
+
+const emit = defineEmits(['start', 'togglePause', 'stop', 'showStats', 'showNegotiatorInfo'])
+
+// Collapse state
+const collapsed = ref(false)
+
+// Show summary section when negotiation is complete
+const showSummary = computed(() => {
+  if (!props.negotiation) return false
+  return !!(props.negotiation.agreement || props.negotiation.end_reason)
+})
+
+// Computed status
+const statusBadgeClass = computed(() => {
+  if (!props.negotiation) return 'badge-neutral'
+  
+  const status = props.negotiation.status
+  const endReason = props.negotiation.end_reason
+  
+  // Cancelled is stored as failed status but should display as cancelled
+  if (status === 'failed' && endReason === 'cancelled') {
+    return 'badge-warning'
+  }
+  
+  // Check status + end_reason for completed negotiations
+  if (status === 'completed') {
+    if (endReason === 'agreement') return 'badge-success'
+    if (endReason === 'timedout') return 'badge-neutral'
+    if (endReason === 'maxsteps') return 'badge-neutral'
+    if (endReason === 'ended') return 'badge-neutral'
+    return 'badge-neutral'
+  }
+  
+  if (status === 'failed') return 'badge-danger'
+  if (status === 'paused') return 'badge-info'
+  if (status === 'pending') return 'badge-warning'
+  if (status === 'running') return 'badge-primary'
+  
+  // Fallback to legacy checks
+  if (props.negotiation.pendingStart) return 'badge-warning'
+  if (props.negotiation.agreement) return 'badge-success'
+  if (props.negotiation.end_reason) return 'badge-neutral'
+  if (props.negotiation.paused) return 'badge-info'
+  
+  return 'badge-primary'
+})
+
+const statusText = computed(() => {
+  if (!props.negotiation) return ''
+  
+  const status = props.negotiation.status
+  const endReason = props.negotiation.end_reason
+  
+  // Cancelled is stored as failed status but should display as cancelled
+  if (status === 'failed' && endReason === 'cancelled') {
+    return 'Cancelled'
+  }
+  
+  // Check status + end_reason for completed negotiations
+  if (status === 'completed') {
+    if (endReason === 'agreement') return 'Agreement'
+    if (endReason === 'timedout') return 'Timeout'
+    if (endReason === 'maxsteps') return 'Done'
+    if (endReason === 'ended') return 'Ended'
+    return 'Done'
+  }
+  
+  if (status === 'failed') return 'Error'
+  if (status === 'paused') return 'Paused'
+  if (status === 'pending') return 'Pending'
+  if (status === 'running') return 'Running'
+  
+  // Fallback to legacy checks
+  if (props.negotiation.pendingStart) return 'Pending'
+  if (props.negotiation.agreement) return 'Agreement'
+  if (props.negotiation.end_reason) return 'Ended'
+  if (props.negotiation.paused) return 'Paused'
+  
+  return 'Running'
+})
+
+const endReasonText = computed(() => {
+  if (!props.negotiation?.end_reason) return ''
+  const reason = props.negotiation.end_reason
+  if (reason === 'timedout') return 'Timeout (No Agreement)'
+  if (reason === 'maxsteps') return 'Max Steps (No Agreement)'
+  return reason.charAt(0).toUpperCase() + reason.slice(1)
+})
+
+const formatUtilities = computed(() => {
+  if (!props.negotiation?.final_utilities) return 'N/A'
+  return props.negotiation.final_utilities
+    .map((u, idx) => {
+      const name = props.negotiation.negotiator_names?.[idx] || `A${idx + 1}`
+      return `${name.substring(0, 6)}: ${u.toFixed(3)}`
+    })
+    .join(', ')
+})
+
+// Format time in seconds to a readable string
+function formatTime(seconds) {
+  if (seconds === undefined || seconds === null) return '0s'
+  if (seconds < 60) return `${seconds.toFixed(1)}s`
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}m ${secs.toFixed(0)}s`
+}
+
+// Get the proposer of the agreement (from the last offer)
+const agreementProposer = computed(() => {
+  if (!props.negotiation?.agreement || !props.negotiation?.offers?.length) return null
+  const lastOffer = props.negotiation.offers[props.negotiation.offers.length - 1]
+  const proposerIndex = lastOffer?.proposer_index
+  if (proposerIndex === undefined || proposerIndex === null) return null
+  return props.negotiation.negotiator_names?.[proposerIndex] || `Agent ${proposerIndex + 1}`
+})
+
+// Get the color of the agreement proposer
+const agreementProposerColor = computed(() => {
+  if (!props.negotiation?.agreement || !props.negotiation?.offers?.length) return 'var(--primary)'
+  const lastOffer = props.negotiation.offers[props.negotiation.offers.length - 1]
+  const proposerIndex = lastOffer?.proposer_index
+  if (proposerIndex === undefined || proposerIndex === null) return 'var(--primary)'
+  return props.negotiation.negotiator_colors?.[proposerIndex] || 'var(--primary)'
+})
+
+// Open negotiation folder in file explorer
+async function openNegotiationFolder() {
+  if (!props.negotiation?.id) return
+  
+  try {
+    const response = await fetch(`/api/negotiation/saved/${props.negotiation.id}/open-folder`, {
+      method: 'POST'
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Failed to open folder:', error)
+      // TODO: Show error toast notification
+    } else {
+      console.log('Folder opened successfully')
+      // TODO: Show success toast notification (optional)
+    }
+  } catch (err) {
+    console.error('Failed to open folder:', err)
+    // TODO: Show error toast notification
+  }
+}
+
+// Handle negotiator badge click - emit event with negotiator type
+function handleNegotiatorClick(index) {
+  const typeName = props.negotiation?.negotiator_types?.[index]
+  const name = props.negotiation?.negotiator_names?.[index]
+  
+  if (typeName) {
+    emit('showNegotiatorInfo', { typeName, name, index })
+  } else if (name) {
+    // Fallback: use name if no type available
+    emit('showNegotiatorInfo', { typeName: name, name, index })
+  }
+}
+</script>
+
+<style scoped>
+.info-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  margin: 4px 0;
+  font-size: 11px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.summary-value {
+  color: var(--text-primary);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.summary-value.success {
+  color: var(--success-color);
+  font-weight: 600;
+}
+
+.negotiator-badge {
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.negotiator-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+</style>

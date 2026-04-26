@@ -1,0 +1,83 @@
+issues:
+- name: a
+  type: CategoricalIssue
+  values:
+  - a1
+  - a2
+- name: b
+  type: CategoricalIssue
+  values:
+  - b1
+  - b2
+- name: c
+  type: CategoricalIssue
+  values:
+  - c1
+  - c2
+- name: d
+  type: CategoricalIssue
+  values:
+  - d1
+  - d2
+- name: e
+  type: CategoricalIssue
+  values:
+  - e1
+  - e2
+- name: g
+  type: CategoricalIssue
+  values:
+  - g1
+  - g2
+- name: f
+  type: CategoricalIssue
+  values:
+  - f1
+  - f2
+- name: h
+  type: CategoricalIssue
+  values:
+  - h1
+  - h2
+- name: i
+  type: CategoricalIssue
+  values:
+  - i1
+  - i2
+- name: j
+  type: CategoricalIssue
+  values:
+  - j1
+  - j2
+- name: k
+  type: CategoricalIssue
+  values:
+  - k1
+  - k2
+- name: l
+  type: CategoricalIssue
+  values:
+  - l1
+  - l2
+- name: m
+  type: CategoricalIssue
+  values:
+  - m1
+  - m2
+- name: n
+  type: CategoricalIssue
+  values:
+  - n1
+  - n2
+- name: o
+  type: CategoricalIssue
+  values:
+  - o1
+  - o2
+- name: p
+  type: CategoricalIssue
+  values:
+  - p1
+  - p2
+name: Domain16
+type: DiscreteCartesianOutcomeSpace

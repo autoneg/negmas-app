@@ -1,0 +1,43 @@
+issues:
+- name: Signing bonus
+  type: CategoricalIssue
+  values:
+  - 10%
+  - 8%
+  - 6%
+  - 4%
+  - 2%
+- name: Job assignment
+  type: CategoricalIssue
+  values:
+  - Division A
+  - Division B
+  - Division C
+  - Division D
+  - Division E
+- name: Moving expense coverage
+  type: CategoricalIssue
+  values:
+  - 100%
+  - 90%
+  - 80%
+  - 70%
+  - 60%
+- name: Insurance coverage
+  type: CategoricalIssue
+  values:
+  - 100%
+  - 80%
+  - 60%
+  - 20%
+  - 0%
+- name: Salary
+  type: CategoricalIssue
+  values:
+  - $40,000
+  - $38,000
+  - $36,000
+  - $34,000
+  - $32,000
+name: thompson_employment
+type: DiscreteCartesianOutcomeSpace

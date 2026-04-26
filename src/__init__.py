@@ -1,0 +1,1 @@
+"""NegMAS Vue App package."""

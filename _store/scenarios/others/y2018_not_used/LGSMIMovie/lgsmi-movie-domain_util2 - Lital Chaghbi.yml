@@ -1,0 +1,33 @@
+name: lgsmi-movie-domain_util2 - Lital Chaghbi
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    At home: 1.0
+    Cinema: 6.0
+    Drive-in: 3.0
+  type: TableFun
+- mapping:
+    1.5 hours: 3.0
+    2 hours: 3.0
+    More than 2 hours: 4.0
+  type: TableFun
+- mapping:
+    Action: 4.0
+    Comedy: 4.0
+    Fantasy: 4.0
+    Horror: 4.0
+    Romance: 4.0
+  type: TableFun
+- mapping:
+    Afternoon: 4.0
+    Evening: 4.0
+    Midnight: 4.0
+    Morning: 4.0
+    Noon: 4.0
+  type: TableFun
+weights:
+- 0.6615523459720372
+- 0.21394294207657175
+- 0.061324446806624265
+- 0.06318026514476675

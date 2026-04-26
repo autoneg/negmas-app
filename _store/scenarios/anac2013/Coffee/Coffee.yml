@@ -1,0 +1,27 @@
+issues:
+- name: Bean
+  type: CategoricalIssue
+  values:
+  - Blue Mountain
+  - Bourbon
+  - Colombian
+  - Java
+  - Paname
+  - Santos
+  - Uganda
+- name: Sugar
+  type: CategoricalIssue
+  values:
+  - 'no'
+  - little
+  - some
+  - much
+- name: Milk
+  type: CategoricalIssue
+  values:
+  - 'no'
+  - little
+  - some
+  - much
+name: Coffee
+type: DiscreteCartesianOutcomeSpace

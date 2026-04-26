@@ -1,0 +1,27 @@
+name: util2
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Katsudon: 7.0
+    curry: 10.0
+    noodles: 2.0
+    pizza: 7.0
+    shshi: 4.0
+  type: TableFun
+- mapping:
+    $12: 5.0
+    $15: 5.0
+    $20: 1.0
+    $7: 3.0
+  type: TableFun
+- mapping:
+    1km~: 3.0
+    ~1km: 5.0
+    ~200m: 7.0
+    ~400m: 6.0
+  type: TableFun
+weights:
+- 0.20205780051875513
+- 0.49964648393374084
+- 0.29829571554750406

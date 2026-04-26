@@ -1,0 +1,40 @@
+name: Profile6
+reserved_value: 0.0
+type: LinearAdditiveUtilityFunction
+values:
+- mapping:
+    Amsterdam: 3.0
+    London: 1.0
+    Miami: 4.0
+    Paris: 2.0
+  type: TableFun
+- mapping:
+    '10': 3.0
+    '14': 4.0
+    '3': 1.0
+    '7': 2.0
+  type: TableFun
+- mapping:
+    '1000': 3.0
+    '1500': 4.0
+    '400': 1.0
+    '700': 2.0
+  type: TableFun
+- mapping:
+    Historical Places: 1.0
+    Museum: 3.0
+    Restaurant: 2.0
+    Sport: 4.0
+  type: TableFun
+- mapping:
+    Air Plane: 1.0
+    Bus: 4.0
+    Car: 3.0
+    Train: 2.0
+  type: TableFun
+weights:
+- 0.13932824194602436
+- 0.12803756827304508
+- 0.14118864101290174
+- 0.26827990525996986
+- 0.32316564350805893
