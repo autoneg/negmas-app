@@ -118,7 +118,7 @@ class TestNegotiatorCreation:
         )
         with pytest.raises(ValueError) as exc_info:
             NegotiatorFactory.create(config)
-        assert "Unknown negotiator type" in str(exc_info.value)
+        assert "nonexistent.Negotiator" in str(exc_info.value)
 
     def test_create_for_scenario(self, sample_scenario_path):
         """Should create negotiators for a scenario."""

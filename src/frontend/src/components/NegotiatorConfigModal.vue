@@ -298,7 +298,10 @@
     </div>
     
     <!-- Negotiator/Component Selector Modal -->
+    <!-- v-if gates instantiation: ConfigModal <-> SelectorModal mutually render each
+         other, so without v-if they instantiate each other infinitely (stack overflow). -->
     <NegotiatorSelectorModal
+      v-if="showSelectorModal"
       :show="showSelectorModal"
       :component-type="selectorComponentType"
       :param-name="selectorParamName"

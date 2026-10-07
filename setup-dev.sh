@@ -12,24 +12,14 @@ if [ ! -f "pyproject.toml" ]; then
     exit 1
 fi
 
-echo "Step 1: Installing Python dependencies..."
+echo "Step 1: Installing Python dependencies (incl. negmas* from PyPI)..."
 echo "------------------------------------------"
+# All negmas* packages come from PyPI as normal dependencies. The app must work
+# without local checkouts, so we do NOT install editable packages from ../ here.
 uv sync --all-extras --dev
 
 echo ""
-echo "Step 2: Installing local negmas packages..."
-echo "------------------------------------------"
-for x in negmas negmas-llm negmas-genius-agents negmas-negolog negmas-rl negmas; do
-    if [ -d "../$x" ]; then
-        echo "Installing ../$x"
-        uv pip install -e ../$x
-    else
-        echo "Warning: ../$x not found, skipping"
-    fi
-done
-
-echo ""
-echo "Step 3: Installing Vue.js frontend dependencies..."
+echo "Step 2: Installing Vue.js frontend dependencies..."
 echo "------------------------------------------"
 if [ -d "src/frontend" ]; then
     cd src/frontend

@@ -428,18 +428,24 @@
                   class="form-input"
                   style="flex: 1;"
                 >
-                <button class="btn btn-secondary" @click="browseForPath('load')" title="Browse for folder">
+                <button class="btn btn-secondary" @click="browseForPath('load', 'folder')" title="Browse for folder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                   </svg>
                 </button>
+                <button class="btn btn-secondary" @click="browseForPath('load', 'file')" title="Browse for file (.parquet, .csv)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                </button>
               </div>
             </div>
-            
+
             <p class="text-muted" style="font-size: 12px;">
               Supports: CompletedRun folders, trace files (.parquet, .csv), or tournament negotiation folders.
             </p>
-            
+
             <div v-if="loadImportError" class="error-message" style="margin-top: 12px;">
               {{ loadImportError }}
             </div>
@@ -482,14 +488,20 @@
                   class="form-input"
                   style="flex: 1;"
                 >
-                <button class="btn btn-secondary" @click="browseForPath('import')" title="Browse for folder">
+                <button class="btn btn-secondary" @click="browseForPath('import', 'folder')" title="Browse for folder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                   </svg>
                 </button>
+                <button class="btn btn-secondary" @click="browseForPath('import', 'file')" title="Browse for file (.parquet, .csv)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                </button>
               </div>
             </div>
-            
+
             <div style="margin-bottom: 16px;">
               <label class="form-label">Tags (optional):</label>
               <div style="display: flex; gap: 8px;">
@@ -1546,14 +1558,18 @@ function removeImportTag(tag) {
   }
 }
 
-async function browseForPath(mode) {
+async function browseForPath(mode, kind = 'folder') {
   try {
-    const response = await fetch('/api/system/browse-folder', {
+    const isFile = kind === 'file'
+    const endpoint = isFile ? '/api/system/browse-file' : '/api/system/browse-folder'
+    const noun = isFile ? 'File' : 'Folder'
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        title: mode === 'load' ? 'Select Negotiation Folder' : 'Select Negotiation to Import',
-        initial_dir: loadImportPath.value || null
+      body: JSON.stringify({
+        title: mode === 'load' ? `Select Negotiation ${noun}` : `Select Negotiation ${noun} to Import`,
+        initial_dir: loadImportPath.value || null,
+        file_types: isFile ? [['Trace files', '*.parquet'], ['CSV files', '*.csv'], ['All files', '*.*']] : null
       })
     })
     

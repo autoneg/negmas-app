@@ -10,24 +10,14 @@ if not exist "pyproject.toml" (
     exit /b 1
 )
 
-echo Step 1: Installing Python dependencies...
+echo Step 1: Installing Python dependencies (incl. negmas* from PyPI)...
 echo ------------------------------------------
+REM All negmas* packages come from PyPI as normal dependencies. The app must work
+REM without local checkouts, so we do NOT install editable packages from ..\ here.
 call uv sync --all-extras --dev
 
 echo.
-echo Step 2: Installing local negmas packages...
-echo ------------------------------------------
-for %%x in (negmas negmas-llm negmas-genius-agents negmas-negolog negmas-rl negmas) do (
-    if exist "..\%%x" (
-        echo Installing ..\%%x
-        call uv pip install -e ..\%%x
-    ) else (
-        echo Warning: ..\%%x not found, skipping
-    )
-)
-
-echo.
-echo Step 3: Installing Vue.js frontend dependencies...
+echo Step 2: Installing Vue.js frontend dependencies...
 echo ------------------------------------------
 if exist "src\frontend" (
     cd src\frontend

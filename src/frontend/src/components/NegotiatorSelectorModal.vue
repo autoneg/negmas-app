@@ -171,7 +171,10 @@
     </div>
     
     <!-- Nested: Negotiator Config Modal for configuring selected items -->
+    <!-- v-if gates instantiation: SelectorModal <-> ConfigModal mutually render each
+         other, so without v-if they instantiate each other infinitely (stack overflow). -->
     <NegotiatorConfigModal
+      v-if="showConfigModal"
       :show="showConfigModal"
       :negotiator-type="configModalType"
       :negotiator-name="configModalName"

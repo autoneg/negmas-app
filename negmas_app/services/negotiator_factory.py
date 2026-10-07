@@ -295,7 +295,28 @@ def _discover_from_library(
     return entries
 
 
-def _discover_from_negmas_registry() -> list[NegotiatorEntry]:
+# Plugin libraries register themselves in the negmas registry under their own
+# source names; map those to the app's source IDs so each agent is listed once.
+# Registered negotiators that cannot run as listed: UtilBasedNegotiator is
+# abstract and the meta negotiators need sub-negotiators to be supplied
+EXCLUDED_NEGOTIATORS: frozenset[str] = frozenset(
+    {
+        "UtilBasedNegotiator",
+        "RangeMetaNegotiator",
+        "MeanMetaNegotiator",
+        "OSMeanMetaNegotiator",
+    }
+)
+
+_REGISTRY_SOURCE_ALIASES: dict[str, str] = {
+    "genius-agents": "genius-reimplemented",
+    "negmas-llm": "llm",
+}
+
+
+def _discover_from_negmas_registry(
+    disabled: set[str] | None = None,
+) -> list[NegotiatorEntry]:
     """Discover negotiators from negmas built-in registry.
 
     This provides rich metadata including tags, anac_year, etc.
@@ -303,9 +324,18 @@ def _discover_from_negmas_registry() -> list[NegotiatorEntry]:
     entries = []
     try:
         from negmas import negotiator_registry
+        from negmas.gb import GBNegotiator
 
         for key, info in negotiator_registry.items():
             if info is None:
+                continue
+
+            # Skip registered classes that cannot join a negotiation (e.g. the
+            # elicitation helpers in negmas.negotiators.simple)
+            if not (
+                isinstance(info.cls, type)
+                and issubclass(info.cls, (SAONegotiator, GBNegotiator))
+            ):
                 continue
 
             # Determine source based on tags
@@ -330,7 +360,11 @@ def _discover_from_negmas_registry() -> list[NegotiatorEntry]:
             else:
                 # Use the info.source field from the registry
                 source = info.source if info.source != "unknown" else "native"
+                source = _REGISTRY_SOURCE_ALIASES.get(source, source)
                 group = ""
+
+            if disabled and source in disabled:
+                continue
 
             # Determine module_path from full_type_name
             module_path = ""
@@ -339,6 +373,17 @@ def _discover_from_negmas_registry() -> list[NegotiatorEntry]:
 
             # Use full_type_name as the primary type_name (this is correct and importable)
             type_name = info.full_type_name
+            # Plugin agents were historically keyed by their top-level export
+            # (e.g. negmas_genius_agents.AgentGG); keep that key so saved presets match
+            if source in _REGISTRY_SOURCE_ALIASES.values() and type_name:
+                top_pkg = type_name.split(".", 1)[0]
+                short_name = f"{top_pkg}.{info.cls.__name__}"
+                try:
+                    if getattr(importlib.import_module(top_pkg), info.cls.__name__, None) is info.cls:
+                        type_name = short_name
+                        module_path = top_pkg
+                except ImportError:
+                    pass
 
             # Extract description
             description = ""
@@ -393,7 +438,7 @@ def _discover_all_negotiators() -> None:
 
     # First: Try negmas built-in registry (preferred - has rich metadata)
     if "native" not in disabled or "genius" not in disabled:
-        for entry in _discover_from_negmas_registry():
+        for entry in _discover_from_negmas_registry(disabled):
             NEGOTIATOR_REGISTRY[entry.info.type_name] = entry
             registry_sources_found.add(entry.info.source)
 
@@ -454,8 +499,10 @@ def _discover_all_negotiators() -> None:
             NEGOTIATOR_REGISTRY[type_name] = NegotiatorEntry(cls=None, info=info)  # type: ignore[arg-type]
 
     # Genius reimplemented
-    if "genius-reimplemented" not in disabled and _is_package_available(
-        "negmas_genius_agents"
+    if (
+        "genius-reimplemented" not in disabled
+        and "genius-reimplemented" not in registry_sources_found
+        and _is_package_available("negmas_genius_agents")
     ):
         for entry in _discover_from_library(
             "genius-reimplemented", "negmas_genius_agents"
@@ -463,7 +510,11 @@ def _discover_all_negotiators() -> None:
             NEGOTIATOR_REGISTRY[entry.info.type_name] = entry
 
     # LLM negotiators
-    if "llm" not in disabled and _is_package_available("negmas_llm"):
+    if (
+        "llm" not in disabled
+        and "llm" not in registry_sources_found
+        and _is_package_available("negmas_llm")
+    ):
         for entry in _discover_from_library("llm", "negmas_llm"):
             NEGOTIATOR_REGISTRY[entry.info.type_name] = entry
 
@@ -520,6 +571,10 @@ def _discover_all_negotiators() -> None:
         ):
             NEGOTIATOR_REGISTRY[entry.info.type_name] = entry
 
+    for type_name in list(NEGOTIATOR_REGISTRY):
+        if type_name.split("#")[0].rsplit(".", 1)[-1] in EXCLUDED_NEGOTIATORS:
+            del NEGOTIATOR_REGISTRY[type_name]
+
 
 def _get_class_for_type(type_name: str) -> type | None:
     """Get a negotiator class by type name, dynamically importing if needed."""
@@ -546,6 +601,33 @@ def _get_class_for_type(type_name: str) -> type | None:
             return None
 
     return None
+
+
+def _describe_unresolved_type(type_name: str) -> str:
+    """Explain why a negotiator type could not be resolved.
+
+    `_get_class_for_type` returns None both for a genuinely unknown type and for
+    one whose backend cannot be imported (e.g. NegoLog agents need the vendored
+    `nenv` package, absent in a PyPI-only install). Previously both collapsed into
+    "Unknown negotiator type", which surfaced in the UI as an error with no detail.
+    This retries the import on the error path to produce an actionable message.
+    """
+    parts = type_name.rsplit(".", 1)
+    if len(parts) == 2:
+        module_path, class_name = parts
+        try:
+            mod = importlib.import_module(module_path)
+        except ImportError as e:
+            return (
+                f"Negotiator '{type_name}' is unavailable: could not import "
+                f"'{module_path}' ({e}). Its backend dependencies are not installed."
+            )
+        if getattr(mod, class_name, None) is None:
+            return (
+                f"Negotiator '{type_name}' is unavailable: '{class_name}' was not "
+                f"found in module '{module_path}'."
+            )
+    return f"Unknown negotiator type: {type_name}"
 
 
 # Run discovery on module load
@@ -610,7 +692,7 @@ def _instantiate_component(config: NestedComponentConfig) -> object:
         if cls is not None:
             return cls(**processed_params)
 
-    raise ValueError(f"Cannot resolve component type: {type_name}")
+    raise ValueError(_describe_unresolved_type(type_name))
 
 
 def _process_nested_params(params: dict) -> dict:
@@ -908,7 +990,7 @@ class NegotiatorFactory:
         # Regular negotiator - look up class by type name
         cls = _get_class_for_type(type_name)
         if cls is None:
-            raise ValueError(f"Unknown negotiator type: {type_name}")
+            raise ValueError(_describe_unresolved_type(type_name))
 
         # Process params to instantiate any nested negotiator/component configs
         processed_params = _process_nested_params(config.params)
