@@ -52,4 +52,4 @@ issues:
   - d9
   - d10
 name: GeneKingDomain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

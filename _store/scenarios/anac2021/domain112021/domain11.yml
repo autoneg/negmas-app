@@ -56,4 +56,4 @@ issues:
   - valueE
   - valueF
 name: domain11
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

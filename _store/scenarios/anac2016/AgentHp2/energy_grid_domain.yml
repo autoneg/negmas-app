@@ -40,4 +40,4 @@ issues:
   - 8
   - 14
 name: energy_grid_domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

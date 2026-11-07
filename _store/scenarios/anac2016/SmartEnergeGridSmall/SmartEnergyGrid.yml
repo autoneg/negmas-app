@@ -32,4 +32,4 @@ issues:
   - 75 kW,
   - 100 kW,
 name: SmartEnergyGrid
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

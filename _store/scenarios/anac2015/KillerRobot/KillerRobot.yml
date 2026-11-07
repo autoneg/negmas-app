@@ -42,4 +42,4 @@ issues:
   - 1
   - 50
 name: KillerRobot
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

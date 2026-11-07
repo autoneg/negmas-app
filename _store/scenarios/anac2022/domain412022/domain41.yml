@@ -58,4 +58,4 @@ issues:
   - valueE
   - valueF
 name: domain41
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

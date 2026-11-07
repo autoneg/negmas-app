@@ -41,4 +41,4 @@ issues:
   - valueI
   - valueJ
 name: domain11
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

@@ -51,4 +51,4 @@ issues:
   - valueJ
   - valueK
 name: domain22
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

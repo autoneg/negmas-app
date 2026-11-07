@@ -35,4 +35,4 @@ issues:
   - 8
   - 16
 name: Phone
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

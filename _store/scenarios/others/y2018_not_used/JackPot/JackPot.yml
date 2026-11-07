@@ -68,4 +68,4 @@ issues:
   - Two
   - Ace
 name: JackPot
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

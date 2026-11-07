@@ -39,4 +39,4 @@ issues:
   - method3
   - method4
 name: PEnergy
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

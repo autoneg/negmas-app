@@ -62,4 +62,4 @@ issues:
   - valueL
   - valueM
 name: domain21
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

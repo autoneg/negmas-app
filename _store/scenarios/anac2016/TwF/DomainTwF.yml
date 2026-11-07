@@ -16,4 +16,4 @@ issues:
   - b4
   - b5
 name: DomainTwF
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

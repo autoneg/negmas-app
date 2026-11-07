@@ -37,4 +37,4 @@ issues:
   - Normal
   - Gas
 name: Barbecue-C-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

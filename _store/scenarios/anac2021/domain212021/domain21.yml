@@ -67,4 +67,4 @@ issues:
   - valueY
   - valueZ
 name: domain21
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

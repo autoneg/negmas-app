@@ -64,4 +64,4 @@ issues:
   - 75kW
   - 100kW
 name: domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

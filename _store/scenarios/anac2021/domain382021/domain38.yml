@@ -63,4 +63,4 @@ issues:
   - valueF
   - valueG
 name: domain38
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

@@ -28,4 +28,4 @@ issues:
   - Evening
   - Midnight
 name: lgsmi-movie-domain - Lital Chaghbi
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

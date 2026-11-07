@@ -53,4 +53,4 @@ issues:
   - Softdrugs tolerated
   - All drugs illegal
 name: Politics
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

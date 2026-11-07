@@ -53,4 +53,4 @@ issues:
   - valueE
   - valueF
 name: domain23
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

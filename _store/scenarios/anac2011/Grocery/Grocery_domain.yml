@@ -37,4 +37,4 @@ issues:
   - Potatoes
   - Spinach
 name: Grocery_domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

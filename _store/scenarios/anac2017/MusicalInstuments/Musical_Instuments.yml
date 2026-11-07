@@ -29,4 +29,4 @@ issues:
   - Fender
   - Yamaha
 name: Musical_Instuments
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

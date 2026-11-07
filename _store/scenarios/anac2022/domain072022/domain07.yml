@@ -52,4 +52,4 @@ issues:
   - valueF
   - valueG
 name: domain07
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

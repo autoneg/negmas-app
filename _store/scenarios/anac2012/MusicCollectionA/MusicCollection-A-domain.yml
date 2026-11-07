@@ -43,4 +43,4 @@ issues:
   - Gypsy Kings
   - Tito Puente
 name: MusicCollection-A-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

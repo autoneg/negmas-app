@@ -70,4 +70,4 @@ issues:
   - valueY
   - valueZ
 name: domain49
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

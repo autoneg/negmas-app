@@ -38,4 +38,4 @@ issues:
   - 9 hours
   - 8 hours
 name: qodomain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

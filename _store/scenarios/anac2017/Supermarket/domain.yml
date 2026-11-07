@@ -44,4 +44,4 @@ issues:
   - Juice
   - Nescafe
 name: domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

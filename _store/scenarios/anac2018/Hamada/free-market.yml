@@ -32,4 +32,4 @@ issues:
   - 75 kW,
   - 100 kW,
 name: free-market
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

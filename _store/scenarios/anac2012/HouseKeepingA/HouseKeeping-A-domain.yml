@@ -32,4 +32,4 @@ issues:
   - Both
   - Gardener
 name: HouseKeeping-A-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

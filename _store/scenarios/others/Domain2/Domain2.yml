@@ -16,4 +16,4 @@ issues:
   - b4
   - b5
 name: Domain2
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

@@ -28,4 +28,4 @@ issues:
   - Sports
   - Luxury
 name: CarDomain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

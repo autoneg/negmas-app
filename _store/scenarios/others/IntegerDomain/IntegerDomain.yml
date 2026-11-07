@@ -10,4 +10,4 @@ issues:
   - -5
   - 5
 name: IntegerDomain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

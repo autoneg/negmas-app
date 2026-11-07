@@ -62,4 +62,4 @@ issues:
   - Palace
   - Landscape and nature
 name: Travel-B-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

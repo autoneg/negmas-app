@@ -49,4 +49,4 @@ issues:
   - g1
   - g2
 name: AlphabetMaze
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

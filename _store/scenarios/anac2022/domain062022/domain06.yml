@@ -43,4 +43,4 @@ issues:
   - valueH
   - valueI
 name: domain06
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

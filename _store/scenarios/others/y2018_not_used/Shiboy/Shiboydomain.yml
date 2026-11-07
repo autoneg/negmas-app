@@ -25,4 +25,4 @@ issues:
   - Train
   - Bus
 name: Shiboydomain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

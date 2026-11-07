@@ -17,4 +17,4 @@ issues:
   - Proportional to Performance
   - Equally
 name: Bank_Robbery
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

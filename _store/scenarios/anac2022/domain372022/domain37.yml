@@ -57,4 +57,4 @@ issues:
   - valueN
   - valueO
 name: domain37
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

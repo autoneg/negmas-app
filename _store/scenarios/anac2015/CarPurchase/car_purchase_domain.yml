@@ -30,4 +30,4 @@ issues:
   - '4'
   - '6'
 name: car_purchase_domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

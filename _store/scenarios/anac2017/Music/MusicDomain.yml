@@ -38,4 +38,4 @@ issues:
   - Austria
   - Germany
 name: MusicDomain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

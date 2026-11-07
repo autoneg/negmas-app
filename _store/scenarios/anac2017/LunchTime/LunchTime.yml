@@ -22,4 +22,4 @@ issues:
   - ~1km
   - 1km~
 name: LunchTime
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

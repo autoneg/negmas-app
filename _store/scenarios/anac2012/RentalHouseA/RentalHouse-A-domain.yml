@@ -24,4 +24,4 @@ issues:
   - Electric
   - Gas
 name: RentalHouse-A-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

@@ -53,4 +53,4 @@ issues:
   - valueF
   - valueG
 name: domain09
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

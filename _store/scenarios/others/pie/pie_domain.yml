@@ -1004,4 +1004,4 @@ issues:
   - a999
   - a1000
 name: pie_domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

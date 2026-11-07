@@ -48,4 +48,4 @@ issues:
   - h2
   - h3
 name: Domain8
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

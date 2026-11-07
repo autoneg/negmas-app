@@ -40,4 +40,4 @@ issues:
   - $34,000
   - $32,000
 name: thompson_employment
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

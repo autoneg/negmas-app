@@ -59,4 +59,4 @@ issues:
   - '8'
   - '9'
 name: MyDomain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

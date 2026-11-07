@@ -22,4 +22,4 @@ issues:
   - 8gm
   - 10gm
 name: Barter-A-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

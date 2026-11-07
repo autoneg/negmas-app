@@ -36,4 +36,4 @@ issues:
   - medium
   - high
 name: Jobs
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

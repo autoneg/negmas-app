@@ -32,4 +32,4 @@ issues:
   - d4
   - d5
 name: Domain33
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

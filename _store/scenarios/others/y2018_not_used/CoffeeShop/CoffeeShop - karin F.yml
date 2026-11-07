@@ -56,4 +56,4 @@ issues:
   - Veggie Pizza
   - Make your own Pizza
 name: CoffeeShop - karin F
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

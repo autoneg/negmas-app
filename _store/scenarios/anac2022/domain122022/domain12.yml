@@ -58,4 +58,4 @@ issues:
   - valueY
   - valueZ
 name: domain12
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

@@ -37,4 +37,4 @@ issues:
   - cable
   - fiberglass
 name: building_construction
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

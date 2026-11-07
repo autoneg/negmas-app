@@ -57,4 +57,4 @@ issues:
   - valueO
   - valueP
 name: domain28
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

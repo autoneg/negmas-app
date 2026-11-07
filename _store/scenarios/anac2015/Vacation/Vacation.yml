@@ -35,4 +35,4 @@ issues:
   - Cabin
   - Camping
 name: Vacation
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

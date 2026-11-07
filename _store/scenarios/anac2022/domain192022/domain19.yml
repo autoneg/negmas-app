@@ -55,4 +55,4 @@ issues:
   - valueM
   - valueN
 name: domain19
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

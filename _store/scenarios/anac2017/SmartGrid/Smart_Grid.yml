@@ -22,4 +22,4 @@ issues:
   - 12-18
   - 18-00
 name: Smart_Grid
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

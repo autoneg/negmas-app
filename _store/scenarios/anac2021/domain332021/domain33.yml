@@ -48,4 +48,4 @@ issues:
   - valueJ
   - valueK
 name: domain33
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

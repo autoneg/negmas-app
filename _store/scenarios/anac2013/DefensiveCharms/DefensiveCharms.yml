@@ -19,4 +19,4 @@ issues:
   - Colloportus
   - Muffliato
 name: DefensiveCharms
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

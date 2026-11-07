@@ -41,4 +41,4 @@ issues:
   - Special Equiment
   - Hired Help
 name: party_domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

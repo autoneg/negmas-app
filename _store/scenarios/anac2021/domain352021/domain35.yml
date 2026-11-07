@@ -54,4 +54,4 @@ issues:
   - valueG
   - valueH
 name: domain35
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

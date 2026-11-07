@@ -57,4 +57,4 @@ issues:
   - valueL
   - valueM
 name: domain36
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

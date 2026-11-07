@@ -23,4 +23,4 @@ issues:
   - Energy Amount 4
   - Energy Amount 5
 name: SmartGridDomain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

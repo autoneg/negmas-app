@@ -42,4 +42,4 @@ issues:
   - valueL
   - valueM
 name: domain42
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

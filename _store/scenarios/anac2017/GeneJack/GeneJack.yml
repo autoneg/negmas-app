@@ -52,4 +52,4 @@ issues:
   - d9
   - d10
 name: GeneJack
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

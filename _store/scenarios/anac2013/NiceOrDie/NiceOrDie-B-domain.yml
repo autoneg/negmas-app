@@ -6,4 +6,4 @@ issues:
   - '16_100'
   - '29_29'
 name: NiceOrDie-B-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

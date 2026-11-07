@@ -12,4 +12,4 @@ issues:
   - Y
   - Z
 name: Ultimatum
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

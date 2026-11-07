@@ -42,4 +42,4 @@ issues:
   - Cheese
   - Waterpipe
 name: Amsterdam-B-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

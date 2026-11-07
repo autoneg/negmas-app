@@ -38,4 +38,4 @@ issues:
   - valueD
   - valueE
 name: domain31
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

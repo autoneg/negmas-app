@@ -56,4 +56,4 @@ issues:
   - valueC
   - valueD
 name: domain33
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

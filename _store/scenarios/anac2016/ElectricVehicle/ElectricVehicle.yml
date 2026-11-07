@@ -15,4 +15,4 @@ issues:
   - Low
   - High
 name: ElectricVehicle
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

@@ -52,4 +52,4 @@ issues:
   - valueN
   - valueO
 name: domain36
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

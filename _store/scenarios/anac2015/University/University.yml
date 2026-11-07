@@ -39,4 +39,4 @@ issues:
   - Fastfood Restaurant
   - Restaurant
 name: University
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

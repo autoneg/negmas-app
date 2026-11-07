@@ -19,4 +19,4 @@ issues:
   - Sep3_2011
   - Sep4_2011
 name: FlightBooking-A-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

@@ -59,4 +59,4 @@ issues:
   - valueD
   - valueE
 name: domain26
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

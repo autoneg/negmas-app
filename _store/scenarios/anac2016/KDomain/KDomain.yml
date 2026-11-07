@@ -36,4 +36,4 @@ issues:
   - e3
   - e4
 name: KDomain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

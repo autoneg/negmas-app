@@ -14,4 +14,4 @@ issues:
   - '10_90'
   - '0_100'
 name: FiftyFifty-B-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

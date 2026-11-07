@@ -48,4 +48,4 @@ issues:
   - valueP
   - valueQ
 name: domain47
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

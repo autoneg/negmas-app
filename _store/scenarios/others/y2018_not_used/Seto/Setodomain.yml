@@ -45,4 +45,4 @@ issues:
   - i1
   - i2
 name: Setodomain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

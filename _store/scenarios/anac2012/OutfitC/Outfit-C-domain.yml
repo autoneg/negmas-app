@@ -26,4 +26,4 @@ issues:
   - hat
   - sunglasses
 name: Outfit-C-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

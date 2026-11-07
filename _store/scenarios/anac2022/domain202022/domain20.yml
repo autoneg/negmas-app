@@ -48,4 +48,4 @@ issues:
   - valueD
   - valueE
 name: domain20
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

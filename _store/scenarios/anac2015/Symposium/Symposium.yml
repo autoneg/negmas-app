@@ -40,4 +40,4 @@ issues:
   - November
   - December
 name: Symposium
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

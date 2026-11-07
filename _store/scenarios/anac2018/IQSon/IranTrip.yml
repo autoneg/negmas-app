@@ -54,4 +54,4 @@ issues:
   - cooking
   - buying
 name: IranTrip
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

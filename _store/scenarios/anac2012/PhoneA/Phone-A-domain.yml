@@ -37,4 +37,4 @@ issues:
   - 800*1280
   - 1280*1280
 name: Phone-A-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

@@ -61,4 +61,4 @@ issues:
   - Beer
   - Wine
 name: Supermarket-C-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

@@ -48,4 +48,4 @@ issues:
   - 75 kW
   - 100 kW
 name: EnergySmall-C-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

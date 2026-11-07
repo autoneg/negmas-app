@@ -34,4 +34,4 @@ issues:
   - Rainy
   - Isolated T-Storms
 name: Smart_Energy_Grid
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

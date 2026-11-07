@@ -30,4 +30,4 @@ issues:
   - '4'
   - '6'
 name: New_sporthal
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

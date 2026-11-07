@@ -32,4 +32,4 @@ issues:
   - '0.02'
   - LessThan0.02
 name: AirportSiteSelection-A-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

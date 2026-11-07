@@ -51,4 +51,4 @@ issues:
   - valueH
   - valueI
 name: domain30
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

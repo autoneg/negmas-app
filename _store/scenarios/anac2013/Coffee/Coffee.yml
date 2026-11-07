@@ -24,4 +24,4 @@ issues:
   - some
   - much
 name: Coffee
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

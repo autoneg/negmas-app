@@ -21,4 +21,4 @@ issues:
   - Nuclear
   - Natural gas
 name: Smart_Energy_Grid
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

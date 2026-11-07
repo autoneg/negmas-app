@@ -38,4 +38,4 @@ issues:
   - valueA
   - valueB
 name: domain23
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

@@ -30,4 +30,4 @@ issues:
   - d5
   - d6
 name: tangxun
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

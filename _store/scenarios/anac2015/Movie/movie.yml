@@ -10,4 +10,4 @@ issues:
   - finding nemo
   - the good, the bad and the ugly
 name: movie
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

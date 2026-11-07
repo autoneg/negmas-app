@@ -19,4 +19,4 @@ issues:
   - 3 sept.
   - 4 sept.
 name: flightbooking
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

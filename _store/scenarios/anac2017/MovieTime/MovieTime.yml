@@ -27,4 +27,4 @@ issues:
   - IceCream
   - MilkShake
 name: MovieTime
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

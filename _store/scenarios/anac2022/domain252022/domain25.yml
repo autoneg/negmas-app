@@ -55,4 +55,4 @@ issues:
   - valueB
   - valueC
 name: domain25
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

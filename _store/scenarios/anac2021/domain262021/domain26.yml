@@ -63,4 +63,4 @@ issues:
   - valueX
   - valueY
 name: domain26
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

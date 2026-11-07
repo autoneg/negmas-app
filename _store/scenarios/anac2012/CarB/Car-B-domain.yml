@@ -48,4 +48,4 @@ issues:
   - meager
   - none
 name: Car-B-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

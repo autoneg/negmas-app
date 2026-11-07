@@ -18,4 +18,4 @@ issues:
   - Regular computer
   - Super computer
 name: planes_domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

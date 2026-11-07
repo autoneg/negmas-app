@@ -41,4 +41,4 @@ issues:
   - valueA
   - valueB
 name: domain24
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

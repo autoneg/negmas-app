@@ -42,4 +42,4 @@ issues:
   - Memory
   - Strap
 name: Camera-C-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

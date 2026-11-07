@@ -31,4 +31,4 @@ issues:
   - Housing
   - Industrial
 name: zoning_plan
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace

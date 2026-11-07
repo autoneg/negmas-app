@@ -33,4 +33,4 @@ issues:
   - Creation of committee to develop agenda
   - 'No'
 name: EnglandvsZimbabwe-C-domain
-type: DiscreteCartesianOutcomeSpace
+type: EnumerableCartesianOutcomeSpace
